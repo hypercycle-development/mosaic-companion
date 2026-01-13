@@ -4,14 +4,6 @@ import { Mic, Send, Paperclip, Sparkles, StopCircle } from "lucide-react";
 interface BottomBarProps {
   onSubmit: (text: string) => void;
 }
-declare global {
-  interface Window {
-    electronAPI: {
-      logInput: (text: string) => Promise<{ success: boolean; path: string }>;
-      getCsvPath: () => Promise<string>;
-    };
-  }
-}
 
 export const BottomBar: React.FC<BottomBarProps> = ({ onSubmit }) => {
   const [input, setInput] = useState("");
