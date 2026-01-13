@@ -67,6 +67,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     autoDownload: false,
   });
 
+  // Toast feedback for settings changes
+  const [settingsToast, setSettingsToast] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
   // Load update settings on mount
   useEffect(() => {
     const loadUpdateSettings = async () => {
@@ -78,16 +84,28 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     loadUpdateSettings();
   }, []);
 
-  // Helper to update a single setting
+  // Helper to update a single setting with feedback
   const handleUpdateSettingChange = async (
     key: keyof typeof updateSettings,
     value: boolean
   ) => {
     if (window.electronAPI?.setUpdateSettings) {
-      const newSettings = await window.electronAPI.setUpdateSettings({
+      const result = await window.electronAPI.setUpdateSettings({
         [key]: value,
       });
-      setUpdateSettingsState(newSettings);
+
+      if (result.success) {
+        setUpdateSettingsState(result.settings);
+        setSettingsToast({ type: "success", message: "Setting saved" });
+      } else {
+        setSettingsToast({
+          type: "error",
+          message: result.error || "Failed to save setting",
+        });
+      }
+
+      // Clear toast after 3 seconds
+      setTimeout(() => setSettingsToast(null), 3000);
     }
   };
 
@@ -675,6 +693,27 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 />
               </button>
             </div>
+
+            {/* Settings Feedback Toast */}
+            {settingsToast && (
+              <div
+                className={`
+                  flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium animate-in slide-in-from-bottom-2 duration-200
+                  ${
+                    settingsToast.type === "success"
+                      ? "bg-emerald-900/30 text-emerald-400 border border-emerald-500/30"
+                      : "bg-red-900/30 text-red-400 border border-red-500/30"
+                  }
+                `}
+              >
+                {settingsToast.type === "success" ? (
+                  <CheckCircle size={16} />
+                ) : (
+                  <XCircle size={16} />
+                )}
+                {settingsToast.message}
+              </div>
+            )}
           </div>
         </section>
 
