@@ -7,11 +7,10 @@ const { autoUpdater } = electronUpdater;
 autoUpdater.logger = console;
 
 // Configure S3 provider
-// TODO: Replace with our values
 autoUpdater.setFeedURL({
   provider: "s3",
-  bucket: "BUCKET_NAME",
-  region: "BUCKET_REGION",
+  bucket: "mosaic-release",
+  region: "us-east-2",
   path: "/releases",
 });
 
