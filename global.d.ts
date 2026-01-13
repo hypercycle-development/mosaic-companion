@@ -1,11 +1,23 @@
 import { AIAgentConfig } from "./types/ai";
 
 declare global {
+  // Update settings configuration
+  interface UpdateSettings {
+    autoDownload: boolean;
+  }
+
   interface Window {
     electronAPI: {
       // Existing methods
       logInput: (text: string) => Promise<{ success: boolean; path: string }>;
       getCsvPath: () => Promise<string>;
+
+      // Update methods
+      checkForUpdates: () => Promise<{ triggered: boolean; reason?: string }>;
+      getUpdateSettings: () => Promise<UpdateSettings>;
+      setUpdateSettings: (
+        settings: Partial<UpdateSettings>
+      ) => Promise<UpdateSettings>;
 
       // AI Agents methods
       aiAgents: {

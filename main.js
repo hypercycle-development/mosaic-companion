@@ -3,6 +3,8 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import { checkForUpdates, manualCheckForUpdates, getUpdateSettings, setUpdateSettings } from "./updater.js";
+
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -26,7 +28,12 @@ function createWindow() {
 
 app.whenReady().then(() => {
   console.log("User data path:", app.getPath("userData"));
-  return createWindow();
+  createWindow();
+
+  // Check for updates on startup (skip in development)
+  if (app.isPackaged) {
+    checkForUpdates();
+  }
 });
 
 app.on("window-all-closed", () => {
@@ -64,6 +71,34 @@ ipcMain.handle("log-input", async (event, text) => {
 });
 
 ipcMain.handle("get-csv-path", () => csvPath);
+
+// Handler for the button "Check for Updates"
+ipcMain.handle("check-for-updates", async () => {
+  if (app.isPackaged) {
+    manualCheckForUpdates();
+    return { triggered: true };
+  }
+  // Development mode: show dialog explaining updates are disabled
+  const { dialog } = await import("electron");
+  dialog.showMessageBox({
+    type: "info",
+    title: "Development Mode",
+    message: "Updates are disabled in development mode.",
+    detail: "Build and run the packaged app to test updates.",
+  });
+  return { triggered: false, reason: "Updates disabled in development mode" };
+});
+
+// Handler to get current update settings
+ipcMain.handle("get-update-settings", async () => {
+  return getUpdateSettings();
+});
+
+// Handler to set update settings
+ipcMain.handle("set-update-settings", async (event, newSettings) => {
+  setUpdateSettings(newSettings);
+  return getUpdateSettings();
+});
 
 // ============================================
 // AI Agents Storage
