@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Bun
+bun.lockb
+
 # Build outputs
 dist/
 out/
@@ -16,6 +19,7 @@ dist-electron/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+bun-debug.log*
 
 # OS files
 .DS_Store
