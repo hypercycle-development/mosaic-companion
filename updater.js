@@ -15,9 +15,49 @@ autoUpdater.setFeedURL({
   path: "/releases",
 });
 
-// Disable auto-download - Ask to the user first
-autoUpdater.autoDownload = false;
-autoUpdater.autoInstallOnAppQuit = true;
+
+// TODO: Load from config when persistence system is ready
+// Default settings 
+const updateSettings = {
+  /**
+   * If true, download updates automatically
+   */
+  autoDownload: false,       
+};
+
+/**
+ * Apply current settings to autoUpdater.
+ * Call this after changing settings.
+ */
+function applyUpdateSettings() {
+  autoUpdater.autoDownload = updateSettings.autoDownload;
+  console.log("Update settings applied:", updateSettings);
+}
+
+/**
+ * Get current update settings.
+ * @returns {object} Current settings
+ */
+export function getUpdateSettings() {
+  return { ...updateSettings };
+}
+
+/**
+ * Set update settings and apply them immediately.
+ * @param {object} newSettings - Partial settings to update
+ * 
+ * TODO: Persist to config when persistence system is ready
+ */
+export function setUpdateSettings(newSettings) {
+  if (typeof newSettings.autoDownload === "boolean") {
+    updateSettings.autoDownload = newSettings.autoDownload;
+  }
+  applyUpdateSettings();
+  // TODO: Save to config here when persistence system is ready
+}
+
+// Apply initial settings
+applyUpdateSettings();
 
 /**
  * Check for updates on app startup.
