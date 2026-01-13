@@ -38,6 +38,7 @@
       "dist/**/*",
       "main.js",
       "updater.js",
+      "preload.js",
       "package.json"
     ],
     "publish": {
