@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Save, Eye, Layout } from "lucide-react";
 
 interface SettingsPageProps {
@@ -18,6 +18,35 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   showUrlBar,
   setShowUrlBar,
 }) => {
+  // Update settings state
+  const [updateSettings, setUpdateSettingsState] = useState({
+    autoDownload: false,
+  });
+
+  // Load update settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (window.electronAPI?.getUpdateSettings) {
+        const settings = await window.electronAPI.getUpdateSettings();
+        setUpdateSettingsState(settings);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  // Helper to update a single setting
+  const handleUpdateSettingChange = async (
+    key: keyof typeof updateSettings,
+    value: boolean
+  ) => {
+    if (window.electronAPI?.setUpdateSettings) {
+      const newSettings = await window.electronAPI.setUpdateSettings({
+        [key]: value,
+      });
+      setUpdateSettingsState(newSettings);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-8 md:p-12 animate-in slide-in-from-bottom-4 duration-300 text-gray-100 font-sans">
       <h1 className="text-3xl font-bold text-white mb-8 border-b border-gray-800 pb-4 tracking-tight">
@@ -89,25 +118,67 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           <h2 className="text-xl font-semibold mb-4 text-indigo-400">
             Updates
           </h2>
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-gray-200 font-medium block">
-                Software Updates
-              </span>
-              <p className="text-sm text-gray-500">
-                Check if a new version of Mosaic Browser is available.
-              </p>
+          <div className="space-y-4">
+            {/* Check for Updates Button */}
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-gray-200 font-medium block">
+                  Software Updates
+                </span>
+                <p className="text-sm text-gray-500">
+                  Check if a new version of Mosaic Browser is available.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  if (window.electronAPI?.checkForUpdates) {
+                    window.electronAPI.checkForUpdates();
+                  }
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+              >
+                Check for Updates
+              </button>
             </div>
-            <button
-              onClick={() => {
-                if (window.electronAPI?.checkForUpdates) {
-                  window.electronAPI.checkForUpdates();
+
+            {/* Auto-download Toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-gray-200 font-medium block">
+                  Download updates automatically
+                </span>
+                <p className="text-sm text-gray-500">
+                  Download new versions in the background without asking.
+                </p>
+              </div>
+              <button
+                onClick={() =>
+                  handleUpdateSettingChange(
+                    "autoDownload",
+                    !updateSettings.autoDownload
+                  )
                 }
-              }}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-            >
-              Check for Updates
-            </button>
+                className={`
+                  relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900
+                  ${
+                    updateSettings.autoDownload
+                      ? "bg-indigo-600"
+                      : "bg-gray-700"
+                  }
+                `}
+              >
+                <span
+                  className={`
+                  inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out
+                  ${
+                    updateSettings.autoDownload
+                      ? "translate-x-6"
+                      : "translate-x-1"
+                  }
+                `}
+                />
+              </button>
+            </div>
           </div>
         </section>
 
