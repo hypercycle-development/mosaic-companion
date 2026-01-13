@@ -96,8 +96,8 @@ ipcMain.handle("get-update-settings", async () => {
 
 // Handler to set update settings
 ipcMain.handle("set-update-settings", async (event, newSettings) => {
-  setUpdateSettings(newSettings);
-  return getUpdateSettings();
+  const result = setUpdateSettings(newSettings);
+  return result;
 });
 
 // ============================================
