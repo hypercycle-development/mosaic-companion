@@ -76,5 +76,13 @@ ipcMain.handle("check-for-updates", async () => {
     manualCheckForUpdates();
     return { triggered: true };
   }
+  // Development mode: show dialog explaining updates are disabled
+  const { dialog } = await import("electron");
+  dialog.showMessageBox({
+    type: "info",
+    title: "Development Mode",
+    message: "Updates are disabled in development mode.",
+    detail: "Build and run the packaged app to test updates.",
+  });
   return { triggered: false, reason: "Updates disabled in development mode" };
 });
