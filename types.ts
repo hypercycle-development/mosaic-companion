@@ -47,4 +47,14 @@ declare global {
       }, HTMLElement>;
     }
   }
+
+  interface ElectronAPI {
+    logInput: (text: string) => Promise<{ success: boolean; path: string }>;
+    getCsvPath: () => Promise<string>;
+    checkForUpdates: () => Promise<{ triggered: boolean; reason?: string }>;
+  }
+
+  interface Window {
+    electronAPI?: ElectronAPI;
+  }
 }
