@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React from "react";
 
 export interface HistoryState {
   past: string[];
@@ -15,8 +14,8 @@ export interface SidebarItem {
 }
 
 export enum BrowserTheme {
-  LIGHT = 'light',
-  DARK = 'dark'
+  LIGHT = "light",
+  DARK = "dark",
 }
 
 export interface Tab {
@@ -27,9 +26,9 @@ export interface Tab {
   favicon?: string;
 }
 
-export const INTERNAL_HOME_URL = 'browser://home';
-export const INTERNAL_SETTINGS_URL = 'browser://settings';
-
+export const INTERNAL_HOME_URL = "browser://home";
+export const INTERNAL_SETTINGS_URL = "browser://settings";
+export const INTERNAL_CHAT_URL = "browser://internal_chat";
 export interface AppSettings {
   homeUrl: string;
   customGreeting: string;
@@ -40,11 +39,14 @@ export interface AppSettings {
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      'webview': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement> & { 
-        src?: string;
-        allowpopups?: boolean | string;
-        // Removed webpreferences as we are using defaults
-      }, HTMLElement>;
+      webview: React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement> & {
+          src?: string;
+          allowpopups?: boolean | string;
+          // Removed webpreferences as we are using defaults
+        },
+        HTMLElement
+      >;
     }
   }
 }
