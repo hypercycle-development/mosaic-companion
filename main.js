@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { checkForUpdates, manualCheckForUpdates } from "./updater.js";
+import { checkForUpdates, manualCheckForUpdates, getUpdateSettings, setUpdateSettings } from "./updater.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -85,4 +85,15 @@ ipcMain.handle("check-for-updates", async () => {
     detail: "Build and run the packaged app to test updates.",
   });
   return { triggered: false, reason: "Updates disabled in development mode" };
+});
+
+// Handler to get current update settings
+ipcMain.handle("get-update-settings", async () => {
+  return getUpdateSettings();
+});
+
+// Handler to set update settings
+ipcMain.handle("set-update-settings", async (event, newSettings) => {
+  setUpdateSettings(newSettings);
+  return getUpdateSettings();
 });
