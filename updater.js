@@ -78,7 +78,10 @@ export function checkForUpdates() {
  * Manual check for updates (for "Check for Updates" menu/button).
  * Always shows feedback to the user, even if no update is available.
  */
+let isManualCheck = false;
+
 export function manualCheckForUpdates() {
+  isManualCheck = true;
   autoUpdater
     .checkForUpdates()
     .then((result) => {
@@ -88,6 +91,7 @@ export function manualCheckForUpdates() {
           title: "No Updates",
           message: "You are running the latest version.",
         });
+        isManualCheck = false;
       }
     })
     .catch((err) => {
@@ -98,12 +102,14 @@ export function manualCheckForUpdates() {
         message: "Failed to check for updates. Please try again later.",
         detail: err.message,
       });
+      isManualCheck = false;
     });
 }
 
 // Event: Update available
 autoUpdater.on("update-available", (info) => {
   console.log("Update available:", info.version);
+  isManualCheck = false;
 
   dialog
     .showMessageBox({
@@ -126,6 +132,17 @@ autoUpdater.on("update-available", (info) => {
 // Event: Update not available
 autoUpdater.on("update-not-available", (info) => {
   console.log("No update available. Current version is up to date.");
+  
+  // Show dialog only for manual checks
+  if (isManualCheck) {
+    dialog.showMessageBox({
+      type: "info",
+      title: "No Updates Available",
+      message: "You're up to date!",
+      detail: `Mosaic Browser ${info.version} is the latest version.`,
+    });
+    isManualCheck = false;
+  }
 });
 
 // Event: Download progress
