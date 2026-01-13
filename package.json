@@ -37,8 +37,15 @@
     "files": [
       "dist/**/*",
       "main.js",
+      "updater.js",
       "package.json"
     ],
+    "publish": {
+      "provider": "s3",
+      "bucket": "BUCKET_NAME",
+      "region": "BUCKET_REGION",
+      "path": "/releases"
+    },
     "win": {
       "target": "nsis"
     },
