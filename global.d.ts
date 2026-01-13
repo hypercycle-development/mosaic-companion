@@ -17,7 +17,11 @@ declare global {
       getUpdateSettings: () => Promise<UpdateSettings>;
       setUpdateSettings: (
         settings: Partial<UpdateSettings>
-      ) => Promise<UpdateSettings>;
+      ) => Promise<{
+        success: boolean;
+        settings: UpdateSettings;
+        error?: string;
+      }>;
 
       // AI Agents methods
       aiAgents: {
