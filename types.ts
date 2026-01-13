@@ -48,10 +48,17 @@ declare global {
     }
   }
 
+  // Update settings configuration
+  interface UpdateSettings {
+    autoDownload: boolean;
+  }
+
   interface ElectronAPI {
     logInput: (text: string) => Promise<{ success: boolean; path: string }>;
     getCsvPath: () => Promise<string>;
     checkForUpdates: () => Promise<{ triggered: boolean; reason?: string }>;
+    getUpdateSettings: () => Promise<UpdateSettings>;
+    setUpdateSettings: (settings: Partial<UpdateSettings>) => Promise<UpdateSettings>;
   }
 
   interface Window {
