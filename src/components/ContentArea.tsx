@@ -1,14 +1,19 @@
-
-import React, { useState, useRef, useEffect } from 'react';
-import { INTERNAL_HOME_URL, INTERNAL_SETTINGS_URL, Tab } from '../types';
-import { LandingPage } from './LandingPage';
-import { SettingsPage } from './SettingsPage';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from "react";
+import {
+  INTERNAL_CHAT_URL,
+  INTERNAL_HOME_URL,
+  INTERNAL_SETTINGS_URL,
+  Tab,
+} from "../types/types";
+import { LandingPage } from "./LandingPage";
+import { SettingsPage } from "./SettingsPage";
+import { AlertTriangle, Loader2 } from "lucide-react";
+import { ChatView } from "./Chatview";
 
 interface ContentAreaProps {
   url: string;
   onNavigate: (url: string) => void;
-  theme: 'light' | 'dark';
+  theme: "light" | "dark";
   toggleTheme: () => void;
   settings: {
     homeUrl: string;
@@ -28,7 +33,11 @@ interface BrowserViewProps {
   onUpdateTab: (updates: Partial<Tab>) => void;
 }
 
-const BrowserView: React.FC<BrowserViewProps> = ({ url, onNavigate, onUpdateTab }) => {
+const BrowserView: React.FC<BrowserViewProps> = ({
+  url,
+  onNavigate,
+  onUpdateTab,
+}) => {
   const [hasError, setHasError] = useState(false);
   const webviewRef = useRef<any>(null);
   const loadingTimeoutRef = useRef<any>(null);
@@ -55,7 +64,7 @@ const BrowserView: React.FC<BrowserViewProps> = ({ url, onNavigate, onUpdateTab 
     const handleStopLoading = () => {
       // Debounce the stop loading to prevent flicker on redirects
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
-      
+
       loadingTimeoutRef.current = setTimeout(() => {
         onUpdateTab({ isLoading: false });
         loadingTimeoutRef.current = null;
@@ -65,7 +74,7 @@ const BrowserView: React.FC<BrowserViewProps> = ({ url, onNavigate, onUpdateTab 
     const handleFailLoad = (e: any) => {
       // errorCode -3 is ABORTED (often harmless redirects)
       if (e.errorCode !== -3 && e.errorCode !== 0) {
-        console.warn('Webview load failed', e);
+        console.warn("Webview load failed", e);
         if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
         onUpdateTab({ isLoading: false });
         setHasError(true);
@@ -79,10 +88,10 @@ const BrowserView: React.FC<BrowserViewProps> = ({ url, onNavigate, onUpdateTab 
     };
 
     const handleNewWindow = (e: any) => {
-        if (e.url) {
-            webview.loadURL(e.url);
-        }
-    }
+      if (e.url) {
+        webview.loadURL(e.url);
+      }
+    };
 
     const handlePageTitleUpdated = (e: any) => {
       onUpdateTab({ title: e.title });
@@ -95,30 +104,36 @@ const BrowserView: React.FC<BrowserViewProps> = ({ url, onNavigate, onUpdateTab 
     };
 
     // Attach listeners
-    webview.addEventListener('did-start-loading', handleStartLoading);
-    webview.addEventListener('did-stop-loading', handleStopLoading);
-    webview.addEventListener('did-fail-load', handleFailLoad);
-    webview.addEventListener('did-navigate', handleNavigate); 
-    webview.addEventListener('did-navigate-in-page', handleNavigate); 
-    webview.addEventListener('new-window', handleNewWindow);
-    webview.addEventListener('page-title-updated', handlePageTitleUpdated);
-    webview.addEventListener('page-favicon-updated', handlePageFaviconUpdated);
+    webview.addEventListener("did-start-loading", handleStartLoading);
+    webview.addEventListener("did-stop-loading", handleStopLoading);
+    webview.addEventListener("did-fail-load", handleFailLoad);
+    webview.addEventListener("did-navigate", handleNavigate);
+    webview.addEventListener("did-navigate-in-page", handleNavigate);
+    webview.addEventListener("new-window", handleNewWindow);
+    webview.addEventListener("page-title-updated", handlePageTitleUpdated);
+    webview.addEventListener("page-favicon-updated", handlePageFaviconUpdated);
 
     return () => {
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
-      
+
       if (webview) {
-        webview.removeEventListener('did-start-loading', handleStartLoading);
-        webview.removeEventListener('did-stop-loading', handleStopLoading);
-        webview.removeEventListener('did-fail-load', handleFailLoad);
-        webview.removeEventListener('did-navigate', handleNavigate);
-        webview.removeEventListener('did-navigate-in-page', handleNavigate);
-        webview.removeEventListener('new-window', handleNewWindow);
-        webview.removeEventListener('page-title-updated', handlePageTitleUpdated);
-        webview.removeEventListener('page-favicon-updated', handlePageFaviconUpdated);
+        webview.removeEventListener("did-start-loading", handleStartLoading);
+        webview.removeEventListener("did-stop-loading", handleStopLoading);
+        webview.removeEventListener("did-fail-load", handleFailLoad);
+        webview.removeEventListener("did-navigate", handleNavigate);
+        webview.removeEventListener("did-navigate-in-page", handleNavigate);
+        webview.removeEventListener("new-window", handleNewWindow);
+        webview.removeEventListener(
+          "page-title-updated",
+          handlePageTitleUpdated
+        );
+        webview.removeEventListener(
+          "page-favicon-updated",
+          handlePageFaviconUpdated
+        );
       }
     };
-  }, [onNavigate, url, onUpdateTab]); 
+  }, [onNavigate, url, onUpdateTab]);
 
   return (
     <div className="relative w-full h-full bg-gray-900 flex flex-col">
@@ -126,13 +141,15 @@ const BrowserView: React.FC<BrowserViewProps> = ({ url, onNavigate, onUpdateTab 
         <div className="absolute inset-0 flex items-center justify-center bg-gray-900 z-20">
           <div className="max-w-md text-center p-6 bg-gray-800 rounded-xl shadow-lg border border-red-900/30">
             <div className="w-12 h-12 bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
-                <AlertTriangle />
+              <AlertTriangle />
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">Failed to Load</h3>
+            <h3 className="text-lg font-bold text-white mb-2">
+              Failed to Load
+            </h3>
             <p className="text-gray-400 mb-6">
               The website <strong>{url}</strong> could not be loaded.
             </p>
-            <button 
+            <button
               onClick={() => onNavigate(INTERNAL_HOME_URL)}
               className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
             >
@@ -142,48 +159,63 @@ const BrowserView: React.FC<BrowserViewProps> = ({ url, onNavigate, onUpdateTab 
         </div>
       )}
 
-      <webview 
+      <webview
         ref={webviewRef}
         src={url}
         className="flex-1 w-full h-full border-none bg-gray-900"
         allowpopups={true}
-        style={{ width: '100%', height: '100%' }} 
+        style={{ width: "100%", height: "100%" }}
       />
     </div>
   );
 };
 
-export const ContentArea: React.FC<ContentAreaProps> = ({ url, onNavigate, settings, theme, toggleTheme, onUpdateTab, onStartDemo }) => {
+export const ContentArea: React.FC<ContentAreaProps> = ({
+  url,
+  onNavigate,
+  settings,
+  theme,
+  toggleTheme,
+  onUpdateTab,
+  onStartDemo,
+}) => {
   // Handle Demo Command
-  if (url === 'demo://start') {
+  if (url === "demo://start") {
     useEffect(() => {
-        if (onStartDemo) {
-            onStartDemo();
-        }
-        onNavigate(INTERNAL_HOME_URL);
+      if (onStartDemo) {
+        onStartDemo();
+      }
+      onNavigate(INTERNAL_HOME_URL);
     }, [url, onStartDemo, onNavigate]);
-    
+
     return <div className="bg-black w-full h-full" />;
   }
 
   // Handle Internal Pages
   if (url === INTERNAL_HOME_URL) {
     useEffect(() => {
-      onUpdateTab({ title: 'Mosaic', isLoading: false, favicon: undefined });
+      onUpdateTab({ title: "Mosaic", isLoading: false, favicon: undefined });
     }, [url]);
-    
-    return <LandingPage onNavigate={onNavigate} customGreeting={settings.customGreeting} theme={theme} toggleTheme={toggleTheme} />;
+
+    return (
+      <LandingPage
+        onNavigate={onNavigate}
+        customGreeting={settings.customGreeting}
+        theme={theme}
+        toggleTheme={toggleTheme}
+      />
+    );
   }
-  
+
   if (url === INTERNAL_SETTINGS_URL) {
     useEffect(() => {
-      onUpdateTab({ title: 'Settings', isLoading: false, favicon: undefined });
+      onUpdateTab({ title: "Settings", isLoading: false, favicon: undefined });
     }, [url]);
 
     return (
       <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
-        <SettingsPage 
-          homeUrl={settings.homeUrl} 
+        <SettingsPage
+          homeUrl={settings.homeUrl}
           setHomeUrl={settings.setHomeUrl}
           customGreeting={settings.customGreeting}
           setCustomGreeting={settings.setCustomGreeting}
@@ -193,21 +225,43 @@ export const ContentArea: React.FC<ContentAreaProps> = ({ url, onNavigate, setti
       </div>
     );
   }
+  if (url === INTERNAL_CHAT_URL) {
+    useEffect(() => {
+      onUpdateTab({ title: "Settings", isLoading: false, favicon: undefined });
+    }, [url]);
 
-  if (url.startsWith('browser://')) {
-     useEffect(() => {
-      onUpdateTab({ title: 'Internal Page', isLoading: false, favicon: undefined });
+    return (
+      <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
+        <ChatView />
+      </div>
+    );
+  }
+
+  if (url.startsWith("browser://")) {
+    useEffect(() => {
+      onUpdateTab({
+        title: "Internal Page",
+        isLoading: false,
+        favicon: undefined,
+      });
     }, [url]);
 
     return (
       <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-900">
         <Loader2 size={48} className="mb-4 text-gray-700" />
         <p>This internal page "{url}" is under construction.</p>
-        <button onClick={() => onNavigate(INTERNAL_HOME_URL)} className="mt-4 text-indigo-500 hover:underline">Go Home</button>
+        <button
+          onClick={() => onNavigate(INTERNAL_HOME_URL)}
+          className="mt-4 text-indigo-500 hover:underline"
+        >
+          Go Home
+        </button>
       </div>
     );
   }
 
   // Handle External Sites (Webview)
-  return <BrowserView url={url} onNavigate={onNavigate} onUpdateTab={onUpdateTab} />;
+  return (
+    <BrowserView url={url} onNavigate={onNavigate} onUpdateTab={onUpdateTab} />
+  );
 };
