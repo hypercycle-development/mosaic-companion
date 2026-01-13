@@ -1,5 +1,8 @@
-import { dialog, BrowserWindow } from "electron";
+import { dialog, BrowserWindow, app } from "electron";
 import electronUpdater from "electron-updater";
+import fs from "fs";
+import path from "path";
+
 // This way to import and destructure fix the error of "VAAPI version too old"
 const { autoUpdater } = electronUpdater;
 
@@ -14,15 +17,57 @@ autoUpdater.setFeedURL({
   path: "/releases",
 });
 
+// =============================================================================
+// Settings Persistence
+// =============================================================================
 
-// TODO: Load from config when persistence system is ready
-// Default settings 
-const updateSettings = {
-  /**
-   * If true, download updates automatically
-   */
-  autoDownload: false,       
+// Settings file path (in userData directory alongside other app data)
+const settingsPath = path.join(app.getPath("userData"), "update-settings.json");
+
+// Default settings
+const DEFAULT_SETTINGS = {
+  autoDownload: false,
 };
+
+// Current settings (loaded from file or defaults)
+let updateSettings = { ...DEFAULT_SETTINGS };
+
+/**
+ * Load settings from JSON file.
+ * Called at module initialization.
+ */
+function loadUpdateSettings() {
+  try {
+    if (fs.existsSync(settingsPath)) {
+      const data = fs.readFileSync(settingsPath, "utf8");
+      const loaded = JSON.parse(data);
+      // Merge with defaults to ensure all keys exist
+      updateSettings = { ...DEFAULT_SETTINGS, ...loaded };
+      console.log("Update settings loaded from:", settingsPath);
+    } else {
+      console.log("No update settings file found, using defaults");
+    }
+  } catch (error) {
+    console.error("Failed to load update settings:", error);
+    updateSettings = { ...DEFAULT_SETTINGS };
+  }
+  applyUpdateSettings();
+}
+
+/**
+ * Save current settings to JSON file.
+ * @returns {{ success: boolean, error?: string }}
+ */
+function saveUpdateSettings() {
+  try {
+    fs.writeFileSync(settingsPath, JSON.stringify(updateSettings, null, 2), "utf8");
+    console.log("Update settings saved to:", settingsPath);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to save update settings:", error);
+    return { success: false, error: error.message };
+  }
+}
 
 /**
  * Apply current settings to autoUpdater.
@@ -42,21 +87,21 @@ export function getUpdateSettings() {
 }
 
 /**
- * Set update settings and apply them immediately.
+ * Set update settings, apply them immediately, and save to file.
  * @param {object} newSettings - Partial settings to update
- * 
- * TODO: Persist to config when persistence system is ready
+ * @returns {{ success: boolean, settings: object, error?: string }}
  */
 export function setUpdateSettings(newSettings) {
   if (typeof newSettings.autoDownload === "boolean") {
     updateSettings.autoDownload = newSettings.autoDownload;
   }
   applyUpdateSettings();
-  // TODO: Save to config here when persistence system is ready
+  const saveResult = saveUpdateSettings();
+  return { ...saveResult, settings: getUpdateSettings() };
 }
 
-// Apply initial settings
-applyUpdateSettings();
+// Load settings on module initialization
+loadUpdateSettings();
 
 /**
  * Check for updates on app startup.
@@ -78,7 +123,10 @@ export function checkForUpdates() {
  * Manual check for updates (for "Check for Updates" menu/button).
  * Always shows feedback to the user, even if no update is available.
  */
+let isManualCheck = false;
+
 export function manualCheckForUpdates() {
+  isManualCheck = true;
   autoUpdater
     .checkForUpdates()
     .then((result) => {
@@ -88,6 +136,7 @@ export function manualCheckForUpdates() {
           title: "No Updates",
           message: "You are running the latest version.",
         });
+        isManualCheck = false;
       }
     })
     .catch((err) => {
@@ -98,12 +147,14 @@ export function manualCheckForUpdates() {
         message: "Failed to check for updates. Please try again later.",
         detail: err.message,
       });
+      isManualCheck = false;
     });
 }
 
 // Event: Update available
 autoUpdater.on("update-available", (info) => {
   console.log("Update available:", info.version);
+  isManualCheck = false;
 
   dialog
     .showMessageBox({
@@ -126,6 +177,17 @@ autoUpdater.on("update-available", (info) => {
 // Event: Update not available
 autoUpdater.on("update-not-available", (info) => {
   console.log("No update available. Current version is up to date.");
+  
+  // Show dialog only for manual checks
+  if (isManualCheck) {
+    dialog.showMessageBox({
+      type: "info",
+      title: "No Updates Available",
+      message: "You're up to date!",
+      detail: `Mosaic Browser ${info.version} is the latest version.`,
+    });
+    isManualCheck = false;
+  }
 });
 
 // Event: Download progress
