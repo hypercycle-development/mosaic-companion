@@ -62,6 +62,35 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     >
   >({});
 
+  // Update settings state for auto-updater
+  const [updateSettings, setUpdateSettingsState] = useState({
+    autoDownload: false,
+  });
+
+  // Load update settings on mount
+  useEffect(() => {
+    const loadUpdateSettings = async () => {
+      if (window.electronAPI?.getUpdateSettings) {
+        const settings = await window.electronAPI.getUpdateSettings();
+        setUpdateSettingsState(settings);
+      }
+    };
+    loadUpdateSettings();
+  }, []);
+
+  // Helper to update a single setting
+  const handleUpdateSettingChange = async (
+    key: keyof typeof updateSettings,
+    value: boolean
+  ) => {
+    if (window.electronAPI?.setUpdateSettings) {
+      const newSettings = await window.electronAPI.setUpdateSettings({
+        [key]: value,
+      });
+      setUpdateSettingsState(newSettings);
+    }
+  };
+
   // Create new agent with default values
   const createNewAgent = (): AIAgentConfig => ({
     id: `agent-${Date.now()}`,
@@ -578,6 +607,75 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               })}
             </div>
           )}
+        </section>
+
+        {/* Updates Section */}
+        <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400">
+            Updates
+          </h2>
+          <div className="space-y-4">
+            {/* Check for Updates Button */}
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-gray-200 font-medium block">
+                  Software Updates
+                </span>
+                <p className="text-sm text-gray-500">
+                  Check if a new version of Mosaic Browser is available.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  if (window.electronAPI?.checkForUpdates) {
+                    window.electronAPI.checkForUpdates();
+                  }
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+              >
+                Check for Updates
+              </button>
+            </div>
+
+            {/* Auto-download Toggle */}
+            <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+              <div>
+                <span className="text-gray-200 font-medium block">
+                  Download updates automatically
+                </span>
+                <p className="text-sm text-gray-500">
+                  Download new versions in the background without asking.
+                </p>
+              </div>
+              <button
+                onClick={() =>
+                  handleUpdateSettingChange(
+                    "autoDownload",
+                    !updateSettings.autoDownload
+                  )
+                }
+                className={`
+                  relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900
+                  ${
+                    updateSettings.autoDownload
+                      ? "bg-indigo-600"
+                      : "bg-gray-700"
+                  }
+                `}
+              >
+                <span
+                  className={`
+                  inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out
+                  ${
+                    updateSettings.autoDownload
+                      ? "translate-x-6"
+                      : "translate-x-1"
+                  }
+                `}
+                />
+              </button>
+            </div>
+          </div>
         </section>
 
         {/* Save Button */}
