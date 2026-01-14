@@ -3,7 +3,8 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { checkForUpdates, manualCheckForUpdates, getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode } from "./updater.js";
+import { checkForUpdates, manualCheckForUpdates, initUpdater, applyAutoDownload } from "./updater.js";
+import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode } from "./settings.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -30,8 +31,9 @@ app.whenReady().then(() => {
   console.log("User data path:", app.getPath("userData"));
   createWindow();
 
-  // Check for updates on startup (skip in development)
+  // Initialize updater with settings and check for updates on startup (skip in development)
   if (app.isPackaged) {
+    initUpdater();
     checkForUpdates();
   }
 });
@@ -97,6 +99,10 @@ ipcMain.handle("get-update-settings", async () => {
 // Handler to set update settings
 ipcMain.handle("set-update-settings", async (event, newSettings) => {
   const result = setUpdateSettings(newSettings);
+  // Apply autoDownload to updater if it changed
+  if (result.success && result.settings) {
+    applyAutoDownload(result.settings.autoDownload);
+  }
   return result;
 });
 
