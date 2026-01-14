@@ -207,7 +207,13 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     );
   }
 
-  if (url === INTERNAL_SETTINGS_URL) {
+  if (
+    url === INTERNAL_SETTINGS_URL ||
+    url.startsWith(INTERNAL_SETTINGS_URL + "#")
+  ) {
+    // Extract hash for scroll section (e.g., #nodes -> "nodes")
+    const scrollSection = url.includes("#") ? url.split("#")[1] : undefined;
+
     useEffect(() => {
       onUpdateTab({ title: "Settings", isLoading: false, favicon: undefined });
     }, [url]);
@@ -221,6 +227,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
           setCustomGreeting={settings.setCustomGreeting}
           showUrlBar={settings.showUrlBar}
           setShowUrlBar={settings.setShowUrlBar}
+          scrollSection={scrollSection}
         />
       </div>
     );
