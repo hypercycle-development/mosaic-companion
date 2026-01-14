@@ -6,6 +6,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
   getUpdateSettings: () => ipcRenderer.invoke("get-update-settings"),
   setUpdateSettings: (settings) => ipcRenderer.invoke("set-update-settings", settings),
+  nodes: {
+    get: () => ipcRenderer.invoke("nodes:get"),
+    add: (node) => ipcRenderer.invoke("nodes:add", node),
+    update: (id, updates) => ipcRenderer.invoke("nodes:update", id, updates),
+    delete: (id) => ipcRenderer.invoke("nodes:delete", id),
+    onChanged: (callback) => {
+      ipcRenderer.on("nodes-changed", (event, nodes) => callback(nodes));
+      // Return cleanup function
+      return () => ipcRenderer.removeAllListeners("nodes-changed");
+    },
+  },
   aiAgents: {
     get: () => ipcRenderer.invoke("ai-agents:get"),
     set: (agents) => ipcRenderer.invoke("ai-agents:set", agents),
