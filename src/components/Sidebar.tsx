@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Home,
   Settings,
@@ -17,6 +17,7 @@ import {
   Bot,
   MessageSquare,
   Server,
+  RefreshCw,
 } from "lucide-react";
 import {
   SidebarItem,
@@ -44,7 +45,70 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Hypercycle nodes state
   const [nodes, setNodes] = useState<HypercycleNode[]>([]);
 
-  // Load nodes on mount
+  // Live status tracking: { [nodeId]: { isLive, checking, lastChecked, latency } }
+  const [nodeStatuses, setNodeStatuses] = useState<
+    Record<
+      string,
+      {
+        isLive: boolean;
+        checking: boolean;
+        lastChecked: Date | null;
+        latency: number | null;
+      }
+    >
+  >({});
+
+  // Check if a node is reachable by calling /info endpoint and measure latency
+  const checkNodeConnection = useCallback(async (node: HypercycleNode) => {
+    if (!node.apiHost || !node.isActive) return;
+
+    setNodeStatuses((prev) => ({
+      ...prev,
+      [node.id]: { ...prev[node.id], checking: true },
+    }));
+
+    const startTime = performance.now();
+
+    try {
+      // Check main API at /info endpoint
+      const url = `http://${node.apiHost}:${node.apiPort || "8000"}/info`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const response = await fetch(url, {
+        method: "GET",
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const latency = Math.round(performance.now() - startTime);
+
+      // Consider live if we get any response (even error JSON)
+      const isLive = response.ok || response.status < 500;
+
+      setNodeStatuses((prev) => ({
+        ...prev,
+        [node.id]: {
+          isLive,
+          checking: false,
+          lastChecked: new Date(),
+          latency,
+        },
+      }));
+    } catch {
+      setNodeStatuses((prev) => ({
+        ...prev,
+        [node.id]: {
+          isLive: false,
+          checking: false,
+          lastChecked: new Date(),
+          latency: null,
+        },
+      }));
+    }
+  }, []);
+
+  // Load nodes on mount and subscribe to changes
   useEffect(() => {
     const loadNodes = async () => {
       if (window.electronAPI?.nodes?.get) {
@@ -53,7 +117,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }
     };
     loadNodes();
+
+    // Subscribe to node changes
+    let cleanup: (() => void) | undefined;
+    if (window.electronAPI?.nodes?.onChanged) {
+      cleanup = window.electronAPI.nodes.onChanged((updatedNodes) => {
+        setNodes(updatedNodes);
+      });
+    }
+
+    return () => {
+      if (cleanup) cleanup();
+    };
   }, []);
+
+  // Check all active nodes on mount and every 5 minutes
+  useEffect(() => {
+    const checkAllNodes = () => {
+      nodes.filter((n) => n.isActive && n.apiHost).forEach(checkNodeConnection);
+    };
+
+    // Initial check
+    if (nodes.length > 0) {
+      checkAllNodes();
+    }
+
+    // Set up interval (5 minutes)
+    const interval = setInterval(checkAllNodes, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [nodes, checkNodeConnection]);
   // Navigation Items
   const navItems: SidebarItem[] = [
     { id: "home", label: "Home", icon: "Home", url: INTERNAL_HOME_URL },
@@ -268,7 +360,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="space-y-2 px-3">
           <div className="px-3 mb-2 flex items-center justify-between text-[10px] font-bold text-gray-600 uppercase tracking-widest">
             <span>Hypercycle Grid</span>
-            <Server size={12} />
+            <button
+              onClick={() => onNavigate(INTERNAL_SETTINGS_URL + "#nodes")}
+              className="p-1 hover:bg-gray-800 rounded text-gray-500 hover:text-indigo-400 transition-colors"
+              title="Node Settings"
+            >
+              <Settings size={12} />
+            </button>
           </div>
 
           {nodes.length === 0 ? (
@@ -276,40 +374,105 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <p className="text-xs text-gray-600">No nodes configured</p>
             </div>
           ) : (
-            <div className="space-y-1">
-              {nodes.map((node) => (
-                <div
-                  key={node.id}
-                  className="flex items-center px-3 py-2.5 rounded-lg hover:bg-gray-900 transition-colors"
-                >
+            <div className="space-y-2">
+              {nodes.map((node) => {
+                const status = nodeStatuses[node.id];
+                const isLive = status?.isLive ?? false;
+                const isChecking = status?.checking ?? false;
+                const latency = status?.latency;
+
+                // Determine status color
+                let statusColor = "bg-gray-600"; // Inactive
+                let statusShadow = "";
+                if (node.isActive) {
+                  if (isLive) {
+                    statusColor = "bg-emerald-500";
+                    statusShadow = "shadow-[0_0_8px_rgba(16,185,129,0.6)]";
+                  } else if (status?.lastChecked) {
+                    statusColor = "bg-red-500";
+                    statusShadow = "shadow-[0_0_8px_rgba(239,68,68,0.6)]";
+                  } else {
+                    statusColor = "bg-yellow-500";
+                    statusShadow = "shadow-[0_0_8px_rgba(234,179,8,0.6)]";
+                  }
+                }
+
+                return (
                   <div
-                    className={`w-2 h-2 rounded-full mr-3 ${
-                      node.isActive
-                        ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
-                        : "bg-gray-600"
-                    }`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm text-gray-300 block truncate">
-                      {node.name}
-                    </span>
-                    <span className="text-[10px] text-gray-600 font-mono truncate block">
-                      {node.apiHost
-                        ? `${node.apiHost}:${node.apiPort || "8000"}`
-                        : "Not configured"}
-                    </span>
-                  </div>
-                  <div
-                    className={`text-[10px] font-mono px-2 py-0.5 rounded ${
-                      node.isActive
-                        ? "bg-emerald-900/30 text-emerald-400"
-                        : "bg-gray-800 text-gray-500"
-                    }`}
+                    key={node.id}
+                    className="bg-gray-900/50 rounded-xl p-3 border border-gray-800"
                   >
-                    {node.isActive ? "ON" : "OFF"}
+                    {/* Header row: status dot + name + toggle */}
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`w-2 h-2 rounded-full ${statusColor} ${statusShadow}`}
+                        />
+                        <span
+                          className={`text-xs font-mono ${
+                            node.isActive
+                              ? isLive
+                                ? "text-emerald-400"
+                                : "text-gray-400"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          {node.isActive
+                            ? isLive
+                              ? "LIVE"
+                              : "OFFLINE"
+                            : "INACTIVE"}
+                        </span>
+                      </div>
+                      {/* Toggle button */}
+                      <button
+                        onClick={async () => {
+                          if (window.electronAPI?.nodes?.update) {
+                            await window.electronAPI.nodes.update(node.id, {
+                              isActive: !node.isActive,
+                            });
+                          }
+                        }}
+                        className="text-gray-500 hover:text-white transition-colors"
+                        title={node.isActive ? "Deactivate" : "Activate"}
+                      >
+                        <Power size={14} />
+                      </button>
+                    </div>
+
+                    {/* Node name */}
+                    <div className="text-sm text-gray-300 mb-2 truncate">
+                      {node.name}
+                    </div>
+
+                    {/* Stats row */}
+                    {node.isActive && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>Latency</span>
+                          <span className="font-mono text-indigo-400">
+                            {isChecking ? (
+                              <RefreshCw size={10} className="animate-spin" />
+                            ) : latency !== null && latency !== undefined ? (
+                              `${latency}ms`
+                            ) : (
+                              "--"
+                            )}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-800 h-0.5 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-300 ${
+                              isLive ? "bg-indigo-500" : "bg-gray-700"
+                            }`}
+                            style={{ width: isLive ? "100%" : "0%" }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
