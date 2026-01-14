@@ -1,0 +1,142 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # Check if this commit should trigger a release
+  check-deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+      version_type: ${{ steps.check.outputs.version_type }}
+    steps:
+      - name: Check for deploy trigger
+        id: check
+        run: |
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+
+          if [[ "$COMMIT_MSG" == *"[DEPLOY]"* ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            
+            # Determine version type
+            if [[ "$COMMIT_MSG" == *"[MAJOR]"* ]]; then
+              echo "version_type=major" >> $GITHUB_OUTPUT
+            elif [[ "$COMMIT_MSG" == *"[MINOR]"* ]]; then
+              echo "version_type=minor" >> $GITHUB_OUTPUT
+            else
+              echo "version_type=patch" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Bump version and commit
+  bump-version:
+    needs: check-deploy
+    if: needs.check-deploy.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        id: bump
+        run: |
+          # Get current version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Bump version (npm version doesn't require npm install)
+          npm version ${{ needs.check-deploy.outputs.version_type }} --no-git-tag-version
+
+          # Get new version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+          # Commit and push
+          git add package.json
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git push
+
+  # Build for all platforms
+  build:
+    needs: [check-deploy, bump-version]
+    if: needs.check-deploy.outputs.should_deploy == 'true'
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: mac
+          - os: windows-latest
+            platform: win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main # Get the version-bumped code
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build app
+        run: bun run build
+
+      - name: Build Electron (${{ matrix.platform }})
+        run: |
+          if [ "${{ matrix.platform }}" == "linux" ]; then
+            bun run electron-builder --linux
+          elif [ "${{ matrix.platform }}" == "mac" ]; then
+            bun run electron-builder --mac
+          else
+            bun run electron-builder --win
+          fi
+        shell: bash
+
+      - name: Upload to S3
+        uses: jakejarvis/s3-sync-action@master
+        with:
+          args: --exclude '*' --include '*.AppImage' --include '*.dmg' --include '*.exe' --include 'latest*.yml'
+        env:
+          AWS_S3_BUCKET: mosaic-release
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-2
+          SOURCE_DIR: release
+          DEST_DIR: releases
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: |
+            release/*.AppImage
+            release/*.dmg
+            release/*.exe
+            release/latest*.yml
+          retention-days: 30
