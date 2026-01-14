@@ -81,14 +81,18 @@ jobs:
     needs: [check-deploy, bump-version]
     if: needs.check-deploy.outputs.should_deploy == 'true'
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             platform: linux
+            build_cmd: electron-builder --linux
           - os: macos-latest
             platform: mac
+            build_cmd: electron-builder --mac
           - os: windows-latest
             platform: win
+            build_cmd: electron-builder --win
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -108,35 +112,44 @@ jobs:
         run: bun run build
 
       - name: Build Electron (${{ matrix.platform }})
-        run: |
-          if [ "${{ matrix.platform }}" == "linux" ]; then
-            bun run electron-builder --linux
-          elif [ "${{ matrix.platform }}" == "mac" ]; then
-            bun run electron-builder --mac
-          else
-            bun run electron-builder --win
-          fi
-        shell: bash
+        run: bun run ${{ matrix.build_cmd }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
 
       - name: Upload to S3
-        uses: jakejarvis/s3-sync-action@master
-        with:
-          args: --exclude '*' --include '*.AppImage' --include '*.dmg' --include '*.exe' --include 'latest*.yml'
-        env:
-          AWS_S3_BUCKET: mosaic-release
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: us-east-2
-          SOURCE_DIR: release
-          DEST_DIR: releases
+        shell: bash
+        run: |
+          # Upload all release artifacts to S3
+          cd release
 
-      - name: Upload artifacts
+          if [ "${{ matrix.platform }}" == "linux" ]; then
+            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
+              --include "*.AppImage" \
+              --include "latest-linux.yml"
+          elif [ "${{ matrix.platform }}" == "mac" ]; then
+            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
+              --include "*.dmg" \
+              --include "*.zip" \
+              --include "latest-mac.yml"
+          else
+            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
+              --include "*.exe" \
+              --include "latest.yml"
+          fi
+
+      - name: Upload artifacts to GitHub
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.platform }}
           path: |
             release/*.AppImage
             release/*.dmg
+            release/*.zip
             release/*.exe
             release/latest*.yml
           retention-days: 30
