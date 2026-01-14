@@ -3,7 +3,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { checkForUpdates, manualCheckForUpdates, getUpdateSettings, setUpdateSettings } from "./updater.js";
+import { checkForUpdates, manualCheckForUpdates, getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode } from "./updater.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -98,6 +98,30 @@ ipcMain.handle("get-update-settings", async () => {
 ipcMain.handle("set-update-settings", async (event, newSettings) => {
   const result = setUpdateSettings(newSettings);
   return result;
+});
+
+// ============================================
+// Hypercycle Nodes
+// ============================================
+
+// Get all nodes
+ipcMain.handle("nodes:get", async () => {
+  return getNodes();
+});
+
+// Add a new node
+ipcMain.handle("nodes:add", async (event, node) => {
+  return addNode(node);
+});
+
+// Update a node
+ipcMain.handle("nodes:update", async (event, id, updates) => {
+  return updateNode(id, updates);
+});
+
+// Delete a node
+ipcMain.handle("nodes:delete", async (event, id) => {
+  return deleteNode(id);
 });
 
 // ============================================
