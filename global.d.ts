@@ -55,6 +55,7 @@ declare global {
           nodes?: HypercycleNode[];
           error?: string;
         }>;
+        onChanged: (callback: (nodes: HypercycleNode[]) => void) => () => void;
       };
 
       // AI Agents methods
