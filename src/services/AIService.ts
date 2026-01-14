@@ -100,18 +100,23 @@ export class AIService {
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
     }));
-
+    console.log("CALLBACK", callbacks);
     const baseUrl =
       config.baseUrl || "https://generativelanguage.googleapis.com";
     const endpoint = callbacks
-      ? `${baseUrl}/v1beta/models/${config.model}:streamGenerateContent?key=${config.apiKey}`
+      ? `${baseUrl}/v1beta/models/${config.model}:streamGenerateContent?alt=sse`
       : `${baseUrl}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-
+    // const endpoint = `${baseUrl}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: callbacks
+        ? {
+            "x-goog-api-key": config.apiKey,
+            "Content-Type": "application/json",
+          }
+        : {
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
         contents,
         generationConfig: {
@@ -185,7 +190,7 @@ export class AIService {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
+        const chunk = decoder.decode(value, { stream: true });
         const lines = chunk.split("\n");
 
         for (const line of lines) {
@@ -224,7 +229,6 @@ export class AIService {
       throw error;
     }
   }
-
   // Handle Ollama's NDJSON stream format
   private static async handleOllamaStream(
     body: ReadableStream<Uint8Array>,
