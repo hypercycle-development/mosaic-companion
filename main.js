@@ -1,5 +1,6 @@
 // main.js - Complete version with AI agents storage
 import { app, BrowserWindow, ipcMain } from "electron";
+import os from "os"
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -13,7 +14,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    titleBarStyle: "default",
+    titleBarStyle: os.platform() === 'darwin' ? "default" : "hidden",
     trafficLightPosition: { x: 10, y: 10 },
     backgroundColor: "#111827",
     webPreferences: {
