@@ -73,6 +73,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     message: string;
   } | null>(null);
 
+  // Hypercycle Nodes state
+  const [nodes, setNodes] = useState<HypercycleNode[]>([]);
+  const [expandedNode, setExpandedNode] = useState<string | null>(null);
+  const MAX_NODES = 3;
+
   // Load update settings on mount
   useEffect(() => {
     const loadUpdateSettings = async () => {
@@ -82,6 +87,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       }
     };
     loadUpdateSettings();
+  }, []);
+
+  // Load nodes on mount
+  useEffect(() => {
+    const loadNodes = async () => {
+      if (window.electronAPI?.nodes?.get) {
+        const loadedNodes = await window.electronAPI.nodes.get();
+        setNodes(loadedNodes);
+      }
+    };
+    loadNodes();
   }, []);
 
   // Helper to update a single setting with feedback
@@ -105,6 +121,66 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       }
 
       // Clear toast after 3 seconds
+      setTimeout(() => setSettingsToast(null), 3000);
+    }
+  };
+
+  // Node handlers
+  const addNewNode = async () => {
+    if (nodes.length >= MAX_NODES) return;
+
+    if (window.electronAPI?.nodes?.add) {
+      const result = await window.electronAPI.nodes.add({
+        name: `Node ${nodes.length + 1}`,
+        apiHost: "",
+        apiPort: "8000",
+        hasAdminPanel: false,
+        adminHost: "",
+        adminPort: "8006",
+        isActive: true,
+      });
+
+      if (result.success && result.nodes) {
+        setNodes(result.nodes);
+        // Expand the newly added node
+        const newNode = result.nodes[result.nodes.length - 1];
+        setExpandedNode(newNode.id);
+        setSettingsToast({ type: "success", message: "Node added" });
+      } else {
+        setSettingsToast({
+          type: "error",
+          message: result.error || "Failed to add node",
+        });
+      }
+      setTimeout(() => setSettingsToast(null), 3000);
+    }
+  };
+
+  const updateNodeHandler = async (
+    id: string,
+    updates: Partial<HypercycleNode>
+  ) => {
+    if (window.electronAPI?.nodes?.update) {
+      const result = await window.electronAPI.nodes.update(id, updates);
+      if (result.success && result.nodes) {
+        setNodes(result.nodes);
+      }
+    }
+  };
+
+  const deleteNodeHandler = async (id: string) => {
+    if (window.electronAPI?.nodes?.delete) {
+      const result = await window.electronAPI.nodes.delete(id);
+      if (result.success && result.nodes) {
+        setNodes(result.nodes);
+        if (expandedNode === id) setExpandedNode(null);
+        setSettingsToast({ type: "success", message: "Node deleted" });
+      } else {
+        setSettingsToast({
+          type: "error",
+          message: result.error || "Failed to delete node",
+        });
+      }
       setTimeout(() => setSettingsToast(null), 3000);
     }
   };
@@ -623,6 +699,223 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   </div>
                 );
               })}
+            </div>
+          )}
+        </section>
+
+        {/* Hypercycle Nodes Section */}
+        <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-indigo-400 flex items-center gap-2">
+              <Server size={20} />
+              Hypercycle Nodes
+            </h2>
+            <button
+              onClick={addNewNode}
+              disabled={nodes.length >= MAX_NODES}
+              className={`flex items-center gap-2 px-4 py-2 bg-indigo-900/30 hover:bg-indigo-900/50 text-indigo-400 border border-indigo-500/30 rounded-lg transition-all hover:scale-[1.02] ${
+                nodes.length >= MAX_NODES ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+            >
+              <Plus size={16} />
+              <span className="text-xs font-bold tracking-wider uppercase">
+                Add Node
+              </span>
+            </button>
+          </div>
+
+          {nodes.length === 0 ? (
+            <div className="text-center py-12 border border-dashed border-gray-700 rounded-xl">
+              <Server className="mx-auto size-12 text-gray-600 mb-4" />
+              <p className="text-gray-500 mb-2">No nodes configured</p>
+              <p className="text-sm text-gray-600">
+                Add a Hypercycle Node to manage your network
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {nodes.map((node) => (
+                <div
+                  key={node.id}
+                  className="bg-gray-950/50 border border-gray-700 rounded-xl overflow-hidden"
+                >
+                  {/* Node Header */}
+                  <div
+                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-800/30 transition-colors"
+                    onClick={() =>
+                      setExpandedNode(expandedNode === node.id ? null : node.id)
+                    }
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          node.isActive ? "bg-emerald-500" : "bg-gray-500"
+                        }`}
+                      />
+                      <span className="text-gray-200 font-medium">
+                        {node.name}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {node.apiHost
+                          ? `${node.apiHost}:${node.apiPort || "8000"}`
+                          : "Not configured"}
+                      </span>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteNodeHandler(node.id);
+                      }}
+                      className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+
+                  {/* Expanded Node Form */}
+                  {expandedNode === node.id && (
+                    <div className="p-4 border-t border-gray-700 space-y-4">
+                      {/* Node Name */}
+                      <div>
+                        <label className="block text-sm text-gray-400 mb-1">
+                          Node Name
+                        </label>
+                        <input
+                          type="text"
+                          value={node.name}
+                          onChange={(e) =>
+                            updateNodeHandler(node.id, { name: e.target.value })
+                          }
+                          className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-100"
+                          placeholder="My Node"
+                        />
+                      </div>
+
+                      {/* Main API */}
+                      <div>
+                        <label className="block text-sm text-gray-400 mb-1">
+                          Main API (Port 8000)
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={node.apiHost}
+                            onChange={(e) =>
+                              updateNodeHandler(node.id, {
+                                apiHost: e.target.value,
+                              })
+                            }
+                            className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-100"
+                            placeholder="192.168.1.100 or localhost"
+                          />
+                          <input
+                            type="text"
+                            value={node.apiPort || ""}
+                            onChange={(e) =>
+                              updateNodeHandler(node.id, {
+                                apiPort: e.target.value,
+                              })
+                            }
+                            className="w-24 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-100"
+                            placeholder="8000"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Admin Panel Toggle */}
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <span className="text-gray-200 font-medium block">
+                            Enable Admin Panel
+                          </span>
+                          <p className="text-sm text-gray-500">
+                            Configure admin panel access (Port 8006)
+                          </p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            updateNodeHandler(node.id, {
+                              hasAdminPanel: !node.hasAdminPanel,
+                            })
+                          }
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                            node.hasAdminPanel ? "bg-indigo-600" : "bg-gray-700"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                              node.hasAdminPanel
+                                ? "translate-x-6"
+                                : "translate-x-1"
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Admin Panel URL (if enabled) */}
+                      {node.hasAdminPanel && (
+                        <div>
+                          <label className="block text-sm text-gray-400 mb-1">
+                            Admin Panel (Port 8006)
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={node.adminHost || ""}
+                              onChange={(e) =>
+                                updateNodeHandler(node.id, {
+                                  adminHost: e.target.value,
+                                })
+                              }
+                              className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-100"
+                              placeholder="192.168.1.100 or localhost"
+                            />
+                            <input
+                              type="text"
+                              value={node.adminPort || ""}
+                              onChange={(e) =>
+                                updateNodeHandler(node.id, {
+                                  adminPort: e.target.value,
+                                })
+                              }
+                              className="w-24 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-100"
+                              placeholder="8006"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Active Toggle */}
+                      <div className="flex items-center justify-between py-2 border-t border-gray-700 pt-4">
+                        <div>
+                          <span className="text-gray-200 font-medium block">
+                            Node Active
+                          </span>
+                          <p className="text-sm text-gray-500">
+                            Enable or disable this node
+                          </p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            updateNodeHandler(node.id, {
+                              isActive: !node.isActive,
+                            })
+                          }
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                            node.isActive ? "bg-emerald-600" : "bg-gray-700"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                              node.isActive ? "translate-x-6" : "translate-x-1"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </section>
