@@ -11,6 +11,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     add: (node) => ipcRenderer.invoke("nodes:add", node),
     update: (id, updates) => ipcRenderer.invoke("nodes:update", id, updates),
     delete: (id) => ipcRenderer.invoke("nodes:delete", id),
+    onChanged: (callback) => {
+      ipcRenderer.on("nodes-changed", (event, nodes) => callback(nodes));
+      // Return cleanup function
+      return () => ipcRenderer.removeAllListeners("nodes-changed");
+    },
   },
   aiAgents: {
     get: () => ipcRenderer.invoke("ai-agents:get"),
