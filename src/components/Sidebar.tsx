@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Home,
   Settings,
@@ -16,6 +16,7 @@ import {
   Sparkles,
   Bot,
   MessageSquare,
+  Server,
 } from "lucide-react";
 import {
   SidebarItem,
@@ -40,6 +41,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentUrl,
   aiAgents = [],
 }) => {
+  // Hypercycle nodes state
+  const [nodes, setNodes] = useState<HypercycleNode[]>([]);
+
+  // Load nodes on mount
+  useEffect(() => {
+    const loadNodes = async () => {
+      if (window.electronAPI?.nodes?.get) {
+        const loadedNodes = await window.electronAPI.nodes.get();
+        setNodes(loadedNodes);
+      }
+    };
+    loadNodes();
+  }, []);
   // Navigation Items
   const navItems: SidebarItem[] = [
     { id: "home", label: "Home", icon: "Home", url: INTERNAL_HOME_URL },
@@ -71,20 +85,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "screen", label: "Visual Cortex", icon: Monitor, active: false },
   ]);
 
-  const [isHypercycleConnected, setHypercycleConnected] = useState(true);
-  const [peerCount, setPeerCount] = useState(8);
-
   const toggleContext = (id: string) => {
     setAiContexts((prev) =>
       prev.map((ctx) => (ctx.id === id ? { ...ctx, active: !ctx.active } : ctx))
     );
   };
 
-  const toggleHypercycle = () => {
-    const newState = !isHypercycleConnected;
-    setHypercycleConnected(newState);
-    setPeerCount(newState ? Math.floor(Math.random() * 15) + 5 : 0);
-  };
+  const activeNodes = nodes.filter((n) => n.isActive);
 
   const activeAgents = aiAgents.filter((a) => a.isActive);
 
@@ -257,61 +264,54 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ))}
         </div>
 
-        {/* 4. P2P Network */}
+        {/* 4. Hypercycle Grid - Nodes */}
         <div className="space-y-2 px-3">
-          <div className="px-3">
-            <div className="flex items-center justify-between text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-3">
-              <span>Hypercycle Grid</span>
-              <Share2 size={12} />
-            </div>
+          <div className="px-3 mb-2 flex items-center justify-between text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+            <span>Hypercycle Grid</span>
+            <Server size={12} />
+          </div>
 
-            <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800 backdrop-blur-sm">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
+          {nodes.length === 0 ? (
+            <div className="px-3 py-4 text-center">
+              <p className="text-xs text-gray-600">No nodes configured</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {nodes.map((node) => (
+                <div
+                  key={node.id}
+                  className="flex items-center px-3 py-2.5 rounded-lg hover:bg-gray-900 transition-colors"
+                >
                   <div
-                    className={`w-2 h-2 rounded-full ${
-                      isHypercycleConnected
+                    className={`w-2 h-2 rounded-full mr-3 ${
+                      node.isActive
                         ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
-                        : "bg-red-500"
+                        : "bg-gray-600"
                     }`}
                   />
-                  <span
-                    className={`text-xs font-mono ${
-                      isHypercycleConnected
-                        ? "text-emerald-400"
-                        : "text-gray-500"
-                    }`}
-                  >
-                    {isHypercycleConnected ? "NODE_ACTIVE" : "OFFLINE"}
-                  </span>
-                </div>
-                <button
-                  onClick={toggleHypercycle}
-                  className="text-gray-500 hover:text-white transition-colors"
-                >
-                  <Power size={14} />
-                </button>
-              </div>
-
-              {isHypercycleConnected && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs text-gray-400">
-                    <span>Peers</span>
-                    <span className="font-mono text-indigo-400">
-                      {peerCount}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-gray-300 block truncate">
+                      {node.name}
+                    </span>
+                    <span className="text-[10px] text-gray-600 font-mono truncate block">
+                      {node.apiHost
+                        ? `${node.apiHost}:${node.apiPort || "8000"}`
+                        : "Not configured"}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-xs text-gray-400">
-                    <span>Latency</span>
-                    <span className="font-mono text-indigo-400">24ms</span>
-                  </div>
-                  <div className="w-full bg-gray-800 h-0.5 mt-2 rounded-full overflow-hidden">
-                    <div className="bg-indigo-500 h-full w-2/3 animate-pulse" />
+                  <div
+                    className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                      node.isActive
+                        ? "bg-emerald-900/30 text-emerald-400"
+                        : "bg-gray-800 text-gray-500"
+                    }`}
+                  >
+                    {node.isActive ? "ON" : "OFF"}
                   </div>
                 </div>
-              )}
+              ))}
             </div>
-          </div>
+          )}
         </div>
       </div>
 
