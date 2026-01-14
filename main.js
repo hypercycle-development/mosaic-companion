@@ -110,6 +110,13 @@ ipcMain.handle("set-update-settings", async (event, newSettings) => {
 // Hypercycle Nodes
 // ============================================
 
+// Helper to broadcast node changes to all windows
+function broadcastNodesChanged(nodes) {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    win.webContents.send("nodes-changed", nodes);
+  });
+}
+
 // Get all nodes
 ipcMain.handle("nodes:get", async () => {
   return getNodes();
@@ -117,17 +124,29 @@ ipcMain.handle("nodes:get", async () => {
 
 // Add a new node
 ipcMain.handle("nodes:add", async (event, node) => {
-  return addNode(node);
+  const result = addNode(node);
+  if (result.success && result.nodes) {
+    broadcastNodesChanged(result.nodes);
+  }
+  return result;
 });
 
 // Update a node
 ipcMain.handle("nodes:update", async (event, id, updates) => {
-  return updateNode(id, updates);
+  const result = updateNode(id, updates);
+  if (result.success && result.nodes) {
+    broadcastNodesChanged(result.nodes);
+  }
+  return result;
 });
 
 // Delete a node
 ipcMain.handle("nodes:delete", async (event, id) => {
-  return deleteNode(id);
+  const result = deleteNode(id);
+  if (result.success && result.nodes) {
+    broadcastNodesChanged(result.nodes);
+  }
+  return result;
 });
 
 // ============================================
