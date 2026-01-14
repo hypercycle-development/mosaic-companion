@@ -12,7 +12,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    titleBarStyle: "hidden",
+    titleBarStyle: "default",
     trafficLightPosition: { x: 10, y: 10 },
     backgroundColor: "#111827",
     webPreferences: {
