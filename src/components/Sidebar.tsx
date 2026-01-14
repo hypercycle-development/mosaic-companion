@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Home,
   Settings,
@@ -16,6 +16,8 @@ import {
   Sparkles,
   Bot,
   MessageSquare,
+  Server,
+  RefreshCw,
 } from "lucide-react";
 import {
   SidebarItem,
@@ -40,6 +42,110 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentUrl,
   aiAgents = [],
 }) => {
+  // Hypercycle nodes state
+  const [nodes, setNodes] = useState<HypercycleNode[]>([]);
+
+  // Live status tracking: { [nodeId]: { isLive, checking, lastChecked, latency } }
+  const [nodeStatuses, setNodeStatuses] = useState<
+    Record<
+      string,
+      {
+        isLive: boolean;
+        checking: boolean;
+        lastChecked: Date | null;
+        latency: number | null;
+      }
+    >
+  >({});
+
+  // Check if a node is reachable by calling /info endpoint and measure latency
+  const checkNodeConnection = useCallback(async (node: HypercycleNode) => {
+    if (!node.apiHost || !node.isActive) return;
+
+    setNodeStatuses((prev) => ({
+      ...prev,
+      [node.id]: { ...prev[node.id], checking: true },
+    }));
+
+    const startTime = performance.now();
+
+    try {
+      // Check main API at /info endpoint
+      const url = `http://${node.apiHost}:${node.apiPort || "8000"}/info`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const response = await fetch(url, {
+        method: "GET",
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const latency = Math.round(performance.now() - startTime);
+
+      // Consider live if we get any response (even error JSON)
+      const isLive = response.ok || response.status < 500;
+
+      setNodeStatuses((prev) => ({
+        ...prev,
+        [node.id]: {
+          isLive,
+          checking: false,
+          lastChecked: new Date(),
+          latency,
+        },
+      }));
+    } catch {
+      setNodeStatuses((prev) => ({
+        ...prev,
+        [node.id]: {
+          isLive: false,
+          checking: false,
+          lastChecked: new Date(),
+          latency: null,
+        },
+      }));
+    }
+  }, []);
+
+  // Load nodes on mount and subscribe to changes
+  useEffect(() => {
+    const loadNodes = async () => {
+      if (window.electronAPI?.nodes?.get) {
+        const loadedNodes = await window.electronAPI.nodes.get();
+        setNodes(loadedNodes);
+      }
+    };
+    loadNodes();
+
+    // Subscribe to node changes
+    let cleanup: (() => void) | undefined;
+    if (window.electronAPI?.nodes?.onChanged) {
+      cleanup = window.electronAPI.nodes.onChanged((updatedNodes) => {
+        setNodes(updatedNodes);
+      });
+    }
+
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, []);
+
+  // Check all active nodes on mount and every 5 minutes
+  useEffect(() => {
+    const checkAllNodes = () => {
+      nodes.filter((n) => n.isActive && n.apiHost).forEach(checkNodeConnection);
+    };
+
+    // Initial check
+    if (nodes.length > 0) {
+      checkAllNodes();
+    }
+
+    // Set up interval (5 minutes)
+    const interval = setInterval(checkAllNodes, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [nodes, checkNodeConnection]);
   // Navigation Items
   const navItems: SidebarItem[] = [
     { id: "home", label: "Home", icon: "Home", url: INTERNAL_HOME_URL },
@@ -71,20 +177,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "screen", label: "Visual Cortex", icon: Monitor, active: false },
   ]);
 
-  const [isHypercycleConnected, setHypercycleConnected] = useState(true);
-  const [peerCount, setPeerCount] = useState(8);
-
   const toggleContext = (id: string) => {
     setAiContexts((prev) =>
       prev.map((ctx) => (ctx.id === id ? { ...ctx, active: !ctx.active } : ctx))
     );
   };
 
-  const toggleHypercycle = () => {
-    const newState = !isHypercycleConnected;
-    setHypercycleConnected(newState);
-    setPeerCount(newState ? Math.floor(Math.random() * 15) + 5 : 0);
-  };
+  const activeNodes = nodes.filter((n) => n.isActive);
 
   const activeAgents = aiAgents.filter((a) => a.isActive);
 
@@ -257,61 +356,125 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ))}
         </div>
 
-        {/* 4. P2P Network */}
+        {/* 4. Hypercycle Grid - Nodes */}
         <div className="space-y-2 px-3">
-          <div className="px-3">
-            <div className="flex items-center justify-between text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-3">
-              <span>Hypercycle Grid</span>
-              <Share2 size={12} />
-            </div>
-
-            <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800 backdrop-blur-sm">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      isHypercycleConnected
-                        ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
-                        : "bg-red-500"
-                    }`}
-                  />
-                  <span
-                    className={`text-xs font-mono ${
-                      isHypercycleConnected
-                        ? "text-emerald-400"
-                        : "text-gray-500"
-                    }`}
-                  >
-                    {isHypercycleConnected ? "NODE_ACTIVE" : "OFFLINE"}
-                  </span>
-                </div>
-                <button
-                  onClick={toggleHypercycle}
-                  className="text-gray-500 hover:text-white transition-colors"
-                >
-                  <Power size={14} />
-                </button>
-              </div>
-
-              {isHypercycleConnected && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs text-gray-400">
-                    <span>Peers</span>
-                    <span className="font-mono text-indigo-400">
-                      {peerCount}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-gray-400">
-                    <span>Latency</span>
-                    <span className="font-mono text-indigo-400">24ms</span>
-                  </div>
-                  <div className="w-full bg-gray-800 h-0.5 mt-2 rounded-full overflow-hidden">
-                    <div className="bg-indigo-500 h-full w-2/3 animate-pulse" />
-                  </div>
-                </div>
-              )}
-            </div>
+          <div className="px-3 mb-2 flex items-center justify-between text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+            <span>Hypercycle Grid</span>
+            <button
+              onClick={() => onNavigate(INTERNAL_SETTINGS_URL + "#nodes")}
+              className="p-1 hover:bg-gray-800 rounded text-gray-500 hover:text-indigo-400 transition-colors"
+              title="Node Settings"
+            >
+              <Settings size={12} />
+            </button>
           </div>
+
+          {nodes.length === 0 ? (
+            <div className="px-3 py-4 text-center">
+              <p className="text-xs text-gray-600">No nodes configured</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {nodes.map((node) => {
+                const status = nodeStatuses[node.id];
+                const isLive = status?.isLive ?? false;
+                const isChecking = status?.checking ?? false;
+                const latency = status?.latency;
+
+                // Determine status color
+                let statusColor = "bg-gray-600"; // Inactive
+                let statusShadow = "";
+                if (node.isActive) {
+                  if (isLive) {
+                    statusColor = "bg-emerald-500";
+                    statusShadow = "shadow-[0_0_8px_rgba(16,185,129,0.6)]";
+                  } else if (status?.lastChecked) {
+                    statusColor = "bg-red-500";
+                    statusShadow = "shadow-[0_0_8px_rgba(239,68,68,0.6)]";
+                  } else {
+                    statusColor = "bg-yellow-500";
+                    statusShadow = "shadow-[0_0_8px_rgba(234,179,8,0.6)]";
+                  }
+                }
+
+                return (
+                  <div
+                    key={node.id}
+                    className="bg-gray-900/50 rounded-xl p-3 border border-gray-800"
+                  >
+                    {/* Header row: status dot + name + toggle */}
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`w-2 h-2 rounded-full ${statusColor} ${statusShadow}`}
+                        />
+                        <span
+                          className={`text-xs font-mono ${
+                            node.isActive
+                              ? isLive
+                                ? "text-emerald-400"
+                                : "text-gray-400"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          {node.isActive
+                            ? isLive
+                              ? "LIVE"
+                              : "OFFLINE"
+                            : "INACTIVE"}
+                        </span>
+                      </div>
+                      {/* Toggle button */}
+                      <button
+                        onClick={async () => {
+                          if (window.electronAPI?.nodes?.update) {
+                            await window.electronAPI.nodes.update(node.id, {
+                              isActive: !node.isActive,
+                            });
+                          }
+                        }}
+                        className="text-gray-500 hover:text-white transition-colors"
+                        title={node.isActive ? "Deactivate" : "Activate"}
+                      >
+                        <Power size={14} />
+                      </button>
+                    </div>
+
+                    {/* Node name */}
+                    <div className="text-sm text-gray-300 mb-2 truncate">
+                      {node.name}
+                    </div>
+
+                    {/* Stats row */}
+                    {node.isActive && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>Latency</span>
+                          <span className="font-mono text-indigo-400">
+                            {isChecking ? (
+                              <RefreshCw size={10} className="animate-spin" />
+                            ) : latency !== null && latency !== undefined ? (
+                              `${latency}ms`
+                            ) : (
+                              "--"
+                            )}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-800 h-0.5 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-300 ${
+                              isLive ? "bg-indigo-500" : "bg-gray-700"
+                            }`}
+                            style={{ width: isLive ? "100%" : "0%" }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

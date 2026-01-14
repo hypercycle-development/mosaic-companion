@@ -42,6 +42,7 @@
       "dist/**/*",
       "main.js",
       "updater.js",
+      "settings.js",
       "preload.js",
       "package.json"
     ],

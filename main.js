@@ -3,7 +3,8 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { checkForUpdates, manualCheckForUpdates, getUpdateSettings, setUpdateSettings } from "./updater.js";
+import { checkForUpdates, manualCheckForUpdates, initUpdater, applyAutoDownload } from "./updater.js";
+import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode } from "./settings.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -30,8 +31,9 @@ app.whenReady().then(() => {
   console.log("User data path:", app.getPath("userData"));
   createWindow();
 
-  // Check for updates on startup (skip in development)
+  // Initialize updater with settings and check for updates on startup (skip in development)
   if (app.isPackaged) {
+    initUpdater();
     checkForUpdates();
   }
 });
@@ -97,6 +99,53 @@ ipcMain.handle("get-update-settings", async () => {
 // Handler to set update settings
 ipcMain.handle("set-update-settings", async (event, newSettings) => {
   const result = setUpdateSettings(newSettings);
+  // Apply autoDownload to updater if it changed
+  if (result.success && result.settings) {
+    applyAutoDownload(result.settings.autoDownload);
+  }
+  return result;
+});
+
+// ============================================
+// Hypercycle Nodes
+// ============================================
+
+// Helper to broadcast node changes to all windows
+function broadcastNodesChanged(nodes) {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    win.webContents.send("nodes-changed", nodes);
+  });
+}
+
+// Get all nodes
+ipcMain.handle("nodes:get", async () => {
+  return getNodes();
+});
+
+// Add a new node
+ipcMain.handle("nodes:add", async (event, node) => {
+  const result = addNode(node);
+  if (result.success && result.nodes) {
+    broadcastNodesChanged(result.nodes);
+  }
+  return result;
+});
+
+// Update a node
+ipcMain.handle("nodes:update", async (event, id, updates) => {
+  const result = updateNode(id, updates);
+  if (result.success && result.nodes) {
+    broadcastNodesChanged(result.nodes);
+  }
+  return result;
+});
+
+// Delete a node
+ipcMain.handle("nodes:delete", async (event, id) => {
+  const result = deleteNode(id);
+  if (result.success && result.nodes) {
+    broadcastNodesChanged(result.nodes);
+  }
   return result;
 });
 
