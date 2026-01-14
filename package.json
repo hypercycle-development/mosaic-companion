@@ -9,9 +9,13 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "start": "vite build && electron main.js",
-    "build:win": "npm run build && electron-builder --win",
-    "build:mac": "npm run build && electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux"
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist release node_modules/.vite",
+    "clean:all": "bun run clean && rm -rf node_modules bun.lockb",
+    "build:win": "bun run build && electron-builder --win",
+    "build:mac": "bun run build && electron-builder --mac",
+    "build:linux": "bun run build && electron-builder --linux",
+    "build:all": "bun run build:win && bun run build:mac && bun run build:linux"
   },
   "dependencies": {
     "electron-updater": "^6.7.3",

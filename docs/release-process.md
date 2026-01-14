@@ -5,8 +5,9 @@ This document describes how to build and publish releases for Mosaic Browser.
 ## Prerequisites
 
 1. **AWS Credentials** - You need access keys for the S3 release bucket:
-   - `AWS_ACCESS_KEY_ID`
-   - `AWS_SECRET_ACCESS_KEY`
+
+    - `AWS_ACCESS_KEY_ID`
+    - `AWS_SECRET_ACCESS_KEY`
 
 2. **S3 Bucket** - Must be configured with public read access.
 
@@ -20,9 +21,9 @@ export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
 
 # Build and publish for each platform
-npm run build:win -- --publish always
-npm run build:mac -- --publish always
-npm run build:linux -- --publish always
+bun run build:win -- --publish always
+bun run build:mac -- --publish always
+bun run build:linux -- --publish always
 ```
 
 ### Step-by-Step Process
@@ -33,14 +34,15 @@ Before building a new release, update the version in `package.json`:
 
 ```json
 {
-  "version": "1.2.3"
+    "version": "1.2.3"
 }
 ```
 
 Use semantic versioning:
-- **MAJOR** (x.0.0): Breaking changes
-- **MINOR** (0.x.0): New features, backwards compatible
-- **PATCH** (0.0.x): Bug fixes
+
+-   **MAJOR** (x.0.0): Breaking changes
+-   **MINOR** (0.x.0): New features, backwards compatible
+-   **PATCH** (0.0.x): Bug fixes
 
 #### 2. Set AWS Credentials
 
@@ -68,16 +70,17 @@ Run the build command with `--publish always` flag:
 
 ```bash
 # Windows
-npm run build:win -- --publish always
+bun run build:win -- --publish always
 
 # macOS
-npm run build:mac -- --publish always
+bun run build:mac -- --publish always
 
 # Linux
-npm run build:linux -- --publish always
+bun run build:linux -- --publish always
 ```
 
 This will:
+
 1. Build the application
 2. Generate installer files
 3. Create the `latest*.yml` manifest
@@ -100,31 +103,31 @@ s3://BUCKET_NAME/releases/
 
 ## Publish Options
 
-| Flag | Behavior |
-|------|----------|
-| `--publish always` | Always publishes, fails if upload fails |
-| `--publish onTag` | Only publishes when building from a git tag |
-| `--publish onTagOrDraft` | Publishes on tag, or creates a draft |
-| `--publish never` | Never publishes (build only) |
+| Flag                     | Behavior                                    |
+| ------------------------ | ------------------------------------------- |
+| `--publish always`       | Always publishes, fails if upload fails     |
+| `--publish onTag`        | Only publishes when building from a git tag |
+| `--publish onTagOrDraft` | Publishes on tag, or creates a draft        |
+| `--publish never`        | Never publishes (build only)                |
 
 ## Troubleshooting
 
 ### "Access Denied" Error
 
-- Check that your IAM user has `s3:PutObject` permission
-- Verify the bucket name in `package.json` matches your actual bucket
+-   Check that your IAM user has `s3:PutObject` permission
+-   Verify the bucket name in `package.json` matches your actual bucket
 
 ### Files Not Uploading
 
-- Ensure `--publish always` flag is included
-- Check AWS credentials are set correctly
-- Verify internet connection
+-   Ensure `--publish always` flag is included
+-   Check AWS credentials are set correctly
+-   Verify internet connection
 
 ### Update Not Detected by App
 
-- Confirm the `latest*.yml` file was uploaded
-- Check that the version in `package.json` is higher than the installed version
-- Verify the bucket/region in `package.json` matches the upload destination
+-   Confirm the `latest*.yml` file was uploaded
+-   Check that the version in `package.json` is higher than the installed version
+-   Verify the bucket/region in `package.json` matches the upload destination
 
 ## CI/CD Integration
 
@@ -135,18 +138,18 @@ For automated releases, set AWS credentials as secrets in your CI/CD system:
 ```yaml
 - name: Build and Publish
   env:
-    AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-    AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  run: npm run build:linux -- --publish always
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  run: bun run build:linux -- --publish always
 ```
 
 ### GitLab CI Example
 
 ```yaml
 release:
-  script:
-    - npm run build:linux -- --publish always
-  variables:
-    AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
-    AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+    script:
+        - bun run build:linux -- --publish always
+    variables:
+        AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+        AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
 ```
