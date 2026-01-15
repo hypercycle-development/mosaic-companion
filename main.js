@@ -1,12 +1,26 @@
 // main.js - Complete version with AI agents storage data
 import { app, BrowserWindow, ipcMain } from "electron";
-import os from "os"
+import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { checkForUpdates, manualCheckForUpdates, initUpdater, applyAutoDownload, getLogFilePath, readLogFile } from "./updater.js";
-import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode, getTitleBarStyle } from "./settings.js";
-
+import {
+  checkForUpdates,
+  manualCheckForUpdates,
+  initUpdater,
+  applyAutoDownload,
+  getLogFilePath,
+  readLogFile,
+} from "./updater.js";
+import {
+  getUpdateSettings,
+  setUpdateSettings,
+  getNodes,
+  addNode,
+  updateNode,
+  deleteNode,
+  getTitleBarStyle,
+} from "./settings.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -16,12 +30,12 @@ let mainWindow = null;
 function createWindow(urlToLoad = null) {
   // Get title bar style from settings (default to 'hidden' on non-Mac if not set)
   const titleBarStyle = getTitleBarStyle();
-  
+
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     // Use the setting, or fallback to platform defaults if somehow undefined
-    titleBarStyle: titleBarStyle === 'default' ? 'default' : 'hidden',
+    titleBarStyle: titleBarStyle === "default" ? "default" : "hidden",
     trafficLightPosition: { x: 10, y: 10 },
     backgroundColor: "#111827",
     webPreferences: {
@@ -38,7 +52,7 @@ function createWindow(urlToLoad = null) {
   } else {
     win.loadFile(path.join(__dirname, "dist", "index.html"));
   }
-  
+
   mainWindow = win;
   return win;
 }
@@ -49,18 +63,18 @@ function createWindow(urlToLoad = null) {
  */
 function recreateWindow() {
   if (!mainWindow) return;
-  
+
   // Get current state
   const currentURL = mainWindow.webContents.getURL();
   const bounds = mainWindow.getBounds();
-  
+
   // Close the old window
   mainWindow.close();
-  
+
   // Create new window with updated settings
   const newWin = createWindow(currentURL);
   newWin.setBounds(bounds);
-  
+
   console.log("Window recreated with new titleBarStyle");
 }
 
@@ -73,7 +87,7 @@ ipcMain.handle("restart-window", async () => {
 // IPC handler for 3-button confirmation dialog
 ipcMain.handle("show-title-bar-confirm", async () => {
   const { dialog } = await import("electron");
-  
+
   const result = await dialog.showMessageBox(mainWindow, {
     type: "question",
     title: "Apply Title Bar Style",
@@ -83,7 +97,7 @@ ipcMain.handle("show-title-bar-confirm", async () => {
     defaultId: 0,
     cancelId: 2,
   });
-  
+
   // button index: 0 = Apply Now, 1 = Apply Later, 2 = Cancel
   return { buttonIndex: result.response };
 });
@@ -224,6 +238,7 @@ ipcMain.handle("nodes:delete", async (event, id) => {
 // AI Agents Storage
 // ============================================
 const aiAgentsPath = path.join(app.getPath("userData"), "ai-agents.json");
+const themesPath = path.join(app.getPath("userData"), "themes.json");
 
 // Helper: Read agents from file
 function readAgents() {
@@ -245,6 +260,29 @@ function writeAgents(agents) {
     return true;
   } catch (error) {
     console.error("Failed to write AI agents:", error);
+    return false;
+  }
+}
+
+// Theme helpers
+function readThemeSettings() {
+  try {
+    if (fs.existsSync(themesPath)) {
+      const data = fs.readFileSync(themesPath, "utf8");
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error("Failed to read theme settings:", error);
+  }
+  return { activeTheme: "dark" };
+}
+
+function writeThemeSettings(settings) {
+  try {
+    fs.writeFileSync(themesPath, JSON.stringify(settings, null, 2), "utf8");
+    return true;
+  } catch (error) {
+    console.error("Failed to write theme settings:", error);
     return false;
   }
 }
@@ -312,4 +350,15 @@ ipcMain.handle("ai-agents:clear", async () => {
   } catch (error) {
     return { success: false, error: error.message };
   }
+});
+
+// Theme persistence
+ipcMain.handle("themes:get", async () => {
+  return readThemeSettings();
+});
+
+ipcMain.handle("themes:set", async (event, activeTheme) => {
+  const settings = { activeTheme };
+  const success = writeThemeSettings(settings);
+  return { success };
 });
