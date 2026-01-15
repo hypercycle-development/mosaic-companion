@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     delete: (id) => ipcRenderer.invoke("nodes:delete", id),
     onChanged: (callback) => {
       ipcRenderer.on("nodes-changed", (event, nodes) => callback(nodes));
-      // Return cleanup function
+      // Return cleanup
       return () => ipcRenderer.removeAllListeners("nodes-changed");
     },
   },
