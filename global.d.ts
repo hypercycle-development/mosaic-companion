@@ -74,6 +74,49 @@ declare global {
         delete: (id: string) => Promise<{ success: boolean; error?: string }>;
         clear: () => Promise<{ success: boolean; error?: string }>;
       };
+
+      // Gmail methods
+      gmail: {
+        signIn: () => Promise<{
+          success: boolean;
+          email?: string;
+          error?: string;
+        }>;
+        signOut: () => Promise<{ success: boolean; error?: string }>;
+        getStatus: () => Promise<{
+          authenticated: boolean;
+          email?: string;
+          error?: string;
+        }>;
+        getEmails: (count?: number) => Promise<{
+          success: boolean;
+          emails?: Array<{
+            id: string;
+            threadId: string;
+            snippet: string;
+            subject: string;
+            from: string;
+            date: string;
+            isUnread: boolean;
+          }>;
+          error?: string;
+        }>;
+        getEmailDetails: (messageId: string) => Promise<{
+          success: boolean;
+          email?: {
+            id: string;
+            threadId: string;
+            snippet: string;
+            subject: string;
+            from: string;
+            to: string;
+            date: string;
+            body: string;
+            isUnread: boolean;
+          };
+          error?: string;
+        }>;
+      };
     };
   }
 }
