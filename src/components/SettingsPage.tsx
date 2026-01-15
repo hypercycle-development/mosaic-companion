@@ -403,8 +403,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <div className="flex bg-gray-950 rounded-lg p-1 border border-gray-700">
                 <button
                   onClick={async () => {
+                    if (updateSettings.titleBarStyle === "hidden") return;
+
+                    // Show 3-button dialog: Apply Now (0), Apply Later (1), Cancel (2)
+                    const result =
+                      await window.electronAPI?.showTitleBarConfirm?.();
+                    if (!result || result.buttonIndex === 2) return; // Cancel
+
+                    // Save the setting
                     await handleUpdateSettingChange("titleBarStyle", "hidden");
-                    window.electronAPI?.restartWindow?.();
+
+                    // Apply Now triggers restart, Apply Later just saves
+                    if (result.buttonIndex === 0) {
+                      window.electronAPI?.restartWindow?.();
+                    } else {
+                      toast.info("Change will apply on next restart");
+                    }
                   }}
                   className={`
                     px-3 py-1.5 rounded-md text-sm font-medium transition-all
@@ -419,8 +433,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </button>
                 <button
                   onClick={async () => {
+                    if (updateSettings.titleBarStyle === "default") return;
+
+                    // Show 3-button dialog: Apply Now (0), Apply Later (1), Cancel (2)
+                    const result =
+                      await window.electronAPI?.showTitleBarConfirm?.();
+                    if (!result || result.buttonIndex === 2) return; // Cancel
+
+                    // Save the setting
                     await handleUpdateSettingChange("titleBarStyle", "default");
-                    window.electronAPI?.restartWindow?.();
+
+                    // Apply Now triggers restart, Apply Later just saves
+                    if (result.buttonIndex === 0) {
+                      window.electronAPI?.restartWindow?.();
+                    } else {
+                      toast.info("Change will apply on next restart");
+                    }
                   }}
                   className={`
                     px-3 py-1.5 rounded-md text-sm font-medium transition-all
