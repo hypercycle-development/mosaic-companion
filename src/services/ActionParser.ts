@@ -218,6 +218,7 @@ Email ${index + 1} ${unreadMarker}${attachmentMarker}:
 
 /**
  * Build the follow-up prompt to send email data back to AI
+ * Includes formatting instructions so AI follows our style
  */
 export function buildEmailAnalysisPrompt(
   originalQuery: string,
@@ -229,7 +230,29 @@ Here are the relevant emails from their inbox:
 
 ${emailData}
 
-Please analyze these emails and provide a helpful summary responding to the user's original question. Be concise and highlight the most important information.`;
+FORMAT YOUR RESPONSE LIKE THIS:
+
+📬 **Found X emails:**
+
+---
+
+- 📩 **1. Subject** - Sender (time ago)
+
+- ✅ **2. Subject** - Sender (time ago)
+
+---
+
+Legend: 📩 = unread, ✅ = read, 📎 = attachment
+
+RULES:
+- Use bullet points with dashes (-)
+- Use --- separators between sections
+- Add blank line between each email for readability
+- Use markdown **bold** for subjects
+- Be concise - no walls of text
+- Highlight most important emails first
+
+Provide a helpful summary with the format above.`;
 }
 
 /**
