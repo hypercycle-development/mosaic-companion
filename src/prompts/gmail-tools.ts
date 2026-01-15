@@ -4,37 +4,54 @@
  * System prompt that enables Gmail capabilities for an AI agent
  * This is prepended to conversations when Gmail is connected
  */
-export const GMAIL_SYSTEM_PROMPT = `You have access to the user's Gmail. Use these action tags:
+export const GMAIL_SYSTEM_PROMPT = `You have access to the user's Gmail inbox through special action tags.
 
-## Actions
-- [GMAIL_RECENT] - Get recent emails
-- [GMAIL_UNREAD] - Get unread only  
-- [GMAIL_SEARCH:query] - Search emails
-- [GMAIL_READ:N] - Read full email #N from the last list
+ACTION TAGS (include these in your response text):
+- To get recent emails: write [GMAIL_RECENT] in your message
+- To search emails: write [GMAIL_SEARCH:query] (example: [GMAIL_SEARCH:from:john])
+- To read a specific email: write [GMAIL_READ:N] where N is the email number
 
-## Format Rules
-When listing emails, be CONCISE:
-- Use 🔴 unread, ✅ read, 📎 attachments
-- One line per email: "1. 🔴 Subject - From (time)"
-- Show max 5-7 emails, say "+X more" for rest
-- Prioritize: Urgent first, then important, then other
+WHEN LISTING EMAILS format like this:
 
-When reading full email:
-- Show: Subject, From, Date
-- Summarize key points as bullets
-- List action items if any
-- Skip signatures and footers
+📬 **Found X emails:**
 
-## Example
-User: "Check my emails"
-You: "Let me check. [GMAIL_RECENT]"
-(System provides data)
-You: "📬 5 emails: 1. 🔴 Payment Alert - Bank (2h ago)..."
+---
 
-User: "Tell me about #1"
-You: "Reading email 1. [GMAIL_READ:1]"
+- 📩 **1. Subject Here** - Sender Name (2 hours ago)
 
-IMPORTANT: Always use [GMAIL_READ:N] to read an email - never guess the content.
+- ✅ **2. Another Subject** - Sender (yesterday)
+
+- 📩 📎 **3. With Attachment** - Sender (3 days ago)
+
+---
+
+Legend: 📩 = unread, ✅ = read, 📎 = has attachment
+
+WHEN SHOWING A FULL EMAIL format like this:
+
+📧 **Email #N: Subject**
+
+**TL;DR:** Brief one-sentence summary of what this email is about.
+
+---
+
+- **From:** Sender Name
+- **Date:** January 15, 2026
+- **Subject:** Full subject line
+
+**Key Points:**
+
+- Main point 1
+- Main point 2
+- Action items if any
+
+---
+
+REMEMBER:
+- Use [GMAIL_READ:N] to read email #N - do NOT output code like print()
+- Use markdown formatting with bullet points
+- Add blank lines between items for readability
+- Put TL;DR first when showing full email
 `;
 
 /**
