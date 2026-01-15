@@ -13,6 +13,7 @@ import {
   MessageSquare,
   Zap,
   AlertCircle,
+  Mail,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -21,6 +22,16 @@ import {
   PROVIDER_INFO,
 } from "../types/ai";
 import { AIService } from "../services/AIService";
+import {
+  parseAction,
+  executeGmailAction,
+  buildEmailAnalysisPrompt,
+  isGmailAuthenticated,
+} from "../services/ActionParser";
+import {
+  getGmailSystemPrompt,
+  mightBeEmailRelated,
+} from "../prompts/gmail-tools";
 
 interface ChatViewProps {
   //   agents: AIAgentConfig[];
@@ -41,6 +52,7 @@ export const ChatView: React.FC<ChatViewProps> = (
   const [streamingContent, setStreamingContent] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showAgentSelector, setShowAgentSelector] = useState(false);
+  const [gmailConnected, setGmailConnected] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -81,6 +93,9 @@ export const ChatView: React.FC<ChatViewProps> = (
       }
     };
     getAgents();
+
+    // Check Gmail connection status
+    isGmailAuthenticated().then(setGmailConnected);
   }, []);
   // Close agent selector on outside click
   useEffect(() => {
@@ -155,15 +170,132 @@ export const ChatView: React.FC<ChatViewProps> = (
       let fullResponse = "";
       await window.electronAPI.logInput(input.trim());
 
-      await AIService.sendMessage(
-        selectedAgent,
-        updatedMessages.filter((m) => m.role !== "system"),
-        {
-          onToken: (token) => {
-            fullResponse += token;
-            setStreamingContent(fullResponse);
-          },
-          onComplete: (response) => {
+      // Build messages with Gmail system prompt if connected
+      const messagesForAI = updatedMessages.filter((m) => m.role !== "system");
+
+      // Add Gmail context if user might be asking about emails
+      if (gmailConnected && mightBeEmailRelated(messageContent)) {
+        const systemMessage: ChatMessage = {
+          id: "gmail-system",
+          role: "user" as const, // Inject as user message for better compatibility
+          content: `[System Context] ${getGmailSystemPrompt(true)}`,
+          timestamp: Date.now(),
+          agentId: selectedAgent.id,
+        };
+        messagesForAI.unshift(systemMessage);
+      }
+
+      await AIService.sendMessage(selectedAgent, messagesForAI, {
+        onToken: (token) => {
+          fullResponse += token;
+          setStreamingContent(fullResponse);
+        },
+        onComplete: async (response) => {
+          // Check for Gmail action tags in the response
+          const parsedAction = parseAction(response);
+
+          if (parsedAction.type !== "NONE") {
+            // Gmail action detected - execute it
+            setStreamingContent(
+              parsedAction.cleanResponse + "\n\n📧 Fetching emails..."
+            );
+
+            const emailData = await executeGmailAction(parsedAction);
+
+            // Send email data back to AI for analysis
+            const analysisPrompt = buildEmailAnalysisPrompt(
+              messageContent,
+              emailData
+            );
+
+            // Add the initial response as a message
+            const initialMessage: ChatMessage = {
+              id: `msg-${Date.now()}`,
+              role: "assistant",
+              content: parsedAction.cleanResponse,
+              timestamp: Date.now(),
+              agentId: selectedAgent.id,
+            };
+
+            const messagesWithInitial = [...updatedMessages, initialMessage];
+
+            // Create follow-up message with email data
+            const dataMessage: ChatMessage = {
+              id: `msg-${Date.now() + 1}`,
+              role: "user",
+              content: analysisPrompt,
+              timestamp: Date.now(),
+              agentId: selectedAgent.id,
+            };
+
+            // Get AI analysis
+            let analysisResponse = "";
+            setStreamingContent(
+              parsedAction.cleanResponse + "\n\n📧 Analyzing emails..."
+            );
+
+            await AIService.sendMessage(
+              selectedAgent,
+              [...messagesWithInitial, dataMessage].filter(
+                (m) => m.role !== "system"
+              ),
+              {
+                onToken: (token) => {
+                  analysisResponse += token;
+                  setStreamingContent(
+                    parsedAction.cleanResponse + "\n\n" + analysisResponse
+                  );
+                },
+                onComplete: (analysis) => {
+                  const finalMessage: ChatMessage = {
+                    id: `msg-${Date.now() + 2}`,
+                    role: "assistant",
+                    content: parsedAction.cleanResponse + "\n\n" + analysis,
+                    timestamp: Date.now(),
+                    agentId: selectedAgent.id,
+                  };
+
+                  setSessions((prev) =>
+                    prev.map((s) =>
+                      s.id === session!.id
+                        ? {
+                            ...s,
+                            messages: [...updatedMessages, finalMessage],
+                            updatedAt: Date.now(),
+                          }
+                        : s
+                    )
+                  );
+                  setStreamingContent("");
+                  setIsGenerating(false);
+                },
+                onError: (error) => {
+                  // Still show the initial response even if analysis fails
+                  const errorMessage: ChatMessage = {
+                    id: `msg-${Date.now()}`,
+                    role: "assistant",
+                    content: `${parsedAction.cleanResponse}\n\n⚠️ Error analyzing emails: ${error.message}`,
+                    timestamp: Date.now(),
+                    agentId: selectedAgent.id,
+                  };
+                  setSessions((prev) =>
+                    prev.map((s) =>
+                      s.id === session!.id
+                        ? {
+                            ...s,
+                            messages: [...updatedMessages, errorMessage],
+                            updatedAt: Date.now(),
+                          }
+                        : s
+                    )
+                  );
+                  setStreamingContent("");
+                  setIsGenerating(false);
+                },
+              }
+            );
+          } else {
+            // No Gmail action - normal response
             const assistantMessage: ChatMessage = {
               id: `msg-${Date.now()}`,
               role: "assistant",
@@ -186,33 +318,33 @@ export const ChatView: React.FC<ChatViewProps> = (
             setStreamingContent("");
             setIsGenerating(false);
             window.electronAPI.logInput(response.trim());
-          },
-          onError: (error) => {
-            console.error("Stream error:", error);
-            // Add error message
-            const errorMessage: ChatMessage = {
-              id: `msg-${Date.now()}`,
-              role: "assistant",
-              content: `⚠️ Error: ${error.message}`,
-              timestamp: Date.now(),
-              agentId: selectedAgent.id,
-            };
-            setSessions((prev) =>
-              prev.map((s) =>
-                s.id === session!.id
-                  ? {
-                      ...s,
-                      messages: [...updatedMessages, errorMessage],
-                      updatedAt: Date.now(),
-                    }
-                  : s
-              )
-            );
-            setStreamingContent("");
-            setIsGenerating(false);
-          },
-        }
-      );
+          }
+        },
+        onError: (error) => {
+          console.error("Stream error:", error);
+          // Add error message
+          const errorMessage: ChatMessage = {
+            id: `msg-${Date.now()}`,
+            role: "assistant",
+            content: `⚠️ Error: ${error.message}`,
+            timestamp: Date.now(),
+            agentId: selectedAgent.id,
+          };
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === session!.id
+                ? {
+                    ...s,
+                    messages: [...updatedMessages, errorMessage],
+                    updatedAt: Date.now(),
+                  }
+                : s
+            )
+          );
+          setStreamingContent("");
+          setIsGenerating(false);
+        },
+      });
     } catch (error) {
       // Fallback for non-streaming errors
       const errorMessage: ChatMessage = {
