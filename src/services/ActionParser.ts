@@ -4,11 +4,12 @@ export type GmailActionType =
   | "GMAIL_RECENT"
   | "GMAIL_SEARCH"
   | "GMAIL_UNREAD"
+  | "GMAIL_LABEL"
   | "NONE";
 
 export interface ParsedAction {
   type: GmailActionType;
-  params?: Record<string, string>;
+  params?: Record<string, string | number>;
   cleanResponse: string; // Response with action tags removed
   rawTag?: string; // The original tag found
 }
@@ -22,44 +23,93 @@ export interface EmailData {
   isUnread: boolean;
 }
 
-// Regex patterns for action tags
+// Default email count
+const DEFAULT_EMAIL_COUNT = 20;
+
+// Regex patterns for action tags - capture entire content between brackets
 const ACTION_PATTERNS = {
-  GMAIL_RECENT: /\[GMAIL_RECENT\]/gi,
-  GMAIL_UNREAD: /\[GMAIL_UNREAD\]/gi,
+  GMAIL_RECENT: /\[GMAIL_RECENT(?::(\d+))?\]/gi,
+  GMAIL_UNREAD: /\[GMAIL_UNREAD(?::(\d+))?\]/gi,
   GMAIL_SEARCH: /\[GMAIL_SEARCH:([^\]]+)\]/gi,
+  GMAIL_LABEL: /\[GMAIL_LABEL:([^\]]+)\]/gi,
 };
+
+/**
+ * Parse search query that may have an optional count suffix
+ * e.g., "from:john" -> { query: "from:john", count: 20 }
+ * e.g., "from:john:15" -> { query: "from:john", count: 15 }
+ */
+function parseQueryWithCount(fullQuery: string): {
+  query: string;
+  count: number;
+} {
+  // Check if the last segment after : is a number (the count)
+  const lastColonIndex = fullQuery.lastIndexOf(":");
+  if (lastColonIndex > 0) {
+    const possibleCount = fullQuery.substring(lastColonIndex + 1);
+    if (/^\d+$/.test(possibleCount)) {
+      return {
+        query: fullQuery.substring(0, lastColonIndex),
+        count: parseInt(possibleCount),
+      };
+    }
+  }
+  return { query: fullQuery, count: DEFAULT_EMAIL_COUNT };
+}
 
 /**
  * Parse AI response for action tags
  * Returns the action type, parameters, and cleaned response
+ * Supports dynamic count: [GMAIL_RECENT:30], [GMAIL_SEARCH:from:john:15]
  */
 export function parseAction(response: string): ParsedAction {
-  // Check for GMAIL_SEARCH (with parameter)
+  // Check for GMAIL_SEARCH (with parameter and optional count at end)
   const searchMatch = response.match(/\[GMAIL_SEARCH:([^\]]+)\]/i);
   if (searchMatch) {
+    const { query, count } = parseQueryWithCount(searchMatch[1]);
     return {
       type: "GMAIL_SEARCH",
-      params: { query: searchMatch[1] },
+      params: { query, count },
       cleanResponse: response.replace(ACTION_PATTERNS.GMAIL_SEARCH, "").trim(),
       rawTag: searchMatch[0],
     };
   }
 
-  // Check for GMAIL_UNREAD
-  if (ACTION_PATTERNS.GMAIL_UNREAD.test(response)) {
+  // Check for GMAIL_LABEL (with label name and optional count)
+  const labelMatch = response.match(/\[GMAIL_LABEL:([^\]]+)\]/i);
+  if (labelMatch) {
+    const { query: label, count } = parseQueryWithCount(labelMatch[1]);
     return {
-      type: "GMAIL_UNREAD",
-      cleanResponse: response.replace(ACTION_PATTERNS.GMAIL_UNREAD, "").trim(),
-      rawTag: "[GMAIL_UNREAD]",
+      type: "GMAIL_LABEL",
+      params: { label: label.toUpperCase(), count },
+      cleanResponse: response.replace(ACTION_PATTERNS.GMAIL_LABEL, "").trim(),
+      rawTag: labelMatch[0],
     };
   }
 
-  // Check for GMAIL_RECENT
-  if (ACTION_PATTERNS.GMAIL_RECENT.test(response)) {
+  // Check for GMAIL_UNREAD (with optional count)
+  const unreadMatch = response.match(/\[GMAIL_UNREAD(?::(\d+))?\]/i);
+  if (unreadMatch) {
+    return {
+      type: "GMAIL_UNREAD",
+      params: {
+        count: unreadMatch[1] ? parseInt(unreadMatch[1]) : DEFAULT_EMAIL_COUNT,
+      },
+      cleanResponse: response.replace(ACTION_PATTERNS.GMAIL_UNREAD, "").trim(),
+      rawTag: unreadMatch[0],
+    };
+  }
+
+  // Check for GMAIL_RECENT (with optional count)
+  const recentMatch = response.match(/\[GMAIL_RECENT(?::(\d+))?\]/i);
+  if (recentMatch) {
     return {
       type: "GMAIL_RECENT",
+      params: {
+        count: recentMatch[1] ? parseInt(recentMatch[1]) : DEFAULT_EMAIL_COUNT,
+      },
       cleanResponse: response.replace(ACTION_PATTERNS.GMAIL_RECENT, "").trim(),
-      rawTag: "[GMAIL_RECENT]",
+      rawTag: recentMatch[0],
     };
   }
 
@@ -136,28 +186,44 @@ export async function executeGmailAction(
 
   try {
     let result;
+    const count = (action.params?.count as number) || DEFAULT_EMAIL_COUNT;
 
     switch (action.type) {
       case "GMAIL_RECENT":
-        result = await window.electronAPI.gmail.getEmails(10);
+        result = await window.electronAPI.gmail.getEmails(count);
         break;
 
       case "GMAIL_UNREAD":
-        // For now, get recent and filter - can optimize with labelIds later
-        result = await window.electronAPI.gmail.getEmails(20);
+        // Get more emails and filter to unread
+        result = await window.electronAPI.gmail.getEmails(count * 2);
         if (result.success && result.emails) {
-          result.emails = result.emails.filter((e) => e.isUnread);
+          result.emails = result.emails
+            .filter((e) => e.isUnread)
+            .slice(0, count);
         }
         break;
 
       case "GMAIL_SEARCH":
         if (action.params?.query) {
           result = await window.electronAPI.gmail.searchEmails(
-            action.params.query,
-            10
+            action.params.query as string,
+            count
           );
         } else {
           return "Search query is missing.";
+        }
+        break;
+
+      case "GMAIL_LABEL":
+        if (action.params?.label) {
+          // Search by Gmail label using category: prefix
+          const label = action.params.label as string;
+          result = await window.electronAPI.gmail.searchEmails(
+            `category:${label.toLowerCase()}`,
+            count
+          );
+        } else {
+          return "Label name is missing.";
         }
         break;
 
