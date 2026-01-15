@@ -1,6 +1,6 @@
 {
   "name": "mosaic-browser",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "Mosaic Browser Application",
   "main": "main.js",
   "type": "module",
