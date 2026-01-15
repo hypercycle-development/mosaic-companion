@@ -88,11 +88,15 @@ jobs:
             platform: linux
             build_cmd: electron-builder --linux
           - os: macos-latest
-            platform: mac-arm64
-            build_cmd: electron-builder --mac --arm64
-          - os: macos-15-intel
-            platform: mac-x64
-            build_cmd: electron-builder --mac --x64
+            platform: mac
+            build_cmd: electron-builder --mac --universal
+          # TODO: Separate ARM64 and x64 builds (having issues with runners)
+          # - os: macos-latest
+          #   platform: mac-arm64
+          #   build_cmd: electron-builder --mac --arm64
+          # - os: macos-15-intel
+          #   platform: mac-x64
+          #   build_cmd: electron-builder --mac --x64
           - os: windows-latest
             platform: win
             build_cmd: electron-builder --win
@@ -134,11 +138,11 @@ jobs:
             aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
               --include "*.AppImage" \
               --include "latest-linux*.yml"
-          elif [[ "${{ matrix.platform }}" == mac-* ]]; then
+          elif [ "${{ matrix.platform }}" == "mac" ]; then
             aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
               --include "*.dmg" \
               --include "*.zip" \
-              --include "latest-mac*.yml"
+              --include "latest-mac.yml"
           else
             aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
               --include "*.exe" \
