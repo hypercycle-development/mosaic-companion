@@ -70,6 +70,24 @@ ipcMain.handle("restart-window", async () => {
   return { success: true };
 });
 
+// IPC handler for 3-button confirmation dialog
+ipcMain.handle("show-title-bar-confirm", async () => {
+  const { dialog } = await import("electron");
+  
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: "question",
+    title: "Apply Title Bar Style",
+    message: "This will refresh the window to apply the new title bar style.",
+    detail: "Any unsaved work could be lost.",
+    buttons: ["Apply Now", "Apply Later", "Cancel"],
+    defaultId: 0,
+    cancelId: 2,
+  });
+  
+  // button index: 0 = Apply Now, 1 = Apply Later, 2 = Cancel
+  return { buttonIndex: result.response };
+});
+
 app.whenReady().then(() => {
   console.log("User data path:", app.getPath("userData"));
   createWindow();
