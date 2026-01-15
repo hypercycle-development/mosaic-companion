@@ -1,155 +1,143 @@
 name: Release
 
 on:
-    push:
-        branches:
-            - main
+  push:
+    branches:
+      - main
 
 jobs:
-    # Check if this commit should trigger a release
-    check-deploy:
-        runs-on: ubuntu-latest
-        outputs:
-            should_deploy: ${{ steps.check.outputs.should_deploy }}
-            version_type: ${{ steps.check.outputs.version_type }}
-        steps:
-            - name: Check for deploy trigger
-              id: check
-              run: |
-                  COMMIT_MSG="${{ github.event.head_commit.message }}"
+  # Check if this commit should trigger a release
+  check-deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+      version_type: ${{ steps.check.outputs.version_type }}
+    steps:
+      - name: Check for deploy trigger
+        id: check
+        run: |
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
 
-                  if [[ "$COMMIT_MSG" == *"[DEPLOY]"* ]]; then
-                    echo "should_deploy=true" >> $GITHUB_OUTPUT
-                    
-                    # Determine version type
-                    if [[ "$COMMIT_MSG" == *"[MAJOR]"* ]]; then
-                      echo "version_type=major" >> $GITHUB_OUTPUT
-                    elif [[ "$COMMIT_MSG" == *"[MINOR]"* ]]; then
-                      echo "version_type=minor" >> $GITHUB_OUTPUT
-                    else
-                      echo "version_type=patch" >> $GITHUB_OUTPUT
-                    fi
-                  else
-                    echo "should_deploy=false" >> $GITHUB_OUTPUT
-                  fi
+          if [[ "$COMMIT_MSG" == *"[DEPLOY]"* ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            
+            # Determine version type
+            if [[ "$COMMIT_MSG" == *"[MAJOR]"* ]]; then
+              echo "version_type=major" >> $GITHUB_OUTPUT
+            elif [[ "$COMMIT_MSG" == *"[MINOR]"* ]]; then
+              echo "version_type=minor" >> $GITHUB_OUTPUT
+            else
+              echo "version_type=patch" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          fi
 
-    # Bump version and commit
-    bump-version:
-        needs: check-deploy
-        if: needs.check-deploy.outputs.should_deploy == 'true'
-        runs-on: ubuntu-latest
-        outputs:
-            new_version: ${{ steps.bump.outputs.new_version }}
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-              with:
-                  token: ${{ secrets.GITHUB_TOKEN }}
+  # Bump version and commit
+  bump-version:
+    needs: check-deploy
+    if: needs.check-deploy.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@v1
-              with:
-                  bun-version: latest
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
-            - name: Configure Git
-              run: |
-                  git config user.name "github-actions[bot]"
-                  git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-            - name: Bump version
-              id: bump
-              run: |
-                  # Get current version
-                  CURRENT_VERSION=$(node -p "require('./package.json').version")
-                  echo "Current version: $CURRENT_VERSION"
+      - name: Bump version
+        id: bump
+        run: |
+          # Get current version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
 
-                  # Bump version (npm version doesn't require npm install)
-                  npm version ${{ needs.check-deploy.outputs.version_type }} --no-git-tag-version
+          # Bump version (npm version doesn't require npm install)
+          npm version ${{ needs.check-deploy.outputs.version_type }} --no-git-tag-version
 
-                  # Get new version
-                  NEW_VERSION=$(node -p "require('./package.json').version")
-                  echo "New version: $NEW_VERSION"
-                  echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          # Get new version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
-                  # Commit and push
-                  git add package.json
-                  git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
-                  git push
+          # Commit and push
+          git add package.json
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git push
 
-    # Build for all platforms
-    build:
-        needs: [check-deploy, bump-version]
-        if: needs.check-deploy.outputs.should_deploy == 'true'
-        strategy:
-            fail-fast: false
-            matrix:
-                include:
-                    - os: ubuntu-latest
-                      platform: linux
-                      build_cmd: electron-builder --linux
-                    - os: macos-latest
-                      platform: mac
-                      build_cmd: electron-builder --mac
-                    - os: windows-latest
-                      platform: win
-                      build_cmd: electron-builder --win
-        runs-on: ${{ matrix.os }}
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-              with:
-                  ref: main # Get the version-bumped code
+  # Build for all platforms
+  build:
+    needs: [check-deploy, bump-version]
+    if: needs.check-deploy.outputs.should_deploy == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            build_cmd: electron-builder --linux
+          - os: macos-latest
+            platform: mac
+            build_cmd: electron-builder --mac
+          - os: windows-latest
+            platform: win
+            build_cmd: electron-builder --win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main # Get the version-bumped code
 
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@v1
-              with:
-                  bun-version: latest
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
-            - name: Install dependencies
-              run: bun install
+      - name: Install dependencies
+        run: bun install
 
-            - name: Build app
-              run: bun run build
+      - name: Build app
+        run: bun run build
 
-            - name: Build Electron (${{ matrix.platform }})
-              run: bun run ${{ matrix.build_cmd }}
+      - name: Build Electron (${{ matrix.platform }})
+        run: bun run ${{ matrix.build_cmd }}
 
-            - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v4
-              with:
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: us-east-2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
 
-            - name: Upload to S3
-              shell: bash
-              run: |
-                  # Upload all release artifacts to S3
-                  cd release
+      - name: Upload to S3
+        shell: bash
+        run: |
+          # Upload all release artifacts to S3
+          cd release
 
-                  if [ "${{ matrix.platform }}" == "linux" ]; then
-                    aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
-                      --include "*.AppImage" \
-                      --include "latest-linux.yml"
-                  elif [ "${{ matrix.platform }}" == "mac" ]; then
-                    aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
-                      --include "*.dmg" \
-                      --include "*.zip" \
-                      --include "latest-mac.yml"
-                  else
-                    aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
-                      --include "*.exe" \
-                      --include "latest.yml"
-                  fi
-
-            - name: Upload artifacts to GitHub
-              uses: actions/upload-artifact@v4
-              with:
-                  name: release-${{ matrix.platform }}
-                  path: |
-                      release/*.AppImage
-                      release/*.dmg
-                      release/*.zip
-                      release/*.exe
-                      release/latest*.yml
-                  retention-days: 30
+          if [ "${{ matrix.platform }}" == "linux" ]; then
+            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
+              --include "*.AppImage" \
+              --include "latest-linux.yml"
+          elif [ "${{ matrix.platform }}" == "mac" ]; then
+            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
+              --include "*.dmg" \
+              --include "*.zip" \
+              --include "latest-mac.yml"
+          else
+            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
+              --include "*.exe" \
+              --include "latest.yml"
+          fi
