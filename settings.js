@@ -1,7 +1,7 @@
 /**
  * Settings Module
  * Handles all app settings persistence (nodes, preferences, etc.)
- * Stored in: ~/.config/mosaic-browser/app-settings.json
+ * Stored in path: ~/.config/mosaic-browser/app-settings.json
  */
 
 import { app } from "electron";
