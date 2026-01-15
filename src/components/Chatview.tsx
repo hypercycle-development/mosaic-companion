@@ -32,6 +32,7 @@ import {
   getGmailSystemPrompt,
   mightBeEmailRelated,
 } from "../prompts/gmail-tools";
+import ReactMarkdown from "react-markdown";
 
 interface ChatViewProps {
   //   agents: AIAgentConfig[];
@@ -617,8 +618,14 @@ export const ChatView: React.FC<ChatViewProps> = (
                       }
                     `}
                     >
-                      <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-                        {message.content}
+                      <div className="break-words text-[15px] leading-loose prose prose-invert prose-sm max-w-none prose-p:my-3 prose-headings:my-4 prose-ul:my-3 prose-li:my-2 prose-hr:my-4">
+                        {message.role === "assistant" ? (
+                          <ReactMarkdown>{message.content}</ReactMarkdown>
+                        ) : (
+                          <span className="whitespace-pre-wrap">
+                            {message.content}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -655,8 +662,8 @@ export const ChatView: React.FC<ChatViewProps> = (
                   </div>
                   <div className="flex-1 max-w-[80%]">
                     <div className="inline-block px-4 py-3 rounded-2xl rounded-bl-md bg-gray-900 text-gray-200 border border-gray-800">
-                      <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-                        {streamingContent}
+                      <div className="break-words text-[15px] leading-loose prose prose-invert prose-sm max-w-none prose-p:my-3 prose-headings:my-4 prose-ul:my-3 prose-li:my-2 prose-hr:my-4">
+                        <ReactMarkdown>{streamingContent}</ReactMarkdown>
                         <span className="inline-block w-2 h-4 bg-indigo-500 ml-0.5 animate-pulse" />
                       </div>
                     </div>
