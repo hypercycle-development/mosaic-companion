@@ -148,7 +148,7 @@ jobs:
                   name: release-${{ matrix.platform }}
                   path: |
                       release/*.AppImage
-                      release/*.pkg
+                      release/*.dmg
                       release/*.zip
                       release/*.exe
                       release/latest*.yml
