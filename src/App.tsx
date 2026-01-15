@@ -6,6 +6,7 @@ import { TabStrip } from "./components/TabStrip";
 import { BottomBar } from "./components/BottomBar";
 import { DemoOverlay } from "./components/DemoOverlay";
 import { INTERNAL_HOME_URL, Tab } from "./types/types";
+import { useTheme } from "./ThemeProvider";
 
 function App() {
   // --- Persistent State ---
@@ -21,12 +22,7 @@ function App() {
     return stored === "true";
   });
 
-  // Theme State (Default to Dark)
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    return (
-      (localStorage.getItem("browser_theme") as "light" | "dark") || "dark"
-    );
-  });
+  const { theme, themeKey, setThemeKey, isReady } = useTheme();
 
   // Sidebar State (Defaults to Closed)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -66,18 +62,9 @@ function App() {
     localStorage.setItem("browser_show_url_bar", String(showUrlBar));
   }, [showUrlBar]);
 
-  // Apply Theme
-  useEffect(() => {
-    localStorage.setItem("browser_theme", theme);
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [theme]);
-
   const toggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+    const next = themeKey === "dark" ? "light" : "dark";
+    setThemeKey(next as typeof themeKey);
   };
 
   // --- Tab Management ---
@@ -181,8 +168,15 @@ function App() {
     }
   };
 
+  if (!isReady) {
+    return null;
+  }
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-gray-950 text-gray-100 font-sans transition-colors duration-200 selection:bg-indigo-500/30">
+    <div
+      className="flex h-screen w-screen overflow-hidden font-sans transition-colors duration-200 selection:bg-[var(--selection)]"
+      style={{ backgroundColor: "var(--background)", color: "var(--text)" }}
+    >
       {/* Full Screen Demo Overlay */}
       {isDemoActive && <DemoOverlay onClose={() => setIsDemoActive(false)} />}
 
@@ -195,10 +189,22 @@ function App() {
       />
 
       {/* Main Browser Area */}
-      <main className="flex-1 flex flex-col min-w-0 bg-gray-900/50 shadow-2xl relative overflow-hidden">
+      <main
+        className="flex-1 flex flex-col min-w-0 relative overflow-hidden shadow-2xl"
+        style={{
+          backgroundColor: "var(--surfaceAlt)",
+          boxShadow: "0 10px 40px var(--shadow)",
+        }}
+      >
         {/* Conditional Top Bar */}
         {showUrlBar && (
-          <div className="border-b border-gray-800 bg-gray-950">
+          <div
+            className="border-b"
+            style={{
+              borderColor: "var(--border)",
+              backgroundColor: "var(--background)",
+            }}
+          >
             <TopBar
               currentUrl={activeTab.history.present}
               canGoBack={activeTab.history.past.length > 0}
@@ -225,11 +231,20 @@ function App() {
         )}
 
         {/* Content Area */}
-        <div className="flex-1 relative overflow-hidden bg-gray-900">
+        <div
+          className="flex-1 relative overflow-hidden"
+          style={{ backgroundColor: "var(--surface)" }}
+        >
           {!showUrlBar && !isSidebarOpen && !isDemoActive && (
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="absolute top-4 left-4 z-50 p-2 bg-gray-950/80 hover:bg-indigo-600 rounded-full text-white transition-colors backdrop-blur-md border border-gray-800 hover:border-indigo-500"
+              className="absolute top-4 left-4 z-50 p-2 rounded-full transition-colors backdrop-blur-md"
+              style={{
+                backgroundColor:
+                  "color-mix(in srgb, var(--background) 85%, transparent)",
+                color: "var(--text)",
+                border: `1px solid var(--border)`,
+              }}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -258,8 +273,6 @@ function App() {
               <ContentArea
                 url={tab.history.present}
                 onNavigate={navigateTo}
-                theme={theme}
-                toggleTheme={toggleTheme}
                 settings={{
                   homeUrl,
                   setHomeUrl,

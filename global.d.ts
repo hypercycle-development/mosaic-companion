@@ -79,6 +79,11 @@ declare global {
         delete: (id: string) => Promise<{ success: boolean; error?: string }>;
         clear: () => Promise<{ success: boolean; error?: string }>;
       };
+
+      themes: {
+        get: () => Promise<{ activeTheme: string }>;
+        set: (activeTheme: string) => Promise<{ success: boolean }>;
+      };
     };
   }
 }

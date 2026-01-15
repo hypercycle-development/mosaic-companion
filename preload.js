@@ -5,7 +5,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getCsvPath: () => ipcRenderer.invoke("get-csv-path"),
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
   getUpdateSettings: () => ipcRenderer.invoke("get-update-settings"),
-  setUpdateSettings: (settings) => ipcRenderer.invoke("set-update-settings", settings),
+  setUpdateSettings: (settings) =>
+    ipcRenderer.invoke("set-update-settings", settings),
   getUpdateLogs: () => ipcRenderer.invoke("get-update-logs"),
   getUpdateLogPath: () => ipcRenderer.invoke("get-update-log-path"),
   restartWindow: () => ipcRenderer.invoke("restart-window"),
@@ -29,5 +30,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("ai-agents:update", id, updates),
     delete: (id) => ipcRenderer.invoke("ai-agents:delete", id),
     clear: () => ipcRenderer.invoke("ai-agents:clear"),
+  },
+  themes: {
+    get: () => ipcRenderer.invoke("themes:get"),
+    set: (activeTheme) => ipcRenderer.invoke("themes:set", activeTheme),
   },
 });
