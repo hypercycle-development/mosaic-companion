@@ -58,7 +58,7 @@
     },
     "mac": {
       "target": "dmg",
-      "identity": null
+      "identity": "-"
     },
     "linux": {
       "target": "AppImage",
