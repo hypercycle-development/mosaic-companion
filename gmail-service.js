@@ -134,8 +134,63 @@ async function getEmailDetails(messageId) {
   };
 }
 
+/**
+ * Search emails with a query
+ * @param {string} query - Gmail search query (e.g., "from:john", "subject:invoice")
+ * @param {number} maxResults - Maximum number of emails to fetch (default: 10)
+ * @returns {Promise<Array>} Array of email objects matching the query
+ */
+async function searchEmails(query, maxResults = 10) {
+  const gmail = getGmailClient();
+
+  // Use Gmail's search query syntax
+  const listResponse = await gmail.users.messages.list({
+    userId: 'me',
+    maxResults,
+    q: query,
+  });
+
+  const messages = listResponse.data.messages || [];
+  
+  if (messages.length === 0) {
+    return [];
+  }
+
+  // Fetch details for each message
+  const emailPromises = messages.map(async (message) => {
+    const msgResponse = await gmail.users.messages.get({
+      userId: 'me',
+      id: message.id,
+      format: 'metadata',
+      metadataHeaders: ['From', 'Subject', 'Date'],
+    });
+
+    const msg = msgResponse.data;
+    const headers = msg.payload?.headers || [];
+
+    const getHeader = (name) => {
+      const header = headers.find(h => h.name.toLowerCase() === name.toLowerCase());
+      return header?.value || '';
+    };
+
+    return {
+      id: msg.id,
+      threadId: msg.threadId,
+      snippet: msg.snippet || '',
+      subject: getHeader('Subject'),
+      from: getHeader('From'),
+      date: getHeader('Date'),
+      labelIds: msg.labelIds || [],
+      isUnread: msg.labelIds?.includes('UNREAD') || false,
+    };
+  });
+
+  return Promise.all(emailPromises);
+}
+
 export {
   getUserProfile,
   getRecentEmails,
   getEmailDetails,
+  searchEmails,
 };
