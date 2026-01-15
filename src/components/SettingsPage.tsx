@@ -1,4 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
 import {
   Save,
   Layout,
@@ -184,16 +187,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
       if (result.success) {
         setUpdateSettingsState(result.settings);
-        setSettingsToast({ type: "success", message: "Setting saved" });
+        toast.success("Settings saved");
       } else {
-        setSettingsToast({
-          type: "error",
-          message: result.error || "Failed to save setting",
-        });
+        toast.error(result.error || "Failed to save settings");
       }
-
-      // Clear toast after 3 seconds
-      setTimeout(() => setSettingsToast(null), 3000);
     }
   };
 
@@ -309,7 +306,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     // Clear result after 5 seconds
     setTimeout(() => {
       setTestResults((prev) => ({ ...prev, [agent.id]: { status: "idle" } }));
-    }, 5000);
+    }, 15000);
   };
 
   const handleProviderChange = (agentId: string, provider: AIProvider) => {
@@ -324,7 +321,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const saveAgent = async (agent: AIAgentConfig) => {
     const result = await window.electronAPI.aiAgents.add(agent);
     if (result.success) {
-      console.log("Agent added!");
+      // Reload the agents list to sync with database
+      const updatedAgents = await window.electronAPI.aiAgents.get();
+      if (updatedAgents) {
+        setAiAgents(updatedAgents);
+      }
+      // Collapse the form and show success toast
+      setExpandedAgent(null);
+      toast.success("Agent saved successfully");
+      console.log("agent saved");
+    } else {
+      toast.error(result.error || "Failed to save agent");
     }
   };
   useEffect(() => {
@@ -489,7 +496,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                           onClick={async (e) => {
                             e.stopPropagation();
                             deleteAgent(agent.id);
-                            await window.electronAPI.aiAgents.delete(agent.id);
+                            const result =
+                              await window.electronAPI.aiAgents.delete(
+                                agent.id
+                              );
+                            if (result?.success) {
+                              toast.success("Agent deleted successfully");
+                            } else {
+                              toast.error("Failed to delete agent");
+                            }
                           }}
                           className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                         >
@@ -831,11 +846,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 return (
                   <div
                     key={node.id}
-                    className="bg-gray-950/50 border border-gray-700 rounded-xl overflow-hidden"
+                    className={`bg-gray-900/30 border rounded-xl overflow-hidden 
+                      ${
+                        expandedNode === node.id
+                          ? "border-indigo-500/50 bg-gray-950/50 shadow-[0_0_20px_rgba(99,102,241,0.1)]"
+                          : "border-gray-800 bg-gray-900/30 hover:border-gray-700 hover:border-gray-700 "
+                      }`}
                   >
                     {/* Node Header */}
                     <div
-                      className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-800/30 transition-colors"
+                      className="flex items-center justify-between p-4 cursor-pointer hover:border-gray-700 transition-colors"
                       onClick={() =>
                         setExpandedNode(
                           expandedNode === node.id ? null : node.id
@@ -1087,27 +1107,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 />
               </button>
             </div>
-
-            {/* Settings Feedback Toast */}
-            {settingsToast && (
-              <div
-                className={`
-                  flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium animate-in slide-in-from-bottom-2 duration-200
-                  ${
-                    settingsToast.type === "success"
-                      ? "bg-emerald-900/30 text-emerald-400 border border-emerald-500/30"
-                      : "bg-red-900/30 text-red-400 border border-red-500/30"
-                  }
-                `}
-              >
-                {settingsToast.type === "success" ? (
-                  <CheckCircle size={16} />
-                ) : (
-                  <XCircle size={16} />
-                )}
-                {settingsToast.message}
-              </div>
-            )}
           </div>
         </section>
 
@@ -1119,6 +1118,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           </button>
         </div>
       </div>
+
+      <ToastContainer theme="dark" />
     </div>
   );
 };
