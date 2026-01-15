@@ -4,7 +4,7 @@ import os from "os"
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { checkForUpdates, manualCheckForUpdates, initUpdater, applyAutoDownload } from "./updater.js";
+import { checkForUpdates, manualCheckForUpdates, initUpdater, applyAutoDownload, getLogFilePath, readLogFile } from "./updater.js";
 import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode } from "./settings.js";
 import { authenticate, signOut, isAuthenticated } from "./gmail-auth.js";
 import { getRecentEmails, getUserProfile, getEmailDetails, searchEmails } from "./gmail-service.js";
@@ -107,6 +107,16 @@ ipcMain.handle("set-update-settings", async (event, newSettings) => {
     applyAutoDownload(result.settings.autoDownload);
   }
   return result;
+});
+
+// Handler to get update log file path
+ipcMain.handle("get-update-log-path", async () => {
+  return getLogFilePath();
+});
+
+// Handler to read update logs
+ipcMain.handle("get-update-logs", async () => {
+  return readLogFile();
 });
 
 // ============================================
