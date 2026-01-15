@@ -1,22 +1,29 @@
-// main.js - Complete version with AI agents storage
+// main.js - Complete version with AI agents storage data
 import { app, BrowserWindow, ipcMain } from "electron";
 import os from "os"
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import { checkForUpdates, manualCheckForUpdates, initUpdater, applyAutoDownload, getLogFilePath, readLogFile } from "./updater.js";
-import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode } from "./settings.js";
+import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode, getTitleBarStyle } from "./settings.js";
 import { authenticate, signOut, isAuthenticated } from "./gmail-auth.js";
 import { getRecentEmails, getUserProfile, getEmailDetails, searchEmails } from "./gmail-service.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-function createWindow() {
+// Keep reference to main window for recreation
+let mainWindow = null;
+
+function createWindow(urlToLoad = null) {
+  // Get title bar style from settings (default to 'hidden' on non-Mac if not set)
+  const titleBarStyle = getTitleBarStyle();
+  
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    titleBarStyle: os.platform() === 'darwin' ? "default" : "hidden",
+    // Use the setting, or fallback to platform defaults if somehow undefined
+    titleBarStyle: titleBarStyle === 'default' ? 'default' : 'hidden',
     trafficLightPosition: { x: 10, y: 10 },
     backgroundColor: "#111827",
     webPreferences: {
@@ -27,8 +34,61 @@ function createWindow() {
     },
   });
 
-  win.loadFile(path.join(__dirname, "dist", "index.html"));
+  // Load specified URL or default to index.html
+  if (urlToLoad) {
+    win.loadURL(urlToLoad);
+  } else {
+    win.loadFile(path.join(__dirname, "dist", "index.html"));
+  }
+  
+  mainWindow = win;
+  return win;
 }
+
+/**
+ * Recreate the window with current settings.
+ * Used to apply titleBarStyle changes without full app restart.
+ */
+function recreateWindow() {
+  if (!mainWindow) return;
+  
+  // Get current state
+  const currentURL = mainWindow.webContents.getURL();
+  const bounds = mainWindow.getBounds();
+  
+  // Close the old window
+  mainWindow.close();
+  
+  // Create new window with updated settings
+  const newWin = createWindow(currentURL);
+  newWin.setBounds(bounds);
+  
+  console.log("Window recreated with new titleBarStyle");
+}
+
+// IPC handler to trigger window recreation from renderer
+ipcMain.handle("restart-window", async () => {
+  recreateWindow();
+  return { success: true };
+});
+
+// IPC handler for 3-button confirmation dialog
+ipcMain.handle("show-title-bar-confirm", async () => {
+  const { dialog } = await import("electron");
+  
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: "question",
+    title: "Apply Title Bar Style",
+    message: "This will refresh the window to apply the new title bar style.",
+    detail: "Any unsaved work could be lost.",
+    buttons: ["Apply Now", "Apply Later", "Cancel"],
+    defaultId: 0,
+    cancelId: 2,
+  });
+  
+  // button index: 0 = Apply Now, 1 = Apply Later, 2 = Cancel
+  return { buttonIndex: result.response };
+});
 
 app.whenReady().then(() => {
   console.log("User data path:", app.getPath("userData"));

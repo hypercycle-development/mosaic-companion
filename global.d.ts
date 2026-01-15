@@ -4,6 +4,7 @@ declare global {
   // Update settings configuration
   interface UpdateSettings {
     autoDownload: boolean;
+    titleBarStyle?: "hidden" | "default";
     nodes: HypercycleNode[];
   }
 
@@ -35,6 +36,8 @@ declare global {
       }>;
       getUpdateLogs: () => Promise<string>;
       getUpdateLogPath: () => Promise<string>;
+      restartWindow: () => Promise<{ success: boolean }>;
+      showTitleBarConfirm: () => Promise<{ buttonIndex: number }>;
 
       // Hypercycle Nodes methods
       nodes: {

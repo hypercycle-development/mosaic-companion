@@ -1,7 +1,7 @@
 /**
  * Settings Module
- * Handles all app settings persistence (nodes, preferences, etc.)
- * Stored in: ~/.config/mosaic-browser/app-settings.json
+ * Handles all app settings persistence to file (nodes, preferences, etc.)
+ * Stored in path: ~/.config/mosaic-browser/app-settings.json
  */
 
 import { app } from "electron";
@@ -17,6 +17,7 @@ const settingsPath = path.join(app.getPath("userData"), "app-settings.json");
 // Default settings
 const DEFAULT_SETTINGS = {
   autoDownload: false,
+  titleBarStyle: process.platform === 'darwin' ? 'default' : 'hidden',
   nodes: [],
 };
 
@@ -37,6 +38,12 @@ export function loadSettings() {
         ...loaded,
         nodes: loaded.nodes || []
       };
+      
+      // Ensure titleBarStyle has a valid default if missing from file
+      if (!settings.titleBarStyle) {
+        settings.titleBarStyle = DEFAULT_SETTINGS.titleBarStyle;
+      }
+      
       console.log("Settings loaded from:", settingsPath);
     } else {
       console.log("No settings file found, using defaults");
@@ -74,6 +81,7 @@ function saveSettings() {
 export function getUpdateSettings() {
   return { 
     autoDownload: settings.autoDownload,
+    titleBarStyle: settings.titleBarStyle,
     nodes: [...settings.nodes]
   };
 }
@@ -87,6 +95,9 @@ export function setUpdateSettings(newSettings) {
   if (typeof newSettings.autoDownload === "boolean") {
     settings.autoDownload = newSettings.autoDownload;
   }
+  if (typeof newSettings.titleBarStyle === "string") {
+    settings.titleBarStyle = newSettings.titleBarStyle;
+  }
   const saveResult = saveSettings();
   return { ...saveResult, settings: getUpdateSettings() };
 }
@@ -97,6 +108,14 @@ export function setUpdateSettings(newSettings) {
  */
 export function getAutoDownload() {
   return settings.autoDownload;
+}
+
+/**
+ * Get titleBarStyle setting.
+ * @returns {string}
+ */
+export function getTitleBarStyle() {
+  return settings.titleBarStyle;
 }
 
 // =============================================================================

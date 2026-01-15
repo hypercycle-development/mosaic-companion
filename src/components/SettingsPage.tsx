@@ -82,8 +82,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   >({});
 
   // Update settings state for auto-updater
-  const [updateSettings, setUpdateSettingsState] = useState({
+  const [updateSettings, setUpdateSettingsState] = useState<{
+    autoDownload: boolean;
+    titleBarStyle?: string;
+  }>({
     autoDownload: false,
+    titleBarStyle: "hidden",
   });
 
   // Toast feedback for settings changes
@@ -179,7 +183,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   // Helper to update a single setting with feedback
   const handleUpdateSettingChange = async (
     key: keyof typeof updateSettings,
-    value: boolean
+    value: boolean | string
   ) => {
     if (window.electronAPI?.setUpdateSettings) {
       const result = await window.electronAPI.setUpdateSettings({
@@ -385,6 +389,80 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 `}
                 />
               </button>
+            </div>
+
+            {/* Title Bar Style Setting */}
+            <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+              <div>
+                <span className="text-gray-200 font-medium block">
+                  Window Title Bar
+                </span>
+                <p className="text-sm text-gray-500">
+                  Choose "Default" for system window controls (min/max/close).
+                </p>
+              </div>
+              <div className="flex bg-gray-950 rounded-lg p-1 border border-gray-700">
+                <button
+                  onClick={async () => {
+                    if (updateSettings.titleBarStyle === "hidden") return;
+
+                    // Show 3-button dialog: Apply Now (0), Apply Later (1), Cancel (2)
+                    const result =
+                      await window.electronAPI?.showTitleBarConfirm?.();
+                    if (!result || result.buttonIndex === 2) return; // Cancel
+
+                    // Save the setting
+                    await handleUpdateSettingChange("titleBarStyle", "hidden");
+
+                    // Apply Now triggers restart, Apply Later just saves
+                    if (result.buttonIndex === 0) {
+                      window.electronAPI?.restartWindow?.();
+                    } else {
+                      toast.info("Change will apply on next restart");
+                    }
+                  }}
+                  className={`
+                    px-3 py-1.5 rounded-md text-sm font-medium transition-all
+                    ${
+                      updateSettings.titleBarStyle !== "default"
+                        ? "bg-gray-800 text-white shadow-sm"
+                        : "text-gray-400 hover:text-gray-200"
+                    }
+                  `}
+                >
+                  Hidden
+                </button>
+                <button
+                  onClick={async () => {
+                    if (updateSettings.titleBarStyle === "default") return;
+
+                    // Show 3-button dialog: Apply Now (0), Apply Later (1), Cancel (2)
+                    const result =
+                      await window.electronAPI?.showTitleBarConfirm?.();
+                    if (!result || result.buttonIndex === 2) return; // Cancel
+
+                    // Save the setting
+                    await handleUpdateSettingChange("titleBarStyle", "default");
+
+                    // Apply Now triggers restart, Apply Later just saves
+                    if (result.buttonIndex === 0) {
+                      window.electronAPI?.restartWindow?.();
+                    } else {
+                      toast.info("Change will apply on next restart");
+                    }
+                  }}
+                  className={`
+                    px-3 py-1.5 rounded-md text-sm font-medium transition-all
+                    ${
+                      updateSettings.titleBarStyle === "default"
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "text-gray-400 hover:text-gray-200"
+                    }
+                  `}
+                >
+                  Default
+                </button>
+              </div>
             </div>
           </div>
         </section>
