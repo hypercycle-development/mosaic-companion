@@ -36,6 +36,7 @@ declare global {
       }>;
       getUpdateLogs: () => Promise<string>;
       getUpdateLogPath: () => Promise<string>;
+      restartWindow: () => Promise<{ success: boolean }>;
 
       // Hypercycle Nodes methods
       nodes: {
