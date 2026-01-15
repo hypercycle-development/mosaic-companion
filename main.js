@@ -112,7 +112,7 @@ ipcMain.handle("get-update-log-path", async () => {
   return getLogFilePath();
 });
 
-// Handler to read update log contents
+// Handler to read update logs
 ipcMain.handle("get-update-logs", async () => {
   return readLogFile();
 });
