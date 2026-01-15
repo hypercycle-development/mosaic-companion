@@ -398,16 +398,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </span>
                 <p className="text-sm text-gray-500">
                   Choose "Default" for system window controls (min/max/close).
-                  <span className="text-amber-400 block mt-1 text-xs">
-                    * Restart required to apply changes
-                  </span>
                 </p>
               </div>
               <div className="flex bg-gray-950 rounded-lg p-1 border border-gray-700">
                 <button
-                  onClick={() =>
-                    handleUpdateSettingChange("titleBarStyle", "hidden")
-                  }
+                  onClick={async () => {
+                    await handleUpdateSettingChange("titleBarStyle", "hidden");
+                    window.electronAPI?.restartWindow?.();
+                  }}
                   className={`
                     px-3 py-1.5 rounded-md text-sm font-medium transition-all
                     ${
@@ -420,9 +418,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   Hidden
                 </button>
                 <button
-                  onClick={() =>
-                    handleUpdateSettingChange("titleBarStyle", "default")
-                  }
+                  onClick={async () => {
+                    await handleUpdateSettingChange("titleBarStyle", "default");
+                    window.electronAPI?.restartWindow?.();
+                  }}
                   className={`
                     px-3 py-1.5 rounded-md text-sm font-medium transition-all
                     ${
