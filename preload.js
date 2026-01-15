@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
   getUpdateSettings: () => ipcRenderer.invoke("get-update-settings"),
   setUpdateSettings: (settings) => ipcRenderer.invoke("set-update-settings", settings),
+  getUpdateLogs: () => ipcRenderer.invoke("get-update-logs"),
+  getUpdateLogPath: () => ipcRenderer.invoke("get-update-log-path"),
   nodes: {
     get: () => ipcRenderer.invoke("nodes:get"),
     add: (node) => ipcRenderer.invoke("nodes:add", node),
