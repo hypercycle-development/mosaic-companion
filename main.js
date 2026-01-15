@@ -6,6 +6,8 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import { checkForUpdates, manualCheckForUpdates, initUpdater, applyAutoDownload } from "./updater.js";
 import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode } from "./settings.js";
+import { authenticate, signOut, isAuthenticated } from "./gmail-auth.js";
+import { getRecentEmails, getUserProfile, getEmailDetails } from "./gmail-service.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -239,6 +241,67 @@ ipcMain.handle("ai-agents:clear", async () => {
   try {
     writeAgents([]);
     return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// ============================================
+// Gmail Integration
+// ============================================
+
+// Sign in with Google
+ipcMain.handle("gmail:sign-in", async () => {
+  try {
+    const tokens = await authenticate();
+    const profile = await getUserProfile();
+    return { success: true, email: profile.emailAddress };
+  } catch (error) {
+    console.error("Gmail sign-in error:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Sign out of Gmail
+ipcMain.handle("gmail:sign-out", async () => {
+  try {
+    signOut();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Check Gmail authentication status
+ipcMain.handle("gmail:get-status", async () => {
+  try {
+    const authenticated = isAuthenticated();
+    if (authenticated) {
+      const profile = await getUserProfile();
+      return { authenticated: true, email: profile.emailAddress };
+    }
+    return { authenticated: false };
+  } catch (error) {
+    return { authenticated: false, error: error.message };
+  }
+});
+
+// Get recent emails
+ipcMain.handle("gmail:get-emails", async (event, count = 10) => {
+  try {
+    const emails = await getRecentEmails(count);
+    return { success: true, emails };
+  } catch (error) {
+    console.error("Gmail fetch error:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get email details
+ipcMain.handle("gmail:get-email-details", async (event, messageId) => {
+  try {
+    const email = await getEmailDetails(messageId);
+    return { success: true, email };
   } catch (error) {
     return { success: false, error: error.message };
   }

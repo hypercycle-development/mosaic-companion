@@ -26,4 +26,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     delete: (id) => ipcRenderer.invoke("ai-agents:delete", id),
     clear: () => ipcRenderer.invoke("ai-agents:clear"),
   },
+  gmail: {
+    signIn: () => ipcRenderer.invoke("gmail:sign-in"),
+    signOut: () => ipcRenderer.invoke("gmail:sign-out"),
+    getStatus: () => ipcRenderer.invoke("gmail:get-status"),
+    getEmails: (count) => ipcRenderer.invoke("gmail:get-emails", count),
+    getEmailDetails: (messageId) => ipcRenderer.invoke("gmail:get-email-details", messageId),
+  },
 });
