@@ -54,10 +54,10 @@
       "path": "/releases"
     },
     "win": {
-      "target": "nsis"
+      "target": "portable"
     },
     "mac": {
-      "target": "dmg",
+      "target": "pkg",
       "identity": "-"
     },
     "linux": {
