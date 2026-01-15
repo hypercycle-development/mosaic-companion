@@ -67,6 +67,6 @@ fi
 
 section "Setup Complete!"
 info "You can now run:"
-echo "  bun run dev    - Start development server"
-echo "  bun start      - Build and run the app"
+echo "  bun run dev    - Start Mosaic development server"
+echo "  bun start      - Build and run Mosaic app"
 echo "  ./start.sh     - Quick start script"

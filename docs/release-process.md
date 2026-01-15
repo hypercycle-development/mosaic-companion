@@ -97,7 +97,7 @@ s3://BUCKET_NAME/releases/
 ├── latest-mac.yml                # macOS manifest
 ├── Mosaic-Browser-1.2.3.exe      # Windows installer
 ├── Mosaic-Browser-1.2.3.AppImage # Linux installer
-├── Mosaic-Browser-1.2.3.dmg      # macOS installer
+├── Mosaic-Browser-1.2.3.pkg      # macOS installer
 └── ...
 ```
 

@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setUpdateSettings: (settings) => ipcRenderer.invoke("set-update-settings", settings),
   getUpdateLogs: () => ipcRenderer.invoke("get-update-logs"),
   getUpdateLogPath: () => ipcRenderer.invoke("get-update-log-path"),
+  restartWindow: () => ipcRenderer.invoke("restart-window"),
+  showTitleBarConfirm: () => ipcRenderer.invoke("show-title-bar-confirm"),
   nodes: {
     get: () => ipcRenderer.invoke("nodes:get"),
     add: (node) => ipcRenderer.invoke("nodes:add", node),
@@ -15,7 +17,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     delete: (id) => ipcRenderer.invoke("nodes:delete", id),
     onChanged: (callback) => {
       ipcRenderer.on("nodes-changed", (event, nodes) => callback(nodes));
-      // Return cleanup function
+      // Return cleanup
       return () => ipcRenderer.removeAllListeners("nodes-changed");
     },
   },

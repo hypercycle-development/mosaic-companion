@@ -89,7 +89,14 @@ jobs:
             build_cmd: electron-builder --linux
           - os: macos-latest
             platform: mac
-            build_cmd: electron-builder --mac
+            build_cmd: electron-builder --mac --universal
+          # TODO: Separate ARM64 and x64 builds (having issues with runners)
+          # - os: macos-latest
+          #   platform: mac-arm64
+          #   build_cmd: electron-builder --mac --arm64
+          # - os: macos-15-intel
+          #   platform: mac-x64
+          #   build_cmd: electron-builder --mac --x64
           - os: windows-latest
             platform: win
             build_cmd: electron-builder --win
@@ -130,7 +137,7 @@ jobs:
           if [ "${{ matrix.platform }}" == "linux" ]; then
             aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
               --include "*.AppImage" \
-              --include "latest-linux.yml"
+              --include "latest-linux*.yml"
           elif [ "${{ matrix.platform }}" == "mac" ]; then
             aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
               --include "*.dmg" \
@@ -141,15 +148,3 @@ jobs:
               --include "*.exe" \
               --include "latest.yml"
           fi
-
-      - name: Upload artifacts to GitHub
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ matrix.platform }}
-          path: |
-            release/*.AppImage
-            release/*.dmg
-            release/*.zip
-            release/*.exe
-            release/latest*.yml
-          retention-days: 30
