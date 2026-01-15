@@ -4,6 +4,7 @@
   "description": "Mosaic Browser Application",
   "main": "main.js",
   "type": "module",
+  "author": "hypercycle",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
