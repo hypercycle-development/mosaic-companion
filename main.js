@@ -1,4 +1,4 @@
-// main.js - Complete version with AI agents storage
+// main.js - Complete version with AI agents storage data
 import { app, BrowserWindow, ipcMain } from "electron";
 import os from "os"
 import path from "path";
