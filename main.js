@@ -10,7 +10,10 @@ import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, de
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-function createWindow() {
+// Keep reference to main window for recreation
+let mainWindow = null;
+
+function createWindow(urlToLoad = null) {
   // Get title bar style from settings (default to 'hidden' on non-Mac if not set)
   const titleBarStyle = getTitleBarStyle();
   
@@ -29,8 +32,43 @@ function createWindow() {
     },
   });
 
-  win.loadFile(path.join(__dirname, "dist", "index.html"));
+  // Load specified URL or default to index.html
+  if (urlToLoad) {
+    win.loadURL(urlToLoad);
+  } else {
+    win.loadFile(path.join(__dirname, "dist", "index.html"));
+  }
+  
+  mainWindow = win;
+  return win;
 }
+
+/**
+ * Recreate the window with current settings.
+ * Used to apply titleBarStyle changes without full app restart.
+ */
+function recreateWindow() {
+  if (!mainWindow) return;
+  
+  // Get current state
+  const currentURL = mainWindow.webContents.getURL();
+  const bounds = mainWindow.getBounds();
+  
+  // Close the old window
+  mainWindow.close();
+  
+  // Create new window with updated settings
+  const newWin = createWindow(currentURL);
+  newWin.setBounds(bounds);
+  
+  console.log("Window recreated with new titleBarStyle");
+}
+
+// IPC handler to trigger window recreation from renderer
+ipcMain.handle("restart-window", async () => {
+  recreateWindow();
+  return { success: true };
+});
 
 app.whenReady().then(() => {
   console.log("User data path:", app.getPath("userData"));
