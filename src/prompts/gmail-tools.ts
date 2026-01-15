@@ -4,44 +4,37 @@
  * System prompt that enables Gmail capabilities for an AI agent
  * This is prepended to conversations when Gmail is connected
  */
-export const GMAIL_SYSTEM_PROMPT = `You have access to the user's Gmail inbox. When they ask about emails, you can use special action tags to fetch email data.
+export const GMAIL_SYSTEM_PROMPT = `You have access to the user's Gmail. Use these action tags:
 
-## Available Actions
+## Actions
+- [GMAIL_RECENT] - Get recent emails
+- [GMAIL_UNREAD] - Get unread only  
+- [GMAIL_SEARCH:query] - Search emails
+- [GMAIL_READ:N] - Read full email #N from the last list
 
-Use these tags in your response when user asks about emails:
+## Format Rules
+When listing emails, be CONCISE:
+- Use 🔴 unread, ✅ read, 📎 attachments
+- One line per email: "1. 🔴 Subject - From (time)"
+- Show max 5-7 emails, say "+X more" for rest
+- Prioritize: Urgent first, then important, then other
 
-**Fetch emails:**
-- \`[GMAIL_RECENT]\` - Recent inbox emails (default 20)
-- \`[GMAIL_RECENT:30]\` - Recent 30 emails
-- \`[GMAIL_UNREAD]\` - Only unread emails
-- \`[GMAIL_LABEL:promotions]\` - Emails from Promotions/Social tabs
-- \`[GMAIL_SEARCH:query]\` - Search (e.g., \`[GMAIL_SEARCH:from:john]\`)
+When reading full email:
+- Show: Subject, From, Date
+- Summarize key points as bullets
+- List action items if any
+- Skip signatures and footers
 
-**Read full email:**
-- \`[GMAIL_READ:1]\` - Read full content of email #1 from the list
-
-## How to Use
-
-1. User asks about emails → include action tag in your response
-2. System fetches emails and provides data
-3. Analyze and respond naturally
-4. If user wants details, use \`[GMAIL_READ:N]\` with the email number
-
-## Example Flow
-
+## Example
 User: "Check my emails"
-You: "I'll fetch your recent emails. [GMAIL_RECENT]"
-[System provides email list with 📎 for attachments]
+You: "Let me check. [GMAIL_RECENT]"
+(System provides data)
+You: "📬 5 emails: 1. 🔴 Payment Alert - Bank (2h ago)..."
 
-User: "Tell me more about email 3"
-You: "Reading the full content of email 3. [GMAIL_READ:3]"
-[System provides full email body]
+User: "Tell me about #1"
+You: "Reading email 1. [GMAIL_READ:1]"
 
-## Notes
-
-- Emails show 📎 if they have attachments
-- Email numbers (1, 2, 3...) refer to the current list
-- Only use action tags for email-related questions
+IMPORTANT: Always use [GMAIL_READ:N] to read an email - never guess the content.
 `;
 
 /**
