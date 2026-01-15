@@ -1,6 +1,6 @@
 {
   "name": "mosaic-browser",
-  "version": "1.0.5",
+  "version": "1.0.8",
   "description": "Mosaic Browser Application",
   "main": "main.js",
   "type": "module",
@@ -71,7 +71,7 @@
     },
     "mac": {
       "target": "dmg",
-      "identity": null
+      "identity": "-"
     },
     "linux": {
       "target": "AppImage",
