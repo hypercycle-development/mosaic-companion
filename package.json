@@ -19,10 +19,17 @@
   },
   "dependencies": {
     "electron-updater": "^6.7.3",
+    "google-auth-library": "^10.5.0",
+    "googleapis": "^170.0.0",
+    "gtoken": "^8.0.0",
+    "jwa": "^2.0.1",
+    "jws": "^4.0.1",
     "lucide-react": "^0.562.0",
+    "open": "^11.0.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "react-toastify": "^11.0.5"
+    "react-toastify": "^11.0.5",
+    "server-destroy": "^1.0.1"
   },
   "devDependencies": {
     "@types/react": "^19.2.8",
@@ -36,6 +43,7 @@
   "build": {
     "appId": "com.mosaic.browser",
     "productName": "Mosaic Browser",
+    "asar": false,
     "directories": {
       "output": "release"
     },
@@ -45,6 +53,10 @@
       "updater.js",
       "settings.js",
       "preload.js",
+      "gmail-auth.js",
+      "gmail-service.js",
+      "config/**/*",
+      "node_modules/**/*",
       "package.json"
     ],
     "publish": {
