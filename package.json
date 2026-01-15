@@ -1,6 +1,6 @@
 {
   "name": "mosaic-browser",
-  "version": "1.0.22",
+  "version": "1.0.25",
   "description": "Mosaic Browser Application",
   "main": "main.js",
   "type": "module",
@@ -54,7 +54,7 @@
       "path": "/releases"
     },
     "win": {
-      "target": "portable"
+      "target": "nsis"
     },
     "mac": {
       "target": "default",
