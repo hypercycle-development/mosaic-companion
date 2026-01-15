@@ -40,5 +40,5 @@ else
     bun install
 fi
 
-info "Starting application..."
+info "Starting Mosaic application..."
 bun start
