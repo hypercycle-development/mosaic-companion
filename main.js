@@ -5,16 +5,20 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import { checkForUpdates, manualCheckForUpdates, initUpdater, applyAutoDownload, getLogFilePath, readLogFile } from "./updater.js";
-import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode } from "./settings.js";
+import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode, getTitleBarStyle } from "./settings.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function createWindow() {
+  // Get title bar style from settings (default to 'hidden' on non-Mac if not set)
+  const titleBarStyle = getTitleBarStyle();
+  
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    titleBarStyle: os.platform() === 'darwin' ? "default" : "hidden",
+    // Use the setting, or fallback to platform defaults if somehow undefined
+    titleBarStyle: titleBarStyle === 'default' ? 'default' : 'hidden',
     trafficLightPosition: { x: 10, y: 10 },
     backgroundColor: "#111827",
     webPreferences: {
