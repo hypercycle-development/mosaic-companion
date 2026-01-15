@@ -57,7 +57,7 @@
       "target": "portable"
     },
     "mac": {
-      "target": "dmg",
+      "target": "default",
       "identity": "-"
     },
     "linux": {
