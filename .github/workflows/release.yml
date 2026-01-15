@@ -90,7 +90,7 @@ jobs:
           - os: macos-latest
             platform: mac-arm64
             build_cmd: electron-builder --mac --arm64
-          - os: macos-13
+          - os: macos-15-intel
             platform: mac-x64
             build_cmd: electron-builder --mac --x64
           - os: windows-latest
