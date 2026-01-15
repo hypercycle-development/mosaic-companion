@@ -45,3 +45,6 @@ coverage/
 # Misc
 *.pem
 .cache/
+
+# Gmail OAuth credentials (keep private)
+config/gmail-credentials.json
