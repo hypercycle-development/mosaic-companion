@@ -1,6 +1,6 @@
 /**
  * Settings Module
- * Handles all app settings persistence (nodes, preferences, etc.)
+ * Handles all app settings persistence to file (nodes, preferences, etc.)
  * Stored in path: ~/.config/mosaic-browser/app-settings.json
  */
 
