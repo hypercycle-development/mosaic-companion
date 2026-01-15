@@ -116,6 +116,22 @@ declare global {
           };
           error?: string;
         }>;
+        searchEmails: (
+          query: string,
+          count?: number
+        ) => Promise<{
+          success: boolean;
+          emails?: Array<{
+            id: string;
+            threadId: string;
+            snippet: string;
+            subject: string;
+            from: string;
+            date: string;
+            isUnread: boolean;
+          }>;
+          error?: string;
+        }>;
       };
     };
   }

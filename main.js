@@ -7,7 +7,7 @@ import fs from "fs";
 import { checkForUpdates, manualCheckForUpdates, initUpdater, applyAutoDownload } from "./updater.js";
 import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode } from "./settings.js";
 import { authenticate, signOut, isAuthenticated } from "./gmail-auth.js";
-import { getRecentEmails, getUserProfile, getEmailDetails } from "./gmail-service.js";
+import { getRecentEmails, getUserProfile, getEmailDetails, searchEmails } from "./gmail-service.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -303,6 +303,17 @@ ipcMain.handle("gmail:get-email-details", async (event, messageId) => {
     const email = await getEmailDetails(messageId);
     return { success: true, email };
   } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Search emails
+ipcMain.handle("gmail:search-emails", async (event, query, count = 10) => {
+  try {
+    const emails = await searchEmails(query, count);
+    return { success: true, emails };
+  } catch (error) {
+    console.error("Gmail search error:", error);
     return { success: false, error: error.message };
   }
 });
