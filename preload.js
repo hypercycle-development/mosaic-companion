@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getUpdateLogs: () => ipcRenderer.invoke("get-update-logs"),
   getUpdateLogPath: () => ipcRenderer.invoke("get-update-log-path"),
   restartWindow: () => ipcRenderer.invoke("restart-window"),
+  showTitleBarConfirm: () => ipcRenderer.invoke("show-title-bar-confirm"),
   nodes: {
     get: () => ipcRenderer.invoke("nodes:get"),
     add: (node) => ipcRenderer.invoke("nodes:add", node),
