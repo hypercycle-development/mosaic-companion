@@ -33,6 +33,8 @@ declare global {
         settings: UpdateSettings;
         error?: string;
       }>;
+      getUpdateLogs: () => Promise<string>;
+      getUpdateLogPath: () => Promise<string>;
 
       // Hypercycle Nodes methods
       nodes: {
