@@ -1,6 +1,6 @@
 {
   "name": "mosaic-browser",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Mosaic Browser Application",
   "main": "main.js",
   "type": "module",
@@ -57,7 +57,7 @@
       "target": "portable"
     },
     "mac": {
-      "target": "pkg",
+      "target": "dmg",
       "identity": "-"
     },
     "linux": {
