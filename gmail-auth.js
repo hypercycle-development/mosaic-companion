@@ -178,7 +178,7 @@ async function authenticate() {
             <html>
               <body style="font-family: system-ui; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1a2e;">
                 <div style="text-align: center; color: #4ade80;">
-                  <h1>✓ Authentication Successful!</h1>
+                  <h1>Authentication Successful!</h1>
                   <p>You can close this tab and return to the app.</p>
                 </div>
               </body>
