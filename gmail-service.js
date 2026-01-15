@@ -62,6 +62,24 @@ async function getRecentEmails(maxResults = 10) {
       return header?.value || '';
     };
 
+    // Check for attachments by looking at parts with body.attachmentId
+    let hasAttachments = false;
+    let attachmentCount = 0;
+    
+    const countAttachments = (part) => {
+      if (part.body?.attachmentId || (part.filename && part.filename.length > 0)) {
+        attachmentCount++;
+        hasAttachments = true;
+      }
+      if (part.parts) {
+        part.parts.forEach(countAttachments);
+      }
+    };
+    
+    if (msg.payload) {
+      countAttachments(msg.payload);
+    }
+
     return {
       id: msg.id,
       threadId: msg.threadId,
@@ -71,6 +89,8 @@ async function getRecentEmails(maxResults = 10) {
       date: getHeader('Date'),
       labelIds: msg.labelIds || [],
       isUnread: msg.labelIds?.includes('UNREAD') || false,
+      hasAttachments,
+      attachmentCount,
     };
   });
 
@@ -173,6 +193,24 @@ async function searchEmails(query, maxResults = 10) {
       return header?.value || '';
     };
 
+    // Check for attachments
+    let hasAttachments = false;
+    let attachmentCount = 0;
+    
+    const countAttachments = (part) => {
+      if (part.body?.attachmentId || (part.filename && part.filename.length > 0)) {
+        attachmentCount++;
+        hasAttachments = true;
+      }
+      if (part.parts) {
+        part.parts.forEach(countAttachments);
+      }
+    };
+    
+    if (msg.payload) {
+      countAttachments(msg.payload);
+    }
+
     return {
       id: msg.id,
       threadId: msg.threadId,
@@ -182,6 +220,8 @@ async function searchEmails(query, maxResults = 10) {
       date: getHeader('Date'),
       labelIds: msg.labelIds || [],
       isUnread: msg.labelIds?.includes('UNREAD') || false,
+      hasAttachments,
+      attachmentCount,
     };
   });
 
