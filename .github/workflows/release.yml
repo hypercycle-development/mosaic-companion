@@ -133,7 +133,7 @@ jobs:
               --include "latest-linux.yml"
           elif [ "${{ matrix.platform }}" == "mac" ]; then
             aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
-              --include "*.dmg" \
+              --include "*.pkg" \
               --include "*.zip" \
               --include "latest-mac.yml"
           else
@@ -148,7 +148,7 @@ jobs:
           name: release-${{ matrix.platform }}
           path: |
             release/*.AppImage
-            release/*.dmg
+            release/*.pkg
             release/*.zip
             release/*.exe
             release/latest*.yml
