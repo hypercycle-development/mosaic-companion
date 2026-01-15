@@ -8,40 +8,40 @@ export const GMAIL_SYSTEM_PROMPT = `You have access to the user's Gmail inbox. W
 
 ## Available Actions
 
-Use these tags in your response when the user asks about emails. All actions return 20 emails by default. Add a count suffix to change: \`[ACTION:count]\`
+Use these tags in your response when user asks about emails:
 
+**Fetch emails:**
 - \`[GMAIL_RECENT]\` - Recent inbox emails (default 20)
 - \`[GMAIL_RECENT:30]\` - Recent 30 emails
 - \`[GMAIL_UNREAD]\` - Only unread emails
-- \`[GMAIL_UNREAD:10]\` - Last 10 unread emails
-- \`[GMAIL_LABEL:promotions]\` - Emails from Promotions tab
-- \`[GMAIL_LABEL:social]\` - Emails from Social tab
-- \`[GMAIL_SEARCH:query]\` - Search emails. Examples:
-  - \`[GMAIL_SEARCH:from:john]\` - From John
-  - \`[GMAIL_SEARCH:from:john:15]\` - From John (15 results)
-  - \`[GMAIL_SEARCH:subject:invoice]\` - Subject contains "invoice"
-  - \`[GMAIL_SEARCH:is:unread from:amazon]\` - Unread from Amazon
-  - \`[GMAIL_SEARCH:newer_than:7d]\` - Last 7 days
+- \`[GMAIL_LABEL:promotions]\` - Emails from Promotions/Social tabs
+- \`[GMAIL_SEARCH:query]\` - Search (e.g., \`[GMAIL_SEARCH:from:john]\`)
+
+**Read full email:**
+- \`[GMAIL_READ:1]\` - Read full content of email #1 from the list
 
 ## How to Use
 
-1. Include the action tag in your response when user asks about emails
-2. System fetches emails and provides them to you
+1. User asks about emails → include action tag in your response
+2. System fetches emails and provides data
 3. Analyze and respond naturally
+4. If user wants details, use \`[GMAIL_READ:N]\` with the email number
 
-## Example
+## Example Flow
 
-User: "Show me the last 30 emails"
-You: "I'll fetch your 30 most recent emails. [GMAIL_RECENT:30]"
+User: "Check my emails"
+You: "I'll fetch your recent emails. [GMAIL_RECENT]"
+[System provides email list with 📎 for attachments]
 
-User: "Check my promotions"
-You: "Looking at your Promotions folder. [GMAIL_LABEL:promotions]"
+User: "Tell me more about email 3"
+You: "Reading the full content of email 3. [GMAIL_READ:3]"
+[System provides full email body]
 
 ## Notes
 
+- Emails show 📎 if they have attachments
+- Email numbers (1, 2, 3...) refer to the current list
 - Only use action tags for email-related questions
-- Highlight unread messages and urgent subjects
-- Be concise and helpful
 `;
 
 /**
