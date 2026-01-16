@@ -145,6 +145,14 @@ declare global {
           success: boolean;
           error?: string;
         }>;
+        getAutoMarkRead: () => Promise<{
+          enabled: boolean;
+        }>;
+        setAutoMarkRead: (enabled: boolean) => Promise<{
+          success: boolean;
+          enabled: boolean;
+          error?: string;
+        }>;
       };
     };
   }
