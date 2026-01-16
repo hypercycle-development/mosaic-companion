@@ -429,6 +429,20 @@ export async function executeGmailAction(
         const fullEmail = detailResult.email;
         const relativeDate = formatRelativeDate(fullEmail.date);
 
+        // Check if auto-mark-as-read is enabled
+        let autoMarkMessage = "";
+        try {
+          const autoMarkSetting =
+            await window.electronAPI.gmail.getAutoMarkRead();
+          if (autoMarkSetting.enabled && email.isUnread) {
+            await window.electronAPI.gmail.markRead(email.id);
+            email.isUnread = false; // Update local cache
+            autoMarkMessage = "\n\n✅ (Auto-marked as read)";
+          }
+        } catch {
+          // Ignore auto-mark errors, don't block email display
+        }
+
         return `Full email content for Email ${index}:
 
 From: ${fullEmail.from}
@@ -437,7 +451,7 @@ Subject: ${fullEmail.subject}
 Date: ${relativeDate}
 
 --- Email Body ---
-${fullEmail.body}
+${fullEmail.body}${autoMarkMessage}
 `.trim();
       }
 
