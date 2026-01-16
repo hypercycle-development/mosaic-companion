@@ -6,6 +6,8 @@ export type GmailActionType =
   | "GMAIL_UNREAD"
   | "GMAIL_LABEL"
   | "GMAIL_READ"
+  | "GMAIL_MARK_READ"
+  | "GMAIL_MARK_UNREAD"
   | "NONE";
 
 export interface ParsedAction {
@@ -118,6 +120,28 @@ function parseQueryWithCount(fullQuery: string): {
  * Supports dynamic count: [GMAIL_RECENT:30], [GMAIL_SEARCH:from:john:15]
  */
 export function parseAction(response: string): ParsedAction {
+  // Check for GMAIL_MARK_READ (with email index)
+  const markReadMatch = response.match(/\[GMAIL_MARK_READ:(\d+)\]/i);
+  if (markReadMatch) {
+    return {
+      type: "GMAIL_MARK_READ",
+      params: { index: parseInt(markReadMatch[1]) },
+      cleanResponse: response.replace(/\[GMAIL_MARK_READ:\d+\]/gi, "").trim(),
+      rawTag: markReadMatch[0],
+    };
+  }
+
+  // Check for GMAIL_MARK_UNREAD (with email index)
+  const markUnreadMatch = response.match(/\[GMAIL_MARK_UNREAD:(\d+)\]/i);
+  if (markUnreadMatch) {
+    return {
+      type: "GMAIL_MARK_UNREAD",
+      params: { index: parseInt(markUnreadMatch[1]) },
+      cleanResponse: response.replace(/\[GMAIL_MARK_UNREAD:\d+\]/gi, "").trim(),
+      rawTag: markUnreadMatch[0],
+    };
+  }
+
   // Check for GMAIL_READ (with email index)
   const readMatch = response.match(/\[GMAIL_READ:(\d+)\]/i);
   if (readMatch) {
@@ -322,6 +346,62 @@ export async function executeGmailAction(
           return "Label name is missing.";
         }
         break;
+
+      case "GMAIL_MARK_READ": {
+        const markReadIndex = action.params?.index as number;
+        const markReadEmails = getLastFetchedEmails();
+
+        if (markReadEmails.length === 0) {
+          return "No emails in context. Please fetch emails first.";
+        }
+
+        if (markReadIndex < 1 || markReadIndex > markReadEmails.length) {
+          return `Invalid email index. Please choose between 1 and ${markReadEmails.length}.`;
+        }
+
+        const emailToMarkRead = markReadEmails[markReadIndex - 1];
+        const markReadResult = await window.electronAPI.gmail.markRead(
+          emailToMarkRead.id
+        );
+
+        if (!markReadResult.success) {
+          return `Error marking email as read: ${
+            markReadResult.error || "Unknown error"
+          }`;
+        }
+
+        // Update local cache
+        emailToMarkRead.isUnread = false;
+        return `✅ Email #${markReadIndex} marked as read: "${emailToMarkRead.subject}"`;
+      }
+
+      case "GMAIL_MARK_UNREAD": {
+        const markUnreadIndex = action.params?.index as number;
+        const markUnreadEmails = getLastFetchedEmails();
+
+        if (markUnreadEmails.length === 0) {
+          return "No emails in context. Please fetch emails first.";
+        }
+
+        if (markUnreadIndex < 1 || markUnreadIndex > markUnreadEmails.length) {
+          return `Invalid email index. Please choose between 1 and ${markUnreadEmails.length}.`;
+        }
+
+        const emailToMarkUnread = markUnreadEmails[markUnreadIndex - 1];
+        const markUnreadResult = await window.electronAPI.gmail.markUnread(
+          emailToMarkUnread.id
+        );
+
+        if (!markUnreadResult.success) {
+          return `Error marking email as unread: ${
+            markUnreadResult.error || "Unknown error"
+          }`;
+        }
+
+        // Update local cache
+        emailToMarkUnread.isUnread = true;
+        return `📩 Email #${markUnreadIndex} marked as unread: "${emailToMarkUnread.subject}"`;
+      }
 
       case "GMAIL_READ": {
         // Read full email by index from last fetched emails
