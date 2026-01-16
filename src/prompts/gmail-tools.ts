@@ -50,12 +50,12 @@ WHEN SHOWING A FULL EMAIL format like this:
 ---
 
 REMEMBER:
+- Use the EXACT index numbers from the email data (Email 1 = **1.**, Email 5 = **5.**)
+- You may highlight important emails with ⭐ but keep their original index
 - Use [GMAIL_READ:N] to read email #N - do NOT output code like print()
 - Use [GMAIL_MARK_READ:N] when user asks to mark as read
 - Use [GMAIL_MARK_UNREAD:N] when user asks to mark as unread
 - Use markdown formatting with bullet points
-- Add blank lines between items for readability
-- Put TL;DR first when showing full email
 `;
 
 /**
