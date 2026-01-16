@@ -276,7 +276,7 @@ function App() {
         </div>
 
         {/* Bottom AI Input Bar */}
-        {!isDemoActive && <BottomBar onSubmit={handleBottomBarSubmit} />}
+        {/* {!isDemoActive && <BottomBar onSubmit={handleBottomBarSubmit} />} */}
       </main>
     </div>
   );

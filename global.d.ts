@@ -1,4 +1,4 @@
-import { AIAgentConfig } from "./types/ai";
+import { AIAgentConfig, ChatSession } from "./types/ai";
 
 declare global {
   // Update settings configuration
@@ -78,6 +78,23 @@ declare global {
         ) => Promise<{ success: boolean; error?: string }>;
         delete: (id: string) => Promise<{ success: boolean; error?: string }>;
         clear: () => Promise<{ success: boolean; error?: string }>;
+      };
+      aiAgentsHistory: {
+        getAll: (agentId: string) => Promise<ChatSession[]>;
+        get: (
+          agentId: string,
+          sessionId: string
+        ) => Promise<ChatSession | null>;
+        save: (
+          chatSession: ChatSession
+        ) => Promise<{ success: boolean; error?: string }>;
+        delete: (
+          agentId: string,
+          sessionId: string
+        ) => Promise<{ success: boolean; error?: string }>;
+        deleteAll: (
+          agentId: string
+        ) => Promise<{ success: boolean; error?: string }>;
       };
     };
   }
