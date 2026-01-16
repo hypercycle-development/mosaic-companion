@@ -5,7 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import { checkForUpdates, manualCheckForUpdates, initUpdater, applyAutoDownload, getLogFilePath, readLogFile } from "./updater.js";
-import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode, getTitleBarStyle } from "./settings.js";
+import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode, getTitleBarStyle, getGmailAutoMarkRead, setGmailAutoMarkRead } from "./settings.js";
 import { authenticate, signOut, isAuthenticated } from "./gmail-auth.js";
 import { getRecentEmails, getUserProfile, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./gmail-service.js";
 
@@ -408,4 +408,15 @@ ipcMain.handle("gmail:mark-unread", async (event, messageId) => {
     console.error("Gmail mark unread error:", error);
     return { success: false, error: error.message };
   }
+});
+
+// Get Gmail auto-mark-as-read setting
+ipcMain.handle("gmail:get-auto-mark-read", () => {
+  return { enabled: getGmailAutoMarkRead() };
+});
+
+// Set Gmail auto-mark-as-read setting
+ipcMain.handle("gmail:set-auto-mark-read", (event, enabled) => {
+  const result = setGmailAutoMarkRead(enabled);
+  return { ...result, enabled: getGmailAutoMarkRead() };
 });

@@ -39,5 +39,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     searchEmails: (query, count) => ipcRenderer.invoke("gmail:search-emails", query, count),
     markRead: (messageId) => ipcRenderer.invoke("gmail:mark-read", messageId),
     markUnread: (messageId) => ipcRenderer.invoke("gmail:mark-unread", messageId),
+    getAutoMarkRead: () => ipcRenderer.invoke("gmail:get-auto-mark-read"),
+    setAutoMarkRead: (enabled) => ipcRenderer.invoke("gmail:set-auto-mark-read", enabled),
   },
 });
