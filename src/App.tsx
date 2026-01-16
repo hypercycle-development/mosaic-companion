@@ -5,6 +5,7 @@ import { ContentArea } from './components/ContentArea';
 import { TabStrip } from './components/TabStrip';
 import { BottomBar } from './components/BottomBar';
 import { DemoOverlay } from './components/DemoOverlay';
+import { CommandPalette } from './components/CommandPalette';
 import { INTERNAL_HOME_URL, INTERNAL_CHAT_URL, Tab } from './types/types';
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
     // Sidebar State (Defaults to Closed)
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isDemoActive, setIsDemoActive] = useState(false);
+    const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
     // --- Tab & Session State ---
     const [tabs, setTabs] = useState<Tab[]>(() => {
@@ -218,8 +220,71 @@ function App() {
         }
     };
 
+    // Keyboard shortcut for command palette only
+    useEffect(() => {
+        // Handle Cmd+K for command palette (renderer-only, highest priority)
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Cmd+K or Ctrl+K to open/close command palette (highest priority)
+            const isCmdK =
+                (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
+            if (isCmdK) {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsCommandPaletteOpen((prev) => !prev);
+                return;
+            }
+        };
+
+        // Use capture phase to catch events early
+        document.addEventListener('keydown', handleKeyDown, true);
+        window.addEventListener('keydown', handleKeyDown, true);
+
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown, true);
+            window.removeEventListener('keydown', handleKeyDown, true);
+        };
+    }, [isCommandPaletteOpen]);
+
     return (
         <div className='flex h-screen w-screen overflow-hidden bg-gray-950 text-gray-100 font-sans transition-colors duration-200 selection:bg-indigo-500/30'>
+            {/* Command Palette */}
+            <CommandPalette
+                isOpen={isCommandPaletteOpen}
+                onClose={() => setIsCommandPaletteOpen(false)}
+                tabs={tabs}
+                activeTabId={activeTabId}
+                onNavigate={navigateTo}
+                onSwitchTab={handleSwitchTab}
+                onNewTab={handleNewTab}
+                onNewChatTab={handleNewChatTab}
+                onCloseTab={handleCloseTab}
+                onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                onRefresh={handleRefresh}
+                onBack={goBack}
+                onForward={goForward}
+                canGoBack={activeTab.history.past.length > 0}
+                canGoForward={activeTab.history.future.length > 0}
+                onSearchInNewTab={(query) => {
+                    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(
+                        query
+                    )}`;
+                    const newTab: Tab = {
+                        id: Date.now().toString(),
+                        title: 'New Tab',
+                        history: { past: [], present: searchUrl, future: [] },
+                        isLoading: false
+                    };
+                    setTabs((prev) => [...prev, newTab]);
+                    setPreviousTabId(activeTabId);
+                    setIsTransitioning(true);
+                    setActiveTabId(newTab.id);
+                    setTimeout(() => {
+                        setIsTransitioning(false);
+                        setPreviousTabId(null);
+                    }, 300);
+                }}
+            />
+
             {/* Full Screen Demo Overlay */}
             {isDemoActive && (
                 <DemoOverlay onClose={() => setIsDemoActive(false)} />
@@ -325,7 +390,9 @@ function App() {
                                         customGreeting,
                                         setCustomGreeting,
                                         showUrlBar: showUrlBar,
-                                        setShowUrlBar: setShowUrlBar
+                                        setShowUrlBar: setShowUrlBar,
+                                        onOpenCommandPalette: () =>
+                                            setIsCommandPaletteOpen(true)
                                     }}
                                     onUpdateTab={(updates) =>
                                         handleUpdateTab(tab.id, updates)
