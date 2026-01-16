@@ -41,6 +41,7 @@ const BrowserView: React.FC<BrowserViewProps> = ({
   const [hasError, setHasError] = useState(false);
   const webviewRef = useRef<any>(null);
   const loadingTimeoutRef = useRef<any>(null);
+  const loadProgressRef = useRef<number>(0);
 
   // Reset error state when URL changes explicitly
   useEffect(() => {
@@ -57,26 +58,55 @@ const BrowserView: React.FC<BrowserViewProps> = ({
         clearTimeout(loadingTimeoutRef.current);
         loadingTimeoutRef.current = null;
       }
-      onUpdateTab({ isLoading: true });
+      loadProgressRef.current = 0;
+      onUpdateTab({ isLoading: true, loadProgress: 0 });
       setHasError(false);
+      
+      // Simulate smooth progress (since Electron webview doesn't expose direct progress)
+      const progressInterval = setInterval(() => {
+        if (loadProgressRef.current < 90) {
+          loadProgressRef.current = Math.min(90, loadProgressRef.current + Math.random() * 15);
+          onUpdateTab({ isLoading: true, loadProgress: loadProgressRef.current });
+        } else {
+          clearInterval(progressInterval);
+        }
+      }, 200);
+      
+      // Store interval ID for cleanup
+      (loadingTimeoutRef.current as any) = progressInterval;
     };
 
     const handleStopLoading = () => {
+      // Clear any progress interval
+      if (loadingTimeoutRef.current && typeof loadingTimeoutRef.current === 'number') {
+        clearInterval(loadingTimeoutRef.current);
+      }
+      
+      // Complete the progress bar
+      onUpdateTab({ isLoading: true, loadProgress: 100 });
+      
       // Debounce the stop loading to prevent flicker on redirects
-      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
-
-      loadingTimeoutRef.current = setTimeout(() => {
-        onUpdateTab({ isLoading: false });
+      const stopTimeout = setTimeout(() => {
+        onUpdateTab({ isLoading: false, loadProgress: undefined });
         loadingTimeoutRef.current = null;
       }, 200); // 200ms grace period
+      
+      loadingTimeoutRef.current = stopTimeout;
     };
 
     const handleFailLoad = (e: any) => {
       // errorCode -3 is ABORTED (often harmless redirects)
       if (e.errorCode !== -3 && e.errorCode !== 0) {
         console.warn("Webview load failed", e);
-        if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
-        onUpdateTab({ isLoading: false });
+        if (loadingTimeoutRef.current) {
+          if (typeof loadingTimeoutRef.current === 'number') {
+            clearInterval(loadingTimeoutRef.current);
+          } else {
+            clearTimeout(loadingTimeoutRef.current);
+          }
+          loadingTimeoutRef.current = null;
+        }
+        onUpdateTab({ isLoading: false, loadProgress: undefined });
         setHasError(true);
       }
     };
@@ -114,7 +144,15 @@ const BrowserView: React.FC<BrowserViewProps> = ({
     webview.addEventListener("page-favicon-updated", handlePageFaviconUpdated);
 
     return () => {
-      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+      // Clean up timeouts/intervals
+      if (loadingTimeoutRef.current) {
+        if (typeof loadingTimeoutRef.current === 'number') {
+          clearInterval(loadingTimeoutRef.current);
+        } else {
+          clearTimeout(loadingTimeoutRef.current);
+        }
+        loadingTimeoutRef.current = null;
+      }
 
       if (webview) {
         webview.removeEventListener("did-start-loading", handleStartLoading);
@@ -133,6 +171,7 @@ const BrowserView: React.FC<BrowserViewProps> = ({
         );
       }
     };
+
   }, [onNavigate, url, onUpdateTab]);
 
   return (
