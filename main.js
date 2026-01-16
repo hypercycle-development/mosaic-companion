@@ -100,6 +100,15 @@ app.whenReady().then(() => {
     initUpdater();
     checkForUpdates();
   }
+
+  // Pre-initialize Gmail OAuth to load tokens early (so chat can access emails immediately)
+  try {
+    if (isAuthenticated()) {
+      console.log("Gmail: Already authenticated, tokens loaded");
+    }
+  } catch (e) {
+    // Ignore - credentials may not be set up yet
+  }
 });
 
 app.on("window-all-closed", () => {
