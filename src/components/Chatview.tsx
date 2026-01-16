@@ -203,7 +203,16 @@ export const ChatView: React.FC<ChatViewProps> = (
       const messagesForAI = updatedMessages.filter((m) => m.role !== "system");
 
       // Add Gmail context if user might be asking about emails
-      if (gmailConnected && mightBeEmailRelated(messageContent)) {
+      // Check auth in real-time in case state hasn't updated yet (important for first message)
+      const isEmailRelated = mightBeEmailRelated(messageContent);
+      let isGmailReady = gmailConnected;
+      if (!isGmailReady && isEmailRelated) {
+        // Real-time check for first message scenario
+        isGmailReady = await isGmailAuthenticated();
+        if (isGmailReady) setGmailConnected(true);
+      }
+
+      if (isGmailReady && isEmailRelated) {
         const systemMessage: ChatMessage = {
           id: "gmail-system",
           role: "user" as const, // Inject as user message for better compatibility
