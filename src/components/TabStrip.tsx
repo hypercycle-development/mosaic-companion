@@ -18,8 +18,26 @@ export const TabStrip: React.FC<TabStripProps> = ({
   onNewTab,
 }) => {
   const renderTabIcon = (tab: Tab) => {
-    // 1. Loading State
+    // 1. Loading State with pulsing animation
     if (tab.isLoading) {
+      // Show pulsing favicon if available, otherwise spinner
+      if (tab.favicon) {
+        return (
+          <div className="relative">
+            <img
+              src={tab.favicon}
+              alt=""
+              className="w-3.5 h-3.5 object-contain animate-pulse opacity-60"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 size={10} className="animate-spin text-indigo-500" />
+            </div>
+          </div>
+        );
+      }
       return <Loader2 size={14} className="animate-spin text-indigo-500" />;
     }
 
@@ -34,7 +52,7 @@ export const TabStrip: React.FC<TabStripProps> = ({
         <img
           src={tab.favicon}
           alt=""
-          className="w-3.5 h-3.5 object-contain"
+          className="w-3.5 h-3.5 object-contain transition-opacity duration-200"
           onError={(e) => {
             // Fallback if favicon fails to load
             (e.target as HTMLImageElement).style.display = "none";
@@ -96,6 +114,16 @@ export const TabStrip: React.FC<TabStripProps> = ({
             <span className="text-xs font-medium truncate flex-1">
               {getTabTitle(tab)}
             </span>
+
+            {/* Loading Progress Indicator */}
+            {tab.isLoading && tab.loadProgress !== undefined && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-transparent overflow-hidden rounded-b-lg">
+                <div
+                  className="h-full bg-indigo-500 transition-all duration-150 ease-out"
+                  style={{ width: `${tab.loadProgress}%` }}
+                />
+              </div>
+            )}
 
             <button
               onClick={(e) => onCloseTab(tab.id, e)}

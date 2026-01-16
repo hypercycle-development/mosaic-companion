@@ -7,6 +7,8 @@ import {
   Search,
   X,
   PanelLeft,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { INTERNAL_HOME_URL } from "../types/types";
 
@@ -20,6 +22,8 @@ interface TopBarProps {
   onRefresh: () => void;
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
+  isLoading?: boolean;
+  loadProgress?: number;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -32,9 +36,25 @@ export const TopBar: React.FC<TopBarProps> = ({
   onRefresh,
   isSidebarOpen,
   onToggleSidebar,
+  isLoading = false,
+  loadProgress = 0,
 }) => {
   const [inputValue, setInputValue] = useState(currentUrl);
   const [isFocused, setIsFocused] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     // Update input only if not focused to allow typing
@@ -65,6 +85,19 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   return (
     <header className="h-12 bg-gray-900 border-b border-gray-800 flex items-center px-4 shrink-0 gap-3 z-10 relative">
+      {/* Loading Progress Bar */}
+      {isLoading && (
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-800 overflow-hidden">
+          <div
+            className="h-full bg-indigo-500 transition-all duration-150 ease-out shadow-[0_0_10px_rgba(99,102,241,0.5)]"
+            style={{
+              width: `${loadProgress}%`,
+              transition: loadProgress > 0 ? "width 0.15s ease-out" : "none",
+            }}
+          />
+        </div>
+      )}
+      
       {/* Navigation Controls */}
       <div className="flex items-center gap-1 text-gray-400">
         {!isSidebarOpen && (
@@ -93,7 +126,10 @@ export const TopBar: React.FC<TopBarProps> = ({
         </button>
         <button
           onClick={onRefresh}
-          className="p-1.5 rounded-md hover:bg-gray-800 text-gray-300 transition-colors"
+          className={`p-1.5 rounded-md hover:bg-gray-800 text-gray-300 transition-all ${
+            isLoading ? "animate-spin" : ""
+          }`}
+          disabled={isLoading}
         >
           <RotateCw size={14} />
         </button>
@@ -135,6 +171,15 @@ export const TopBar: React.FC<TopBarProps> = ({
             <X size={12} />
           </button>
         )}
+        
+        {/* Connection Status Indicator */}
+        <div className="ml-2 flex items-center" title={isOnline ? "Online" : "Offline"}>
+          {isOnline ? (
+            <Wifi size={12} className="text-emerald-500" />
+          ) : (
+            <WifiOff size={12} className="text-red-500 animate-pulse" />
+          )}
+        </div>
       </div>
     </header>
   );
