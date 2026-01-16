@@ -268,15 +268,14 @@ FORMAT YOUR RESPONSE LIKE THIS:
 
 Legend: 📩 = unread, ✅ = read, 📎 = attachment
 
-RULES:
-- Use bullet points with dashes (-)
-- Use --- separators between sections
-- Add blank line between each email for readability
-- Use markdown **bold** for subjects
-- Be concise - no walls of text
-- Highlight most important emails first
+CRITICAL RULES:
+- Use the EXACT index number from the email data (Email 1, Email 2, etc.)
+- The index number MUST match the "Email N" from the data - do NOT renumber
+- You may add ⭐ to highlight important emails, but keep their original index
+- Example: "⭐ 📩 **5. Important Email** - Sender" (keeps index 5 from data)
+- These index numbers are used for mark read/unread actions
 
-Provide a helpful summary with the format above.`;
+Provide the formatted list using the indexes from the data.`;
 }
 
 /**
