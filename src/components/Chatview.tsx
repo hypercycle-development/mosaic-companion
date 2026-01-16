@@ -25,10 +25,12 @@ import { INTERNAL_SETTINGS_URL } from "../types/types";
 
 interface ChatViewProps {
   onNavigate?: (url: string) => void;
+  onCreateNewChatTab?: () => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
   onNavigate,
+  onCreateNewChatTab,
 }) => {
   const [agents, setAgents] = useState([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
@@ -387,7 +389,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
           {/* Session Actions */}
           <div className="flex items-center gap-2">
-            {activeSession && (
+            {activeSession && activeSession.messages.length > 0 && (
               <>
                 <button
                   onClick={regenerateLastResponse}
@@ -407,7 +409,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
               </>
             )}
             <button
-              onClick={() => createNewSession(selectedAgentId!)}
+              onClick={() => {
+                if (onCreateNewChatTab) {
+                  onCreateNewChatTab();
+                } else {
+                  createNewSession(selectedAgentId!);
+                }
+              }}
               className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
             >
               <MessageSquare size={16} />
