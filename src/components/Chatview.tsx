@@ -721,12 +721,62 @@ export const ChatView: React.FC<ChatViewProps> = (
         </div>
       </div>
 
-      {/* Hidden button for auto-send from unified input */}
-      <button
-        data-auto-send
-        onClick={sendMessage}
-        style={{ display: "none" }}
-      />
+      {/* Input Area */}
+      <div className="shrink-0 border-t border-gray-800 bg-gray-950/80 backdrop-blur-md p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-end gap-3">
+            <div className="flex-1 bg-gray-900 border border-gray-800 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50 transition-all">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={`Message ${selectedAgent?.name || "AI"}...`}
+                className="w-full bg-transparent text-gray-100 placeholder-gray-500 resize-none min-h-[24px] max-h-[150px] px-3 py-2 focus:outline-none"
+                rows={1}
+                disabled={isGenerating}
+              />
+            </div>
+            <button
+              onClick={sendMessage}
+              data-auto-send
+              disabled={!input.trim() || isGenerating}
+              className={`
+                p-4 rounded-xl transition-all flex items-center justify-center
+                ${
+                  input.trim() && !isGenerating
+                    ? "bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-105 shadow-lg shadow-indigo-500/25"
+                    : "bg-gray-800 text-gray-500 cursor-not-allowed"
+                }
+              `}
+            >
+              {isGenerating ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <Send size={20} />
+              )}
+            </button>
+          </div>
+
+          {/* Status Bar */}
+          <div className="flex items-center justify-center gap-2 mt-3 opacity-50">
+            <div
+              className="w-1.5 h-1.5 rounded-full"
+              style={{
+                backgroundColor: selectedAgent
+                  ? PROVIDER_INFO[selectedAgent.provider].color
+                  : "#6B7280",
+                boxShadow: selectedAgent
+                  ? `0 0 6px ${PROVIDER_INFO[selectedAgent.provider].color}`
+                  : "none",
+              }}
+            />
+            <span className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">
+              {selectedAgent?.model || "No model selected"}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
