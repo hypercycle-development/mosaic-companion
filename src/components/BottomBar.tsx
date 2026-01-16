@@ -134,7 +134,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
               >
                 <Bot size={18} />
                 <div className="text-left">
-                  <div className="text-sm font-medium">AI Agent</div>
+                  <div className="text-sm font-medium">Mosaic</div>
                   {!hasAgents && (
                     <div className="text-xs text-gray-500">
                       No agents configured
@@ -154,7 +154,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
                 }`}
               >
                 <Globe size={18} />
-                <div className="text-sm font-medium">Normal</div>
+                <div className="text-sm font-medium">Browser</div>
               </button>
             </div>
           )}
