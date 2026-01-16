@@ -3,9 +3,9 @@ import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { ContentArea } from "./components/ContentArea";
 import { TabStrip } from "./components/TabStrip";
-import { BottomBar } from "./components/BottomBar";
+import { BottomBar, InputMode } from "./components/BottomBar";
 import { DemoOverlay } from "./components/DemoOverlay";
-import { INTERNAL_HOME_URL, Tab } from "./types/types";
+import { INTERNAL_HOME_URL, INTERNAL_CHAT_URL, Tab } from "./types/types";
 
 function App() {
   // --- Persistent State ---
@@ -31,6 +31,27 @@ function App() {
   // Sidebar State (Defaults to Closed)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDemoActive, setIsDemoActive] = useState(false);
+
+  // Input mode state (agent or normal)
+  const [inputMode, setInputMode] = useState<InputMode>("normal");
+  const [hasAgents, setHasAgents] = useState(false);
+
+  // Check for configured agents on mount
+  useEffect(() => {
+    const checkAgents = async () => {
+      try {
+        const agents = await window.electronAPI.aiAgents.get();
+        const activeAgents = agents.filter(
+          (a: { isActive: boolean }) => a.isActive
+        );
+        setHasAgents(activeAgents.length > 0);
+        // If we have agents and user hasn't explicitly chosen, stay in current mode
+      } catch {
+        setHasAgents(false);
+      }
+    };
+    checkAgents();
+  }, []);
 
   // --- Tab & Session State ---
   const [tabs, setTabs] = useState<Tab[]>(() => {
@@ -167,13 +188,22 @@ function App() {
     }, 10);
   };
 
-  // Handle "AI" inputs from the bottom bar
+  // Handle inputs from the bottom bar
   const handleBottomBarSubmit = (text: string) => {
     if (text.toLowerCase().includes("demo")) {
       setIsDemoActive(true);
       return;
     }
 
+    // If in agent mode, navigate to AI Chat and send message
+    if (inputMode === "agent" && hasAgents) {
+      // Store the message to be picked up by ChatView
+      sessionStorage.setItem("pendingChatMessage", text);
+      navigateTo(INTERNAL_CHAT_URL);
+      return;
+    }
+
+    // Normal mode: URL or search
     if (text.startsWith("http")) {
       navigateTo(text);
     } else {
@@ -276,7 +306,14 @@ function App() {
         </div>
 
         {/* Bottom AI Input Bar */}
-        {!isDemoActive && <BottomBar onSubmit={handleBottomBarSubmit} />}
+        {!isDemoActive && (
+          <BottomBar
+            onSubmit={handleBottomBarSubmit}
+            mode={inputMode}
+            onModeChange={setInputMode}
+            hasAgents={hasAgents}
+          />
+        )}
       </main>
     </div>
   );
