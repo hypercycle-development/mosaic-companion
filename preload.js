@@ -37,5 +37,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getEmails: (count) => ipcRenderer.invoke("gmail:get-emails", count),
     getEmailDetails: (messageId) => ipcRenderer.invoke("gmail:get-email-details", messageId),
     searchEmails: (query, count) => ipcRenderer.invoke("gmail:search-emails", query, count),
+    markRead: (messageId) => ipcRenderer.invoke("gmail:mark-read", messageId),
+    markUnread: (messageId) => ipcRenderer.invoke("gmail:mark-unread", messageId),
   },
 });

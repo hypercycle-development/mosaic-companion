@@ -137,6 +137,14 @@ declare global {
           }>;
           error?: string;
         }>;
+        markRead: (messageId: string) => Promise<{
+          success: boolean;
+          error?: string;
+        }>;
+        markUnread: (messageId: string) => Promise<{
+          success: boolean;
+          error?: string;
+        }>;
       };
     };
   }
