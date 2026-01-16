@@ -46,11 +46,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
-
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
@@ -107,19 +102,19 @@ jobs:
         with:
           ref: main # Get the version-bumped code
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: 20
 
       - name: Install dependencies
-        run: bun install
+        run: npm ci
 
       - name: Build app
-        run: bun run build
+        run: npm run build
 
       - name: Build Electron (${{ matrix.platform }})
-        run: bun run ${{ matrix.build_cmd }}
+        run: npx ${{ matrix.build_cmd }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
