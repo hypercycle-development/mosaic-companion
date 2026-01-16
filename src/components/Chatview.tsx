@@ -21,17 +21,15 @@ import {
   PROVIDER_INFO,
 } from "../types/ai";
 import { AIService } from "../services/AIService";
+import { INTERNAL_SETTINGS_URL } from "../types/types";
 
 interface ChatViewProps {
-  //   agents: AIAgentConfig[];
-  //   onNavigateToSettings: () => void;
+  onNavigate?: (url: string) => void;
 }
 
-export const ChatView: React.FC<ChatViewProps> = (
-  {
-    //   onNavigateToSettings,
-  }
-) => {
+export const ChatView: React.FC<ChatViewProps> = ({
+  onNavigate,
+}) => {
   const [agents, setAgents] = useState([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -289,7 +287,7 @@ export const ChatView: React.FC<ChatViewProps> = (
           chatting.
         </p>
         <button
-          //   onClick={onNavigateToSettings}
+          onClick={() => onNavigate?.(INTERNAL_SETTINGS_URL)}
           className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all hover:scale-[1.02] font-medium"
         >
           <Zap size={18} />
