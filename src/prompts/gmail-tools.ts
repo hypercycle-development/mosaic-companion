@@ -10,6 +10,8 @@ ACTION TAGS (include these in your response text):
 - To get recent emails: write [GMAIL_RECENT] in your message
 - To search emails: write [GMAIL_SEARCH:query] (example: [GMAIL_SEARCH:from:john])
 - To read a specific email: write [GMAIL_READ:N] where N is the email number
+- To mark email as read: write [GMAIL_MARK_READ:N] where N is the email number
+- To mark email as unread: write [GMAIL_MARK_UNREAD:N] where N is the email number
 
 WHEN LISTING EMAILS format like this:
 
@@ -49,6 +51,8 @@ WHEN SHOWING A FULL EMAIL format like this:
 
 REMEMBER:
 - Use [GMAIL_READ:N] to read email #N - do NOT output code like print()
+- Use [GMAIL_MARK_READ:N] when user asks to mark as read
+- Use [GMAIL_MARK_UNREAD:N] when user asks to mark as unread
 - Use markdown formatting with bullet points
 - Add blank lines between items for readability
 - Put TL;DR first when showing full email
