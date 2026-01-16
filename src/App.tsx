@@ -49,6 +49,8 @@ function App() {
     ];
   });
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id);
+  const [previousTabId, setPreviousTabId] = useState<string | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Helper to get active tab
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
@@ -89,7 +91,13 @@ function App() {
       isLoading: false,
     };
     setTabs((prev) => [...prev, newTab]);
+    setPreviousTabId(activeTabId);
+    setIsTransitioning(true);
     setActiveTabId(newTab.id);
+    setTimeout(() => {
+      setIsTransitioning(false);
+      setPreviousTabId(null);
+    }, 300);
   };
 
   const handleCloseTab = (id: string, e: React.MouseEvent) => {
@@ -106,7 +114,15 @@ function App() {
   };
 
   const handleSwitchTab = (id: string) => {
+    if (id === activeTabId) return;
+    setPreviousTabId(activeTabId);
+    setIsTransitioning(true);
     setActiveTabId(id);
+    // Reset transition state after animation completes
+    setTimeout(() => {
+      setIsTransitioning(false);
+      setPreviousTabId(null);
+    }, 300);
   };
 
   // Update specific tab properties (title, favicon, loading state)
@@ -209,6 +225,8 @@ function App() {
               onRefresh={handleRefresh}
               isSidebarOpen={isSidebarOpen}
               onToggleSidebar={() => setIsSidebarOpen(true)}
+              isLoading={activeTab.isLoading}
+              loadProgress={activeTab.loadProgress || 0}
             />
           </div>
         )}
@@ -248,31 +266,44 @@ function App() {
             </button>
           )}
 
-          {tabs.map((tab) => (
-            <div
-              key={tab.id}
-              className={`absolute inset-0 w-full h-full flex flex-col ${
-                tab.id === activeTabId ? "z-10" : "z-0 invisible"
-              }`}
-            >
-              <ContentArea
-                url={tab.history.present}
-                onNavigate={navigateTo}
-                theme={theme}
-                toggleTheme={toggleTheme}
-                settings={{
-                  homeUrl,
-                  setHomeUrl,
-                  customGreeting,
-                  setCustomGreeting,
-                  showUrlBar: showUrlBar,
-                  setShowUrlBar: setShowUrlBar,
-                }}
-                onUpdateTab={(updates) => handleUpdateTab(tab.id, updates)}
-                onStartDemo={() => setIsDemoActive(true)}
-              />
-            </div>
-          ))}
+          {tabs.map((tab) => {
+            const isActive = tab.id === activeTabId;
+            const isPrevious = tab.id === previousTabId;
+            
+            return (
+              <div
+                key={tab.id}
+                className={`
+                  absolute inset-0 w-full h-full flex flex-col
+                  transition-all duration-300 ease-in-out
+                  ${
+                    isActive
+                      ? "z-10 opacity-100 translate-x-0 scale-100"
+                      : isPrevious && isTransitioning
+                      ? "z-0 opacity-0 -translate-x-4 scale-95"
+                      : "z-0 opacity-0 translate-x-4 scale-95 pointer-events-none"
+                  }
+                `}
+              >
+                <ContentArea
+                  url={tab.history.present}
+                  onNavigate={navigateTo}
+                  theme={theme}
+                  toggleTheme={toggleTheme}
+                  settings={{
+                    homeUrl,
+                    setHomeUrl,
+                    customGreeting,
+                    setCustomGreeting,
+                    showUrlBar: showUrlBar,
+                    setShowUrlBar: setShowUrlBar,
+                  }}
+                  onUpdateTab={(updates) => handleUpdateTab(tab.id, updates)}
+                  onStartDemo={() => setIsDemoActive(true)}
+                />
+              </div>
+            );
+          })}
         </div>
 
         {/* Bottom AI Input Bar */}
