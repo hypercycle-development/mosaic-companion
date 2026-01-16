@@ -34,6 +34,7 @@ function App() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isDemoActive, setIsDemoActive] = useState(false);
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+    const [hasAgents, setHasAgents] = useState(false);
 
     // --- Tab & Session State ---
     const [tabs, setTabs] = useState<Tab[]>(() => {
@@ -81,6 +82,25 @@ function App() {
         }
     }, [theme]);
 
+    // Check for active agents
+    useEffect(() => {
+        const checkAgents = async () => {
+            try {
+                const agents = await window.electronAPI?.aiAgents?.get();
+                const activeAgents =
+                    agents?.filter((a: any) => a.isActive) || [];
+                setHasAgents(activeAgents.length > 0);
+            } catch (error) {
+                console.error('Error checking agents:', error);
+                setHasAgents(false);
+            }
+        };
+        checkAgents();
+        // Check periodically in case agents are added/removed
+        const interval = setInterval(checkAgents, 2000);
+        return () => clearInterval(interval);
+    }, []);
+
     const toggleTheme = () => {
         setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
     };
@@ -103,7 +123,7 @@ function App() {
         }, 300);
     };
 
-    const handleNewChatTab = () => {
+    const handleNewChatTab = (initialMessage?: string) => {
         const newTab: Tab = {
             id: Date.now().toString(),
             title: 'AI Chat',
@@ -114,6 +134,15 @@ function App() {
         setPreviousTabId(activeTabId);
         setIsTransitioning(true);
         setActiveTabId(newTab.id);
+
+        // Store initial message if provided
+        if (initialMessage) {
+            localStorage.setItem(
+                `chat_pending_message_${newTab.id}`,
+                initialMessage
+            );
+        }
+
         setTimeout(() => {
             setIsTransitioning(false);
             setPreviousTabId(null);
@@ -283,6 +312,10 @@ function App() {
                         setPreviousTabId(null);
                     }, 300);
                 }}
+                onSendChatMessage={(message) => {
+                    handleNewChatTab(message);
+                }}
+                hasAgents={hasAgents}
             />
 
             {/* Full Screen Demo Overlay */}
@@ -399,6 +432,7 @@ function App() {
                                     }
                                     onStartDemo={() => setIsDemoActive(true)}
                                     onCreateNewChatTab={handleNewChatTab}
+                                    tabId={tab.id}
                                 />
                             </div>
                         );

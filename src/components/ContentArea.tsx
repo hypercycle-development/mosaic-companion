@@ -27,6 +27,7 @@ interface ContentAreaProps {
     onUpdateTab: (updates: Partial<Tab>) => void;
     onStartDemo?: () => void;
     onCreateNewChatTab?: () => void;
+    tabId?: string;
 }
 
 interface BrowserViewProps {
@@ -247,7 +248,8 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     toggleTheme,
     onUpdateTab,
     onStartDemo,
-    onCreateNewChatTab
+    onCreateNewChatTab,
+    tabId
 }) => {
     // Handle Demo Command
     if (url === 'demo://start') {
@@ -325,6 +327,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
                 <ChatView
                     onNavigate={onNavigate}
                     onCreateNewChatTab={onCreateNewChatTab}
+                    tabId={tabId}
                 />
             </div>
         );

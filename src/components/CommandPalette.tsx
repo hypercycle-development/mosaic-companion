@@ -54,6 +54,8 @@ interface CommandPaletteProps {
     canGoBack: boolean;
     canGoForward: boolean;
     onSearchInNewTab?: (query: string) => void;
+    onSendChatMessage?: (message: string) => void;
+    hasAgents?: boolean;
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -72,12 +74,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     onForward,
     canGoBack,
     canGoForward,
-    onSearchInNewTab
+    onSearchInNewTab,
+    onSendChatMessage,
+    hasAgents = false
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
+    const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
     // Build commands list
     const allCommands: CommandItem[] = [
@@ -232,6 +237,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     const hasSearchQuery = searchQuery.trim().length > 0;
     const hasMatches = filteredCommands.length > 0;
     const showSearchAction = hasSearchQuery && !hasMatches && onSearchInNewTab;
+    const showChatAction = hasSearchQuery && !hasMatches && onSendChatMessage;
 
     // Group commands by category
     const groupedCommands = filteredCommands.reduce((acc, cmd) => {
@@ -245,12 +251,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     // Flatten for selection
     const flatCommands = filteredCommands;
 
-    // Focus input when opened
+    // Focus input when opened and reset refs
     useEffect(() => {
         if (isOpen && inputRef.current) {
             inputRef.current.focus();
             setSearchQuery('');
             setSelectedIndex(0);
+            // Clear refs when palette opens
+            itemRefs.current = [];
         }
     }, [isOpen]);
 
@@ -275,24 +283,44 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
+                e.stopPropagation();
                 const maxIndex =
-                    flatCommands.length + (showSearchAction ? 1 : 0) - 1;
+                    flatCommands.length +
+                    (showSearchAction ? 1 : 0) +
+                    (showChatAction ? 1 : 0) -
+                    1;
                 setSelectedIndex((prev) => (prev < maxIndex ? prev + 1 : 0));
                 return;
             }
 
             if (e.key === 'ArrowUp') {
                 e.preventDefault();
+                e.stopPropagation();
                 const maxIndex =
-                    flatCommands.length + (showSearchAction ? 1 : 0) - 1;
+                    flatCommands.length +
+                    (showSearchAction ? 1 : 0) +
+                    (showChatAction ? 1 : 0) -
+                    1;
                 setSelectedIndex((prev) => (prev > 0 ? prev - 1 : maxIndex));
                 return;
             }
 
             if (e.key === 'Enter') {
                 e.preventDefault();
-                // If search action is shown and selected, trigger search
-                if (showSearchAction && selectedIndex === flatCommands.length) {
+                // If chat action is shown and selected, trigger chat (appears first)
+                if (showChatAction && selectedIndex === flatCommands.length) {
+                    if (onSendChatMessage && hasAgents) {
+                        onSendChatMessage(searchQuery.trim());
+                    }
+                    onClose();
+                    return;
+                }
+                // If search action is shown and selected, trigger search (appears after chat)
+                if (
+                    showSearchAction &&
+                    selectedIndex ===
+                        flatCommands.length + (showChatAction ? 1 : 0)
+                ) {
                     if (onSearchInNewTab) {
                         onSearchInNewTab(searchQuery.trim());
                     }
@@ -307,32 +335,68 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             }
         };
 
+        // Use capture phase to catch events before they reach scrollbar
+        document.addEventListener('keydown', handleKeyDown, true);
         window.addEventListener('keydown', handleKeyDown, true);
-        return () => window.removeEventListener('keydown', handleKeyDown, true);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown, true);
+            window.removeEventListener('keydown', handleKeyDown, true);
+        };
     }, [
         isOpen,
         flatCommands,
         selectedIndex,
         onClose,
         showSearchAction,
+        showChatAction,
         searchQuery,
-        onSearchInNewTab
+        onSearchInNewTab,
+        onSendChatMessage,
+        hasAgents
     ]);
 
     // Scroll selected item into view
     useEffect(() => {
-        if (listRef.current && flatCommands[selectedIndex]) {
-            const selectedElement = listRef.current.children[
-                selectedIndex
-            ] as HTMLElement;
+        const totalItems =
+            flatCommands.length +
+            (showChatAction ? 1 : 0) +
+            (showSearchAction ? 1 : 0);
+
+        if (selectedIndex < flatCommands.length) {
+            // Regular command item
+            const selectedElement = itemRefs.current[selectedIndex];
             if (selectedElement) {
                 selectedElement.scrollIntoView({
                     behavior: 'smooth',
                     block: 'nearest'
                 });
             }
+        } else if (showChatAction && selectedIndex === flatCommands.length) {
+            // Chat action
+            const chatActionElement = itemRefs.current[flatCommands.length];
+            if (chatActionElement) {
+                chatActionElement.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest'
+                });
+            }
+        } else if (
+            showSearchAction &&
+            selectedIndex === flatCommands.length + (showChatAction ? 1 : 0)
+        ) {
+            // Search action
+            const searchActionElement =
+                itemRefs.current[
+                    flatCommands.length + (showChatAction ? 1 : 0)
+                ];
+            if (searchActionElement) {
+                searchActionElement.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest'
+                });
+            }
         }
-    }, [selectedIndex, flatCommands]);
+    }, [selectedIndex, flatCommands, showChatAction, showSearchAction]);
 
     if (!isOpen) return null;
 
@@ -369,9 +433,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 <div
                     ref={listRef}
                     className='max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent'
+                    onKeyDown={(e) => {
+                        // Prevent arrow keys from scrolling the container
+                        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }
+                    }}
+                    tabIndex={-1}
                 >
                     {Object.keys(groupedCommands).length === 0 &&
-                    !showSearchAction ? (
+                    !showSearchAction &&
+                    !showChatAction ? (
                         <div className='px-4 py-12 text-center'>
                             <div className='w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center mx-auto mb-4'>
                                 <Search size={24} className='text-gray-600' />
@@ -401,6 +474,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                                             return (
                                                 <button
                                                     key={cmd.id}
+                                                    ref={(el) => {
+                                                        itemRefs.current[
+                                                            flatIndex
+                                                        ] = el;
+                                                    }}
                                                     onClick={cmd.action}
                                                     disabled={
                                                         'disabled' in cmd &&
@@ -454,13 +532,91 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                                 )
                             )}
 
-                            {/* Search Action - Show when query doesn't match commands */}
+                            {/* Chat Action - Show when query doesn't match commands (appears first) */}
+                            {showChatAction && (
+                                <div className='py-2 border-t border-gray-800'>
+                                    <div className='px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider'>
+                                        AI Chat
+                                    </div>
+                                    <button
+                                        ref={(el) => {
+                                            itemRefs.current[
+                                                flatCommands.length
+                                            ] = el;
+                                        }}
+                                        onClick={() => {
+                                            if (
+                                                onSendChatMessage &&
+                                                hasAgents
+                                            ) {
+                                                onSendChatMessage(
+                                                    searchQuery.trim()
+                                                );
+                                            }
+                                            onClose();
+                                        }}
+                                        disabled={!hasAgents}
+                                        className={`
+                                        w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
+                                        ${
+                                            selectedIndex ===
+                                            flatCommands.length
+                                                ? 'bg-indigo-900/30 text-indigo-400'
+                                                : 'text-gray-300 hover:bg-gray-800'
+                                        }
+                                        ${
+                                            !hasAgents
+                                                ? 'opacity-50 cursor-not-allowed'
+                                                : ''
+                                        }
+                                    `}
+                                    >
+                                        <div
+                                            className={`shrink-0 ${
+                                                selectedIndex ===
+                                                flatCommands.length
+                                                    ? 'text-indigo-400'
+                                                    : 'text-gray-500'
+                                            }`}
+                                        >
+                                            <Bot size={18} />
+                                        </div>
+                                        <div className='flex-1 min-w-0'>
+                                            <div className='font-medium'>
+                                                {hasAgents
+                                                    ? `Send "${searchQuery.trim()}" to AI`
+                                                    : 'No agents configured'}
+                                            </div>
+                                            <div className='text-xs text-gray-500 truncate mt-0.5'>
+                                                {hasAgents
+                                                    ? 'Start a new chat with this message'
+                                                    : 'Configure agents in settings'}
+                                            </div>
+                                        </div>
+                                        {hasAgents && (
+                                            <div className='shrink-0 flex items-center gap-1 text-xs text-gray-500 font-mono'>
+                                                <kbd className='px-1.5 py-0.5 bg-gray-800 rounded text-gray-400'>
+                                                    Enter
+                                                </kbd>
+                                            </div>
+                                        )}
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Search Action - Show when query doesn't match commands (appears after chat) */}
                             {showSearchAction && (
                                 <div className='py-2 border-t border-gray-800'>
                                     <div className='px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider'>
                                         Search
                                     </div>
                                     <button
+                                        ref={(el) => {
+                                            itemRefs.current[
+                                                flatCommands.length +
+                                                    (showChatAction ? 1 : 0)
+                                            ] = el;
+                                        }}
                                         onClick={() => {
                                             if (onSearchInNewTab) {
                                                 onSearchInNewTab(
@@ -473,7 +629,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                                         w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
                                         ${
                                             selectedIndex ===
-                                            flatCommands.length
+                                            flatCommands.length +
+                                                (showChatAction ? 1 : 0)
                                                 ? 'bg-indigo-900/30 text-indigo-400'
                                                 : 'text-gray-300 hover:bg-gray-800'
                                         }
@@ -482,7 +639,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                                         <div
                                             className={`shrink-0 ${
                                                 selectedIndex ===
-                                                flatCommands.length
+                                                flatCommands.length +
+                                                    (showChatAction ? 1 : 0)
                                                     ? 'text-indigo-400'
                                                     : 'text-gray-500'
                                             }`}
