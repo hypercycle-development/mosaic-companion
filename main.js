@@ -22,6 +22,7 @@ function createWindow(urlToLoad = null) {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    icon: path.join(__dirname, "assets", "icon.png"),
     // Use the setting, or fallback to platform defaults if somehow undefined
     titleBarStyle: titleBarStyle === 'default' ? 'default' : 'hidden',
     trafficLightPosition: { x: 10, y: 10 },
