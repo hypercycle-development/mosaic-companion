@@ -74,6 +74,13 @@ function App() {
   // Helper to get active tab
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
 
+  // Auto-switch to agent mode when on AI Chat page
+  useEffect(() => {
+    if (activeTab.history.present === INTERNAL_CHAT_URL && hasAgents) {
+      setInputMode("agent");
+    }
+  }, [activeTab.history.present, hasAgents]);
+
   // Persist preferences
   useEffect(() => {
     localStorage.setItem("browser_home_url", homeUrl);
