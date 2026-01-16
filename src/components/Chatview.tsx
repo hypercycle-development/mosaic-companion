@@ -21,6 +21,7 @@ import {
   PROVIDER_INFO,
 } from "../types/ai";
 import { AIService } from "../services/AIService";
+import { ChatHistorySidebar } from "./ChatHistorySidebar";
 import { VoiceRecorder } from "./VoiceRecorder";
 import Narrator from "./Narrator";
 
@@ -562,17 +563,43 @@ export const ChatView: React.FC<ChatViewProps> = (
         </div>
       </div>
 
-      {/* Input Area */}
-      <div className="shrink-0 border-t border-gray-800 bg-gray-950/80 backdrop-blur-md p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-end gap-3">
-            <VoiceRecorder
-              onTranscription={(text) => {
-                setInput(text.trim());
-                // Enviar automáticamente después de transcribir
-                setTimeout(() => {
-                  if (text.trim()) {
-                    sendMessage();
+        {/* Input Area */}
+        <div className="shrink-0 border-t border-gray-800 bg-gray-950/80 backdrop-blur-md p-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-end gap-3">
+              <VoiceRecorder
+                onTranscription={(text) => {
+                  setInput(text.trim());
+                  // Enviar automáticamente después de transcribir
+                  setTimeout(() => {
+                    if (text.trim()) {
+                      sendMessage();
+                    }
+                  }, 100);
+                }}
+                disabled={isGenerating}
+              />
+              <div className="flex-1 bg-gray-900 border border-gray-800 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50 transition-all">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={`Message ${selectedAgent?.name || "AI"}...`}
+                  className="w-full bg-transparent text-gray-100 placeholder-gray-500 resize-none min-h-[24px] max-h-[150px] px-3 py-2 focus:outline-none"
+                  rows={1}
+                  disabled={isGenerating}
+                />
+              </div>
+              <button
+                onClick={sendMessage}
+                disabled={!input.trim() || isGenerating}
+                className={`
+                  p-4 rounded-xl transition-all flex items-center justify-center
+                  ${
+                    input.trim() && !isGenerating
+                      ? "bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-105 shadow-lg shadow-indigo-500/25"
+                      : "bg-gray-800 text-gray-500 cursor-not-allowed"
                   }
                 }, 100);
               }}
