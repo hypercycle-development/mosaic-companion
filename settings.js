@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS = {
   autoDownload: false,
   titleBarStyle: process.platform === 'darwin' ? 'default' : 'hidden',
   nodes: [],
+  gmailAutoMarkRead: false, // Auto-mark emails as read when viewed
 };
 
 // Current settings (loaded from file or defaults)
@@ -116,6 +117,28 @@ export function getAutoDownload() {
  */
 export function getTitleBarStyle() {
   return settings.titleBarStyle;
+}
+
+// =============================================================================
+// Gmail Settings
+// =============================================================================
+
+/**
+ * Get Gmail auto-mark-as-read setting.
+ * @returns {boolean}
+ */
+export function getGmailAutoMarkRead() {
+  return settings.gmailAutoMarkRead || false;
+}
+
+/**
+ * Set Gmail auto-mark-as-read setting.
+ * @param {boolean} value
+ * @returns {{ success: boolean, error?: string }}
+ */
+export function setGmailAutoMarkRead(value) {
+  settings.gmailAutoMarkRead = !!value;
+  return saveSettings();
 }
 
 // =============================================================================
