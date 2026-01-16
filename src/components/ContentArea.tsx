@@ -25,6 +25,7 @@ interface ContentAreaProps {
     };
     onUpdateTab: (updates: Partial<Tab>) => void;
     onStartDemo?: () => void;
+    onCreateNewChatTab?: () => void;
 }
 
 interface BrowserViewProps {
@@ -237,7 +238,8 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     theme,
     toggleTheme,
     onUpdateTab,
-    onStartDemo
+    onStartDemo,
+    onCreateNewChatTab
 }) => {
     // Handle Demo Command
     if (url === 'demo://start') {
@@ -311,7 +313,10 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
 
         return (
             <div className='h-full overflow-y-auto bg-gray-950 text-gray-100'>
-                <ChatView onNavigate={onNavigate} />
+                <ChatView
+                    onNavigate={onNavigate}
+                    onCreateNewChatTab={onCreateNewChatTab}
+                />
             </div>
         );
     }
