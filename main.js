@@ -1,27 +1,49 @@
-// main.js - Complete version with AI agents storage data
+// main.js - Complete version with AI agents storage
 import { app, BrowserWindow, ipcMain } from "electron";
-import os from "os"
+
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { checkForUpdates, manualCheckForUpdates, initUpdater, applyAutoDownload, getLogFilePath, readLogFile } from "./updater.js";
-import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode, getTitleBarStyle } from "./settings.js";
+import {
+  checkForUpdates,
+  manualCheckForUpdates,
+  initUpdater,
+  applyAutoDownload,
+  getLogFilePath,
+  readLogFile,
+} from "./updater.js";
+import {
+  getUpdateSettings,
+  setUpdateSettings,
+  getNodes,
+  addNode,
+  updateNode,
+  deleteNode,
+  getTitleBarStyle,
+} from "./settings.js";
 
-
+import {
+  getDirectoryStatus,
+  readAgentHistories,
+  readAgentHistory,
+  writeAgentHistory,
+} from "./utils/index.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Declare variables of paths to folders that will use user data
+const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 // Keep reference to main window for recreation
 let mainWindow = null;
 
 function createWindow(urlToLoad = null) {
   // Get title bar style from settings (default to 'hidden' on non-Mac if not set)
   const titleBarStyle = getTitleBarStyle();
-  
+
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     // Use the setting, or fallback to platform defaults if somehow undefined
-    titleBarStyle: titleBarStyle === 'default' ? 'default' : 'hidden',
+    titleBarStyle: titleBarStyle === "default" ? "default" : "hidden",
     trafficLightPosition: { x: 10, y: 10 },
     backgroundColor: "#111827",
     webPreferences: {
@@ -31,14 +53,13 @@ function createWindow(urlToLoad = null) {
       webviewTag: true,
     },
   });
-
   // Load specified URL or default to index.html
   if (urlToLoad) {
     win.loadURL(urlToLoad);
   } else {
     win.loadFile(path.join(__dirname, "dist", "index.html"));
   }
-  
+
   mainWindow = win;
   return win;
 }
@@ -49,18 +70,18 @@ function createWindow(urlToLoad = null) {
  */
 function recreateWindow() {
   if (!mainWindow) return;
-  
+
   // Get current state
   const currentURL = mainWindow.webContents.getURL();
   const bounds = mainWindow.getBounds();
-  
+
   // Close the old window
   mainWindow.close();
-  
+
   // Create new window with updated settings
   const newWin = createWindow(currentURL);
   newWin.setBounds(bounds);
-  
+
   console.log("Window recreated with new titleBarStyle");
 }
 
@@ -73,7 +94,7 @@ ipcMain.handle("restart-window", async () => {
 // IPC handler for 3-button confirmation dialog
 ipcMain.handle("show-title-bar-confirm", async () => {
   const { dialog } = await import("electron");
-  
+
   const result = await dialog.showMessageBox(mainWindow, {
     type: "question",
     title: "Apply Title Bar Style",
@@ -83,13 +104,20 @@ ipcMain.handle("show-title-bar-confirm", async () => {
     defaultId: 0,
     cancelId: 2,
   });
-  
+
   // button index: 0 = Apply Now, 1 = Apply Later, 2 = Cancel
   return { buttonIndex: result.response };
 });
 
 app.whenReady().then(() => {
-  console.log("User data path:", app.getPath("userData"));
+  const agentsHistoryPathExist = getDirectoryStatus(agentsHistoryPath);
+  if (!agentsHistoryPathExist.exists) {
+    try {
+      fs.mkdirSync(agentsHistoryPath, { recursive: true });
+    } catch (e) {
+      console.log(`Erroc when creating agents path: ${e}`);
+    }
+  }
   createWindow();
 
   // Initialize updater with settings and check for updates on startup (skip in development)
@@ -270,6 +298,11 @@ ipcMain.handle("ai-agents:add", async (event, agent) => {
     const agents = readAgents();
     agents.push(agent);
     writeAgents(agents);
+    const agentPath = path.join(agentsHistoryPath, agent.id.toString());
+    fs.mkdirSync(agentPath, { recursive: true });
+    // Create first chat by default
+    const filePath = path.join(agentPath);
+    console.log();
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -309,6 +342,48 @@ ipcMain.handle("ai-agents:clear", async () => {
   try {
     writeAgents([]);
     return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// ============================================
+// AI Agents History
+// ============================================
+
+ipcMain.handle("ai-agents-history:get-all", async (event, agentId) => {
+  return readAgentHistories(agentId);
+});
+
+ipcMain.handle("ai-agents-history:get", async (event, agentId, sessionId) => {
+  return readAgentHistory(agentId, sessionId);
+});
+
+ipcMain.handle("ai-agents-history:save", async (event, chatSession) => {
+  try {
+    const success = writeAgentHistory(chatSession);
+    return { success };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle(
+  "ai-agents-history:delete",
+  async (event, agentId, sessionId) => {
+    try {
+      const success = deleteAgentHistory(agentId, sessionId);
+      return { success };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+);
+
+ipcMain.handle("ai-agents-history:delete-all", async (event, agentId) => {
+  try {
+    const success = deleteAllAgentHistories(agentId);
+    return { success };
   } catch (error) {
     return { success: false, error: error.message };
   }
