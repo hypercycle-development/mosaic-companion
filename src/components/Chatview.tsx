@@ -497,6 +497,9 @@ export const ChatView: React.FC<ChatViewProps> = (
                       ${message.role === "user" ? "justify-end" : ""}
                     `}
                     >
+                      {message.role !== "user" && (
+                        <Narrator text={message.content} autoPlay={true} />
+                      )}
                       <button
                         onClick={() => copyMessage(message.id, message.content)}
                         className="p-1 text-gray-600 hover:text-gray-400 transition-colors"
