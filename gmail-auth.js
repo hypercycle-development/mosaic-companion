@@ -11,8 +11,8 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Gmail scopes we need
-const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
+// Gmail scopes we need - gmail.modify allows read/write (mark read/unread)
+const SCOPES = ['https://www.googleapis.com/auth/gmail.modify'];
 const REDIRECT_URI = 'http://127.0.0.1:3000/oauth2callback';
 const TOKEN_FILE = 'gmail-tokens.json';
 const CREDENTIALS_FILE = path.join(__dirname, 'config', 'gmail-credentials.json');
