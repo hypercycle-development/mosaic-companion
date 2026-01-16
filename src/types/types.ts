@@ -23,6 +23,7 @@ export interface Tab {
   title: string;
   history: HistoryState;
   isLoading?: boolean;
+  loadProgress?: number; // 0-100
   favicon?: string;
 }
 
