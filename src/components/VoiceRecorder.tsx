@@ -209,7 +209,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             <select
               value={selectedDevice}
               onChange={(e) => setSelectedDevice(e.target.value)}
-              className="h-7 pl-2 pr-6 bg-gray-900/70 border border-gray-700/60 rounded text-gray-200 text-[10px] min-w-[6rem] max-w-[3rem] truncate focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+              className="h-7 w-[20px] px-2 bg-gray-900/70 rounded text-gray-200 text-[10px] truncate focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
             >
               {audioDevices.map(device => (
                 <option key={device.deviceId} value={device.deviceId}>
