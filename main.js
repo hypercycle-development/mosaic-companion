@@ -42,7 +42,9 @@ function createWindow(urlToLoad = null) {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
-            webviewTag: true
+            webviewTag: true,
+            // Suppress console errors from webviews (especially ERR_ABORTED from redirects)
+            backgroundThrottling: false
         }
     });
 
@@ -101,6 +103,20 @@ ipcMain.handle('show-title-bar-confirm', async () => {
 
     // button index: 0 = Apply Now, 1 = Apply Later, 2 = Cancel
     return { buttonIndex: result.response };
+});
+
+// Suppress ERR_ABORTED errors from webviews (harmless redirects, especially Google)
+app.on('web-contents-created', (event, contents) => {
+    contents.on(
+        'did-fail-load',
+        (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+            // Suppress ERR_ABORTED (-3) errors - these are harmless navigation aborts from redirects
+            if (errorCode === -3) {
+                event.preventDefault();
+                return;
+            }
+        }
+    );
 });
 
 app.whenReady().then(() => {

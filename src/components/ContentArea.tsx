@@ -106,20 +106,26 @@ const BrowserView: React.FC<BrowserViewProps> = ({
         };
 
         const handleFailLoad = (e: any) => {
-            // errorCode -3 is ABORTED (often harmless redirects)
-            if (e.errorCode !== -3 && e.errorCode !== 0) {
-                console.warn('Webview load failed', e);
-                if (loadingTimeoutRef.current) {
-                    if (typeof loadingTimeoutRef.current === 'number') {
-                        clearInterval(loadingTimeoutRef.current);
-                    } else {
-                        clearTimeout(loadingTimeoutRef.current);
-                    }
-                    loadingTimeoutRef.current = null;
-                }
-                onUpdateTab({ isLoading: false, loadProgress: undefined });
-                setHasError(true);
+            // errorCode -3 is ABORTED (often harmless redirects, especially on Google)
+            // errorCode 0 is OK (sometimes fired incorrectly)
+            // Ignore these as they're usually from redirects or navigation cancellations
+            if (e.errorCode === -3 || e.errorCode === 0) {
+                // Silently ignore - these are harmless navigation aborts
+                return;
             }
+
+            // Only log and show errors for actual failures
+            console.warn('Webview load failed', e);
+            if (loadingTimeoutRef.current) {
+                if (typeof loadingTimeoutRef.current === 'number') {
+                    clearInterval(loadingTimeoutRef.current);
+                } else {
+                    clearTimeout(loadingTimeoutRef.current);
+                }
+                loadingTimeoutRef.current = null;
+            }
+            onUpdateTab({ isLoading: false, loadProgress: undefined });
+            setHasError(true);
         };
 
         const handleNavigate = (e: any) => {
@@ -226,6 +232,7 @@ const BrowserView: React.FC<BrowserViewProps> = ({
                 src={url}
                 className='flex-1 w-full h-full border-none bg-gray-900'
                 allowpopups={true}
+                webpreferences='allowRunningInsecureContent,experimentalFeatures'
                 style={{ width: '100%', height: '100%' }}
             />
         </div>
