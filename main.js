@@ -7,7 +7,7 @@ import fs from "fs";
 import { checkForUpdates, manualCheckForUpdates, initUpdater, applyAutoDownload, getLogFilePath, readLogFile } from "./updater.js";
 import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode, getTitleBarStyle } from "./settings.js";
 import { authenticate, signOut, isAuthenticated } from "./gmail-auth.js";
-import { getRecentEmails, getUserProfile, getEmailDetails, searchEmails } from "./gmail-service.js";
+import { getRecentEmails, getUserProfile, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./gmail-service.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -384,6 +384,28 @@ ipcMain.handle("gmail:search-emails", async (event, query, count = 10) => {
     return { success: true, emails };
   } catch (error) {
     console.error("Gmail search error:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Mark email as read
+ipcMain.handle("gmail:mark-read", async (event, messageId) => {
+  try {
+    await markAsRead(messageId);
+    return { success: true };
+  } catch (error) {
+    console.error("Gmail mark read error:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Mark email as unread
+ipcMain.handle("gmail:mark-unread", async (event, messageId) => {
+  try {
+    await markAsUnread(messageId);
+    return { success: true };
+  } catch (error) {
+    console.error("Gmail mark unread error:", error);
     return { success: false, error: error.message };
   }
 });
