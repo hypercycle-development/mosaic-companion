@@ -31,11 +31,34 @@ export default function GmailClient() {
   const [signingIn, setSigningIn] = useState(false);
   const [fetchingEmails, setFetchingEmails] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autoMarkRead, setAutoMarkRead] = useState(false);
 
-  // Check authentication status on mount
+  // Check authentication status and load settings on mount
   useEffect(() => {
     checkStatus();
+    loadAutoMarkSetting();
   }, []);
+
+  const loadAutoMarkSetting = async () => {
+    try {
+      const result = await window.electronAPI.gmail.getAutoMarkRead();
+      setAutoMarkRead(result.enabled);
+    } catch {
+      // Ignore errors, default to false
+    }
+  };
+
+  const toggleAutoMarkRead = async () => {
+    try {
+      const newValue = !autoMarkRead;
+      const result = await window.electronAPI.gmail.setAutoMarkRead(newValue);
+      if (result.success) {
+        setAutoMarkRead(result.enabled);
+      }
+    } catch {
+      // Ignore errors
+    }
+  };
 
   const checkStatus = async () => {
     try {
@@ -193,6 +216,22 @@ export default function GmailClient() {
       </div>
 
       {error && <div className="gmail-error">{error}</div>}
+
+      {/* Auto-mark setting */}
+      <div className="gmail-setting">
+        <div className="gmail-setting-label">
+          <span>Auto-mark as read</span>
+          <span className="gmail-setting-desc">
+            Mark emails as read when viewed via AI
+          </span>
+        </div>
+        <button
+          onClick={toggleAutoMarkRead}
+          className={`gmail-toggle ${autoMarkRead ? "gmail-toggle-on" : ""}`}
+        >
+          <span className="gmail-toggle-thumb" />
+        </button>
+      </div>
 
       <div className="gmail-email-list">
         {emails.length === 0 ? (
@@ -363,6 +402,62 @@ export default function GmailClient() {
           margin: 1rem;
           border-radius: 8px;
           font-size: 0.875rem;
+        }
+
+        .gmail-setting {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0.75rem 1.5rem;
+          background: rgba(0, 0, 0, 0.15);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .gmail-setting-label {
+          display: flex;
+          flex-direction: column;
+          gap: 0.125rem;
+        }
+
+        .gmail-setting-label span:first-child {
+          font-size: 0.875rem;
+          font-weight: 500;
+          color: #e2e8f0;
+        }
+
+        .gmail-setting-desc {
+          font-size: 0.75rem;
+          color: #64748b;
+        }
+
+        .gmail-toggle {
+          position: relative;
+          width: 44px;
+          height: 24px;
+          background: #374151;
+          border: none;
+          border-radius: 12px;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .gmail-toggle-on {
+          background: #4f46e5;
+        }
+
+        .gmail-toggle-thumb {
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          width: 20px;
+          height: 20px;
+          background: white;
+          border-radius: 50%;
+          transition: transform 0.2s;
+        }
+
+        .gmail-toggle-on .gmail-toggle-thumb {
+          transform: translateX(20px);
         }
 
         .gmail-email-list {
