@@ -35,11 +35,9 @@
 
 **[DEMO: Open MOSAIC and show the main interface]**
 
-- **Sidebar Navigation**: "On the left, we have our sidebar with quick access to Home, AI Chat, Gmail integration, and Settings."
-- **Tab System**: "Just like a traditional browser, we support multiple tabs so you can work with different contexts simultaneously."
-- **Unified Input Bar**: "At the bottom, we have a unified input bar with two modes:"
-  - **AI Agent Mode**: "When you're in AI Agent mode, your input goes directly to configured AI agents."
-  - **Normal Mode**: "In Normal mode, it functions as a traditional browser/search bar."
+- **Sidebar Navigation**: "On the left, we have our sidebar with quick access to Home, AI Chat, and Settings. And many other accesses that will be added in the future."
+- **Tab System**: "Just like a traditional browser, we support multiple tabs so you can work with different contexts at the same time."
+- **Unified Input Bar**: "At the bottom, we have an input bar that allows you to interact with Mosaic.
 
 ### B. AI Agent Integration
 
