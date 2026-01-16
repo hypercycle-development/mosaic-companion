@@ -22,6 +22,7 @@ interface ContentAreaProps {
         setCustomGreeting: (text: string) => void;
         showUrlBar: boolean;
         setShowUrlBar: (show: boolean) => void;
+        onOpenCommandPalette?: () => void;
     };
     onUpdateTab: (updates: Partial<Tab>) => void;
     onStartDemo?: () => void;
@@ -269,6 +270,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
                 customGreeting={settings.customGreeting}
                 theme={theme}
                 toggleTheme={toggleTheme}
+                onOpenCommandPalette={settings.onOpenCommandPalette}
             />
         );
     }

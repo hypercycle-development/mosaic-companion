@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { Play } from 'lucide-react';
+import { Play, Command } from 'lucide-react';
 
 interface LandingPageProps {
   onNavigate: (url: string) => void;
   customGreeting?: string;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+  onOpenCommandPalette?: () => void;
 }
 
 const S_WORDS = [
@@ -23,7 +24,7 @@ const S_WORDS = [
   { word: 'SUPER', color: 'text-cyan-400' },
 ];
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, customGreeting }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, customGreeting, onOpenCommandPalette }) => {
   const [sWordIndex, setSWordIndex] = useState(0);
 
   useEffect(() => {
@@ -74,8 +75,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, customGree
           </div>
         </div>
 
-        {/* Demo Button */}
-        <div className="mt-12">
+        {/* Action Buttons */}
+        <div className="mt-12 flex items-center gap-4 justify-center">
             <button 
                 onClick={() => onNavigate('demo://start')} 
                 className="group relative px-8 py-3 bg-indigo-600/10 border border-indigo-500/50 rounded-full hover:bg-indigo-600/20 transition-all duration-300 overflow-hidden"
@@ -87,6 +88,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, customGree
                     <span className="text-sm font-medium tracking-widest text-indigo-300 group-hover:text-white transition-colors">WATCH DEMO</span>
                 </div>
             </button>
+            
+            {onOpenCommandPalette && (
+                <button 
+                    onClick={onOpenCommandPalette} 
+                    className="group relative px-6 py-3 bg-gray-900/50 border border-gray-800 rounded-full hover:bg-gray-800 transition-all duration-300"
+                    title="Open Command Palette (Cmd+K)"
+                >
+                    <div className="flex items-center gap-2">
+                        <Command size={16} className="text-gray-400 group-hover:text-indigo-400" />
+                        <span className="text-xs font-mono text-gray-500 group-hover:text-gray-300">⌘K</span>
+                    </div>
+                </button>
+            )}
         </div>
 
         {/* Status Indicators */}
