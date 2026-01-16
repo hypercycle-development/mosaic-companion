@@ -228,9 +228,49 @@ async function searchEmails(query, maxResults = 10) {
   return Promise.all(emailPromises);
 }
 
+/**
+ * Mark an email as read
+ * @param {string} messageId - The message ID to mark as read
+ * @returns {Promise<boolean>} Success status
+ */
+async function markAsRead(messageId) {
+  const gmail = getGmailClient();
+  
+  await gmail.users.messages.modify({
+    userId: 'me',
+    id: messageId,
+    requestBody: {
+      removeLabelIds: ['UNREAD'],
+    },
+  });
+  
+  return true;
+}
+
+/**
+ * Mark an email as unread
+ * @param {string} messageId - The message ID to mark as unread
+ * @returns {Promise<boolean>} Success status
+ */
+async function markAsUnread(messageId) {
+  const gmail = getGmailClient();
+  
+  await gmail.users.messages.modify({
+    userId: 'me',
+    id: messageId,
+    requestBody: {
+      addLabelIds: ['UNREAD'],
+    },
+  });
+  
+  return true;
+}
+
 export {
   getUserProfile,
   getRecentEmails,
   getEmailDetails,
   searchEmails,
+  markAsRead,
+  markAsUnread,
 };
