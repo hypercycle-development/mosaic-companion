@@ -45,3 +45,6 @@ coverage/
 # Misc
 *.pem
 .cache/
+
+# agent files
+.github/copilot-instructions.md
