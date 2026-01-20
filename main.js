@@ -1,5 +1,6 @@
 // main.js - Complete version with AI agents storage
 import { app, BrowserWindow, ipcMain } from "electron";
+import os from "os";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -252,6 +253,7 @@ ipcMain.handle("nodes:delete", async (event, id) => {
 // AI Agents Storage
 // ============================================
 const aiAgentsPath = path.join(app.getPath("userData"), "ai-agents.json");
+const themesPath = path.join(app.getPath("userData"), "themes.json");
 
 // Helper: Read agents from file
 function readAgents() {
@@ -273,6 +275,29 @@ function writeAgents(agents) {
     return true;
   } catch (error) {
     console.error("Failed to write AI agents:", error);
+    return false;
+  }
+}
+
+// Theme helpers
+function readThemeSettings() {
+  try {
+    if (fs.existsSync(themesPath)) {
+      const data = fs.readFileSync(themesPath, "utf8");
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error("Failed to read theme settings:", error);
+  }
+  return { activeTheme: "dark" };
+}
+
+function writeThemeSettings(settings) {
+  try {
+    fs.writeFileSync(themesPath, JSON.stringify(settings, null, 2), "utf8");
+    return true;
+  } catch (error) {
+    console.error("Failed to write theme settings:", error);
     return false;
   }
 }
@@ -347,6 +372,17 @@ ipcMain.handle("ai-agents:clear", async () => {
   }
 });
 
+// Theme persistence
+ipcMain.handle("themes:get", async () => {
+  return readThemeSettings();
+});
+
+ipcMain.handle("themes:set", async (event, activeTheme) => {
+  const settings = { activeTheme };
+  const success = writeThemeSettings(settings);
+  return { success };
+});
+
 // ============================================
 // AI Agents History
 // ============================================
@@ -377,7 +413,7 @@ ipcMain.handle(
     } catch (error) {
       return { success: false, error: error.message };
     }
-  }
+  },
 );
 
 ipcMain.handle("ai-agents-history:delete-all", async (event, agentId) => {

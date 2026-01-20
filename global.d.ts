@@ -49,7 +49,7 @@ declare global {
         }>;
         update: (
           id: string,
-          updates: Partial<HypercycleNode>
+          updates: Partial<HypercycleNode>,
         ) => Promise<{
           success: boolean;
           nodes?: HypercycleNode[];
@@ -67,33 +67,38 @@ declare global {
       aiAgents: {
         get: () => Promise<AIAgentConfig[]>;
         set: (
-          agents: AIAgentConfig[]
+          agents: AIAgentConfig[],
         ) => Promise<{ success: boolean; error?: string }>;
         add: (
-          agent: AIAgentConfig
+          agent: AIAgentConfig,
         ) => Promise<{ success: boolean; error?: string }>;
         update: (
           id: string,
-          updates: Partial<AIAgentConfig>
+          updates: Partial<AIAgentConfig>,
         ) => Promise<{ success: boolean; error?: string }>;
         delete: (id: string) => Promise<{ success: boolean; error?: string }>;
         clear: () => Promise<{ success: boolean; error?: string }>;
+      };
+
+      themes: {
+        get: () => Promise<{ activeTheme: string }>;
+        set: (activeTheme: string) => Promise<{ success: boolean }>;
       };
       aiAgentsHistory: {
         getAll: (agentId: string) => Promise<ChatSession[]>;
         get: (
           agentId: string,
-          sessionId: string
+          sessionId: string,
         ) => Promise<ChatSession | null>;
         save: (
-          chatSession: ChatSession
+          chatSession: ChatSession,
         ) => Promise<{ success: boolean; error?: string }>;
         delete: (
           agentId: string,
-          sessionId: string
+          sessionId: string,
         ) => Promise<{ success: boolean; error?: string }>;
         deleteAll: (
-          agentId: string
+          agentId: string,
         ) => Promise<{ success: boolean; error?: string }>;
       };
     };
