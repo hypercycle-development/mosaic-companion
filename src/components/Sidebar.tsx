@@ -214,7 +214,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     >
       {/* Header */}
       <div className="h-16 flex items-center justify-between px-6 border-b border-gray-900 shrink-0 min-w-[18rem]">
-        <div className="flex items-center gap-2 text-indigo-500">
+        <div className="flex items-center gap-2 text-gray-200">
           <Sparkles size={20} />
           <span className="font-bold text-white tracking-widest text-lg">
             MOSAIC
@@ -243,8 +243,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   w-full flex items-center px-3 py-3 rounded-lg transition-all relative group
                   ${
                     isActive
-                      ? "bg-indigo-900/20 text-indigo-400 border border-indigo-500/10"
-                      : "hover:bg-gray-900 text-gray-400 hover:text-gray-200 border border-transparent"
+                      ? "bg-indigo-900/20 text-gray-100 border border-indigo-500/10"
+                      : "hover-surface-accent text-gray-400 hover:text-gray-200 border border-transparent"
                   }
                 `}
               >
@@ -253,14 +253,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {item.label}
                 </span>
                 {isActive && (
-                  <div className="absolute right-2 w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+                  <div
+                    className="absolute right-2 w-1.5 h-1.5 rounded-full"
+                    style={{
+                      backgroundColor: "var(--primary)",
+                      boxShadow:
+                        "0 0 8px color-mix(in srgb, var(--primary) 60%, transparent)",
+                    }}
+                  />
                 )}
                 {isChat && activeAgents.length > 0 && !isActive && (
                   <div className="absolute right-2 flex items-center gap-1">
-                    <span className="text-[10px] text-emerald-400 font-mono">
+                    <span className="text-[10px] text-gray-300 font-mono">
                       {activeAgents.length}
                     </span>
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
+                    <div
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{
+                        backgroundColor: "var(--success)",
+                        boxShadow:
+                          "0 0 6px color-mix(in srgb, var(--success) 60%, transparent)",
+                      }}
+                    />
                   </div>
                 )}
               </button>
@@ -282,7 +296,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   key={agent.id}
                   onClick={() => onNavigate(INTERNAL_CHAT_URL)}
-                  className="w-full flex items-center px-3 py-2.5 rounded-lg relative group cursor-pointer hover:bg-gray-900 transition-colors"
+                  className="w-full flex items-center px-3 py-2.5 rounded-lg relative group cursor-pointer hover-surface-accent transition-colors"
                 >
                   <div
                     className="w-2 h-2 rounded-full mr-3"
@@ -301,7 +315,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                   <MessageSquare
                     size={14}
-                    className="text-gray-600 group-hover:text-indigo-400 transition-colors"
+                    className="text-gray-600 group-hover:text-gray-200 transition-colors"
                   />
                 </button>
               );
@@ -319,12 +333,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {aiContexts.map((ctx) => (
             <div
               key={ctx.id}
-              className="w-full flex items-center px-3 py-2.5 rounded-lg relative group cursor-pointer hover:bg-gray-900 transition-colors"
+              className="w-full flex items-center px-3 py-2.5 rounded-lg relative group cursor-pointer hover-surface-accent transition-colors"
               onClick={() => toggleContext(ctx.id)}
             >
               <ctx.icon
                 className={`size-4 transition-colors mr-3 ${
-                  ctx.active ? "text-indigo-400" : "text-gray-600"
+                  ctx.active ? "text-gray-100" : "text-gray-600"
                 }`}
               />
 
@@ -346,7 +360,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <div
                     className={`absolute -top-1 w-3.5 h-3.5 rounded-full shadow-sm transition-all duration-200 ${
                       ctx.active
-                        ? "left-[18px] bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"
+                        ? "left-[18px] bg-indigo-500 glow-primary"
                         : "left-0 bg-gray-600"
                     }`}
                   />
@@ -362,7 +376,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>Hypercycle Grid</span>
             <button
               onClick={() => onNavigate(INTERNAL_SETTINGS_URL + "#nodes")}
-              className="p-1 hover:bg-gray-800 rounded text-gray-500 hover:text-indigo-400 transition-colors"
+              className="p-1 hover-surface-accent rounded text-gray-500 hover:text-indigo-400 transition-colors"
               title="Node Settings"
             >
               <Settings size={12} />
@@ -382,18 +396,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 const latency = status?.latency;
 
                 // Determine status color
-                let statusColor = "bg-gray-600"; // Inactive
+                let statusColor = "var(--muted)"; // Inactive
                 let statusShadow = "";
                 if (node.isActive) {
                   if (isLive) {
-                    statusColor = "bg-emerald-500";
-                    statusShadow = "shadow-[0_0_8px_rgba(16,185,129,0.6)]";
+                    statusColor = "var(--success)";
+                    statusShadow =
+                      "0 0 8px color-mix(in srgb, var(--success) 60%, transparent)";
                   } else if (status?.lastChecked) {
-                    statusColor = "bg-red-500";
-                    statusShadow = "shadow-[0_0_8px_rgba(239,68,68,0.6)]";
+                    statusColor = "var(--danger)";
+                    statusShadow =
+                      "0 0 8px color-mix(in srgb, var(--danger) 60%, transparent)";
                   } else {
-                    statusColor = "bg-yellow-500";
-                    statusShadow = "shadow-[0_0_8px_rgba(234,179,8,0.6)]";
+                    statusColor = "var(--warning)";
+                    statusShadow =
+                      "0 0 8px color-mix(in srgb, var(--warning) 60%, transparent)";
                   }
                 }
 
@@ -406,7 +423,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <div
-                          className={`w-2 h-2 rounded-full ${statusColor} ${statusShadow}`}
+                          className="w-2 h-2 rounded-full"
+                          style={{
+                            backgroundColor: statusColor,
+                            boxShadow: statusShadow,
+                          }}
                         />
                         <span
                           className={`text-xs font-mono ${
@@ -450,7 +471,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-xs text-gray-500">
                           <span>Latency</span>
-                          <span className="font-mono text-indigo-400">
+                          <span className="font-mono text-gray-200">
                             {isChecking ? (
                               <RefreshCw size={10} className="animate-spin" />
                             ) : latency !== null && latency !== undefined ? (
@@ -482,7 +503,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-4 border-t border-gray-900 shrink-0 bg-black min-w-[18rem]">
         <button
           onClick={() => onNavigate(INTERNAL_SETTINGS_URL)}
-          className="flex items-center justify-center w-full bg-indigo-900/20 hover:bg-indigo-900/40 text-indigo-400 border border-indigo-500/20 rounded-lg p-3 transition-all hover:scale-[1.02]"
+          className="flex items-center justify-center w-full bg-indigo-900/20 hover:bg-indigo-900/40 text-gray-100 border border-indigo-500/20 rounded-lg p-3 transition-all hover:scale-[1.02]"
         >
           <Plus size={16} />
           <span className="ml-2 text-xs font-bold tracking-wider uppercase">

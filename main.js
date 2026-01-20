@@ -1,30 +1,56 @@
 // main.js - Complete version with AI agents storage data
 import { app, BrowserWindow, ipcMain } from "electron";
-import os from "os"
+import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { checkForUpdates, manualCheckForUpdates, initUpdater, applyAutoDownload, getLogFilePath, readLogFile } from "./updater.js";
-import { getUpdateSettings, setUpdateSettings, getNodes, addNode, updateNode, deleteNode, getTitleBarStyle, getGmailAutoMarkRead, setGmailAutoMarkRead } from "./settings.js";
+import {
+  checkForUpdates,
+  manualCheckForUpdates,
+  initUpdater,
+  applyAutoDownload,
+  getLogFilePath,
+  readLogFile,
+} from "./updater.js";
+import {
+  getUpdateSettings,
+  setUpdateSettings,
+  getNodes,
+  addNode,
+  updateNode,
+  deleteNode,
+  getTitleBarStyle,
+  getGmailAutoMarkRead,
+  setGmailAutoMarkRead,
+} from "./settings.js";
 import { authenticate, signOut, isAuthenticated } from "./gmail-auth.js";
 import { getRecentEmails, getUserProfile, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./gmail-service.js";
 
-
+import {
+  getDirectoryStatus,
+  readAgentHistories,
+  readAgentHistory,
+  writeAgentHistory,
+  deleteAgentHistory,
+  deleteAllAgentHistories,
+} from "./utils/index.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Declare variables of paths to folders that will use user data
+const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 // Keep reference to main window for recreation
 let mainWindow = null;
 
 function createWindow(urlToLoad = null) {
   // Get title bar style from settings (default to 'hidden' on non-Mac if not set)
   const titleBarStyle = getTitleBarStyle();
-  
+
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     icon: path.join(__dirname, "assets", "icon.png"),
     // Use the setting, or fallback to platform defaults if somehow undefined
-    titleBarStyle: titleBarStyle === 'default' ? 'default' : 'hidden',
+    titleBarStyle: titleBarStyle === "default" ? "default" : "hidden",
     trafficLightPosition: { x: 10, y: 10 },
     backgroundColor: "#111827",
     webPreferences: {
@@ -32,6 +58,8 @@ function createWindow(urlToLoad = null) {
       nodeIntegration: false,
       contextIsolation: true,
       webviewTag: true,
+      // Suppress console errors from webviews (especially ERR_ABORTED from redirects)
+      backgroundThrottling: false,
     },
   });
 
@@ -41,7 +69,7 @@ function createWindow(urlToLoad = null) {
   } else {
     win.loadFile(path.join(__dirname, "dist", "index.html"));
   }
-  
+
   mainWindow = win;
   return win;
 }
@@ -52,18 +80,18 @@ function createWindow(urlToLoad = null) {
  */
 function recreateWindow() {
   if (!mainWindow) return;
-  
+
   // Get current state
   const currentURL = mainWindow.webContents.getURL();
   const bounds = mainWindow.getBounds();
-  
+
   // Close the old window
   mainWindow.close();
-  
+
   // Create new window with updated settings
   const newWin = createWindow(currentURL);
   newWin.setBounds(bounds);
-  
+
   console.log("Window recreated with new titleBarStyle");
 }
 
@@ -76,7 +104,7 @@ ipcMain.handle("restart-window", async () => {
 // IPC handler for 3-button confirmation dialog
 ipcMain.handle("show-title-bar-confirm", async () => {
   const { dialog } = await import("electron");
-  
+
   const result = await dialog.showMessageBox(mainWindow, {
     type: "question",
     title: "Apply Title Bar Style",
@@ -86,13 +114,35 @@ ipcMain.handle("show-title-bar-confirm", async () => {
     defaultId: 0,
     cancelId: 2,
   });
-  
+
   // button index: 0 = Apply Now, 1 = Apply Later, 2 = Cancel
   return { buttonIndex: result.response };
 });
 
+// Suppress ERR_ABORTED errors from webviews (harmless redirects, especially Google)
+app.on("web-contents-created", (event, contents) => {
+  contents.on(
+    "did-fail-load",
+    (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      // Suppress ERR_ABORTED (-3) errors - these are harmless navigation aborts from redirects
+      if (errorCode === -3) {
+        event.preventDefault();
+        return;
+      }
+    }
+  );
+});
+
 app.whenReady().then(() => {
   console.log("User data path:", app.getPath("userData"));
+  const agentsHistoryPathExist = getDirectoryStatus(agentsHistoryPath);
+  if (!agentsHistoryPathExist.exists) {
+    try {
+      fs.mkdirSync(agentsHistoryPath, { recursive: true });
+    } catch (e) {
+      console.log(`Error when creating agents path: ${e}`);
+    }
+  }
   createWindow();
 
   // Initialize updater with settings and check for updates on startup (skip in development)
@@ -236,6 +286,7 @@ ipcMain.handle("nodes:delete", async (event, id) => {
 // AI Agents Storage
 // ============================================
 const aiAgentsPath = path.join(app.getPath("userData"), "ai-agents.json");
+const themesPath = path.join(app.getPath("userData"), "themes.json");
 
 // Helper: Read agents from file
 function readAgents() {
@@ -261,6 +312,29 @@ function writeAgents(agents) {
   }
 }
 
+// Theme helpers
+function readThemeSettings() {
+  try {
+    if (fs.existsSync(themesPath)) {
+      const data = fs.readFileSync(themesPath, "utf8");
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error("Failed to read theme settings:", error);
+  }
+  return { activeTheme: "dark" };
+}
+
+function writeThemeSettings(settings) {
+  try {
+    fs.writeFileSync(themesPath, JSON.stringify(settings, null, 2), "utf8");
+    return true;
+  } catch (error) {
+    console.error("Failed to write theme settings:", error);
+    return false;
+  }
+}
+
 // Get all agents
 ipcMain.handle("ai-agents:get", async () => {
   return readAgents();
@@ -282,6 +356,8 @@ ipcMain.handle("ai-agents:add", async (event, agent) => {
     const agents = readAgents();
     agents.push(agent);
     writeAgents(agents);
+    const agentPath = path.join(agentsHistoryPath, agent.id.toString());
+    fs.mkdirSync(agentPath, { recursive: true });
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -387,6 +463,62 @@ ipcMain.handle("gmail:get-email-details", async (event, messageId) => {
   }
 });
 
+// ============================================
+// Theme persistence
+// ============================================
+
+ipcMain.handle("themes:get", async () => {
+  return readThemeSettings();
+});
+
+ipcMain.handle("themes:set", async (event, activeTheme) => {
+  const settings = { activeTheme };
+  const success = writeThemeSettings(settings);
+  return { success };
+});
+
+// ============================================
+// AI Agents History
+// ============================================
+
+ipcMain.handle("ai-agents-history:get-all", async (event, agentId) => {
+  return readAgentHistories(agentId);
+});
+
+ipcMain.handle("ai-agents-history:get", async (event, agentId, sessionId) => {
+  return readAgentHistory(agentId, sessionId);
+});
+
+ipcMain.handle("ai-agents-history:save", async (event, chatSession) => {
+  try {
+    const success = writeAgentHistory(chatSession);
+    return { success };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle(
+  "ai-agents-history:delete",
+  async (event, agentId, sessionId) => {
+    try {
+      const success = deleteAgentHistory(agentId, sessionId);
+      return { success };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+);
+
+ipcMain.handle("ai-agents-history:delete-all", async (event, agentId) => {
+  try {
+    const success = deleteAllAgentHistories(agentId);
+    return { success };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 // Search emails
 ipcMain.handle("gmail:search-emails", async (event, query, count = 10) => {
   try {
@@ -430,3 +562,4 @@ ipcMain.handle("gmail:set-auto-mark-read", (event, enabled) => {
   const result = setGmailAutoMarkRead(enabled);
   return { ...result, enabled: getGmailAutoMarkRead() };
 });
+

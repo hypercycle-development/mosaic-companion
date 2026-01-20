@@ -1,4 +1,4 @@
-import { AIAgentConfig } from "./types/ai";
+import { AIAgentConfig, ChatSession } from "./types/ai";
 
 declare global {
   // Update settings configuration
@@ -27,7 +27,10 @@ declare global {
       getCsvPath: () => Promise<string>;
 
       // Update methods
-      checkForUpdates: () => Promise<{ triggered: boolean; reason?: string }>;
+      checkForUpdates: () => Promise<{
+        triggered: boolean;
+        reason?: string;
+      }>;
       getUpdateSettings: () => Promise<UpdateSettings>;
       setUpdateSettings: (settings: Partial<UpdateSettings>) => Promise<{
         success: boolean;
@@ -49,7 +52,7 @@ declare global {
         }>;
         update: (
           id: string,
-          updates: Partial<HypercycleNode>
+          updates: Partial<HypercycleNode>,
         ) => Promise<{
           success: boolean;
           nodes?: HypercycleNode[];
@@ -61,23 +64,6 @@ declare global {
           error?: string;
         }>;
         onChanged: (callback: (nodes: HypercycleNode[]) => void) => () => void;
-      };
-
-      // AI Agents methods
-      aiAgents: {
-        get: () => Promise<AIAgentConfig[]>;
-        set: (
-          agents: AIAgentConfig[]
-        ) => Promise<{ success: boolean; error?: string }>;
-        add: (
-          agent: AIAgentConfig
-        ) => Promise<{ success: boolean; error?: string }>;
-        update: (
-          id: string,
-          updates: Partial<AIAgentConfig>
-        ) => Promise<{ success: boolean; error?: string }>;
-        delete: (id: string) => Promise<{ success: boolean; error?: string }>;
-        clear: () => Promise<{ success: boolean; error?: string }>;
       };
 
       // Gmail methods
@@ -123,7 +109,7 @@ declare global {
         }>;
         searchEmails: (
           query: string,
-          count?: number
+          count?: number,
         ) => Promise<{
           success: boolean;
           emails?: Array<{
@@ -153,6 +139,44 @@ declare global {
           enabled: boolean;
           error?: string;
         }>;
+      };
+
+      // AI Agents methods
+      aiAgents: {
+        get: () => Promise<AIAgentConfig[]>;
+        set: (
+          agents: AIAgentConfig[],
+        ) => Promise<{ success: boolean; error?: string }>;
+        add: (
+          agent: AIAgentConfig,
+        ) => Promise<{ success: boolean; error?: string }>;
+        update: (
+          id: string,
+          updates: Partial<AIAgentConfig>,
+        ) => Promise<{ success: boolean; error?: string }>;
+        delete: (id: string) => Promise<{ success: boolean; error?: string }>;
+        clear: () => Promise<{ success: boolean; error?: string }>;
+      };
+      themes: {
+        get: () => Promise<{ activeTheme: string }>;
+        set: (activeTheme: string) => Promise<{ success: boolean }>;
+      };
+      aiAgentsHistory: {
+        getAll: (agentId: string) => Promise<ChatSession[]>;
+        get: (
+          agentId: string,
+          sessionId: string,
+        ) => Promise<ChatSession | null>;
+        save: (
+          chatSession: ChatSession,
+        ) => Promise<{ success: boolean; error?: string }>;
+        delete: (
+          agentId: string,
+          sessionId: string,
+        ) => Promise<{ success: boolean; error?: string }>;
+        deleteAll: (
+          agentId: string,
+        ) => Promise<{ success: boolean; error?: string }>;
       };
     };
   }
