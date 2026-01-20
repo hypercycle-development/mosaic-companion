@@ -34,5 +34,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   themes: {
     get: () => ipcRenderer.invoke("themes:get"),
     set: (activeTheme) => ipcRenderer.invoke("themes:set", activeTheme),
+  aiAgentsHistory: {
+    getAll: (agentId) =>
+      ipcRenderer.invoke("ai-agents-history:get-all", agentId),
+    get: (agentId, sessionId) =>
+      ipcRenderer.invoke("ai-agents-history:get", agentId, sessionId),
+    save: (chatSession) =>
+      ipcRenderer.invoke("ai-agents-history:save", chatSession),
+    delete: (agentId, sessionId) =>
+      ipcRenderer.invoke("ai-agents-history:delete", agentId, sessionId),
+    deleteAll: (agentId) =>
+      ipcRenderer.invoke("ai-agents-history:delete-all", agentId),
   },
 });
