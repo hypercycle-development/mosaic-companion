@@ -5,7 +5,8 @@ import { ContentArea } from "./components/ContentArea";
 import { TabStrip } from "./components/TabStrip";
 import { BottomBar } from "./components/BottomBar";
 import { DemoOverlay } from "./components/DemoOverlay";
-import { INTERNAL_HOME_URL, Tab } from "./types/types";
+import { CommandPalette } from "./components/CommandPalette";
+import { INTERNAL_HOME_URL, INTERNAL_CHAT_URL, Tab } from "./types/types";
 import { useTheme } from "./ThemeProvider";
 
 function App() {
@@ -27,6 +28,8 @@ function App() {
   // Sidebar State (Defaults to Closed)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDemoActive, setIsDemoActive] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [hasAgents, setHasAgents] = useState(false);
 
   // --- Tab & Session State ---
   const [tabs, setTabs] = useState<Tab[]>(() => {
@@ -45,6 +48,8 @@ function App() {
     ];
   });
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id);
+  const [previousTabId, setPreviousTabId] = useState<string | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Helper to get active tab
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
@@ -62,6 +67,24 @@ function App() {
     localStorage.setItem("browser_show_url_bar", String(showUrlBar));
   }, [showUrlBar]);
 
+  // Check for active agents
+  useEffect(() => {
+    const checkAgents = async () => {
+      try {
+        const agents = await window.electronAPI?.aiAgents?.get();
+        const activeAgents = agents?.filter((a: any) => a.isActive) || [];
+        setHasAgents(activeAgents.length > 0);
+      } catch (error) {
+        console.error("Error checking agents:", error);
+        setHasAgents(false);
+      }
+    };
+    checkAgents();
+    // Check periodically in case agents are added/removed
+    const interval = setInterval(checkAgents, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
   const toggleTheme = () => {
     const next = themeKey === "dark" ? "light" : "dark";
     setThemeKey(next as typeof themeKey);
@@ -76,7 +99,39 @@ function App() {
       isLoading: false,
     };
     setTabs((prev) => [...prev, newTab]);
+    setPreviousTabId(activeTabId);
+    setIsTransitioning(true);
     setActiveTabId(newTab.id);
+    setTimeout(() => {
+      setIsTransitioning(false);
+      setPreviousTabId(null);
+    }, 300);
+  };
+
+  const handleNewChatTab = (initialMessage?: string) => {
+    const newTab: Tab = {
+      id: Date.now().toString(),
+      title: "AI Chat",
+      history: { past: [], present: INTERNAL_CHAT_URL, future: [] },
+      isLoading: false,
+    };
+    setTabs((prev) => [...prev, newTab]);
+    setPreviousTabId(activeTabId);
+    setIsTransitioning(true);
+    setActiveTabId(newTab.id);
+
+    // Store initial message if provided
+    if (initialMessage) {
+      localStorage.setItem(
+        `chat_pending_message_${newTab.id}`,
+        initialMessage
+      );
+    }
+
+    setTimeout(() => {
+      setIsTransitioning(false);
+      setPreviousTabId(null);
+    }, 300);
   };
 
   const handleCloseTab = (id: string, e: React.MouseEvent) => {
@@ -93,7 +148,15 @@ function App() {
   };
 
   const handleSwitchTab = (id: string) => {
+    if (id === activeTabId) return;
+    setPreviousTabId(activeTabId);
+    setIsTransitioning(true);
     setActiveTabId(id);
+    // Reset transition state after animation completes
+    setTimeout(() => {
+      setIsTransitioning(false);
+      setPreviousTabId(null);
+    }, 300);
   };
 
   // Update specific tab properties (title, favicon, loading state)
@@ -124,7 +187,8 @@ function App() {
 
   const goBack = () => {
     if (activeTab.history.past.length === 0) return;
-    const previous = activeTab.history.past[activeTab.history.past.length - 1];
+    const previous =
+      activeTab.history.past[activeTab.history.past.length - 1];
     const newPast = activeTab.history.past.slice(0, -1);
 
     updateActiveTabHistory({
@@ -164,9 +228,35 @@ function App() {
     if (text.startsWith("http")) {
       navigateTo(text);
     } else {
-      navigateTo(`https://www.google.com/search?q=${encodeURIComponent(text)}`);
+      navigateTo(
+        `https://www.google.com/search?q=${encodeURIComponent(text)}`
+      );
     }
   };
+
+  // Keyboard shortcut for command palette only
+  useEffect(() => {
+    // Handle Cmd+K for command palette (renderer-only, highest priority)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+K or Ctrl+K to open/close command palette (highest priority)
+      const isCmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k";
+      if (isCmdK) {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+    };
+
+    // Use capture phase to catch events early
+    document.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("keydown", handleKeyDown, true);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [isCommandPaletteOpen]);
 
   if (!isReady) {
     return null;
@@ -177,6 +267,48 @@ function App() {
       className="flex h-screen w-screen overflow-hidden font-sans transition-colors duration-200 selection:bg-[var(--selection)]"
       style={{ backgroundColor: "var(--background)", color: "var(--text)" }}
     >
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onNavigate={navigateTo}
+        onSwitchTab={handleSwitchTab}
+        onNewTab={handleNewTab}
+        onNewChatTab={handleNewChatTab}
+        onCloseTab={handleCloseTab}
+        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        onRefresh={handleRefresh}
+        onBack={goBack}
+        onForward={goForward}
+        canGoBack={activeTab.history.past.length > 0}
+        canGoForward={activeTab.history.future.length > 0}
+        onSearchInNewTab={(query) => {
+          const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(
+            query
+          )}`;
+          const newTab: Tab = {
+            id: Date.now().toString(),
+            title: "New Tab",
+            history: { past: [], present: searchUrl, future: [] },
+            isLoading: false,
+          };
+          setTabs((prev) => [...prev, newTab]);
+          setPreviousTabId(activeTabId);
+          setIsTransitioning(true);
+          setActiveTabId(newTab.id);
+          setTimeout(() => {
+            setIsTransitioning(false);
+            setPreviousTabId(null);
+          }, 300);
+        }}
+        onSendChatMessage={(message) => {
+          handleNewChatTab(message);
+        }}
+        hasAgents={hasAgents}
+      />
+
       {/* Full Screen Demo Overlay */}
       {isDemoActive && <DemoOverlay onClose={() => setIsDemoActive(false)} />}
 
@@ -215,6 +347,8 @@ function App() {
               onRefresh={handleRefresh}
               isSidebarOpen={isSidebarOpen}
               onToggleSidebar={() => setIsSidebarOpen(true)}
+              isLoading={activeTab.isLoading}
+              loadProgress={activeTab.loadProgress || 0}
             />
           </div>
         )}
@@ -263,33 +397,55 @@ function App() {
             </button>
           )}
 
-          {tabs.map((tab) => (
-            <div
-              key={tab.id}
-              className={`absolute inset-0 w-full h-full flex flex-col ${
-                tab.id === activeTabId ? "z-10" : "z-0 invisible"
-              }`}
-            >
-              <ContentArea
-                url={tab.history.present}
-                onNavigate={navigateTo}
-                settings={{
-                  homeUrl,
-                  setHomeUrl,
-                  customGreeting,
-                  setCustomGreeting,
-                  showUrlBar: showUrlBar,
-                  setShowUrlBar: setShowUrlBar,
-                }}
-                onUpdateTab={(updates) => handleUpdateTab(tab.id, updates)}
-                onStartDemo={() => setIsDemoActive(true)}
-              />
-            </div>
-          ))}
+          {tabs.map((tab) => {
+            const isActive = tab.id === activeTabId;
+            const isPrevious = tab.id === previousTabId;
+
+            return (
+              <div
+                key={tab.id}
+                className={`
+                  absolute inset-0 w-full h-full flex flex-col
+                  transition-all duration-300 ease-in-out
+                  ${
+                    isActive
+                      ? "z-10 opacity-100 translate-x-0 scale-100"
+                      : isPrevious && isTransitioning
+                      ? "z-0 opacity-0 -translate-x-4 scale-95"
+                      : "z-0 opacity-0 translate-x-4 scale-95 pointer-events-none"
+                  }
+                `}
+              >
+                <ContentArea
+                  url={tab.history.present}
+                  onNavigate={navigateTo}
+                  theme={theme}
+                  toggleTheme={toggleTheme}
+                  settings={{
+                    homeUrl,
+                    setHomeUrl,
+                    customGreeting,
+                    setCustomGreeting,
+                    showUrlBar: showUrlBar,
+                    setShowUrlBar: setShowUrlBar,
+                    onOpenCommandPalette: () =>
+                      setIsCommandPaletteOpen(true),
+                  }}
+                  onUpdateTab={(updates) => handleUpdateTab(tab.id, updates)}
+                  onStartDemo={() => setIsDemoActive(true)}
+                  onCreateNewChatTab={handleNewChatTab}
+                  tabId={tab.id}
+                />
+              </div>
+            );
+          })}
         </div>
 
-        {/* Bottom AI Input Bar */}
-        {/* {!isDemoActive && <BottomBar onSubmit={handleBottomBarSubmit} />} */}
+        {/* Bottom AI Input Bar - Hide when in chat view */}
+        {!isDemoActive &&
+          activeTab.history.present !== INTERNAL_CHAT_URL && (
+            <BottomBar onSubmit={handleBottomBarSubmit} />
+          )}
       </main>
     </div>
   );
