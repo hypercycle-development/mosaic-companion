@@ -29,6 +29,8 @@ import {
 } from "../types/ai";
 import { AIService } from "../services/AIService";
 import GmailClient from "./GmailClient";
+import { useTheme } from "../ThemeProvider";
+import { ThemeKey } from "../themes";
 
 interface SettingsPageProps {
   homeUrl: string;
@@ -80,6 +82,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       { status: "idle" | "testing" | "success" | "error"; message?: string }
     >
   >({});
+
+  const { themes, themeKey, setThemeKey } = useTheme();
 
   // Update settings state for auto-updater
   const [updateSettings, setUpdateSettingsState] = useState<{
@@ -365,6 +369,68 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             Interface Settings
           </h2>
           <div className="space-y-4">
+            <div>
+              <span className="text-gray-200 font-medium block">Theme</span>
+              <p className="text-sm text-gray-500 mb-3">
+                Choose a color theme. Changes apply instantly and persist across
+                restarts.
+              </p>
+              <div className="grid gap-3 md:grid-cols-2">
+                {themes.map((theme) => (
+                  <button
+                    key={theme.key}
+                    onClick={() => setThemeKey(theme.key as ThemeKey)}
+                    className={`w-full text-left rounded-lg p-4 border transition-all backdrop-blur-sm hover:scale-[1.01]
+                      ${
+                        themeKey === theme.key
+                          ? "border-indigo-500/50 ring-2 ring-indigo-500/30"
+                          : "border-gray-800"
+                      }
+                    `}
+                    style={{
+                      backgroundColor: "var(--surface)",
+                      color: "var(--text)",
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <div className="text-lg font-semibold">
+                          {theme.name}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {theme.description}
+                        </div>
+                      </div>
+                      {themeKey === theme.key && (
+                        <span className="text-xs px-2 py-1 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(
+                        [
+                          "background",
+                          "surface",
+                          "accent",
+                          "primary",
+                          "warning",
+                          "success",
+                        ] as const
+                      ).map((token) => (
+                        <span
+                          key={token}
+                          className="h-8 w-8 rounded-lg border border-white/10"
+                          style={{ backgroundColor: theme.colors[token] }}
+                          title={token}
+                        />
+                      ))}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-gray-200 font-medium block">
@@ -531,7 +597,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       border rounded-xl transition-all duration-300 overflow-hidden
                       ${
                         isExpanded
-                          ? "border-indigo-500/50 bg-gray-950/50 shadow-[0_0_20px_rgba(99,102,241,0.1)]"
+                          ? "border-indigo-500/50 bg-gray-950/50 glow-primary"
                           : "border-gray-800 bg-gray-900/30 hover:border-gray-700"
                       }
                     `}
@@ -928,7 +994,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     className={`bg-gray-900/30 border rounded-xl overflow-hidden 
                       ${
                         expandedNode === node.id
-                          ? "border-indigo-500/50 bg-gray-950/50 shadow-[0_0_20px_rgba(99,102,241,0.1)]"
+                          ? "border-indigo-500/50 bg-gray-950/50 glow-primary"
                           : "border-gray-800 bg-gray-900/30 hover:border-gray-700 hover:border-gray-700 "
                       }`}
                   >

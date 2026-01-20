@@ -48,3 +48,5 @@ coverage/
 
 # Gmail OAuth credentials (keep private)
 config/gmail-credentials.json
+# agent files
+.github/copilot-instructions.md
