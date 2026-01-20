@@ -1,6 +1,7 @@
-// main.js - Complete version with AI agents storage data
+// main.js - Complete version with AI agents storage
 import { app, BrowserWindow, ipcMain } from "electron";
 import os from "os";
+
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -22,8 +23,16 @@ import {
   getTitleBarStyle,
 } from "./settings.js";
 
+import {
+  getDirectoryStatus,
+  readAgentHistories,
+  readAgentHistory,
+  writeAgentHistory,
+} from "./utils/index.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Declare variables of paths to folders that will use user data
+const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 // Keep reference to main window for recreation
 let mainWindow = null;
 
@@ -45,7 +54,6 @@ function createWindow(urlToLoad = null) {
       webviewTag: true,
     },
   });
-
   // Load specified URL or default to index.html
   if (urlToLoad) {
     win.loadURL(urlToLoad);
@@ -103,7 +111,14 @@ ipcMain.handle("show-title-bar-confirm", async () => {
 });
 
 app.whenReady().then(() => {
-  console.log("User data path:", app.getPath("userData"));
+  const agentsHistoryPathExist = getDirectoryStatus(agentsHistoryPath);
+  if (!agentsHistoryPathExist.exists) {
+    try {
+      fs.mkdirSync(agentsHistoryPath, { recursive: true });
+    } catch (e) {
+      console.log(`Erroc when creating agents path: ${e}`);
+    }
+  }
   createWindow();
 
   // Initialize updater with settings and check for updates on startup (skip in development)
@@ -308,6 +323,11 @@ ipcMain.handle("ai-agents:add", async (event, agent) => {
     const agents = readAgents();
     agents.push(agent);
     writeAgents(agents);
+    const agentPath = path.join(agentsHistoryPath, agent.id.toString());
+    fs.mkdirSync(agentPath, { recursive: true });
+    // Create first chat by default
+    const filePath = path.join(agentPath);
+    console.log();
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -361,4 +381,46 @@ ipcMain.handle("themes:set", async (event, activeTheme) => {
   const settings = { activeTheme };
   const success = writeThemeSettings(settings);
   return { success };
+});
+
+// ============================================
+// AI Agents History
+// ============================================
+
+ipcMain.handle("ai-agents-history:get-all", async (event, agentId) => {
+  return readAgentHistories(agentId);
+});
+
+ipcMain.handle("ai-agents-history:get", async (event, agentId, sessionId) => {
+  return readAgentHistory(agentId, sessionId);
+});
+
+ipcMain.handle("ai-agents-history:save", async (event, chatSession) => {
+  try {
+    const success = writeAgentHistory(chatSession);
+    return { success };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle(
+  "ai-agents-history:delete",
+  async (event, agentId, sessionId) => {
+    try {
+      const success = deleteAgentHistory(agentId, sessionId);
+      return { success };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+);
+
+ipcMain.handle("ai-agents-history:delete-all", async (event, agentId) => {
+  try {
+    const success = deleteAllAgentHistories(agentId);
+    return { success };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 });
