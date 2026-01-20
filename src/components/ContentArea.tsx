@@ -13,8 +13,6 @@ import { ChatView } from "./Chatview";
 interface ContentAreaProps {
   url: string;
   onNavigate: (url: string) => void;
-  theme: "light" | "dark";
-  toggleTheme: () => void;
   settings: {
     homeUrl: string;
     setHomeUrl: (url: string) => void;
@@ -174,8 +172,6 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   url,
   onNavigate,
   settings,
-  theme,
-  toggleTheme,
   onUpdateTab,
   onStartDemo,
 }) => {
@@ -201,8 +197,6 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       <LandingPage
         onNavigate={onNavigate}
         customGreeting={settings.customGreeting}
-        theme={theme}
-        toggleTheme={toggleTheme}
       />
     );
   }
