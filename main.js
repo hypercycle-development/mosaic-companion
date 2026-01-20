@@ -1,7 +1,6 @@
-// main.js - Complete version with AI agents storage
+// main.js - Complete version with AI agents storage data
 import { app, BrowserWindow, ipcMain } from "electron";
 import os from "os";
-
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -28,6 +27,8 @@ import {
   readAgentHistories,
   readAgentHistory,
   writeAgentHistory,
+  deleteAgentHistory,
+  deleteAllAgentHistories,
 } from "./utils/index.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -52,8 +53,11 @@ function createWindow(urlToLoad = null) {
       nodeIntegration: false,
       contextIsolation: true,
       webviewTag: true,
+      // Suppress console errors from webviews (especially ERR_ABORTED from redirects)
+      backgroundThrottling: false,
     },
   });
+
   // Load specified URL or default to index.html
   if (urlToLoad) {
     win.loadURL(urlToLoad);
@@ -110,13 +114,28 @@ ipcMain.handle("show-title-bar-confirm", async () => {
   return { buttonIndex: result.response };
 });
 
+// Suppress ERR_ABORTED errors from webviews (harmless redirects, especially Google)
+app.on("web-contents-created", (event, contents) => {
+  contents.on(
+    "did-fail-load",
+    (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      // Suppress ERR_ABORTED (-3) errors - these are harmless navigation aborts from redirects
+      if (errorCode === -3) {
+        event.preventDefault();
+        return;
+      }
+    }
+  );
+});
+
 app.whenReady().then(() => {
+  console.log("User data path:", app.getPath("userData"));
   const agentsHistoryPathExist = getDirectoryStatus(agentsHistoryPath);
   if (!agentsHistoryPathExist.exists) {
     try {
       fs.mkdirSync(agentsHistoryPath, { recursive: true });
     } catch (e) {
-      console.log(`Erroc when creating agents path: ${e}`);
+      console.log(`Error when creating agents path: ${e}`);
     }
   }
   createWindow();
@@ -325,9 +344,6 @@ ipcMain.handle("ai-agents:add", async (event, agent) => {
     writeAgents(agents);
     const agentPath = path.join(agentsHistoryPath, agent.id.toString());
     fs.mkdirSync(agentPath, { recursive: true });
-    // Create first chat by default
-    const filePath = path.join(agentPath);
-    console.log();
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };

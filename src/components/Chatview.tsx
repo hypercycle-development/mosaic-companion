@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Zap,
   History,
+  AlertCircle,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -22,13 +23,22 @@ import {
   PROVIDER_INFO,
 } from "../types/ai";
 import { AIService } from "../services/AIService";
+import { INTERNAL_SETTINGS_URL } from "../types/types";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
 import { VoiceRecorder } from "./VoiceRecorder";
 import Narrator from "./Narrator";
 
-interface ChatViewProps {}
+interface ChatViewProps {
+  onNavigate?: (url: string) => void;
+  onCreateNewChatTab?: () => void;
+  tabId?: string;
+}
 
-export const ChatView: React.FC<ChatViewProps> = () => {
+export const ChatView: React.FC<ChatViewProps> = ({
+  onNavigate,
+  onCreateNewChatTab,
+  tabId,
+}) => {
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -120,6 +130,14 @@ export const ChatView: React.FC<ChatViewProps> = () => {
     }
   }, [input]);
 
+  // Track if we've processed the pending message to avoid duplicate sends
+  const pendingMessageProcessedRef = useRef<string | null>(null);
+
+  // Reset processed flag when tabId changes
+  useEffect(() => {
+    pendingMessageProcessedRef.current = null;
+  }, [tabId]);
+
   // Close agent selector on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -148,6 +166,7 @@ export const ChatView: React.FC<ChatViewProps> = () => {
     };
     setSessions((prev) => [session, ...prev]);
     setActiveSessionId(session.id);
+    return session;
   }, [selectedAgentId]);
 
   // Select a session from sidebar
@@ -175,6 +194,156 @@ export const ChatView: React.FC<ChatViewProps> = () => {
     },
     [activeSessionId, sessions]
   );
+
+    // Check for pending message from command palette
+    useEffect(() => {
+        // Wait for agents to be loaded and selected
+        if (
+            !tabId ||
+            !selectedAgent ||
+            isGenerating ||
+            activeAgents.length === 0
+        )
+            return;
+
+        // Check if we've already processed this pending message
+        const pendingMessageKey = `chat_pending_message_${tabId}`;
+        if (pendingMessageProcessedRef.current === pendingMessageKey) return;
+
+        const pendingMessage = localStorage.getItem(pendingMessageKey);
+
+        if (pendingMessage && pendingMessage.trim()) {
+            // Mark as processed immediately to prevent duplicate sends
+            pendingMessageProcessedRef.current = pendingMessageKey;
+            localStorage.removeItem(pendingMessageKey);
+
+            // Auto-send the message after a short delay to ensure component is ready
+            const timeoutId = setTimeout(() => {
+                // Double-check agent is still available
+                if (!selectedAgent || isGenerating) {
+                    pendingMessageProcessedRef.current = null;
+                    return;
+                }
+
+                // Get or create session
+                let session = activeSession;
+                if (!session || session.agentId !== selectedAgent.id) {
+                    session = createNewSession()!;
+                }
+
+                // Add user message
+                const messageContent = pendingMessage.trim();
+                const userMessage: ChatMessage = {
+                    id: `msg-${Date.now()}`,
+                    role: 'user',
+                    content: messageContent,
+                    timestamp: Date.now(),
+                    agentId: selectedAgent.id
+                };
+
+                const updatedMessages = [...session.messages, userMessage];
+
+                setSessions((prev) =>
+                    prev.map((s) =>
+                        s.id === session!.id
+                            ? {
+                                  ...s,
+                                  messages: updatedMessages,
+                                  updatedAt: Date.now(),
+                                  title:
+                                      s.messages.length === 0
+                                          ? messageContent.slice(0, 40)
+                                          : s.title
+                              }
+                            : s
+                    )
+                );
+
+                // Start generating response
+                setIsGenerating(true);
+                setStreamingContent('');
+
+                // Send message to AI
+                AIService.sendMessage(
+                    selectedAgent,
+                    updatedMessages.filter((m) => m.role !== 'system'),
+                    {
+                        onToken: (token) => {
+                            setStreamingContent((prev) => prev + token);
+                        },
+                        onComplete: async (response) => {
+                            const assistantMessage: ChatMessage = {
+                                id: `msg-${Date.now()}`,
+                                role: 'assistant',
+                                content: response,
+                                timestamp: Date.now(),
+                                agentId: selectedAgent.id
+                            };
+
+                            const finalSession: ChatSession = {
+                              ...session!,
+                              messages: [...updatedMessages, assistantMessage],
+                              updatedAt: Date.now(),
+                            };
+                            setSessions((prev) =>
+                              prev.map((s) =>
+                                s.id === finalSession.id ? finalSession : s
+                              )
+                            );
+                            await saveSession(finalSession);
+                            setStreamingContent("");
+                            setIsGenerating(false);
+                            pendingMessageProcessedRef.current = null;
+                        },
+                        onError: async (error) => {
+                            console.error('Stream error:', error);
+                            const errorMessage: ChatMessage = {
+                                id: `msg-${Date.now()}`,
+                                role: 'assistant',
+                                content: `⚠️ Error: ${error.message}`,
+                                timestamp: Date.now(),
+                                agentId: selectedAgent.id
+                            };
+                            const errorSession: ChatSession = {
+                              ...session!,
+                              messages: [...updatedMessages, errorMessage],
+                              updatedAt: Date.now(),
+                            };
+                            setSessions((prev) =>
+                              prev.map((s) =>
+                                s.id === errorSession.id ? errorSession : s
+                              )
+                            );
+                            await saveSession(errorSession);
+                            setStreamingContent("");
+                            setIsGenerating(false);
+                            pendingMessageProcessedRef.current = null;
+                        }
+                    }
+                ).catch((error) => {
+                    console.error('Error sending message:', error);
+                    setIsGenerating(false);
+                    pendingMessageProcessedRef.current = null;
+                });
+            }, 800);
+
+            return () => {
+                clearTimeout(timeoutId);
+                // Reset processed flag if component unmounts before timeout
+                if (pendingMessageProcessedRef.current === pendingMessageKey) {
+                    pendingMessageProcessedRef.current = null;
+                }
+            };
+        }
+  }, [
+    tabId,
+    selectedAgent,
+    activeSession,
+    createNewSession,
+    isGenerating,
+    activeAgents.length,
+    saveSession,
+  ]);
 
   const sendMessage = async () => {
     if (!input.trim() || !selectedAgent || isGenerating) return;
@@ -365,7 +534,10 @@ export const ChatView: React.FC<ChatViewProps> = () => {
           Configure and activate at least one AI agent in settings to start
           chatting.
         </p>
-        <button className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all hover:scale-[1.02] font-medium">
+        <button
+          onClick={() => onNavigate?.(INTERNAL_SETTINGS_URL)}
+          className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all hover:scale-[1.02] font-medium"
+        >
           <Zap size={18} />
           Configure Agents
         </button>
@@ -387,49 +559,49 @@ export const ChatView: React.FC<ChatViewProps> = () => {
                 className="flex items-center gap-3 px-4 py-2 bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-xl transition-colors"
               >
                 {selectedAgent && (
-                  <>
-                    <div
-                      className="w-2.5 h-2.5 rounded-full"
-                      style={{
-                        backgroundColor:
-                          PROVIDER_INFO[selectedAgent.provider]?.color ||
-                          "#6B7280",
-                        boxShadow: `0 0 8px ${
-                          PROVIDER_INFO[selectedAgent.provider]?.color ||
-                          "#6B7280"
-                        }`,
-                      }}
-                    />
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-white">
-                        {selectedAgent.name}
-                      </p>
-                      <p className="text-xs text-gray-500 font-mono">
-                        {selectedAgent.model}
-                      </p>
-                    </div>
-                  </>
-                )}
-                <ChevronDown
-                  size={16}
-                  className={`text-gray-400 transition-transform ${
-                    showAgentSelector ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
+                <>
+                  <div
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{
+                      backgroundColor:
+                        PROVIDER_INFO[selectedAgent.provider]?.color ||
+                        "#6B7280",
+                      boxShadow: `0 0 8px ${
+                        PROVIDER_INFO[selectedAgent.provider]?.color ||
+                        "#6B7280"
+                      }`,
+                    }}
+                  />
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-white">
+                      {selectedAgent.name}
+                    </p>
+                    <p className="text-xs text-gray-500 font-mono">
+                      {selectedAgent.model}
+                    </p>
+                  </div>
+                </>
+              )}
+              <ChevronDown
+                size={16}
+                className={`text-gray-400 transition-transform ${
+                  showAgentSelector ? "rotate-180" : ""
+                }`}
+              />
+            </button>
 
-              {/* Agent Dropdown */}
-              {showAgentSelector && (
-                <div className="absolute top-full left-0 mt-2 w-72 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50">
-                  <div className="p-2">
-                    {activeAgents.map((agent) => (
-                      <button
-                        key={agent.id}
-                        onClick={() => {
-                          setSelectedAgentId(agent.id);
-                          setShowAgentSelector(false);
-                        }}
-                        className={`
+            {/* Agent Dropdown */}
+            {showAgentSelector && (
+              <div className="absolute top-full left-0 mt-2 w-72 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50">
+                <div className="p-2">
+                  {activeAgents.map((agent) => (
+                    <button
+                      key={agent.id}
+                      onClick={() => {
+                        setSelectedAgentId(agent.id);
+                        setShowAgentSelector(false);
+                      }}
+                      className={`
                           w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors
                           ${
                             selectedAgentId === agent.id
@@ -437,97 +609,111 @@ export const ChatView: React.FC<ChatViewProps> = () => {
                               : "hover:bg-gray-800"
                           }
                         `}
-                      >
-                        <div
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{
-                            backgroundColor:
-                              PROVIDER_INFO[agent.provider]?.color || "#6B7280",
-                            boxShadow: `0 0 8px ${
-                              PROVIDER_INFO[agent.provider]?.color || "#6B7280"
-                            }`,
-                          }}
-                        />
-                        <div className="text-left flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-200 truncate">
-                            {agent.name}
-                          </p>
-                          <p className="text-xs text-gray-500 font-mono truncate">
-                            {agent.model}
-                          </p>
-                        </div>
-                        {selectedAgentId === agent.id && (
-                          <Check
-                            size={16}
-                            className="text-indigo-400 shrink-0"
-                          />
-                        )}
-                      </button>
-                    ))}
-                  </div>
+                    >
+                      <div
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{
+                          backgroundColor:
+                            PROVIDER_INFO[agent.provider]?.color || "#6B7280",
+                          boxShadow: `0 0 8px ${
+                            PROVIDER_INFO[agent.provider]?.color || "#6B7280"
+                          }`,
+                        }}
+                      />
+                      <div className="text-left flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-200 truncate">
+                          {agent.name}
+                        </p>
+                        <p className="text-xs text-gray-500 font-mono truncate">
+                          {agent.model}
+                        </p>
+                      </div>
+                      {selectedAgentId === agent.id && (
+                        <Check size={16} className="text-indigo-400 shrink-0" />
+                      )}
+                    </button>
+                  ))}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-2">
-              {activeSession && activeSession.messages.length >= 2 && (
-                <button
-                  onClick={regenerateLastResponse}
-                  disabled={isGenerating}
-                  className="p-2 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Regenerate last response"
-                >
-                  <RefreshCw size={18} />
-                </button>
-              )}
-              {activeSession && (
-                <button
-                  onClick={() =>
-                    handleDeleteSession(activeSession.agentId, activeSession.id)
-                  }
-                  className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                  title="Delete chat"
-                >
-                  <Trash2 size={18} />
-                </button>
-              )}
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            {activeSession && activeSession.messages.length >= 2 && (
               <button
-                onClick={() => setShowHistorySidebar(!showHistorySidebar)}
-                className={`p-2 rounded-lg transition-colors ${
-                  showHistorySidebar
-                    ? "bg-indigo-600 text-white"
-                    : "text-gray-500 hover:text-gray-300 hover:bg-gray-800"
-                }`}
-                title="Toggle history"
+                onClick={regenerateLastResponse}
+                disabled={isGenerating}
+                className="p-2 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Regenerate last response"
               >
-                <History size={18} />
+                <RefreshCw size={18} />
               </button>
-            </div>
+            )}
+            {onCreateNewChatTab ? (
+              <button
+                onClick={onCreateNewChatTab}
+                className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <MessageSquare size={16} />
+                <span className="text-sm">New Chat</span>
+              </button>
+            ) : (
+              <button
+                onClick={createNewSession}
+                className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <MessageSquare size={16} />
+                <span className="text-sm">New Chat</span>
+              </button>
+            )}
+            <button
+              onClick={() => setShowHistorySidebar(!showHistorySidebar)}
+              className={`p-2 rounded-lg transition-colors ${
+                showHistorySidebar
+                  ? "bg-indigo-600 text-white"
+                  : "text-gray-500 hover:text-gray-300 hover:bg-gray-800"
+              }`}
+              title="Toggle history"
+            >
+              <History size={18} />
+            </button>
+            {activeSession && (
+              <button
+                onClick={() =>
+                  handleDeleteSession(activeSession.agentId, activeSession.id)
+                }
+                className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                title="Delete chat"
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto py-8 px-6">
-            {(!activeSession || activeSession.messages.length === 0) &&
-            !streamingContent ? (
-              <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center mb-6">
-                  <Sparkles className="size-8 text-indigo-400" />
-                </div>
-                <h2 className="text-xl font-semibold text-white mb-2">
-                  Chat with {selectedAgent?.name || "AI"}
-                </h2>
-                <p className="text-gray-500 max-w-md">
-                  Start a conversation by typing a message below. Your chat will
-                  be powered by{" "}
-                  <span className="text-indigo-400 font-mono">
-                    {selectedAgent?.model}
-                  </span>
-                </p>
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto py-8 px-6">
+          {(!activeSession || activeSession.messages.length === 0) &&
+          !streamingContent ? (
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center mb-6">
+                <Sparkles className="size-8 text-indigo-400" />
               </div>
-            ) : (
+              <h2 className="text-xl font-semibold text-white mb-2">
+                Chat with {selectedAgent?.name || "AI"}
+              </h2>
+              <p className="text-gray-500 max-w-md">
+                Start a conversation by typing a message below. Your chat will
+                be powered by{" "}
+                <span className="text-indigo-400 font-mono">
+                  {selectedAgent?.model}
+                </span>
+              </p>
+            </div>
+          ) : (
               <div className="space-y-6">
                 {activeSession?.messages.map((message) => (
                   <div
@@ -536,6 +722,7 @@ export const ChatView: React.FC<ChatViewProps> = () => {
                       message.role === "user" ? "flex-row-reverse" : ""
                     }`}
                   >
+                    {/* Avatar */}
                     <div
                       className={`
                         shrink-0 w-10 h-10 rounded-xl flex items-center justify-center
@@ -559,7 +746,7 @@ export const ChatView: React.FC<ChatViewProps> = () => {
                       </div>
                     )}
 
-                    {/* Message Actions */}
+                    {/* Message Content */}
                     <div
                       className={`
                         flex-1 max-w-[80%] group
@@ -581,6 +768,7 @@ export const ChatView: React.FC<ChatViewProps> = () => {
                         </div>
                       </div>
 
+                      {/* Message Actions */}
                       <div
                         className={`
                           flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity
@@ -607,6 +795,7 @@ export const ChatView: React.FC<ChatViewProps> = () => {
                   </div>
                 ))}
 
+                {/* Streaming Response */}
                 {streamingContent && (
                   <div className="flex gap-4">
                     <div className="shrink-0 w-10 h-10 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center">
@@ -623,6 +812,7 @@ export const ChatView: React.FC<ChatViewProps> = () => {
                   </div>
                 )}
 
+                {/* Loading indicator */}
                 {isGenerating && !streamingContent && (
                   <div className="flex gap-4">
                     <div className="shrink-0 w-10 h-10 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center">
@@ -651,7 +841,7 @@ export const ChatView: React.FC<ChatViewProps> = () => {
               <VoiceRecorder
                 onTranscription={(text) => {
                   setInput(text.trim());
-                  // Enviar automáticamente después de transcribir
+                  // Auto-send after transcribing
                   setTimeout(() => {
                     if (text.trim()) {
                       sendMessage();
@@ -692,6 +882,7 @@ export const ChatView: React.FC<ChatViewProps> = () => {
               </button>
             </div>
 
+            {/* Status Bar */}
             <div className="flex items-center justify-center gap-2 mt-3 opacity-50">
               <div
                 className="w-1.5 h-1.5 rounded-full"

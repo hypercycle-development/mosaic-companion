@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   themes: {
     get: () => ipcRenderer.invoke("themes:get"),
     set: (activeTheme) => ipcRenderer.invoke("themes:set", activeTheme),
+  },
   aiAgentsHistory: {
     getAll: (agentId) =>
       ipcRenderer.invoke("ai-agents-history:get-all", agentId),

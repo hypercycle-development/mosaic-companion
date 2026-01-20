@@ -13,6 +13,8 @@ import { ChatView } from "./Chatview";
 interface ContentAreaProps {
   url: string;
   onNavigate: (url: string) => void;
+  theme: any;
+  toggleTheme: () => void;
   settings: {
     homeUrl: string;
     setHomeUrl: (url: string) => void;
@@ -20,9 +22,12 @@ interface ContentAreaProps {
     setCustomGreeting: (text: string) => void;
     showUrlBar: boolean;
     setShowUrlBar: (show: boolean) => void;
+    onOpenCommandPalette?: () => void;
   };
   onUpdateTab: (updates: Partial<Tab>) => void;
   onStartDemo?: () => void;
+  onCreateNewChatTab?: () => void;
+  tabId?: string;
 }
 
 interface BrowserViewProps {
@@ -39,6 +44,7 @@ const BrowserView: React.FC<BrowserViewProps> = ({
   const [hasError, setHasError] = useState(false);
   const webviewRef = useRef<any>(null);
   const loadingTimeoutRef = useRef<any>(null);
+  const loadProgressRef = useRef<number>(0);
 
   // Reset error state when URL changes explicitly
   useEffect(() => {
@@ -55,28 +61,72 @@ const BrowserView: React.FC<BrowserViewProps> = ({
         clearTimeout(loadingTimeoutRef.current);
         loadingTimeoutRef.current = null;
       }
-      onUpdateTab({ isLoading: true });
+      loadProgressRef.current = 0;
+      onUpdateTab({ isLoading: true, loadProgress: 0 });
       setHasError(false);
+
+      // Simulate smooth progress (since Electron webview doesn't expose direct progress)
+      const progressInterval = setInterval(() => {
+        if (loadProgressRef.current < 90) {
+          loadProgressRef.current = Math.min(
+            90,
+            loadProgressRef.current + Math.random() * 15
+          );
+          onUpdateTab({
+            isLoading: true,
+            loadProgress: loadProgressRef.current,
+          });
+        } else {
+          clearInterval(progressInterval);
+        }
+      }, 200);
+
+      // Store interval ID for cleanup
+      (loadingTimeoutRef.current as any) = progressInterval;
     };
 
     const handleStopLoading = () => {
-      // Debounce the stop loading to prevent flicker on redirects
-      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+      // Clear any progress interval
+      if (
+        loadingTimeoutRef.current &&
+        typeof loadingTimeoutRef.current === "number"
+      ) {
+        clearInterval(loadingTimeoutRef.current);
+      }
 
-      loadingTimeoutRef.current = setTimeout(() => {
-        onUpdateTab({ isLoading: false });
+      // Complete the progress bar
+      onUpdateTab({ isLoading: true, loadProgress: 100 });
+
+      // Debounce the stop loading to prevent flicker on redirects
+      const stopTimeout = setTimeout(() => {
+        onUpdateTab({ isLoading: false, loadProgress: undefined });
         loadingTimeoutRef.current = null;
       }, 200); // 200ms grace period
+
+      loadingTimeoutRef.current = stopTimeout;
     };
 
     const handleFailLoad = (e: any) => {
-      // errorCode -3 is ABORTED (often harmless redirects)
-      if (e.errorCode !== -3 && e.errorCode !== 0) {
-        console.warn("Webview load failed", e);
-        if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
-        onUpdateTab({ isLoading: false });
-        setHasError(true);
+      // errorCode -3 is ABORTED (often harmless redirects, especially on Google)
+      // errorCode 0 is OK (sometimes fired incorrectly)
+      // Ignore these as they're usually from redirects or navigation cancellations
+      if (e.errorCode === -3 || e.errorCode === 0) {
+        // Silently ignore - these are harmless navigation aborts
+        return;
       }
+
+      // Only log and show errors for actual failures
+      console.warn("Webview load failed", e);
+      if (loadingTimeoutRef.current) {
+        if (typeof loadingTimeoutRef.current === "number") {
+          clearInterval(loadingTimeoutRef.current);
+        } else {
+          clearTimeout(loadingTimeoutRef.current);
+        }
+        loadingTimeoutRef.current = null;
+      }
+      onUpdateTab({ isLoading: false, loadProgress: undefined });
+      setHasError(true);
     };
 
     const handleNavigate = (e: any) => {
@@ -109,17 +159,37 @@ const BrowserView: React.FC<BrowserViewProps> = ({
     webview.addEventListener("did-navigate-in-page", handleNavigate);
     webview.addEventListener("new-window", handleNewWindow);
     webview.addEventListener("page-title-updated", handlePageTitleUpdated);
-    webview.addEventListener("page-favicon-updated", handlePageFaviconUpdated);
+    webview.addEventListener(
+      "page-favicon-updated",
+      handlePageFaviconUpdated
+    );
 
     return () => {
-      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+      // Clean up timeouts/intervals
+      if (loadingTimeoutRef.current) {
+        if (typeof loadingTimeoutRef.current === "number") {
+          clearInterval(loadingTimeoutRef.current);
+        } else {
+          clearTimeout(loadingTimeoutRef.current);
+        }
+        loadingTimeoutRef.current = null;
+      }
 
       if (webview) {
-        webview.removeEventListener("did-start-loading", handleStartLoading);
-        webview.removeEventListener("did-stop-loading", handleStopLoading);
+        webview.removeEventListener(
+          "did-start-loading",
+          handleStartLoading
+        );
+        webview.removeEventListener(
+          "did-stop-loading",
+          handleStopLoading
+        );
         webview.removeEventListener("did-fail-load", handleFailLoad);
         webview.removeEventListener("did-navigate", handleNavigate);
-        webview.removeEventListener("did-navigate-in-page", handleNavigate);
+        webview.removeEventListener(
+          "did-navigate-in-page",
+          handleNavigate
+        );
         webview.removeEventListener("new-window", handleNewWindow);
         webview.removeEventListener(
           "page-title-updated",
@@ -162,6 +232,7 @@ const BrowserView: React.FC<BrowserViewProps> = ({
         src={url}
         className="flex-1 w-full h-full border-none bg-gray-900"
         allowpopups={true}
+        webpreferences="allowRunningInsecureContent,experimentalFeatures"
         style={{ width: "100%", height: "100%" }}
       />
     </div>
@@ -172,8 +243,12 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   url,
   onNavigate,
   settings,
+  theme,
+  toggleTheme,
   onUpdateTab,
   onStartDemo,
+  onCreateNewChatTab,
+  tabId,
 }) => {
   // Handle Demo Command
   if (url === "demo://start") {
@@ -190,13 +265,18 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   // Handle Internal Pages
   if (url === INTERNAL_HOME_URL) {
     useEffect(() => {
-      onUpdateTab({ title: "Mosaic", isLoading: false, favicon: undefined });
+      onUpdateTab({
+        title: "Mosaic",
+        isLoading: false,
+        favicon: undefined,
+      });
     }, [url]);
 
     return (
       <LandingPage
         onNavigate={onNavigate}
         customGreeting={settings.customGreeting}
+        onOpenCommandPalette={settings.onOpenCommandPalette}
       />
     );
   }
@@ -209,7 +289,11 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     const scrollSection = url.includes("#") ? url.split("#")[1] : undefined;
 
     useEffect(() => {
-      onUpdateTab({ title: "Settings", isLoading: false, favicon: undefined });
+      onUpdateTab({
+        title: "Settings",
+        isLoading: false,
+        favicon: undefined,
+      });
     }, [url]);
 
     return (
@@ -228,12 +312,20 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   }
   if (url === INTERNAL_CHAT_URL) {
     useEffect(() => {
-      onUpdateTab({ title: "Settings", isLoading: false, favicon: undefined });
+      onUpdateTab({
+        title: "AI Chat",
+        isLoading: false,
+        favicon: undefined,
+      });
     }, [url]);
 
     return (
       <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
-        <ChatView />
+        <ChatView
+          onNavigate={onNavigate}
+          onCreateNewChatTab={onCreateNewChatTab}
+          tabId={tabId}
+        />
       </div>
     );
   }
