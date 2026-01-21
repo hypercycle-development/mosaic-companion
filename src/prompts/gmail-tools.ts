@@ -52,10 +52,12 @@ WHEN SHOWING A FULL EMAIL format like this:
 REMEMBER:
 - Use the EXACT index numbers from the email data (Email 1 = **1.**, Email 5 = **5.**)
 - You may highlight important emails with ⭐ but keep their original index
-- Use [GMAIL_READ:N] to read email #N - do NOT output code like print()
+- ALWAYS use [GMAIL_READ:N] when user wants to read/see/open/view email #N
 - Use [GMAIL_MARK_READ:N] when user asks to mark as read
 - Use [GMAIL_MARK_UNREAD:N] when user asks to mark as unread
 - Use markdown formatting with bullet points
+
+IMPORTANT: When user asks to "see", "read", "show", "open", or "view" a specific email number, you MUST respond with [GMAIL_READ:N] where N is the email number. Do NOT say you cannot access email content - you CAN access it using the action tags.
 `;
 
 /**
@@ -89,8 +91,56 @@ export function mightBeEmailRelated(message: string): boolean {
     "gmail",
     "newsletter",
     "notification",
+    "read",
+    "see",
+    "show",
+    "open",
+    "view",
+    "#1",
+    "#2",
+    "#3",
+    "#4",
+    "#5",
+    "#6",
+    "#7",
+    "#8",
+    "#9",
+    "#10",
+    "number 1",
+    "number 2",
+    "number 3",
+    "number 4",
+    "number 5",
   ];
 
   const lowerMessage = message.toLowerCase();
   return emailKeywords.some((keyword) => lowerMessage.includes(keyword));
+}
+
+/**
+ * Detect if user is asking to read a specific email and extract the email number
+ * Returns the email number if detected, or null if not a read request
+ */
+export function detectEmailReadRequest(message: string): number | null {
+  const lowerMessage = message.toLowerCase();
+
+  // Patterns to detect email read requests
+  const readPatterns = [
+    /(?:read|see|show|open|view|check)\s+(?:me\s+)?(?:that\s+)?(?:email\s+)?(?:#|number\s+)?(\d+)/i,
+    /(?:email|message)\s+(?:#|number\s+)?(\d+)/i,
+    /(?:#|number\s+)(\d+)\s+(?:email|message)?/i,
+    /the\s+(?:#|number\s+)?(\d+)(?:st|nd|rd|th)?\s+(?:one|email|message)?/i,
+  ];
+
+  for (const pattern of readPatterns) {
+    const match = lowerMessage.match(pattern);
+    if (match && match[1]) {
+      const num = parseInt(match[1]);
+      if (num >= 1 && num <= 100) {
+        return num;
+      }
+    }
+  }
+
+  return null;
 }

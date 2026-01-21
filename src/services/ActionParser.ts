@@ -40,6 +40,54 @@ export function setLastFetchedEmails(emails: EmailData[]): void {
 }
 
 /**
+ * Strip HTML tags from email body and convert to plain text
+ * Handles common HTML entities and formatting
+ */
+export function stripHtml(html: string): string {
+  if (!html) return "";
+
+  // Check if it looks like HTML (contains < and > tags)
+  if (!/<[^>]+>/.test(html)) {
+    return html; // Already plain text
+  }
+
+  let text = html;
+
+  // Remove style and script tags completely
+  text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
+  text = text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
+
+  // Convert common block elements to line breaks
+  text = text.replace(/<\/?(br|p|div|h[1-6]|li|tr)[^>]*>/gi, "\n");
+
+  // Convert links to just their text or URL
+  text = text.replace(
+    /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi,
+    "$2 ($1)",
+  );
+
+  // Remove all remaining HTML tags
+  text = text.replace(/<[^>]+>/g, "");
+
+  // Decode common HTML entities
+  text = text.replace(/&nbsp;/gi, " ");
+  text = text.replace(/&amp;/gi, "&");
+  text = text.replace(/&lt;/gi, "<");
+  text = text.replace(/&gt;/gi, ">");
+  text = text.replace(/&quot;/gi, '"');
+  text = text.replace(/&#39;/gi, "'");
+  text = text.replace(/&apos;/gi, "'");
+
+  // Clean up whitespace
+  text = text.replace(/\n\s*\n\s*\n/g, "\n\n"); // Max 2 consecutive newlines
+  text = text.replace(/^\s+|\s+$/gm, ""); // Trim each line
+  text = text.replace(/\n{3,}/g, "\n\n"); // Max 2 consecutive newlines again
+  text = text.trim();
+
+  return text;
+}
+
+/**
  * Format date to relative time (e.g., "2 hours ago", "Yesterday", "Jan 13")
  */
 export function formatRelativeDate(dateString: string): string {
@@ -246,7 +294,7 @@ Email ${index + 1} ${unreadMarker}${attachmentMarker}:
  */
 export function buildEmailAnalysisPrompt(
   originalQuery: string,
-  emailData: string
+  emailData: string,
 ): string {
   return `Based on the user's request: "${originalQuery}"
 
@@ -279,6 +327,47 @@ Provide the formatted list using the indexes from the data.`;
 }
 
 /**
+ * Build a prompt for analyzing/summarizing a single email
+ * Used when reading a specific email to get TL;DR and key points
+ */
+export function buildSingleEmailAnalysisPrompt(
+  originalQuery: string,
+  emailData: string,
+): string {
+  return `Based on the user's request: "${originalQuery}"
+
+Here is the full email content:
+
+${emailData}
+
+SUMMARIZE THIS EMAIL using this EXACT format:
+
+📧 **Email: [Subject]**
+
+**TL;DR:** [One concise sentence summarizing what this email is about]
+
+---
+
+- **From:** [Sender name/email]
+- **Date:** [Date in readable format]
+
+**Key Points:**
+- [Main point 1]
+- [Main point 2]
+- [Action items or important details, if any]
+
+---
+
+RULES:
+- DO NOT include any raw HTML, CSS, or code
+- DO NOT include long URLs - just mention "click here to..." or describe the action
+- DO NOT repeat the entire email body
+- Keep it SHORT and SCANNABLE
+- Focus on the ESSENTIAL information only
+- If it's a notification/alert email, summarize the key action/status`;
+}
+
+/**
  * Check if Gmail is authenticated
  * Returns true if user is logged into Gmail
  */
@@ -295,7 +384,7 @@ export async function isGmailAuthenticated(): Promise<boolean> {
  * Execute a Gmail action and return formatted results
  */
 export async function executeGmailAction(
-  action: ParsedAction
+  action: ParsedAction,
 ): Promise<string> {
   // Check authentication first
   const isAuthenticated = await isGmailAuthenticated();
@@ -326,7 +415,7 @@ export async function executeGmailAction(
         if (action.params?.query) {
           result = await window.electronAPI.gmail.searchEmails(
             action.params.query as string,
-            count
+            count,
           );
         } else {
           return "Search query is missing.";
@@ -339,7 +428,7 @@ export async function executeGmailAction(
           const label = action.params.label as string;
           result = await window.electronAPI.gmail.searchEmails(
             `category:${label.toLowerCase()}`,
-            count
+            count,
           );
         } else {
           return "Label name is missing.";
@@ -360,7 +449,7 @@ export async function executeGmailAction(
 
         const emailToMarkRead = markReadEmails[markReadIndex - 1];
         const markReadResult = await window.electronAPI.gmail.markRead(
-          emailToMarkRead.id
+          emailToMarkRead.id,
         );
 
         if (!markReadResult.success) {
@@ -388,7 +477,7 @@ export async function executeGmailAction(
 
         const emailToMarkUnread = markUnreadEmails[markUnreadIndex - 1];
         const markUnreadResult = await window.electronAPI.gmail.markUnread(
-          emailToMarkUnread.id
+          emailToMarkUnread.id,
         );
 
         if (!markUnreadResult.success) {
@@ -417,7 +506,7 @@ export async function executeGmailAction(
 
         const email = emails[index - 1]; // Convert 1-based to 0-based
         const detailResult = await window.electronAPI.gmail.getEmailDetails(
-          email.id
+          email.id,
         );
 
         if (!detailResult.success || !detailResult.email) {
@@ -451,7 +540,7 @@ Subject: ${fullEmail.subject}
 Date: ${relativeDate}
 
 --- Email Body ---
-${fullEmail.body}${autoMarkMessage}
+${stripHtml(fullEmail.body)}${autoMarkMessage}
 `.trim();
       }
 
