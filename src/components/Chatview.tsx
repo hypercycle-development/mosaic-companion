@@ -25,8 +25,6 @@ import {
 import { AIService } from "../services/AIService";
 import { INTERNAL_SETTINGS_URL } from "../types/types";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
-import { VoiceRecorder } from "./VoiceRecorder";
-import Narrator from "./Narrator";
 
 interface ChatViewProps {
   onNavigate?: (url: string) => void;
@@ -740,12 +738,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       )}
                     </div>
 
-                    {message.role !== "user" && (
-                      <div className="mt-2">
-                        <Narrator text={message.content} autoPlay={true} />
-                      </div>
-                    )}
-
                     {/* Message Content */}
                     <div
                       className={`
@@ -838,18 +830,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <div className="shrink-0 border-t border-gray-800 bg-gray-950/80 backdrop-blur-md p-4">
           <div className="max-w-4xl mx-auto">
             <div className="flex items-end gap-3">
-              <VoiceRecorder
-                onTranscription={(text) => {
-                  setInput(text.trim());
-                  // Auto-send after transcribing
-                  setTimeout(() => {
-                    if (text.trim()) {
-                      sendMessage();
-                    }
-                  }, 100);
-                }}
-                disabled={isGenerating}
-              />
               <div className="flex-1 bg-gray-900 border border-gray-800 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50 transition-all">
                 <textarea
                   ref={textareaRef}
