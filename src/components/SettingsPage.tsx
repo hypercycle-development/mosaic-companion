@@ -30,6 +30,12 @@ import {
 import { AIService } from "../services/AIService";
 import { useTheme } from "../ThemeProvider";
 import { ThemeKey } from "../themes";
+import { ScreenpipeSettings } from "./ScreenpipeSettings";
+
+type ScreenpipeLocalSettings = {
+  enabled: boolean;
+  url: string;
+};
 
 interface SettingsPageProps {
   homeUrl: string;
@@ -92,6 +98,28 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     autoDownload: false,
     titleBarStyle: "hidden",
   });
+
+  const [screenpipe, setScreenpipe] = useState<ScreenpipeLocalSettings>({
+    enabled: false,
+    url: "",
+  });
+
+  useEffect(() => {
+    const loadScreenpipe = async () => {
+      try {
+        if ((window as any).electronAPI?.screenpipe?.getSettings) {
+          const s = await (window as any).electronAPI.screenpipe.getSettings();
+          setScreenpipe({
+            enabled: !!s?.enabled,
+            url: s?.url || "",
+          });
+        }
+      } catch {
+        // ignore
+      }
+    };
+    loadScreenpipe();
+  }, []);
 
   // Toast feedback for settings changes
   const [settingsToast, setSettingsToast] = useState<{
@@ -201,6 +229,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       }
     }
   };
+
+
 
   // Node handlers
   const addNewNode = async () => {
@@ -555,6 +585,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </label>
           </div>
         </section>
+
+        {/* Screenpipe */}
+        <ScreenpipeSettings screenpipe={screenpipe} setScreenpipe={setScreenpipe} />
 
         {/* AI Agents Section */}
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">

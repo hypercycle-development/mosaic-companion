@@ -1,5 +1,6 @@
 // main.js - Complete version with AI agents storage data
 import { app, BrowserWindow, ipcMain } from "electron";
+import { spawn } from "child_process";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -20,6 +21,8 @@ import {
   updateNode,
   deleteNode,
   getTitleBarStyle,
+  getScreenpipeSettings,
+  setScreenpipeSettings,
 } from "./settings.js";
 
 import {
@@ -36,6 +39,36 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 // Keep reference to main window for recreation
 let mainWindow = null;
+let screenpipeProcess = null;
+
+async function waitForHealth(url, timeoutMs = 20000, intervalMs = 500) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(url, { method: "GET" });
+      if (res.ok) return true;
+    } catch {}
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return false;
+}
+
+async function startScreenpipeIfEnabled() {
+  try {
+    const cfg = getScreenpipeSettings();
+    if (!cfg || !cfg.enabled) return;
+    const baseUrl = cfg.url || "";
+    const healthUrl = baseUrl ? new URL(cfg.healthPath || "/health", baseUrl).toString() : "";
+    if (cfg.command && !screenpipeProcess) {
+      screenpipeProcess = spawn(cfg.command, Array.isArray(cfg.args) ? cfg.args : [], { shell: true, env: { ...process.env } });
+      screenpipeProcess.on("exit", () => { screenpipeProcess = null; });
+    }
+    if (healthUrl) {
+      await waitForHealth(healthUrl);
+    }
+  } catch (e) {
+  }
+}
 
 function createWindow(urlToLoad = null) {
   // Get title bar style from settings (default to 'hidden' on non-Mac if not set)
@@ -139,6 +172,7 @@ app.whenReady().then(() => {
     }
   }
   createWindow();
+  startScreenpipeIfEnabled();
 
   // Initialize updater with settings and check for updates on startup (skip in development)
   if (app.isPackaged) {
@@ -151,6 +185,15 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  try {
+    if (screenpipeProcess) {
+      screenpipeProcess.kill();
+      screenpipeProcess = null;
+    }
+  } catch {}
 });
 
 app.on("activate", () => {
@@ -212,6 +255,15 @@ ipcMain.handle("set-update-settings", async (event, newSettings) => {
   if (result.success && result.settings) {
     applyAutoDownload(result.settings.autoDownload);
   }
+  return result;
+});
+
+ipcMain.handle("screenpipe:get-settings", async () => {
+  return getScreenpipeSettings();
+});
+
+ipcMain.handle("screenpipe:set-settings", async (event, partial) => {
+  const result = setScreenpipeSettings(partial);
   return result;
 });
 

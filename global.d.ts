@@ -94,6 +94,33 @@ declare global {
                 set: (activeTheme: string) => Promise<{ success: boolean }>;
             };
 
+            screenpipe: {
+                getSettings: () => Promise<{
+                    enabled: boolean;
+                    url: string;
+                    command?: string;
+                    args?: string[];
+                    healthPath?: string;
+                }>;
+                setSettings: (partial: Partial<{
+                    enabled: boolean;
+                    url: string;
+                    command?: string;
+                    args?: string[];
+                    healthPath?: string;
+                }>) => Promise<{
+                    success: boolean;
+                    screenpipe?: {
+                        enabled: boolean;
+                        url: string;
+                        command?: string;
+                        args?: string[];
+                        healthPath?: string;
+                    };
+                    error?: string;
+                }>;
+            };
+
             aiAgentsHistory: {
                 getAll: (agentId: string) => Promise<ChatSession[]>;
                 get: (

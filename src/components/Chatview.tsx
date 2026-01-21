@@ -24,6 +24,7 @@ import {
 } from "../types/ai";
 import { AIService } from "../services/AIService";
 import { INTERNAL_SETTINGS_URL } from "../types/types";
+import { useScreenpipe } from "../hooks/useScreenpipe";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
 
 interface ChatViewProps {
@@ -48,6 +49,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [showAgentSelector, setShowAgentSelector] = useState(false);
   const [showHistorySidebar, setShowHistorySidebar] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [screenpipeContext, setScreenpipeContext] = useState<string>("");
+
+  // Screenpipe hook
+  const { enabled: screenpipeEnabled, getContextSummary } = useScreenpipe();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -349,6 +354,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const messageContent = input.trim();
     setInput("");
 
+    // Get Screenpipe context if enabled (últimas 5 capturas)
+    let contextPrefix = "";
+    if (screenpipeEnabled) {
+      const summary = await getContextSummary(5, 200);
+      if (summary) {
+        contextPrefix = `${summary}\n\n`;
+        setScreenpipeContext(summary);
+        console.log("📸 Screenpipe context added:", summary);
+      }
+    }
+
     // Get or create session
     let session = activeSession;
     let isNewSession = false;
@@ -365,11 +381,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
       isNewSession = true;
     }
 
-    // Add user message
+    // Add user message (with context prefix if available)
     const userMessage: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: "user",
-      content: messageContent,
+      content: contextPrefix + messageContent,
       timestamp: Date.now(),
       agentId: selectedAgent.id,
     };
@@ -518,6 +534,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
       saveSession(updatedSession);
       setInput(lastUserMessage.content);
     }
+  };
+
+  // Helper to parse message content and separate screenpipe context
+  const parseMessageContent = (content: string) => {
+    const contextMatch = content.match(/^\[Screenpipe Context\](.+?)\n\n(.+)$/s);
+    if (contextMatch) {
+      return {
+        hasContext: true,
+        context: `[Screenpipe Context]${contextMatch[1]}`,
+        message: contextMatch[2],
+      };
+    }
+    return {
+      hasContext: false,
+      context: "",
+      message: content,
+    };
   };
 
   // No active agents view
@@ -755,9 +788,29 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           }
                         `}
                       >
-                        <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-                          {message.content}
-                        </div>
+                        {(() => {
+                          const parsed = parseMessageContent(message.content);
+                          return (
+                            <>
+                              {/* {parsed.hasContext && (
+                                <div className="mb-2 pb-2 border-b border-white/10">
+                                  <div className="flex items-center gap-1 mb-1">
+                                    <Zap size={12} className="text-emerald-300" />
+                                    <span className="text-[10px] text-emerald-300 font-mono">
+                                      Screenpipe Context
+                                    </span>
+                                  </div>
+                                  <div className="text-xs opacity-70 font-mono whitespace-pre-wrap break-words">
+                                    {parsed.context.replace('[Screenpipe Context]', '').trim()}
+                                  </div>
+                                </div>
+                              )} */}
+                              <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+                                {parsed.message}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
 
                       {/* Message Actions */}
@@ -863,24 +916,44 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
 
             {/* Status Bar */}
-            <div className="flex items-center justify-center gap-2 mt-3 opacity-50">
-              <div
-                className="w-1.5 h-1.5 rounded-full"
-                style={{
-                  backgroundColor: selectedAgent
-                    ? PROVIDER_INFO[selectedAgent.provider]?.color || "#6B7280"
-                    : "#6B7280",
-                  boxShadow: selectedAgent
-                    ? `0 0 6px ${
-                        PROVIDER_INFO[selectedAgent.provider]?.color ||
-                        "#6B7280"
-                      }`
-                    : "none",
-                }}
-              />
-              <span className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">
-                {selectedAgent?.model || "No model selected"}
-              </span>
+            <div className="flex items-center justify-between mt-3">
+              {/* DEBUG: Screenpipe Context Indicator */}
+              {/* {screenpipeContext && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-emerald-900/20 border border-emerald-500/30 rounded-lg">
+                  <Zap size={12} className="text-emerald-400" />
+                  <span className="text-[10px] text-emerald-400 font-mono tracking-wider">
+                    Screenpipe Context Active
+                  </span>
+                  <button
+                    onClick={() => setScreenpipeContext("")}
+                    className="ml-1 text-emerald-400/60 hover:text-emerald-400"
+                    title="Clear context"
+                  >
+                    ×
+                  </button>
+                </div>
+              )} */}
+              
+              {/* Model Info */}
+              <div className="flex items-center justify-center gap-2 opacity-50 ml-auto">
+                <div
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{
+                    backgroundColor: selectedAgent
+                      ? PROVIDER_INFO[selectedAgent.provider]?.color || "#6B7280"
+                      : "#6B7280",
+                    boxShadow: selectedAgent
+                      ? `0 0 6px ${
+                          PROVIDER_INFO[selectedAgent.provider]?.color ||
+                          "#6B7280"
+                        }`
+                      : "none",
+                  }}
+                />
+                <span className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">
+                  {selectedAgent?.model || "No model selected"}
+                </span>
+              </div>
             </div>
           </div>
         </div>

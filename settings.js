@@ -19,6 +19,13 @@ const DEFAULT_SETTINGS = {
   autoDownload: false,
   titleBarStyle: process.platform === 'darwin' ? 'default' : 'hidden',
   nodes: [],
+  screenpipe: {
+    enabled: false,
+    url: process.env.SCREENPIPE_URL || "",
+    command: process.env.SCREENPIPE_CMD || "",
+    args: [],
+    healthPath: "/health"
+  },
 };
 
 // Current settings (loaded from file or defaults)
@@ -36,12 +43,16 @@ export function loadSettings() {
       settings = { 
         ...DEFAULT_SETTINGS, 
         ...loaded,
-        nodes: loaded.nodes || []
+        nodes: loaded.nodes || [],
+        screenpipe: { ...(loaded.screenpipe || DEFAULT_SETTINGS.screenpipe) }
       };
       
       // Ensure titleBarStyle has a valid default if missing from file
       if (!settings.titleBarStyle) {
         settings.titleBarStyle = DEFAULT_SETTINGS.titleBarStyle;
+      }
+      if (!settings.screenpipe) {
+        settings.screenpipe = { ...DEFAULT_SETTINGS.screenpipe };
       }
       
       console.log("Settings loaded from:", settingsPath);
@@ -82,7 +93,8 @@ export function getUpdateSettings() {
   return { 
     autoDownload: settings.autoDownload,
     titleBarStyle: settings.titleBarStyle,
-    nodes: [...settings.nodes]
+    nodes: [...settings.nodes],
+    screenpipe: { ...settings.screenpipe }
   };
 }
 
@@ -97,6 +109,9 @@ export function setUpdateSettings(newSettings) {
   }
   if (typeof newSettings.titleBarStyle === "string") {
     settings.titleBarStyle = newSettings.titleBarStyle;
+  }
+  if (newSettings.screenpipe && typeof newSettings.screenpipe === "object") {
+    settings.screenpipe = { ...settings.screenpipe, ...newSettings.screenpipe };
   }
   const saveResult = saveSettings();
   return { ...saveResult, settings: getUpdateSettings() };
@@ -116,6 +131,19 @@ export function getAutoDownload() {
  */
 export function getTitleBarStyle() {
   return settings.titleBarStyle;
+}
+
+export function getScreenpipeSettings() {
+  return { ...settings.screenpipe };
+}
+
+export function setScreenpipeSettings(partial) {
+  if (partial && typeof partial === "object") {
+    settings.screenpipe = { ...settings.screenpipe, ...partial };
+    const saveResult = saveSettings();
+    return { ...saveResult, screenpipe: getScreenpipeSettings() };
+  }
+  return { success: false, error: "Invalid screenpipe settings" };
 }
 
 // =============================================================================
