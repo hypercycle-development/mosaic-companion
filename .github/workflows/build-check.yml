@@ -23,15 +23,11 @@ jobs:
             platform: linux-arm64
             build_cmd: electron-builder --linux --arm64
             arch: arm64
-          # macOS builds (separate due to native module issues with universal)
+          # macOS builds (both archs in one command to generate unified latest-mac.yml)
           - os: macos-latest
-            platform: mac-x64
-            build_cmd: electron-builder --mac --x64
+            platform: mac
+            build_cmd: electron-builder --mac --x64 --arm64
             arch: x64
-          - os: macos-latest
-            platform: mac-arm64
-            build_cmd: electron-builder --mac --arm64
-            arch: arm64
           # Windows builds
           - os: windows-latest
             platform: win-x64
@@ -78,7 +74,7 @@ jobs:
 
           if [[ "${{ matrix.platform }}" == linux-* ]]; then
             ls release/*.AppImage && echo "✓ AppImage found"
-          elif [[ "${{ matrix.platform }}" == mac-* ]]; then
+          elif [ "${{ matrix.platform }}" == "mac" ]; then
             ls release/*.dmg && echo "✓ DMG found"
           elif [[ "${{ matrix.platform }}" == win-* ]]; then
             ls release/*.exe && echo "✓ EXE found"
