@@ -23,11 +23,15 @@ jobs:
             platform: linux-arm64
             build_cmd: electron-builder --linux --arm64
             arch: arm64
-          # macOS build (universal)
+          # macOS builds (separate due to native module issues with universal)
           - os: macos-latest
-            platform: mac
-            build_cmd: electron-builder --mac --universal
-            arch: universal
+            platform: mac-x64
+            build_cmd: electron-builder --mac --x64
+            arch: x64
+          - os: macos-latest
+            platform: mac-arm64
+            build_cmd: electron-builder --mac --arm64
+            arch: arm64
           # Windows builds
           - os: windows-latest
             platform: win-x64
@@ -65,12 +69,16 @@ jobs:
       - name: Verify build artifacts exist
         shell: bash
         run: |
-          echo "Checking for build artifacts..."
+          echo "=== All release files ==="
           ls -la release/
+          echo ""
+          echo "=== YAML update files ==="
+          ls -la release/*.yml 2>/dev/null || echo "No YAML files found"
+          echo ""
 
           if [[ "${{ matrix.platform }}" == linux-* ]]; then
             ls release/*.AppImage && echo "✓ AppImage found"
-          elif [ "${{ matrix.platform }}" == "mac" ]; then
+          elif [[ "${{ matrix.platform }}" == mac-* ]]; then
             ls release/*.dmg && echo "✓ DMG found"
           elif [[ "${{ matrix.platform }}" == win-* ]]; then
             ls release/*.exe && echo "✓ EXE found"
