@@ -79,22 +79,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Linux builds
           - os: ubuntu-latest
-            platform: linux
-            build_cmd: electron-builder --linux
+            platform: linux-x64
+            build_cmd: electron-builder --linux --x64
+          - os: ubuntu-latest
+            platform: linux-arm64
+            build_cmd: electron-builder --linux --arm64
+          # macOS build (universal)
           - os: macos-latest
             platform: mac
             build_cmd: electron-builder --mac --universal
-          # TODO: Separate ARM64 and x64 builds (having issues with runners)
-          # - os: macos-latest
-          #   platform: mac-arm64
-          #   build_cmd: electron-builder --mac --arm64
-          # - os: macos-15-intel
-          #   platform: mac-x64
-          #   build_cmd: electron-builder --mac --x64
+          # Windows builds
           - os: windows-latest
-            platform: win
-            build_cmd: electron-builder --win
+            platform: win-x64
+            build_cmd: electron-builder --win --x64
+          - os: windows-latest
+            platform: win-arm64
+            build_cmd: electron-builder --win --arm64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -129,7 +131,7 @@ jobs:
           # Upload all release artifacts to S3
           cd release
 
-          if [ "${{ matrix.platform }}" == "linux" ]; then
+          if [[ "${{ matrix.platform }}" == linux-* ]]; then
             aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
               --include "*.AppImage" \
               --include "latest-linux*.yml"
@@ -138,7 +140,7 @@ jobs:
               --include "*.dmg" \
               --include "*.zip" \
               --include "latest-mac.yml"
-          else
+          elif [[ "${{ matrix.platform }}" == win-* ]]; then
             aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
               --include "*.exe" \
               --include "latest.yml"
