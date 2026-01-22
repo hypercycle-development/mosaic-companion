@@ -11,7 +11,7 @@ This guide explains how to set up the Google Cloud Project and credentials requi
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
 2. Click the project dropdown in the top bar and select **New Project**.
-3. Name the project (e.g., "Mosaic Browser") and click **Create**.
+3. Name the project (e.g., "Mosaic Companion") and click **Create**.
 4. Select the newly created project.
 
 ## Step 2: Enable the Gmail API
@@ -25,7 +25,7 @@ This guide explains how to set up the Google Cloud Project and credentials requi
 1. Go to **APIs & Services > OAuth consent screen**.
 2. Select **External** (unless you are a G Suite user and want to restrict it to your organization) and click **Create**.
 3. Fill in the required App Information:
-   - **App name**: Mosaic Browser
+   - **App name**: Mosaic Companion
    - **User support email**: Your email
    - **Developer contact information**: Your email
 4. Click **Save and Continue**.
@@ -53,7 +53,7 @@ This guide explains how to set up the Google Cloud Project and credentials requi
 2. Download the JSON file.
 3. Rename the downloaded file to: `gmail-credentials.json`.
 4. Move this file into the `config/` directory in the root of your Mosaic project.
-   - Project Path: `mosaic-browser/config/gmail-credentials.json`
+   - Project Path: `mosaic-companion/config/gmail-credentials.json`
 
 ## Step 6: Verify
 
