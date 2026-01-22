@@ -78,7 +78,7 @@
     "mac": {
       "target": "default",
       "identity": "-",
-      "x64ArchFiles": "**/*.node"
+      "x64ArchFiles": "**/darwin/**"
     },
     "linux": {
       "target": "AppImage",
