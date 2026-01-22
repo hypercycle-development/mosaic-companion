@@ -20,7 +20,11 @@ import {
   updateNode,
   deleteNode,
   getTitleBarStyle,
+  getGmailAutoMarkRead,
+  setGmailAutoMarkRead,
 } from "./settings.js";
+import { authenticate, signOut, isAuthenticated } from "./gmail-auth.js";
+import { getRecentEmails, getUserProfile, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./gmail-service.js";
 
 import {
   getDirectoryStatus,
@@ -44,6 +48,7 @@ function createWindow(urlToLoad = null) {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    icon: path.join(__dirname, "assets", "icon.png"),
     // Use the setting, or fallback to platform defaults if somehow undefined
     titleBarStyle: titleBarStyle === "default" ? "default" : "hidden",
     trafficLightPosition: { x: 10, y: 10 },
@@ -144,6 +149,15 @@ app.whenReady().then(() => {
   if (app.isPackaged) {
     initUpdater();
     checkForUpdates();
+  }
+
+  // Pre-initialize Gmail OAuth to load tokens early (so chat can access emails immediately)
+  try {
+    if (isAuthenticated()) {
+      console.log("Gmail: Already authenticated, tokens loaded");
+    }
+  } catch (e) {
+    // Ignore - credentials may not be set up yet
   }
 });
 
@@ -388,7 +402,71 @@ ipcMain.handle("ai-agents:clear", async () => {
   }
 });
 
+// ============================================
+// Gmail Integration
+// ============================================
+
+// Sign in with Google
+ipcMain.handle("gmail:sign-in", async () => {
+  try {
+    const tokens = await authenticate();
+    const profile = await getUserProfile();
+    return { success: true, email: profile.emailAddress };
+  } catch (error) {
+    console.error("Gmail sign-in error:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Sign out of Gmail
+ipcMain.handle("gmail:sign-out", async () => {
+  try {
+    signOut();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Check Gmail authentication status
+ipcMain.handle("gmail:get-status", async () => {
+  try {
+    const authenticated = isAuthenticated();
+    if (authenticated) {
+      const profile = await getUserProfile();
+      return { authenticated: true, email: profile.emailAddress };
+    }
+    return { authenticated: false };
+  } catch (error) {
+    return { authenticated: false, error: error.message };
+  }
+});
+
+// Get recent emails
+ipcMain.handle("gmail:get-emails", async (event, count = 10) => {
+  try {
+    const emails = await getRecentEmails(count);
+    return { success: true, emails };
+  } catch (error) {
+    console.error("Gmail fetch error:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get email details
+ipcMain.handle("gmail:get-email-details", async (event, messageId) => {
+  try {
+    const email = await getEmailDetails(messageId);
+    return { success: true, email };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// ============================================
 // Theme persistence
+// ============================================
+
 ipcMain.handle("themes:get", async () => {
   return readThemeSettings();
 });
@@ -440,3 +518,48 @@ ipcMain.handle("ai-agents-history:delete-all", async (event, agentId) => {
     return { success: false, error: error.message };
   }
 });
+
+// Search emails
+ipcMain.handle("gmail:search-emails", async (event, query, count = 10) => {
+  try {
+    const emails = await searchEmails(query, count);
+    return { success: true, emails };
+  } catch (error) {
+    console.error("Gmail search error:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Mark email as read
+ipcMain.handle("gmail:mark-read", async (event, messageId) => {
+  try {
+    await markAsRead(messageId);
+    return { success: true };
+  } catch (error) {
+    console.error("Gmail mark read error:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Mark email as unread
+ipcMain.handle("gmail:mark-unread", async (event, messageId) => {
+  try {
+    await markAsUnread(messageId);
+    return { success: true };
+  } catch (error) {
+    console.error("Gmail mark unread error:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get Gmail auto-mark-as-read setting
+ipcMain.handle("gmail:get-auto-mark-read", () => {
+  return { enabled: getGmailAutoMarkRead() };
+});
+
+// Set Gmail auto-mark-as-read setting
+ipcMain.handle("gmail:set-auto-mark-read", (event, enabled) => {
+  const result = setGmailAutoMarkRead(enabled);
+  return { ...result, enabled: getGmailAutoMarkRead() };
+});
+

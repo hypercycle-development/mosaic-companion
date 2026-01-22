@@ -28,30 +28,25 @@ section() {
 
 section "Mosaic Browser Setup"
 
-if ! command -v bun &> /dev/null; then
-    warn "Bun is not installed."
-    echo "Installing Bun..."
-    curl -fsSL https://bun.sh/install | bash
-    
-    if [ -f "$HOME/.bashrc" ]; then
-        source "$HOME/.bashrc"
-    elif [ -f "$HOME/.zshrc" ]; then
-        source "$HOME/.zshrc"
-    fi
-    
-    if ! command -v bun &> /dev/null; then
-        error "Bun installation failed. Please install manually:"
-        echo "  curl -fsSL https://bun.sh/install | bash"
-        exit 1
-    fi
-    info "Bun installed successfully!"
+if ! command -v node &> /dev/null; then
+    error "Node.js is not installed."
+    echo "Please install Node.js from https://nodejs.org/"
+    exit 1
 else
-    info "Bun is already installed: $(bun --version)"
+    info "Node.js is already installed: $(node --version)"
+fi
+
+if ! command -v npm &> /dev/null; then
+    error "npm is not installed."
+    echo "Please install Node.js from https://nodejs.org/ (npm is included)"
+    exit 1
+else
+    info "npm is already installed: $(npm --version)"
 fi
 
 section "Installing Dependencies"
 info "Installing project dependencies..."
-bun install
+npm install
 
 section "Environment Configuration"
 if [ ! -f ".env.local" ]; then
@@ -67,6 +62,6 @@ fi
 
 section "Setup Complete!"
 info "You can now run:"
-echo "  bun run dev    - Start Mosaic development server"
-echo "  bun start      - Build and run Mosaic app"
+echo "  npm run dev    - Start Mosaic development server"
+echo "  npm start      - Build and run Mosaic app"
 echo "  ./start.sh     - Quick start script"
