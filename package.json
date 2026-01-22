@@ -77,15 +77,12 @@
     },
     "mac": {
       "target": "default",
-      "identity": "-"
+      "identity": "-",
+      "singleArchFiles": "**/darwin/{x64,arm64}/**"
     },
     "linux": {
       "target": "AppImage",
       "category": "Utility"
-    },
-    "osxUniversal": {
-      "x64ArchFiles": "**/darwin/x64/*",
-      "arm64ArchFiles": "**/darwin/arm64/*"
     }
   }
 }
