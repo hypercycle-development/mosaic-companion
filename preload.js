@@ -38,6 +38,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   screenpipe: {
     getSettings: () => ipcRenderer.invoke("screenpipe:get-settings"),
     setSettings: (partial) => ipcRenderer.invoke("screenpipe:set-settings", partial),
+    install: () => ipcRenderer.invoke("screenpipe:install"),
+    checkInstalled: () => ipcRenderer.invoke("screenpipe:check-installed"),
+    start: () => ipcRenderer.invoke("screenpipe:start"),
+    stop: () => ipcRenderer.invoke("screenpipe:stop"),
+    isRunning: () => ipcRenderer.invoke("screenpipe:is-running"),
   },
   aiAgentsHistory: {
     getAll: (agentId) =>

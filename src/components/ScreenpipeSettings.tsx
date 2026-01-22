@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Zap, Loader2, AlertCircle, Clock } from "lucide-react";
+import { Zap, Loader2, AlertCircle, Clock, CheckCircle2, Power } from "lucide-react";
 import { toast } from "react-toastify";
 import { useScreenpipe } from "../hooks/useScreenpipe";
 
@@ -35,9 +35,33 @@ export const ScreenpipeSettings: React.FC<ScreenpipeSettingsProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [installing, setInstalling] = useState(false);
+  const [checkingInstall, setCheckingInstall] = useState(true);
+  const [installed, setInstalled] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [checkingRunning, setCheckingRunning] = useState(true);
+  const [togglingRun, setTogglingRun] = useState(false);
 
   // Use the hook
   const { getContext } = useScreenpipe();
+
+  const ensureScreenpipeEnabled = async () => {
+    if (screenpipe.enabled) return true;
+    try {
+      const res = await (window as any).electronAPI?.screenpipe?.setSettings({ enabled: true });
+      if (res?.success) {
+        setScreenpipe((prev) => ({ ...prev, enabled: true }));
+        toast.success("Screenpipe enabled");
+        return true;
+      }
+      toast.error(res?.error || "Failed to enable Screenpipe");
+      return false;
+    } catch (err) {
+      toast.error("Failed to enable Screenpipe");
+      console.error(err);
+      return false;
+    }
+  };
 
   const toggleScreenpipe = async () => {
     const next = !screenpipe.enabled;
@@ -80,7 +104,7 @@ export const ScreenpipeSettings: React.FC<ScreenpipeSettingsProps> = ({
     setError(null);
 
     try {
-      const data = await getContext(3);
+      const data = await getContext(8, { excludeApp: "Electron" });
       
       if (data && data.length > 0) {
         setRecentData(data);
@@ -107,6 +131,90 @@ export const ScreenpipeSettings: React.FC<ScreenpipeSettingsProps> = ({
     }
   }, [screenpipe.enabled]);
 
+  useEffect(() => {
+    let active = true;
+    const checkInstallAndStatus = async () => {
+      try {
+        const installRes = await (window as any).electronAPI?.screenpipe?.checkInstalled?.();
+        if (active) {
+          setInstalled(!!installRes?.installed);
+        }
+      } catch {
+        if (active) setInstalled(false);
+      } finally {
+        if (active) setCheckingInstall(false);
+      }
+
+      try {
+        const runningRes = await (window as any).electronAPI?.screenpipe?.isRunning?.();
+        if (active) {
+          setRunning(!!runningRes?.running);
+        }
+      } catch {
+        if (active) setRunning(false);
+      } finally {
+        if (active) setCheckingRunning(false);
+      }
+    };
+
+    checkInstallAndStatus();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    setInstalling(true);
+    try {
+      const res = await (window as any).electronAPI?.screenpipe?.install?.();
+      const ok = !!res?.success || !!res?.installed;
+      setInstalled(ok);
+      toast[ok ? "success" : "error"](
+        ok ? "Screenpipe installed" : "Failed to install Screenpipe"
+      );
+    } catch (err) {
+      toast.error("Failed to install Screenpipe");
+      console.error(err);
+    } finally {
+      setInstalling(false);
+    }
+  };
+
+  const handleToggleRun = async () => {
+    setTogglingRun(true);
+    try {
+      if (running) {
+        const res = await (window as any).electronAPI?.screenpipe?.stop?.();
+        const ok = !!res?.success;
+        if (ok) {
+          setRunning(false);
+          toast.info("Screenpipe stopped");
+        } else {
+          toast.error(res?.error || "Failed to stop Screenpipe");
+        }
+      } else {
+        const enabled = await ensureScreenpipeEnabled();
+        if (!enabled) {
+          setTogglingRun(false);
+          return;
+        }
+        const res = await (window as any).electronAPI?.screenpipe?.start?.();
+        const ok = !!res?.success;
+        if (ok) {
+          setRunning(true);
+          toast.success("Screenpipe started");
+        } else {
+          toast.error(res?.error || "Failed to start Screenpipe");
+        }
+      }
+    } catch (err) {
+      toast.error("Operation failed");
+      console.error(err);
+    } finally {
+      setTogglingRun(false);
+    }
+  };
+
   const formatSummary = (data: ScreenpipeData[]) => {
     if (!data || data.length === 0) return "No recent data available";
 
@@ -124,6 +232,58 @@ Recent screen text: ${latest.text?.slice(0, 200) || "No text captured"}...
         Screenpipe
       </h2>
       <div className="space-y-4">
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleInstall}
+            disabled={checkingInstall || installing || installed}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-indigo-500/40 bg-indigo-900/30 text-indigo-200 hover:bg-indigo-900/50 transition disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {checkingInstall ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Checking installation...
+              </>
+            ) : installing ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Installing Screenpipe...
+              </>
+            ) : installed ? (
+              <>
+                <CheckCircle2 size={16} className="text-emerald-400" />
+                Screenpipe installed
+              </>
+            ) : (
+              <>
+                <Zap size={16} />
+                Install Screenpipe
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleToggleRun}
+            disabled={checkingRunning || togglingRun || !installed}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border transition ${
+              running
+                ? "border-emerald-500/50 bg-emerald-900/30 text-emerald-100 hover:bg-emerald-900/50"
+                : "border-gray-600 bg-gray-800 text-gray-100 hover:bg-gray-700"
+            } disabled:opacity-60 disabled:cursor-not-allowed`}
+          >
+            {checkingRunning || togglingRun ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                {running ? "Stopping..." : "Starting..."}
+              </>
+            ) : (
+              <>
+                <Power size={16} />
+                {running ? "Stop Screenpipe" : "Use Screenpipe"}
+              </>
+            )}
+          </button>
+        </div>
+
         <div className="flex items-center justify-between">
           <div>
             <span className="text-gray-200 font-medium block">

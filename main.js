@@ -41,6 +41,63 @@ const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 let mainWindow = null;
 let screenpipeProcess = null;
 
+function runShellCommand(command, timeoutMs = 30000) {
+  return new Promise((resolve) => {
+    try {
+      const child = spawn(command, { shell: true, env: { ...process.env } });
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout?.on("data", (data) => {
+        stdout += data.toString();
+      });
+      child.stderr?.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      const timer = setTimeout(() => {
+        try {
+          child.kill();
+        } catch {}
+      }, timeoutMs);
+
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        resolve({ code, stdout, stderr });
+      });
+    } catch (error) {
+      resolve({ code: 1, stdout: "", stderr: error?.message || "" });
+    }
+  });
+}
+
+async function isScreenpipeInstalled() {
+  const command = process.platform === "win32" ? "where screenpipe" : "command -v screenpipe";
+  const result = await runShellCommand(command, 8000);
+  return result.code === 0;
+}
+
+async function checkScreenpipeHealth() {
+  try {
+    const cfg = getScreenpipeSettings();
+    const baseUrl = cfg?.url || "";
+    if (!baseUrl) return false;
+    const healthUrl = new URL(cfg.healthPath || "/health", baseUrl).toString();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(healthUrl, { method: "GET", signal: controller.signal });
+    clearTimeout(timeoutId);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function isScreenpipeRunning() {
+  if (screenpipeProcess) return true;
+  return checkScreenpipeHealth();
+}
+
 async function waitForHealth(url, timeoutMs = 20000, intervalMs = 500) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -265,6 +322,66 @@ ipcMain.handle("screenpipe:get-settings", async () => {
 ipcMain.handle("screenpipe:set-settings", async (event, partial) => {
   const result = setScreenpipeSettings(partial);
   return result;
+});
+
+ipcMain.handle("screenpipe:check-installed", async () => {
+  const installed = await isScreenpipeInstalled();
+  return { installed };
+});
+
+ipcMain.handle("screenpipe:install", async () => {
+  const command =
+    process.platform === "win32"
+      ? 'powershell -NoLogo -NonInteractive -Command "iwr https://get.screenpi.pe/cli.ps1 -useb | iex"'
+      : "curl -fsSL https://get.screenpi.pe/install.sh | sh";
+
+  const result = await runShellCommand(command, 60000);
+  const installed = await isScreenpipeInstalled();
+  return { success: installed, installed, stdout: result.stdout, stderr: result.stderr };
+});
+
+ipcMain.handle("screenpipe:start", async () => {
+  if (await isScreenpipeRunning()) {
+    return { success: true, running: true, alreadyRunning: true };
+  }
+
+  try {
+    const cfg = getScreenpipeSettings();
+    const cmd = cfg?.command || "screenpipe";
+    const args = Array.isArray(cfg?.args) ? cfg.args : [];
+    screenpipeProcess = spawn(cmd, args, { shell: true, env: { ...process.env } });
+    screenpipeProcess.on("exit", () => {
+      screenpipeProcess = null;
+    });
+  } catch (error) {
+    return { success: false, running: false, error: error?.message || "Failed to start Screenpipe" };
+  }
+
+  const healthy = await checkScreenpipeHealth();
+  return { success: true, running: true, healthy };
+});
+
+ipcMain.handle("screenpipe:stop", async () => {
+  let stopped = false;
+  try {
+    if (screenpipeProcess) {
+      screenpipeProcess.kill();
+      screenpipeProcess = null;
+      stopped = true;
+    }
+  } catch {}
+
+  if (!stopped) {
+    const killCommand = process.platform === "win32" ? "taskkill /IM screenpipe.exe /F" : "pkill -f screenpipe";
+    await runShellCommand(killCommand, 8000);
+  }
+
+  return { success: true, running: false };
+});
+
+ipcMain.handle("screenpipe:is-running", async () => {
+  const running = await isScreenpipeRunning();
+  return { running };
 });
 
 // Handler to get update log file path

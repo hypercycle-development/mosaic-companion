@@ -356,8 +356,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
     // Get Screenpipe context if enabled (últimas 5 capturas)
     let contextPrefix = "";
+    console.log({screenpipeEnabled});
     if (screenpipeEnabled) {
-      const summary = await getContextSummary(5, 200);
+      
+      const summary = await getContextSummary(3, 400, { excludeApp: "Electron" });
+      console.log({summary});
+      
       if (summary) {
         contextPrefix = `${summary}\n\n`;
         setScreenpipeContext(summary);
@@ -792,6 +796,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           const parsed = parseMessageContent(message.content);
                           return (
                             <>
+                              {/* DEBUG: */}
                               {/* {parsed.hasContext && (
                                 <div className="mb-2 pb-2 border-b border-white/10">
                                   <div className="flex items-center gap-1 mb-1">

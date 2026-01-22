@@ -17,6 +17,10 @@ interface ScreenpipeSearchResult {
   }>;
 }
 
+interface GetContextOptions {
+  excludeApp?: string; // case-insensitive match on app/window name
+}
+
 export function useScreenpipe() {
   const [enabled, setEnabled] = useState(false);
   const [url, setUrl] = useState("");
@@ -42,7 +46,7 @@ export function useScreenpipe() {
    * @returns Array of context data or null if disabled/error
    */
   const getContext = useCallback(
-    async (limit: number = 3): Promise<ScreenpipeContextData[] | null> => {
+    async (limit: number = 3, options?: GetContextOptions): Promise<ScreenpipeContextData[] | null> => {
       // Early return if not enabled
       if (!enabled || !url) {
         return null;
@@ -52,7 +56,8 @@ export function useScreenpipe() {
         const baseUrl = url.replace(/\/$/, "");
         const searchUrl = new URL(`${baseUrl}/search`);
         searchUrl.searchParams.append("content_type", "ocr");
-        searchUrl.searchParams.append("limit", limit.toString());
+        const requested = options?.excludeApp ? Math.min(limit * 5, 50) : limit;
+        searchUrl.searchParams.append("limit", requested.toString());
         searchUrl.searchParams.append("offset", "0");
 
         const controller = new AbortController();
@@ -78,8 +83,19 @@ export function useScreenpipe() {
           return null;
         }
 
-        // Transform to clean format
-        return data.map((item) => ({
+        const filtered = options?.excludeApp
+          ? data.filter((item) => {
+              const name = (item.content?.app_name || item.content?.window_name || "").toLowerCase();
+              return !name.includes(options.excludeApp!.toLowerCase());
+            })
+          : data;
+
+        if (filtered.length === 0) {
+          return null;
+        }
+
+        // Transform to clean format and cap to requested limit
+        return filtered.slice(0, limit).map((item) => ({
           app: item.content?.app_name || "unknown",
           text: item.content?.text || "",
           timestamp: item.content?.timestamp || new Date().toISOString(),
@@ -99,8 +115,8 @@ export function useScreenpipe() {
    * @returns Formatted context string or empty string if disabled/error
    */
   const getContextSummary = useCallback(
-    async (limit: number = 3, maxLength: number = 200): Promise<string> => {
-      const data = await getContext(limit);
+    async (limit: number = 3, maxLength: number = 200, options?: GetContextOptions): Promise<string> => {
+      const data = await getContext(limit, options);
 
       if (!data || data.length === 0) {
         return "";
