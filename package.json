@@ -78,10 +78,7 @@
     "mac": {
       "target": "default",
       "identity": "-",
-      "x64ArchFiles": [
-        "**/node_modules/onnxruntime-node/bin/napi-v3/darwin/x64/**",
-        "**/node_modules/sharp/build/Release/**"
-      ]
+      "x64ArchFiles": "**/node_modules/{onnxruntime-node,sharp}/**"
     },
     "linux": {
       "target": "AppImage",
