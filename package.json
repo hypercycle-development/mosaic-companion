@@ -78,8 +78,7 @@
     "mac": {
       "target": "default",
       "identity": "-",
-      "x64ArchFiles": "**/darwin/x64/**",
-      "singleArchFiles": "**/darwin/arm64/**"
+      "x64ArchFiles": "**/onnxruntime-node/**"
     },
     "linux": {
       "target": "AppImage",
