@@ -1,0 +1,66 @@
+name: Build Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-check:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux builds
+          - os: ubuntu-latest
+            platform: linux-x64
+            build_cmd: electron-builder --linux --x64
+          - os: ubuntu-latest
+            platform: linux-arm64
+            build_cmd: electron-builder --linux --arm64
+          # macOS build (universal)
+          - os: macos-latest
+            platform: mac
+            build_cmd: electron-builder --mac --universal
+          # Windows builds
+          - os: windows-latest
+            platform: win-x64
+            build_cmd: electron-builder --win --x64
+          - os: windows-latest
+            platform: win-arm64
+            build_cmd: electron-builder --win --arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Build Electron (${{ matrix.platform }})
+        run: npx ${{ matrix.build_cmd }}
+
+      - name: Verify build artifacts exist
+        shell: bash
+        run: |
+          echo "Checking for build artifacts..."
+          ls -la release/
+
+          if [[ "${{ matrix.platform }}" == linux-* ]]; then
+            ls release/*.AppImage && echo "✓ AppImage found"
+          elif [ "${{ matrix.platform }}" == "mac" ]; then
+            ls release/*.dmg && echo "✓ DMG found"
+          elif [[ "${{ matrix.platform }}" == win-* ]]; then
+            ls release/*.exe && echo "✓ EXE found"
+          fi
