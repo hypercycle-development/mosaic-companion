@@ -78,7 +78,7 @@
     "mac": {
       "target": "default",
       "identity": "-",
-      "x64ArchFiles": "Contents/Resources/app.asar.unpacked/**/*"
+      "mergeASARs": false
     },
     "linux": {
       "target": "AppImage",
