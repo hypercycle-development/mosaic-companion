@@ -78,7 +78,8 @@
     "mac": {
       "target": "default",
       "identity": "-",
-      "x64ArchFiles": "**/darwin/x64/*.dylib"
+      "x64ArchFiles": "**/darwin/x64/**",
+      "singleArchFiles": "**/darwin/arm64/**"
     },
     "linux": {
       "target": "AppImage",
