@@ -187,7 +187,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   // Helper to update a single setting with feedback
   const handleUpdateSettingChange = async (
     key: keyof typeof updateSettings,
-    value: boolean | string
+    value: boolean | string,
   ) => {
     if (window.electronAPI?.setUpdateSettings) {
       const result = await window.electronAPI.setUpdateSettings({
@@ -236,7 +236,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   const updateNodeHandler = async (
     id: string,
-    updates: Partial<HypercycleNode>
+    updates: Partial<HypercycleNode>,
   ) => {
     if (window.electronAPI?.nodes?.update) {
       const result = await window.electronAPI.nodes.update(id, updates);
@@ -285,8 +285,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const updateAgent = (id: string, updates: Partial<AIAgentConfig>) => {
     setAiAgents(
       aiAgents.map((agent) =>
-        agent.id === id ? { ...agent, ...updates } : agent
-      )
+        agent.id === id ? { ...agent, ...updates } : agent,
+      ),
     );
   };
 
@@ -643,7 +643,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                             deleteAgent(agent.id);
                             const result =
                               await window.electronAPI.aiAgents.delete(
-                                agent.id
+                                agent.id,
                               );
                             if (result?.success) {
                               toast.success("Agent deleted successfully");
@@ -689,7 +689,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               onChange={(e) =>
                                 handleProviderChange(
                                   agent.id,
-                                  e.target.value as AIProvider
+                                  e.target.value as AIProvider,
                                 )
                               }
                               className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100"
@@ -699,7 +699,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                                   <option key={key} value={key}>
                                     {info.name}
                                   </option>
-                                )
+                                ),
                               )}
                             </select>
                           </label>
@@ -883,10 +883,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                                 testResult.status === "testing"
                                   ? "bg-gray-800 text-gray-400 cursor-not-allowed"
                                   : testResult.status === "success"
-                                  ? "bg-emerald-900/30 text-emerald-400 border border-emerald-500/30"
-                                  : testResult.status === "error"
-                                  ? "bg-red-900/30 text-red-400 border border-red-500/30"
-                                  : "bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700"
+                                    ? "bg-emerald-900/30 text-emerald-400 border border-emerald-500/30"
+                                    : testResult.status === "error"
+                                      ? "bg-red-900/30 text-red-400 border border-red-500/30"
+                                      : "bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700"
                               }
                             `}
                           >
@@ -1003,7 +1003,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       className="flex items-center justify-between p-4 cursor-pointer hover:border-gray-700 transition-colors"
                       onClick={() =>
                         setExpandedNode(
-                          expandedNode === node.id ? null : node.id
+                          expandedNode === node.id ? null : node.id,
                         )
                       }
                     >
@@ -1199,7 +1199,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   Software Updates
                 </span>
                 <p className="text-sm text-gray-500">
-                  Check if a new version of Mosaic Browser is available.
+                  Check if a new version of Mosaic Companion is available.
                 </p>
               </div>
               <button
@@ -1228,7 +1228,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 onClick={() =>
                   handleUpdateSettingChange(
                     "autoDownload",
-                    !updateSettings.autoDownload
+                    !updateSettings.autoDownload,
                   )
                 }
                 className={`
@@ -1256,7 +1256,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         </section>
 
         <section>
-          <GmailClient/>
+          <GmailClient />
         </section>
 
         {/* Save Button */}
