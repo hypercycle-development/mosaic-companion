@@ -77,8 +77,7 @@
     },
     "mac": {
       "target": "default",
-      "identity": "-",
-      "x64ArchFiles": "**/node_modules/{onnxruntime-node,sharp}/**"
+      "identity": "-"
     },
     "linux": {
       "target": "AppImage",
