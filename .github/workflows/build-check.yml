@@ -22,13 +22,10 @@ jobs:
           - os: macos-latest
             platform: mac
             build_cmd: electron-builder --mac --x64 --arm64
-          # Windows builds (separate due to native module rebuild requirements)
+          # Windows builds (both archs in one command)
           - os: windows-latest
-            platform: win-x64
-            build_cmd: electron-builder --win --x64
-          - os: windows-latest
-            platform: win-arm64
-            build_cmd: electron-builder --win --arm64
+            platform: win
+            build_cmd: electron-builder --win --x64 --arm64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -41,10 +38,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Rebuild native modules for arm64 (Windows)
-        if: matrix.platform == 'win-arm64'
-        run: npm rebuild --platform=win32 --arch=arm64
 
       - name: Build app
         run: npm run build
@@ -72,6 +65,9 @@ jobs:
             echo ""
             echo "=== latest-mac.yml contents ==="
             cat release/latest-mac.yml
-          elif [[ "${{ matrix.platform }}" == win-* ]]; then
+          elif [ "${{ matrix.platform }}" == "win" ]; then
             ls release/*.exe && echo "✓ EXE found"
+            echo ""
+            echo "=== latest.yml contents ==="
+            cat release/latest.yml
           fi
