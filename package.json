@@ -46,7 +46,7 @@
   "build": {
     "appId": "com.mosaic.companion",
     "productName": "Mosaic Companion",
-    "asar": false,
+    "asar": true,
     "directories": {
       "output": "release"
     },
