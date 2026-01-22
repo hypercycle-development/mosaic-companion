@@ -26,7 +26,7 @@ section() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 }
 
-section "Mosaic Browser Setup"
+section "Mosaic Companion Setup"
 
 if ! command -v node &> /dev/null; then
     error "Node.js is not installed."
