@@ -14,32 +14,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux builds
+          # Linux builds (both archs in one command)
           - os: ubuntu-latest
-            platform: linux-x64
-            build_cmd: electron-builder --linux --x64
-            arch: x64
-          - os: ubuntu-latest
-            platform: linux-arm64
-            build_cmd: electron-builder --linux --arm64
-            arch: arm64
-          # macOS builds (both archs in one command to generate unified latest-mac.yml)
+            platform: linux
+            build_cmd: electron-builder --linux --x64 --arm64
+          # macOS builds (both archs in one command)
           - os: macos-latest
             platform: mac
             build_cmd: electron-builder --mac --x64 --arm64
-            arch: x64
-          # Windows builds
+          # Windows builds (separate due to native module rebuild requirements)
           - os: windows-latest
             platform: win-x64
             build_cmd: electron-builder --win --x64
-            arch: x64
           - os: windows-latest
             platform: win-arm64
             build_cmd: electron-builder --win --arm64
-            arch: arm64
     runs-on: ${{ matrix.os }}
-    env:
-      npm_config_arch: ${{ matrix.arch == 'arm64' && 'arm64' || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,8 +62,11 @@ jobs:
           ls -la release/*.yml 2>/dev/null || echo "No YAML files found"
           echo ""
 
-          if [[ "${{ matrix.platform }}" == linux-* ]]; then
-            ls release/*.AppImage && echo "✓ AppImage found"
+          if [ "${{ matrix.platform }}" == "linux" ]; then
+            ls release/*.AppImage && echo "✓ AppImages found"
+            echo ""
+            echo "=== latest-linux.yml contents ==="
+            cat release/latest-linux.yml
           elif [ "${{ matrix.platform }}" == "mac" ]; then
             ls release/*.dmg && echo "✓ DMG found"
             echo ""
