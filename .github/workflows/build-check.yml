@@ -18,21 +18,28 @@ jobs:
           - os: ubuntu-latest
             platform: linux-x64
             build_cmd: electron-builder --linux --x64
+            arch: x64
           - os: ubuntu-latest
             platform: linux-arm64
             build_cmd: electron-builder --linux --arm64
+            arch: arm64
           # macOS build (universal)
           - os: macos-latest
             platform: mac
             build_cmd: electron-builder --mac --universal
+            arch: universal
           # Windows builds
           - os: windows-latest
             platform: win-x64
             build_cmd: electron-builder --win --x64
+            arch: x64
           - os: windows-latest
             platform: win-arm64
             build_cmd: electron-builder --win --arm64
+            arch: arm64
     runs-on: ${{ matrix.os }}
+    env:
+      npm_config_arch: ${{ matrix.arch == 'arm64' && 'arm64' || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,6 +51,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Rebuild native modules for arm64 (Windows)
+        if: matrix.platform == 'win-arm64'
+        run: npm rebuild --platform=win32 --arch=arm64
 
       - name: Build app
         run: npm run build
