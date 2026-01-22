@@ -76,6 +76,9 @@ jobs:
             ls release/*.AppImage && echo "✓ AppImage found"
           elif [ "${{ matrix.platform }}" == "mac" ]; then
             ls release/*.dmg && echo "✓ DMG found"
+            echo ""
+            echo "=== latest-mac.yml contents ==="
+            cat release/latest-mac.yml
           elif [[ "${{ matrix.platform }}" == win-* ]]; then
             ls release/*.exe && echo "✓ EXE found"
           fi
