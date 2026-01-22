@@ -1,6 +1,6 @@
 # Release Process Documentation
 
-This document describes how to build and publish releases for Mosaic Browser.
+This document describes how to build and publish releases for Mosaic Companion.
 
 ## Prerequisites
 
@@ -95,9 +95,9 @@ s3://BUCKET_NAME/releases/
 ├── latest.yml                    # Windows manifest
 ├── latest-linux.yml              # Linux manifest
 ├── latest-mac.yml                # macOS manifest
-├── Mosaic-Browser-1.2.3.exe      # Windows installer
-├── Mosaic-Browser-1.2.3.AppImage # Linux installer
-├── Mosaic-Browser-1.2.3.pkg      # macOS installer
+├── Mosaic-Companion-1.2.3.exe      # Windows installer
+├── Mosaic-Companion-1.2.3.AppImage # Linux installer
+├── Mosaic-Companion-1.2.3.pkg      # macOS installer
 └── ...
 ```
 

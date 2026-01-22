@@ -1,7 +1,7 @@
 {
-  "name": "mosaic-browser",
+  "name": "mosaic-companion",
   "version": "1.0.28",
-  "description": "Mosaic Browser Application",
+  "description": "Mosaic Companion Application",
   "main": "main.js",
   "type": "module",
   "author": "hypercycle",
@@ -44,8 +44,8 @@
     "vite": "^7.3.1"
   },
   "build": {
-    "appId": "com.mosaic.browser",
-    "productName": "Mosaic Browser",
+    "appId": "com.mosaic.companion",
+    "productName": "Mosaic Companion",
     "asar": false,
     "directories": {
       "output": "release"
