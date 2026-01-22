@@ -78,7 +78,7 @@
     "mac": {
       "target": "default",
       "identity": "-",
-      "x64ArchFiles": "**/*.{node,dylib}"
+      "x64ArchFiles": "*.{node,dylib}"
     },
     "linux": {
       "target": "AppImage",
