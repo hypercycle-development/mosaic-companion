@@ -28,6 +28,7 @@ import {
   PROVIDER_INFO,
 } from "../types/ai";
 import { AIService } from "../services/AIService";
+import GmailClient from "./GmailClient";
 import { useTheme } from "../ThemeProvider";
 import { ThemeKey } from "../themes";
 
@@ -1252,6 +1253,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               </button>
             </div>
           </div>
+        </section>
+
+        <section>
+          <GmailClient/>
         </section>
 
         {/* Save Button */}

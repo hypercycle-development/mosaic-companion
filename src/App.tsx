@@ -3,7 +3,7 @@ import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { ContentArea } from "./components/ContentArea";
 import { TabStrip } from "./components/TabStrip";
-import { BottomBar } from "./components/BottomBar";
+import { BottomBar, InputMode } from "./components/BottomBar";
 import { DemoOverlay } from "./components/DemoOverlay";
 import { CommandPalette } from "./components/CommandPalette";
 import { INTERNAL_HOME_URL, INTERNAL_CHAT_URL, Tab } from "./types/types";
@@ -31,6 +31,26 @@ function App() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [hasAgents, setHasAgents] = useState(false);
 
+  // Input mode state (agent or normal)
+  const [inputMode, setInputMode] = useState<InputMode>("normal");
+
+  // Check for configured agents on mount
+  useEffect(() => {
+    const checkAgents = async () => {
+      try {
+        const agents = await window.electronAPI.aiAgents.get();
+        const activeAgents = agents.filter(
+          (a: { isActive: boolean }) => a.isActive,
+        );
+        setHasAgents(activeAgents.length > 0);
+        // If we have agents and user hasn't explicitly chosen, stay in current mode
+      } catch {
+        setHasAgents(false);
+      }
+    };
+    checkAgents();
+  }, []);
+
   // --- Tab & Session State ---
   const [tabs, setTabs] = useState<Tab[]>(() => {
     // Initial tab
@@ -53,6 +73,13 @@ function App() {
 
   // Helper to get active tab
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
+
+  // Auto-switch to agent mode when on AI Chat page
+  useEffect(() => {
+    if (activeTab.history.present === INTERNAL_CHAT_URL && hasAgents) {
+      setInputMode("agent");
+    }
+  }, [activeTab.history.present, hasAgents]);
 
   // Persist preferences
   useEffect(() => {
@@ -122,10 +149,7 @@ function App() {
 
     // Store initial message if provided
     if (initialMessage) {
-      localStorage.setItem(
-        `chat_pending_message_${newTab.id}`,
-        initialMessage
-      );
+      localStorage.setItem(`chat_pending_message_${newTab.id}`, initialMessage);
     }
 
     setTimeout(() => {
@@ -162,7 +186,7 @@ function App() {
   // Update specific tab properties (title, favicon, loading state)
   const handleUpdateTab = (id: string, updates: Partial<Tab>) => {
     setTabs((prev) =>
-      prev.map((tab) => (tab.id === id ? { ...tab, ...updates } : tab))
+      prev.map((tab) => (tab.id === id ? { ...tab, ...updates } : tab)),
     );
   };
 
@@ -170,8 +194,8 @@ function App() {
   const updateActiveTabHistory = (newHistory: Tab["history"]) => {
     setTabs((prev) =>
       prev.map((tab) =>
-        tab.id === activeTabId ? { ...tab, history: newHistory } : tab
-      )
+        tab.id === activeTabId ? { ...tab, history: newHistory } : tab,
+      ),
     );
   };
 
@@ -187,8 +211,7 @@ function App() {
 
   const goBack = () => {
     if (activeTab.history.past.length === 0) return;
-    const previous =
-      activeTab.history.past[activeTab.history.past.length - 1];
+    const previous = activeTab.history.past[activeTab.history.past.length - 1];
     const newPast = activeTab.history.past.slice(0, -1);
 
     updateActiveTabHistory({
@@ -218,19 +241,26 @@ function App() {
     }, 10);
   };
 
-  // Handle "AI" inputs from the bottom bar
+  // Handle inputs from the bottom bar
   const handleBottomBarSubmit = (text: string) => {
     if (text.toLowerCase().includes("demo")) {
       setIsDemoActive(true);
       return;
     }
 
+    // If in agent mode, navigate to AI Chat and send message
+    if (inputMode === "agent" && hasAgents) {
+      // Store the message to be picked up by ChatView
+      sessionStorage.setItem("pendingChatMessage", text);
+      navigateTo(INTERNAL_CHAT_URL);
+      return;
+    }
+
+    // Normal mode: URL or search
     if (text.startsWith("http")) {
       navigateTo(text);
     } else {
-      navigateTo(
-        `https://www.google.com/search?q=${encodeURIComponent(text)}`
-      );
+      navigateTo(`https://www.google.com/search?q=${encodeURIComponent(text)}`);
     }
   };
 
@@ -286,7 +316,7 @@ function App() {
         canGoForward={activeTab.history.future.length > 0}
         onSearchInNewTab={(query) => {
           const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(
-            query
+            query,
           )}`;
           const newTab: Tab = {
             id: Date.now().toString(),
@@ -411,8 +441,8 @@ function App() {
                     isActive
                       ? "z-10 opacity-100 translate-x-0 scale-100"
                       : isPrevious && isTransitioning
-                      ? "z-0 opacity-0 -translate-x-4 scale-95"
-                      : "z-0 opacity-0 translate-x-4 scale-95 pointer-events-none"
+                        ? "z-0 opacity-0 -translate-x-4 scale-95"
+                        : "z-0 opacity-0 translate-x-4 scale-95 pointer-events-none"
                   }
                 `}
               >
@@ -428,8 +458,7 @@ function App() {
                     setCustomGreeting,
                     showUrlBar: showUrlBar,
                     setShowUrlBar: setShowUrlBar,
-                    onOpenCommandPalette: () =>
-                      setIsCommandPaletteOpen(true),
+                    onOpenCommandPalette: () => setIsCommandPaletteOpen(true),
                   }}
                   onUpdateTab={(updates) => handleUpdateTab(tab.id, updates)}
                   onStartDemo={() => setIsDemoActive(true)}
@@ -441,11 +470,15 @@ function App() {
           })}
         </div>
 
-        {/* Bottom AI Input Bar - Hide when in chat view */}
-        {!isDemoActive &&
-          activeTab.history.present !== INTERNAL_CHAT_URL && (
-            <BottomBar onSubmit={handleBottomBarSubmit} />
-          )}
+        {/* Bottom AI Input Bar - hide when on AI Chat page (ChatView has its own input) */}
+        {!isDemoActive && activeTab.history.present !== INTERNAL_CHAT_URL && (
+          <BottomBar
+            onSubmit={handleBottomBarSubmit}
+            mode={inputMode}
+            onModeChange={setInputMode}
+            hasAgents={hasAgents}
+          />
+        )}
       </main>
     </div>
   );

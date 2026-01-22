@@ -19,26 +19,31 @@ error() {
     echo -e "${RED}✖${NC} $1"
 }
 
-if ! command -v bun &> /dev/null; then
-    error "Bun is not installed. Please install it first:"
-    echo "  curl -fsSL https://bun.sh/install | bash"
+if ! command -v node &> /dev/null; then
+    error "Node.js is not installed. Please install it from https://nodejs.org/"
     exit 1
 fi
 
-info "Bun version: $(bun --version)"
+if ! command -v npm &> /dev/null; then
+    error "npm is not installed. Please install Node.js from https://nodejs.org/"
+    exit 1
+fi
 
-if [ -d "node_modules" ] && [ -f "bun.lockb" ]; then
+info "Node.js version: $(node --version)"
+info "npm version: $(npm --version)"
+
+if [ -d "node_modules" ] && [ -f "package-lock.json" ]; then
     info "Dependencies already installed. Skipping install..."
     read -p "Reinstall dependencies? (y/N): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         info "Installing dependencies..."
-        bun install
+        npm install
     fi
 else
     info "Installing dependencies..."
-    bun install
+    npm install
 fi
 
 info "Starting Mosaic application..."
-bun start
+npm start
