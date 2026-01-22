@@ -69,6 +69,10 @@ function createWindow(urlToLoad = null) {
   return win;
 }
 
+app.on("before-quit", () => {
+  mcpClient.disconnectAll();
+});
+
 /**
  * Recreate the window with current settings.
  * Used to apply titleBarStyle changes without full app restart.
@@ -429,7 +433,7 @@ ipcMain.handle(
     } catch (error) {
       return { success: false, error: error.message };
     }
-  },
+  }
 );
 
 ipcMain.handle("ai-agents-history:delete-all", async (event, agentId) => {
