@@ -23,7 +23,7 @@ const LOG_FILE = path.join(app.getPath('userData'), 'update.log');
 
 /**
  * Log to both console and file for maximum visibility.
- * On Mac, the file will be at ~/Library/Application Support/Mosaic Browser/update.log
+ * On Mac, the file will be at ~/Library/Application Support/Mosaic Companion/update.log
  */
 function log(level, ...args) {
     const timestamp = new Date().toISOString();
@@ -347,7 +347,7 @@ autoUpdater.on('update-not-available', (info) => {
             type: 'info',
             title: 'No Updates Available',
             message: "You're up to date!",
-            detail: `Mosaic Browser ${info.version} is the latest version.`
+            detail: `Mosaic Companion ${info.version} is the latest version.`
         });
         isManualCheck = false;
     }
