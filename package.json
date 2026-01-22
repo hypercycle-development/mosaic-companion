@@ -46,7 +46,11 @@
   "build": {
     "appId": "com.mosaic.companion",
     "productName": "Mosaic Companion",
-    "asar": false,
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/onnxruntime-node/**",
+      "node_modules/sharp/**"
+    ],
     "directories": {
       "output": "release"
     },
@@ -73,7 +77,11 @@
     },
     "mac": {
       "target": "default",
-      "identity": "-"
+      "identity": "-",
+      "x64ArchFiles": [
+        "**/node_modules/onnxruntime-node/bin/napi-v3/darwin/x64/**",
+        "**/node_modules/sharp/build/Release/**"
+      ]
     },
     "linux": {
       "target": "AppImage",
