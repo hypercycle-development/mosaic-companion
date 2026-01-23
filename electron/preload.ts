@@ -1,3 +1,5 @@
+import { mcpAPI } from "./integrations/mcp/MCPAPI";
+
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -47,4 +49,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
     deleteAll: (agentId) =>
       ipcRenderer.invoke("ai-agents-history:delete-all", agentId),
   },
+  mcpAPI,
 });
