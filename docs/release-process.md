@@ -153,3 +153,70 @@ release:
         AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
         AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
 ```
+
+## Manual Build and Upload (Fallback)
+
+Use this when CI is unavailable (e.g., rate-limited, offline).
+
+### 1. Clean and Build
+
+```bash
+# Clean previous builds
+rm -rf release/
+
+# Build the web app
+npm run build
+
+# Build Electron for your platform (with both architectures)
+npx electron-builder --linux --x64 --arm64   # Linux
+npx electron-builder --mac --x64 --arm64     # macOS (requires Mac)
+npx electron-builder --win --x64 --arm64     # Windows (requires Windows)
+```
+
+### 2. Configure AWS CLI
+
+```bash
+# One-time setup
+aws configure
+# Enter: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, region (us-east-2)
+```
+
+### 3. Upload to S3
+
+```bash
+cd release
+
+# Linux
+aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
+  --include "*.AppImage" \
+  --include "*.deb" \
+  --include "latest-linux*.yml"
+
+# macOS
+aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
+  --include "*.dmg" \
+  --include "*.zip" \
+  --include "latest-mac*.yml"
+
+# Windows
+aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
+  --include "*.exe" \
+  --include "latest*.yml"
+```
+
+### 4. Verify Upload
+
+```bash
+aws s3 ls s3://mosaic-release/releases/ | head -20
+```
+
+### Platform Requirements
+
+| Build Target | Requires |
+|--------------|----------|
+| Linux x64/arm64 | Linux machine |
+| macOS x64/arm64 | macOS machine |
+| Windows x64/arm64 | Windows machine |
+
+> ⚠️ **Note:** You cannot cross-compile Electron apps. Each target platform must be built on that platform.
+
