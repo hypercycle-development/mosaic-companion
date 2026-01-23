@@ -73,8 +73,23 @@ jobs:
 
       - name: Create release tag
         run: |
-          git tag "v${{ steps.bump.outputs.new_version }}"
-          git push origin "v${{ steps.bump.outputs.new_version }}"
+          VERSION="${{ steps.bump.outputs.new_version }}"
+          VERSION_TYPE="${{ needs.check-deploy.outputs.version_type }}"
+          BUCKET_URL="https://mosaic-release.s3.us-east-2.amazonaws.com/releases"
+
+          # Create tag message with download links
+          TAG_MESSAGE="Release v${VERSION} (${VERSION_TYPE})
+
+          Download links:
+          - Linux x64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-x64.AppImage
+          - Linux arm64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-arm64.AppImage
+          - Windows x64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-x64.exe
+          - Windows arm64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-arm64.exe
+          - macOS x64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-x64.dmg
+          - macOS arm64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-arm64.dmg"
+
+          git tag -a "v${VERSION}" -m "$TAG_MESSAGE"
+          git push origin "v${VERSION}"
 
   # Build for all platforms
   build:
