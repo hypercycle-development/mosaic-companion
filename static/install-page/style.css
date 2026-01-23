@@ -361,6 +361,14 @@ header {
   color: var(--color-text-muted);
 }
 
+.disabled-link {
+  pointer-events: none; /* Prevents mouse clicks */
+  cursor: not-allowed; /* Changes the cursor to indicate it's not clickable */
+  color: var(--color-text-muted); /* Optional: styles the link to look disabled */
+  text-decoration: none; /* Optional: removes the underline */
+  user-select: none;
+}
+
 /* ===== Notice Box ===== */
 .notice {
   display: flex;
