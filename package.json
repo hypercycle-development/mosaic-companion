@@ -60,6 +60,7 @@
     "directories": {
       "output": "release"
     },
+    "artifactName": "Mosaic-Companion-${version}-${arch}.${ext}",
     "files": [
       "dist/**/*",
       "main.js",
