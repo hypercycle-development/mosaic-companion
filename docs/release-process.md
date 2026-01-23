@@ -189,6 +189,7 @@ cd release
 # Linux
 aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
   --include "*.AppImage" \
+  --include "*.deb" \
   --include "latest-linux*.yml"
 
 # macOS
