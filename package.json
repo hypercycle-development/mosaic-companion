@@ -80,8 +80,9 @@
       "identity": "-"
     },
     "linux": {
-      "target": "AppImage",
-      "category": "Utility"
+      "target": ["AppImage", "deb"],
+      "category": "Utility",
+      "maintainer": "hern@hypercycle.ai"
     }
   }
 }
