@@ -120,11 +120,33 @@
               </div>
             </a>
           </div>
+
+          <p style="margin-top: 24px; margin-bottom: 8px;"><strong>Debian / Ubuntu (.deb):</strong></p>
+          <div class="download-grid">
+            <a href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/Mosaic%20Companion_{{VERSION}}_amd64.deb" class="download-btn">
+              <div class="icon">
+                <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+              </div>
+              <div class="info">
+                <div>Mosaic Companion (x64)</div>
+                <div class="arch">For 64-bit Intel/AMD</div>
+              </div>
+            </a>
+            <a href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/Mosaic%20Companion_{{VERSION}}_arm64.deb" class="download-btn">
+              <div class="icon">
+                <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+              </div>
+              <div class="info">
+                <div>Mosaic Companion (ARM64)</div>
+                <div class="arch">For ARM 64-bit (Raspberry Pi 4+, etc.)</div>
+              </div>
+            </a>
+          </div>
         </div>
 
         <div class="card">
-          <h3><span class="step-number">2</span> Make it Executable</h3>
-          <p>After downloading, make the AppImage executable:</p>
+          <h3><span class="step-number">2</span> Make it Executable (AppImage)</h3>
+          <p>If you downloaded the <strong>AppImage</strong>, make it executable:</p>
           <div class="code-block">
             <code>chmod +x ~/Downloads/Mosaic*.AppImage</code>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
@@ -133,14 +155,15 @@
 
         <div class="card">
           <h3><span class="step-number">3</span> Run Mosaic</h3>
-          <p>Double-click the AppImage file, or run from terminal:</p>
+          <p><strong>AppImage:</strong> Double-click the file or run <code>./Mosaic*.AppImage</code></p>
+          <p style="margin-top: 12px;"><strong>Debian/Ubuntu:</strong> Install with right-click → Open with Software Install, or run:</p>
           <div class="code-block">
-            <code>./Mosaic*.AppImage</code>
+            <code>sudo dpkg -i ~/Downloads/Mosaic*.deb</code>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
           <div class="notice">
             <span class="notice-icon">💡</span>
-            <p>On some distros, you may need to install FUSE first: <code>sudo apt install libfuse2</code></p>
+            <p>On some newer distros, you might need FUSE for AppImage: <code>sudo apt install libfuse2</code></p>
           </div>
         </div>
       </section>
