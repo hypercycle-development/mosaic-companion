@@ -47,19 +47,25 @@ if confirm "Upload artifacts to S3?"; then
     cd "$RELEASE_DIR"
     
     # Linux
-    aws s3 cp . "s3://${BUCKET}/${S3_PATH}/" --recursive --exclude "*" \
+    aws s3 cp . "s3://${BUCKET}/${S3_PATH}/" --recursive \
+        --exclude "*" \
+        --exclude "*-unpacked/*" \
         --include "*.AppImage" \
         --include "*.deb" \
         --include "latest-linux*.yml" 2>/dev/null && echo "✓ Linux artifacts uploaded" || true
 
     # macOS
-    aws s3 cp . "s3://${BUCKET}/${S3_PATH}/" --recursive --exclude "*" \
+    aws s3 cp . "s3://${BUCKET}/${S3_PATH}/" --recursive \
+        --exclude "*" \
+        --exclude "*-unpacked/*" \
         --include "*.dmg" \
         --include "*.zip" \
         --include "latest-mac*.yml" 2>/dev/null && echo "✓ macOS artifacts uploaded" || true
 
     # Windows
-    aws s3 cp . "s3://${BUCKET}/${S3_PATH}/" --recursive --exclude "*" \
+    aws s3 cp . "s3://${BUCKET}/${S3_PATH}/" --recursive \
+        --exclude "*" \
+        --exclude "*-unpacked/*" \
         --include "*.exe" \
         --include "latest.yml" 2>/dev/null && echo "✓ Windows artifacts uploaded" || true
     
