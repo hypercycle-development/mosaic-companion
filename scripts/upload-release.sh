@@ -93,12 +93,11 @@ echo "Tag: v${VERSION}"
 TAG_MESSAGE="Release v${VERSION} (${VERSION_TYPE})
 
 Download links:
-- Linux x64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-x86_64.AppImage
-- Linux arm64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-arm64.AppImage
-- Windows x64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-x64.exe
-- Windows arm64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-arm64.exe
-- macOS x64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-x64.dmg
-- macOS arm64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-arm64.dmg"
+- Linux x64: Mosaic-Companion-${VERSION}-x86_64.AppImage
+- Linux arm64: Mosaic-Companion-${VERSION}-arm64.AppImage
+- Windows x64: Mosaic-Companion-${VERSION}-x64.exe
+- macOS x64: Mosaic-Companion-${VERSION}-x64.dmg
+- macOS arm64: Mosaic-Companion-${VERSION}-arm64.dmg"
 
 echo "Message:"
 echo "$TAG_MESSAGE"
