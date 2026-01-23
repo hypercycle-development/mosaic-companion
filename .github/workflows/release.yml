@@ -79,22 +79,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Linux builds (both archs in one command)
           - os: ubuntu-latest
             platform: linux
-            build_cmd: electron-builder --linux
+            build_cmd: electron-builder --linux --x64 --arm64
+          # macOS builds (both archs in one command)
           - os: macos-latest
             platform: mac
-            build_cmd: electron-builder --mac --universal
-          # TODO: Separate ARM64 and x64 builds (having issues with runners)
-          # - os: macos-latest
-          #   platform: mac-arm64
-          #   build_cmd: electron-builder --mac --arm64
-          # - os: macos-15-intel
-          #   platform: mac-x64
-          #   build_cmd: electron-builder --mac --x64
+            build_cmd: electron-builder --mac --x64 --arm64
+          # Windows builds (both archs in one command)
           - os: windows-latest
             platform: win
-            build_cmd: electron-builder --win
+            build_cmd: electron-builder --win --x64 --arm64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -106,6 +102,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
@@ -128,18 +125,21 @@ jobs:
         run: |
           # Upload all release artifacts to S3
           cd release
+          echo "=== Files to upload ==="
+          ls -la
 
           if [ "${{ matrix.platform }}" == "linux" ]; then
             aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
               --include "*.AppImage" \
+              --include "*.deb" \
               --include "latest-linux*.yml"
           elif [ "${{ matrix.platform }}" == "mac" ]; then
             aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
               --include "*.dmg" \
               --include "*.zip" \
-              --include "latest-mac.yml"
-          else
+              --include "latest-mac*.yml"
+          elif [ "${{ matrix.platform }}" == "win" ]; then
             aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
               --include "*.exe" \
-              --include "latest.yml"
+              --include "latest*.yml"
           fi

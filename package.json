@@ -47,6 +47,10 @@
     "appId": "com.mosaic.companion",
     "productName": "Mosaic Companion",
     "asar": true,
+    "asarUnpack": [
+      "node_modules/onnxruntime-node/**",
+      "node_modules/sharp/**"
+    ],
     "directories": {
       "output": "release"
     },
@@ -58,6 +62,7 @@
       "preload.js",
       "gmail-auth.js",
       "gmail-service.js",
+      "utils/**/*",
       "config/**/*",
       "node_modules/**/*",
       "package.json"
@@ -76,8 +81,12 @@
       "identity": "-"
     },
     "linux": {
-      "target": "AppImage",
-      "category": "Utility"
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "maintainer": "hern@hypercycle.ai"
     }
   }
 }
