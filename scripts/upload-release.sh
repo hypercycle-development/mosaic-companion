@@ -92,7 +92,7 @@ echo "Tag: v${VERSION}"
 
 TAG_MESSAGE="Release v${VERSION} (${VERSION_TYPE})
 
-Download links:
+Version names:
 - Linux x64: Mosaic-Companion-${VERSION}-x86_64.AppImage
 - Linux arm64: Mosaic-Companion-${VERSION}-arm64.AppImage
 - Windows x64: Mosaic-Companion-${VERSION}-x64.exe
