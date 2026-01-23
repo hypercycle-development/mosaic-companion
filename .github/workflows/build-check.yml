@@ -1,0 +1,104 @@
+name: Build Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-check:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux builds (both archs in one command)
+          - os: ubuntu-latest
+            platform: linux
+            build_cmd: electron-builder --linux --x64 --arm64
+          # macOS builds (both archs in one command)
+          - os: macos-latest
+            platform: mac
+            build_cmd: electron-builder --mac --x64 --arm64
+          # Windows builds (both archs in one command)
+          - os: windows-latest
+            platform: win
+            build_cmd: electron-builder --win --x64 --arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Build Electron (${{ matrix.platform }})
+        run: npx ${{ matrix.build_cmd }}
+
+        # TODO: Improve tests (add mac and windows tests)
+      - name: Smoke test (Linux x64 only)
+        if: matrix.platform == 'linux'
+        run: |
+          echo "=== Running smoke test on x64 AppImage ==="
+          # Find the x64 AppImage (not arm64)
+          APPIMAGE=$(ls release/*x86_64*.AppImage 2>/dev/null | head -1)
+          if [ -z "$APPIMAGE" ]; then
+            echo "No x64 AppImage found, skipping smoke test"
+            exit 0
+          fi
+          chmod +x "$APPIMAGE"
+          # Run with virtual display, timeout after 15 seconds
+          # If app crashes on startup, this will fail
+          timeout 15 xvfb-run --auto-servernum "$APPIMAGE" --no-sandbox &
+          APP_PID=$!
+          sleep 10
+          # Check if process is still running (good sign)
+          if kill -0 $APP_PID 2>/dev/null; then
+            echo "✓ App started successfully and is running"
+            kill $APP_PID 2>/dev/null || true
+          else
+            echo "✗ App process exited early - checking if it crashed"
+            wait $APP_PID || EXIT_CODE=$?
+            if [ "${EXIT_CODE:-0}" -ne 0 ]; then
+              echo "App exited with code $EXIT_CODE"
+              exit 1
+            fi
+          fi
+
+      - name: Verify build artifacts exist
+        shell: bash
+        run: |
+          echo "=== All release files ==="
+          ls -la release/
+          echo ""
+          echo "=== YAML update files ==="
+          ls -la release/*.yml 2>/dev/null || echo "No YAML files found"
+          echo ""
+
+          if [ "${{ matrix.platform }}" == "linux" ]; then
+            ls release/*.AppImage && echo "✓ AppImages found"
+            echo ""
+            echo "=== latest-linux.yml contents ==="
+            cat release/latest-linux.yml
+          elif [ "${{ matrix.platform }}" == "mac" ]; then
+            ls release/*.dmg && echo "✓ DMG found"
+            echo ""
+            echo "=== latest-mac.yml contents ==="
+            cat release/latest-mac.yml
+          elif [ "${{ matrix.platform }}" == "win" ]; then
+            ls release/*.exe && echo "✓ EXE found"
+            echo ""
+            echo "=== latest.yml contents ==="
+            cat release/latest.yml
+          fi

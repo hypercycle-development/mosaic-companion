@@ -1,7 +1,7 @@
 /**
  * Settings Module
  * Handles all app settings persistence to file (nodes, preferences, etc.)
- * Stored in path: ~/.config/mosaic-browser/app-settings.json
+ * Stored in path: ~/.config/mosaic-companion/app-settings.json
  */
 
 import { app } from "electron";
@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
     args: [],
     healthPath: "/health"
   },
+  gmailAutoMarkRead: false, // Auto-mark emails as read when viewed
 };
 
 // Current settings (loaded from file or defaults)
@@ -144,6 +145,28 @@ export function setScreenpipeSettings(partial) {
     return { ...saveResult, screenpipe: getScreenpipeSettings() };
   }
   return { success: false, error: "Invalid screenpipe settings" };
+}
+
+// =============================================================================
+// Gmail Settings
+// =============================================================================
+
+/**
+ * Get Gmail auto-mark-as-read setting.
+ * @returns {boolean}
+ */
+export function getGmailAutoMarkRead() {
+  return settings.gmailAutoMarkRead || false;
+}
+
+/**
+ * Set Gmail auto-mark-as-read setting.
+ * @param {boolean} value
+ * @returns {{ success: boolean, error?: string }}
+ */
+export function setGmailAutoMarkRead(value) {
+  settings.gmailAutoMarkRead = !!value;
+  return saveSettings();
 }
 
 // =============================================================================

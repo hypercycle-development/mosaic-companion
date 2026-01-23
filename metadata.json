@@ -1,5 +1,5 @@
 {
-  "name": "Mosaic Browser",
+  "name": "Mosaic Companion",
   "description": "A browser-like application interface with a customizable landing page, expandable sidebar, and iframe-based browsing capabilities.",
   "requestFramePermissions": []
 }
