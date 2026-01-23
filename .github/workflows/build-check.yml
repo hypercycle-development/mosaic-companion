@@ -46,6 +46,7 @@ jobs:
       - name: Build Electron (${{ matrix.platform }})
         run: npx ${{ matrix.build_cmd }}
 
+        # TODO: Improve tests (add mac and windows tests)
       - name: Smoke test (Linux x64 only)
         if: matrix.platform == 'linux'
         run: |
