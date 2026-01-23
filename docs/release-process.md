@@ -20,10 +20,14 @@ This document describes how to build and publish releases for Mosaic Companion.
 export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
 
-# Build and publish for each platform
-bun run build:win -- --publish always
-bun run build:mac -- --publish always
-bun run build:linux -- --publish always
+# Build and publish for each platform (both x64 and arm64)
+npm run build:win -- --publish always
+npm run build:mac -- --publish always
+npm run build:linux -- --publish always
+
+# Or build specific architectures only
+npm run build:linux:x64 -- --publish always
+npm run build:linux:arm64 -- --publish always
 ```
 
 ### Step-by-Step Process
@@ -69,14 +73,18 @@ set AWS_SECRET_ACCESS_KEY=...
 Run the build command with `--publish always` flag:
 
 ```bash
-# Windows
-bun run build:win -- --publish always
+# Windows (both x64 and arm64)
+npm run build:win -- --publish always
 
-# macOS
-bun run build:mac -- --publish always
+# macOS (both x64 and arm64)
+npm run build:mac -- --publish always
 
-# Linux
-bun run build:linux -- --publish always
+# Linux (both x64 and arm64)
+npm run build:linux -- --publish always
+
+# Or build specific architectures:
+npm run build:linux:x64 -- --publish always   # Linux x64 only
+npm run build:mac:arm64 -- --publish always   # macOS arm64 only
 ```
 
 This will:
@@ -140,7 +148,7 @@ For automated releases, set AWS credentials as secrets in your CI/CD system:
   env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  run: bun run build:linux -- --publish always
+  run: npm run build:linux -- --publish always
 ```
 
 ### GitLab CI Example
@@ -148,7 +156,7 @@ For automated releases, set AWS credentials as secrets in your CI/CD system:
 ```yaml
 release:
     script:
-        - bun run build:linux -- --publish always
+        - npm run build:linux -- --publish always
     variables:
         AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
         AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
