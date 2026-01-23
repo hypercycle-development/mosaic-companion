@@ -153,6 +153,20 @@ jobs:
               --include "*.AppImage" \
               --include "*.deb" \
               --include "latest-linux*.yml"
+            
+            # Upload static page only once (during linux build)
+            cd ..
+            echo "Updating static installation page..."
+            mkdir -p tmp_static
+            
+            # Get version from package.json since we are in the root now
+            VERSION=$(node -p "require('./package.json').version")
+            
+            sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
+            aws s3 cp tmp_static/index.html s3://mosaic-release/index.html --content-type "text/html"
+            aws s3 cp static/install-page/style.css s3://mosaic-release/style.css --content-type "text/css"
+            rm -rf tmp_static
+            
           elif [ "${{ matrix.platform }}" == "mac" ]; then
             aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
               --include "*.dmg" \
