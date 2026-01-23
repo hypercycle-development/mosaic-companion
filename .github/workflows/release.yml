@@ -71,6 +71,11 @@ jobs:
           git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
           git push
 
+      - name: Create release tag
+        run: |
+          git tag "v${{ steps.bump.outputs.new_version }}"
+          git push origin "v${{ steps.bump.outputs.new_version }}"
+
   # Build for all platforms
   build:
     needs: [check-deploy, bump-version]
