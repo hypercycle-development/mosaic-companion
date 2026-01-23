@@ -62,6 +62,7 @@
       "preload.js",
       "gmail-auth.js",
       "gmail-service.js",
+      "utils/**/*",
       "config/**/*",
       "node_modules/**/*",
       "package.json"
@@ -80,7 +81,10 @@
       "identity": "-"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Utility",
       "maintainer": "hern@hypercycle.ai"
     }
