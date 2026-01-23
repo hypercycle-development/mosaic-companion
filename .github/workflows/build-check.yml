@@ -46,6 +46,35 @@ jobs:
       - name: Build Electron (${{ matrix.platform }})
         run: npx ${{ matrix.build_cmd }}
 
+      - name: Smoke test (Linux x64 only)
+        if: matrix.platform == 'linux'
+        run: |
+          echo "=== Running smoke test on x64 AppImage ==="
+          # Find the x64 AppImage (not arm64)
+          APPIMAGE=$(ls release/*x86_64*.AppImage 2>/dev/null | head -1)
+          if [ -z "$APPIMAGE" ]; then
+            echo "No x64 AppImage found, skipping smoke test"
+            exit 0
+          fi
+          chmod +x "$APPIMAGE"
+          # Run with virtual display, timeout after 15 seconds
+          # If app crashes on startup, this will fail
+          timeout 15 xvfb-run --auto-servernum "$APPIMAGE" --no-sandbox &
+          APP_PID=$!
+          sleep 10
+          # Check if process is still running (good sign)
+          if kill -0 $APP_PID 2>/dev/null; then
+            echo "✓ App started successfully and is running"
+            kill $APP_PID 2>/dev/null || true
+          else
+            echo "✗ App process exited early - checking if it crashed"
+            wait $APP_PID || EXIT_CODE=$?
+            if [ "${EXIT_CODE:-0}" -ne 0 ]; then
+              echo "App exited with code $EXIT_CODE"
+              exit 1
+            fi
+          fi
+
       - name: Verify build artifacts exist
         shell: bash
         run: |
