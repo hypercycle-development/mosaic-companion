@@ -48,6 +48,8 @@ Use semantic versioning:
 -   **MINOR** (0.x.0): New features, backwards compatible
 -   **PATCH** (0.0.x): Bug fixes
 
+> 💡 **Note:** When a release is triggered via CI/CD, a git tag (e.g., `v0.0.31`) is automatically created to track exactly which commit was shipped.
+
 #### 2. Set AWS Credentials
 
 Set the environment variables for S3 access:
