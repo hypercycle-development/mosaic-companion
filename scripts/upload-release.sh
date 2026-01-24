@@ -94,11 +94,15 @@ echo "Tag: v${VERSION}"
 TAG_MESSAGE="Release v${VERSION} (${VERSION_TYPE})
 
 Download links:
+- Linux x64 (AppImage): ${BUCKET_URL}/linux/x64/mosaic-companion-${VERSION}-x64.AppImage
 - Linux x64 (deb): ${BUCKET_URL}/linux/x64/mosaic-companion_${VERSION}_amd64.deb
+- Linux x64 (zip): ${BUCKET_URL}/linux/x64/mosaic-companion-linux-x64-${VERSION}.zip
+- Linux arm64 (AppImage): ${BUCKET_URL}/linux/arm64/mosaic-companion-${VERSION}-arm64.AppImage
 - Linux arm64 (deb): ${BUCKET_URL}/linux/arm64/mosaic-companion_${VERSION}_arm64.deb
-- Windows x64: ${BUCKET_URL}/win32/x64/MosaicCompanion-${VERSION}-Setup.exe
-- macOS x64: ${BUCKET_URL}/darwin/x64/Mosaic Companion-${VERSION}-x64.dmg
-- macOS arm64: ${BUCKET_URL}/darwin/arm64/Mosaic Companion-${VERSION}-arm64.dmg"
+- Linux arm64 (zip): ${BUCKET_URL}/linux/arm64/mosaic-companion-linux-arm64-${VERSION}.zip
+- Windows x64: ${BUCKET_URL}/win32/x64/mosaic-companion-${VERSION}-Setup.exe
+- macOS x64: ${BUCKET_URL}/darwin/x64/mosaic-companion-${VERSION}-x64.dmg
+- macOS arm64: ${BUCKET_URL}/darwin/arm64/mosaic-companion-${VERSION}-arm64.dmg"
 
 echo "Message:"
 echo "$TAG_MESSAGE"
