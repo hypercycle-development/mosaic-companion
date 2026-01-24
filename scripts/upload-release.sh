@@ -96,15 +96,9 @@ if confirm "Upload artifacts to S3?"; then
     # Update index.html
     sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
     
-    # Generate latest.json for Linux update check
+    # Generate latest.json from template
     RELEASE_DATE=$(date -u +%Y-%m-%d)
-    cat > tmp_static/latest.json <<EOF
-{
-  "version": "${VERSION}",
-  "releaseDate": "${RELEASE_DATE}",
-  "downloadUrl": "https://mosaic-release.s3.us-east-2.amazonaws.com/index.html"
-}
-EOF
+    sed -e "s/{{VERSION}}/${VERSION}/g" -e "s/{{RELEASE_DATE}}/${RELEASE_DATE}/g" static/install-page/latest.template.json > tmp_static/latest.json
 
     aws s3 cp tmp_static/index.html "s3://${BUCKET}/index.html" --content-type "text/html"
     aws s3 cp static/install-page/style.css "s3://${BUCKET}/style.css" --content-type "text/css"
