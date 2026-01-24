@@ -1,4 +1,4 @@
-import 'dotenv/config'; 
+import 'dotenv/config';
 
 export default {
   packagerConfig: {
@@ -26,7 +26,8 @@ export default {
       /\.sh$/,
       /tsconfig\.json$/,
       /vite\.config\.ts$/,
-      /forge\.config\.js$/
+      /forge\.config\.js$/,
+      /package-lock\.json$/
     ],
     // macOS specific - use ad-hoc signing for now
     osxSign: {
