@@ -163,16 +163,21 @@ app.whenReady().then(() => {
   // Initialize updater with settings and check for updates on startup (skip in development)
   if (app.isPackaged) {
     initUpdater();
-    checkForUpdates();
+    
+    // FIX: Delay the check by 2 seconds so the app UI loads first
+    setTimeout(() => {
+      console.log("Starting update check...");
+      checkForUpdates();
+    }, 2000);
   }
 
-  // Pre-initialize Gmail OAuth to load tokens early (so chat can access emails immediately)
+  // Pre-initialize Gmail OAuth to load tokens early
   try {
     if (isAuthenticated()) {
       console.log("Gmail: Already authenticated, tokens loaded");
     }
   } catch (e) {
-    // Ignore - credentials may not be set up yet
+    // Ignore
   }
 });
 
