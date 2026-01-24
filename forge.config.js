@@ -27,7 +27,8 @@ export default {
       /tsconfig\.json$/,
       /vite\.config\.ts$/,
       /forge\.config\.js$/,
-      /package-lock\.json$/
+      /package-lock\.json/,
+      /\.antigravityignore/
     ],
     // macOS specific - use ad-hoc signing for now
     osxSign: {
