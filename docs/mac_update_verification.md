@@ -34,7 +34,7 @@ To test updates, you verify strict behavior: "Older Version -> Newer Version".
 ### 2. Run the Application
 1.  Launch the packaged application (from `out/make/...`).
 2.  Open the Console app on macOS (Applications > Utilities > Console) and filter for "Mosaic".
-    *   Alternatively, check the local log file: `~/Library/Application Support/Mosaic Companion/update.log`.
+    *   Alternatively, check the local log file: `~/Library/Application Support/mosaic-companion/update.log`.
 3.  Observe the logs.
 
 ### 3. Check for Updates

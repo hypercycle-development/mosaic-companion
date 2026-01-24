@@ -78,7 +78,7 @@ out/make/
 ├── zip/
 │   └── linux/
 │       └── x64/
-│           └── Mosaic Companion-linux-x64-1.2.3.zip
+│           └── mosaic-companion-linux-x64-1.2.3.zip
 ├── squirrel.windows/
 │   └── x64/
 │       └── MosaicCompanion-1.2.3-Setup.exe
@@ -94,13 +94,13 @@ s3://mosaic-release/releases/
 ├── linux/
 │   ├── x64/
 │   │   ├── mosaic-companion_1.2.3_amd64.deb
-│   │   └── Mosaic Companion-linux-x64-1.2.3.zip
+│   │   └── mosaic-companion-linux-x64-1.2.3.zip
 │   └── arm64/
 │       └── ...
 ├── darwin/
 │   ├── x64/
-│   │   ├── Mosaic Companion-1.2.3-x64.dmg
-│   │   └── Mosaic Companion-darwin-x64-1.2.3.zip
+│   │   ├── mosaic-companion-1.2.3-x64.dmg
+│   │   └── mosaic-companion-darwin-x64-1.2.3.zip
 │   └── arm64/
 │       └── ...
 └── win32/
