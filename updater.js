@@ -108,15 +108,23 @@ autoUpdater.logger = {
     debug: (...args) => log('DEBUG', '[electron-updater]', ...args)
 };
 
-// Configure S3 provider
+// NOTE: Linux auto-updates are not supported by Squirrel (used by Electron Forge)
+// On Linux, we'll just notify users about new versions
+const isLinux = os.platform() === 'linux';
+
+// Configure S3 provider with Electron Forge folder structure
+// Electron Forge publishes to: releases/{platform}/{arch}/{filename}
 log('INFO', 'Configuring S3 provider for updates');
+const platform = os.platform(); // 'darwin', 'win32', 'linux'
+const arch = os.arch(); // 'x64', 'arm64'
+
 autoUpdater.setFeedURL({
     provider: 's3',
     bucket: 'mosaic-release',
     region: 'us-east-2',
-    path: '/releases'
+    path: `/releases/${platform}/${arch}`
 });
-log('INFO', 'S3 feed URL configured: bucket=mosaic-release, region=us-east-2');
+log('INFO', `S3 feed URL configured: bucket=mosaic-release, path=/releases/${platform}/${arch}`);
 
 /**
  * Initialize updater with settings.

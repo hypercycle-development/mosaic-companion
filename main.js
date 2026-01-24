@@ -1,4 +1,19 @@
 // main.js - Complete version with AI agents storage data
+
+// Handle Squirrel.Windows startup events (MUST be first!)
+// This handles install, update, and uninstall events on Windows
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+if (process.platform === 'win32') {
+  try {
+    if (require('electron-squirrel-startup')) {
+      process.exit(0);
+    }
+  } catch (e) {
+    // electron-squirrel-startup not available (dev mode or non-Windows)
+  }
+}
+
 import { app, BrowserWindow, ipcMain } from "electron";
 import os from "os";
 import path from "path";
