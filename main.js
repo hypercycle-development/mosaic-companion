@@ -94,11 +94,20 @@ function createWindow(urlToLoad = null) {
   });
 
   // Load specified URL or default to index.html
+  const indexPath = path.join(__dirname, "dist", "index.html");
+  console.log("Loading index from:", indexPath);
+  console.log("File exists?", fs.existsSync(indexPath));
+  
   if (urlToLoad) {
     win.loadURL(urlToLoad);
   } else {
-    win.loadFile(path.join(__dirname, "dist", "index.html"));
+    win.loadFile(indexPath);
   }
+
+  // Debug: Log if load fails
+  win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error(`Failed to load ${validatedURL}: ${errorCode} (${errorDescription})`);
+  });
 
   mainWindow = win;
   return win;
