@@ -14,6 +14,21 @@ if (process.platform === 'win32') {
   }
 }
 
+// Single instance lock - prevents multiple instances from running
+// This is important to avoid freezing or conflicts on Windows
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  // Focus existing window if a second instance is started
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
 import { app, BrowserWindow, ipcMain } from "electron";
 import os from "os";
 import path from "path";
