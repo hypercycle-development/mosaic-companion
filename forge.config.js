@@ -74,7 +74,17 @@ export default {
         }
       }
     },
-    // Linux - ZIP as fallback (always works)
+    // Linux - AppImage (universal, portable)
+    {
+      name: '@reforged/maker-appimage',
+      platforms: ['linux'],
+      config: {
+        options: {
+          categories: ['Utility']
+        }
+      }
+    },
+    // Linux - ZIP as fallback
     {
       name: '@electron-forge/maker-zip',
       platforms: ['linux']
@@ -87,7 +97,7 @@ export default {
       config: {
         bucket: 'mosaic-release',
         region: 'us-east-2',
-        public: true,
+        // Note: bucket uses bucket policy for public access, not object ACLs
         // Custom key resolver to organize by platform/arch
         keyResolver: (fileName, platform, arch) => {
           return `releases/${platform}/${arch}/${fileName}`;
