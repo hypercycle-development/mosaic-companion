@@ -25,6 +25,7 @@ git push
 ```
 
 This will automatically:
+
 1. Bump the version
 2. Build for all platforms and architectures
 3. Upload to S3
@@ -69,7 +70,7 @@ npm run make:win:arm64
 
 Electron Forge outputs to `out/make/` (not `release/`):
 
-```
+```bash
 out/make/
 ├── deb/
 │   └── x64/
@@ -88,7 +89,7 @@ out/make/
 
 Electron Forge publishes to organized folders:
 
-```
+```bash
 s3://mosaic-release/releases/
 ├── linux/
 │   ├── x64/
@@ -121,9 +122,9 @@ Before building a new release, update the version in `package.json`:
 
 Use semantic versioning:
 
--   **MAJOR** (x.0.0): Breaking changes
--   **MINOR** (0.x.0): New features, backwards compatible
--   **PATCH** (0.0.x): Bug fixes
+- **MAJOR** (x.0.0): Breaking changes
+- **MINOR** (0.x.0): New features, backwards compatible
+- **PATCH** (0.0.x): Bug fixes
 
 > 💡 **Note:** When a release is triggered via CI/CD with `[DEPLOY]`, the version is bumped automatically and a git tag is created.
 
@@ -131,13 +132,13 @@ Use semantic versioning:
 
 ### "Access Denied" Error
 
--   Check that your IAM user has `s3:PutObject` permission
--   Verify AWS credentials are set correctly
+- Check that your IAM user has `s3:PutObject` permission
+- Verify AWS credentials are set correctly
 
 ### Cross-Compilation Limitations
 
 | Building On | Linux | Windows | macOS |
-|-------------|-------|---------|-------|
+| ------------- | ------- | --------- | ------- |
 | **Linux** | ✅ Yes | ⚠️ Wine+Mono | ❌ No |
 | **macOS** | ✅ Yes | ⚠️ Wine+Mono | ✅ Yes |
 | **Windows** | ❌ No | ✅ Yes | ❌ No |
@@ -146,9 +147,9 @@ Use semantic versioning:
 
 ### Update Not Detected by App
 
--   Confirm files were uploaded to the correct S3 path
--   Check that the version in `package.json` is higher than the installed version
--   Verify the app can reach the S3 bucket (check network/firewall)
+- Confirm files were uploaded to the correct S3 path
+- Check that the version in `package.json` is higher than the installed version
+- Verify the app can reach the S3 bucket (check network/firewall)
 
 ## CI/CD Integration
 
@@ -159,5 +160,6 @@ GitHub Actions is configured in `.github/workflows/release.yml`. It uses a matri
 - Windows x64, Windows arm64
 
 Secrets required:
+
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
