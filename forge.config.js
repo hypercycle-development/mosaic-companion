@@ -1,4 +1,4 @@
-// Electron Forge configuration (ES Module format)
+import 'dotenv/config'; 
 
 export default {
   packagerConfig: {
@@ -99,6 +99,8 @@ export default {
         region: 'us-east-2',
         // Note: bucket uses bucket policy for public access, not object ACLs
         // Custom key resolver to organize by platform/arch
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
         keyResolver: (fileName, platform, arch) => {
           return `releases/${platform}/${arch}/${fileName}`;
         }
