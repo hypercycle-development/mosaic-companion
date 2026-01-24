@@ -42,51 +42,16 @@ confirm() {
 
 # Step 1: Upload to S3
 echo "=== Step 1: Upload to S3 ==="
-echo "Target: s3://${BUCKET}/${S3_PATH}/"
-if confirm "Upload artifacts to S3?"; then
+if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
     
-    # Linux deb
-    if [ -d "$BUILD_DIR/deb" ]; then
-        echo "Uploading Linux deb packages..."
-        for arch_dir in "$BUILD_DIR/deb"/*; do
-            arch=$(basename "$arch_dir")
-            aws s3 cp "$arch_dir/" "s3://${BUCKET}/${S3_PATH}/linux/${arch}/" --recursive \
-                --exclude "*" --include "*.deb" 2>/dev/null && echo "✓ Linux/${arch} deb uploaded" || true
-        done
-    fi
-
-    # Linux/Darwin zip
-    if [ -d "$BUILD_DIR/zip" ]; then
-        echo "Uploading zip packages..."
-        for platform_dir in "$BUILD_DIR/zip"/*; do
-            platform=$(basename "$platform_dir")
-            for arch_dir in "$platform_dir"/*; do
-                arch=$(basename "$arch_dir")
-                aws s3 cp "$arch_dir/" "s3://${BUCKET}/${S3_PATH}/${platform}/${arch}/" --recursive \
-                    --exclude "*" --include "*.zip" 2>/dev/null && echo "✓ ${platform}/${arch} zip uploaded" || true
-            done
-        done
-    fi
-
-    # Windows (Squirrel)
-    if [ -d "$BUILD_DIR/squirrel.windows" ]; then
-        echo "Uploading Windows installers..."
-        for arch_dir in "$BUILD_DIR/squirrel.windows"/*; do
-            arch=$(basename "$arch_dir")
-            aws s3 cp "$arch_dir/" "s3://${BUCKET}/${S3_PATH}/win32/${arch}/" --recursive \
-                --exclude "*" --include "*.exe" --include "*.nupkg" --include "RELEASES" \
-                2>/dev/null && echo "✓ Windows/${arch} uploaded" || true
-        done
-    fi
-
-    # macOS DMG
-    if ls "$BUILD_DIR"/*.dmg 1>/dev/null 2>&1; then
-        echo "Uploading macOS DMG..."
-        # DMGs are at the root of out/make for Forge
-        aws s3 cp "$BUILD_DIR/" "s3://${BUCKET}/${S3_PATH}/darwin/x64/" --recursive \
-            --exclude "*" --include "*.dmg" 2>/dev/null && echo "✓ macOS DMG uploaded" || true
-    fi
-
+    # Detect architecture for local publish
+    ARCH=$(node -p "os.arch()")
+    echo "Publishing for current architecture: ${ARCH}..."
+    
+    # Use the renamed deploy script
+    npm run deploy -- --arch "$ARCH"
+    
+    echo "✓ Binaries build and uploaded via Electron Forge (S3 Publisher)"
     echo ""
 
     # Update and upload index.html and latest.json
@@ -96,15 +61,9 @@ if confirm "Upload artifacts to S3?"; then
     # Update index.html
     sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
     
-    # Generate latest.json for Linux update check
+    # Generate latest.json from template
     RELEASE_DATE=$(date -u +%Y-%m-%d)
-    cat > tmp_static/latest.json <<EOF
-{
-  "version": "${VERSION}",
-  "releaseDate": "${RELEASE_DATE}",
-  "downloadUrl": "https://mosaic-release.s3.us-east-2.amazonaws.com/index.html"
-}
-EOF
+    sed -e "s/{{VERSION}}/${VERSION}/g" -e "s/{{RELEASE_DATE}}/${RELEASE_DATE}/g" static/install-page/latest.template.json > tmp_static/latest.json
 
     aws s3 cp tmp_static/index.html "s3://${BUCKET}/index.html" --content-type "text/html"
     aws s3 cp static/install-page/style.css "s3://${BUCKET}/style.css" --content-type "text/css"

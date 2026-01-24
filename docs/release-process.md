@@ -39,11 +39,11 @@ export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
 
 # Build and publish for current platform
-npm run publish
+npm run deploy
 
 # Or build specific architectures
-npm run publish:x64
-npm run publish:arm64
+npm run deploy:x64
+npm run deploy:arm64
 ```
 
 ### Build Without Publishing
