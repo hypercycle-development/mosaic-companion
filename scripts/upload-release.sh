@@ -54,23 +54,33 @@ if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
     echo "✓ Binaries build and uploaded via Electron Forge (S3 Publisher)"
     echo ""
 
-    # Update and upload index.html and latest.json
-    echo "Updating static installation page and version info..."
-    mkdir -p tmp_static
-    
-    # Update index.html
-    sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
-    
-    # Generate latest.json from template
-    RELEASE_DATE=$(date -u +%Y-%m-%d)
-    sed -e "s/{{VERSION}}/${VERSION}/g" -e "s/{{RELEASE_DATE}}/${RELEASE_DATE}/g" static/install-page/latest.template.json > tmp_static/latest.json
+    # Detect platform
+    PLATFORM=$(node -p "require('os').platform()")
 
+    # Update and upload index.html (Default behavior)
+    # TODO: Add granular behavior for specific platforms runs (e.g. only update certain links)
+    echo "Updating static installation page..."
+    mkdir -p tmp_static
+    sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
     aws s3 cp tmp_static/index.html "s3://${BUCKET}/index.html" --content-type "text/html"
     aws s3 cp static/install-page/style.css "s3://${BUCKET}/style.css" --content-type "text/css"
-    aws s3 cp tmp_static/latest.json "s3://${BUCKET}/latest.json" --content-type "application/json"
-    
     rm -rf tmp_static
-    echo "✓ Static page and latest.json uploaded"
+    echo "✓ Static page uploaded"
+
+    # Update and upload latest.json (Linux only or confirmation)
+    if [ "$PLATFORM" == "linux" ]; then
+        if confirm "Linux build detected. Update Latest Version Metadata (latest.json)?"; then
+            echo "Updating version metadata for linux..."
+            mkdir -p tmp_static
+            RELEASE_DATE=$(date -u +%Y-%m-%d)
+            sed -e "s/{{VERSION}}/${VERSION}/g" -e "s/{{RELEASE_DATE}}/${RELEASE_DATE}/g" static/install-page/latest.template.json > tmp_static/latest.json
+            aws s3 cp tmp_static/latest.json "s3://${BUCKET}/latest.json" --content-type "application/json"
+            rm -rf tmp_static
+            echo "✓ latest.json uploaded"
+        fi
+    else
+        echo "Non-Linux platform ($PLATFORM) detected. Skipping latest.json update by default."
+    fi
     echo ""
 else
     echo "Skipped S3 upload."
