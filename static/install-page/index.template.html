@@ -67,7 +67,7 @@
             <p>Choose the correct version for your Mac's processor:</p>
             <div class="download-grid">
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/darwin/x64/Mosaic%20Companion-{{VERSION}}-x64.dmg"
+                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/darwin/x64/mosaic-companion-{{VERSION}}-x64.dmg"
                 class="download-btn"
               >
                 <div class="icon">
@@ -81,7 +81,7 @@
                 </div>
               </a>
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/darwin/arm64/Mosaic%20Companion-{{VERSION}}-arm64.dmg"
+                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/darwin/arm64/mosaic-companion-{{VERSION}}-arm64.dmg"
                 class="download-btn"
               >
                 <div class="icon">
@@ -153,7 +153,7 @@
             </p>
             <div class="download-grid">
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/x64/Mosaic%20Companion-{{VERSION}}-x64.AppImage"
+                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/x64/mosaic-companion-{{VERSION}}-x64.AppImage"
                 class="download-btn"
               >
                 <div class="icon">
@@ -167,7 +167,7 @@
                 </div>
               </a>
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/arm64/Mosaic%20Companion-{{VERSION}}-arm64.AppImage"
+                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/arm64/mosaic-companion-{{VERSION}}-arm64.AppImage"
                 class="download-btn"
               >
                 <div class="icon">
@@ -215,6 +215,40 @@
                 </div>
               </a>
             </div>
+
+            <p style="margin-top: 24px; margin-bottom: 8px">
+              <strong>Portable ZIP (.zip):</strong>
+            </p>
+            <div class="download-grid">
+              <a
+                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/x64/mosaic-companion-linux-x64-{{VERSION}}.zip"
+                class="download-btn"
+              >
+                <div class="icon">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                  </svg>
+                </div>
+                <div class="info">
+                  <div>Mosaic Companion (x64)</div>
+                  <div class="arch">For 64-bit Intel/AMD</div>
+                </div>
+              </a>
+              <a
+                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/arm64/mosaic-companion-linux-arm64-{{VERSION}}.zip"
+                class="download-btn"
+              >
+                <div class="icon">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                  </svg>
+                </div>
+                <div class="info">
+                  <div>Mosaic Companion (ARM64)</div>
+                  <div class="arch">For ARM 64-bit</div>
+                </div>
+              </a>
+            </div>
           </div>
 
           <div class="card">
@@ -222,8 +256,8 @@
             <p><strong>AppImage:</strong> Make it executable and run:</p>
             <div class="code-block">
               <code
-                >chmod +x ~/Downloads/Mosaic*.AppImage &&
-                ~/Downloads/Mosaic*.AppImage</code
+                >chmod +x ~/Downloads/mosaic-companion*.AppImage &&
+                ~/Downloads/mosaic-companion*.AppImage</code
               >
               <button class="copy-btn" onclick="copyCode(this)">Copy</button>
             </div>
@@ -232,6 +266,16 @@
             </p>
             <div class="code-block">
               <code>sudo dpkg -i ~/Downloads/mosaic-companion*.deb</code>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <p style="margin-top: 16px">
+              <strong>ZIP:</strong> Extract and run:
+            </p>
+            <div class="code-block">
+              <code
+                >unzip ~/Downloads/mosaic-companion-linux*.zip -d ~/MosaicCompanion &&
+                ~/MosaicCompanion/mosaic-companion</code
+              >
               <button class="copy-btn" onclick="copyCode(this)">Copy</button>
             </div>
             <div class="notice">
@@ -265,7 +309,7 @@
             <p>Choose the correct version for your system:</p>
             <div class="download-grid">
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/x64/MosaicCompanion-{{VERSION}}-Setup.exe"
+                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/x64/mosaic-companion-{{VERSION}}-Setup.exe"
                 class="download-btn"
               >
                 <div class="icon">
@@ -279,7 +323,7 @@
                 </div>
               </a>
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/arm64/MosaicCompanion-{{VERSION}}-Setup.exe"
+                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/arm64/mosaic-companion-{{VERSION}}-Setup.exe"
                 class="download-btn"
               >
                 <div class="icon">
