@@ -81,17 +81,17 @@ jobs:
           TAG_MESSAGE="Release v${VERSION} (${VERSION_TYPE})
 
           Download links:
-          - Linux x64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-x86_64.AppImage
-          - Linux arm64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-arm64.AppImage
-          - Windows x64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-x64.exe
-          - Windows arm64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-arm64.exe
-          - macOS x64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-x64.dmg
-          - macOS arm64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-arm64.dmg"
+          - Linux x64 (deb): ${BUCKET_URL}/linux/x64/mosaic-companion_${VERSION}_amd64.deb
+          - Linux arm64 (deb): ${BUCKET_URL}/linux/arm64/mosaic-companion_${VERSION}_arm64.deb
+          - Windows x64: ${BUCKET_URL}/win32/x64/MosaicCompanion-${VERSION}-Setup.exe
+          - Windows arm64: ${BUCKET_URL}/win32/arm64/MosaicCompanion-${VERSION}-Setup.exe
+          - macOS x64: ${BUCKET_URL}/darwin/x64/Mosaic Companion-${VERSION}-x64.dmg
+          - macOS arm64: ${BUCKET_URL}/darwin/arm64/Mosaic Companion-${VERSION}-arm64.dmg"
 
           git tag -a "v${VERSION}" -m "$TAG_MESSAGE"
           git push origin "v${VERSION}"
 
-  # Build for all platforms
+  # Build for all platforms using Electron Forge
   build:
     needs: [check-deploy, bump-version]
     if: needs.check-deploy.outputs.should_deploy == 'true'
@@ -99,19 +99,32 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux builds (both archs in one command)
+          # Linux x64
           - os: ubuntu-latest
             platform: linux
-            build_cmd: electron-builder --linux --x64 --arm64
-          # macOS builds (both archs in one command)
+            arch: x64
+          # Linux arm64 (cross-compile)
+          - os: ubuntu-latest
+            platform: linux
+            arch: arm64
+          # macOS x64
           - os: macos-latest
-            platform: mac
-            build_cmd: electron-builder --mac --x64 --arm64
-          # Windows builds (both archs in one command)
+            platform: darwin
+            arch: x64
+          # macOS arm64
+          - os: macos-latest
+            platform: darwin
+            arch: arm64
+          # Windows x64
           - os: windows-latest
-            platform: win
-            build_cmd: electron-builder --win --x64 --arm64
+            platform: win32
+            arch: x64
+          # Windows arm64 (cross-compile)
+          - os: windows-latest
+            platform: win32
+            arch: arm64
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -127,11 +140,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build app
-        run: npm run build
-
-      - name: Build Electron (${{ matrix.platform }})
-        run: npx ${{ matrix.build_cmd }}
+      # Linux-specific: Install build dependencies for deb maker
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -140,40 +152,25 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-2
 
-      - name: Upload to S3
-        shell: bash
-        run: |
-          # Upload all release artifacts to S3
-          cd release
-          echo "=== Files to upload ==="
-          ls -la
+      # Make and publish using Electron Forge with specific arch
+      - name: Make and Publish (${{ matrix.platform }}/${{ matrix.arch }})
+        run: npm run publish -- --arch ${{ matrix.arch }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-          if [ "${{ matrix.platform }}" == "linux" ]; then
-            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
-              --include "*.AppImage" \
-              --include "*.deb" \
-              --include "latest-linux*.yml"
-            
-            # Upload static page only once (during linux build)
-            cd ..
-            echo "Updating static installation page..."
-            mkdir -p tmp_static
-            
-            # Get version from package.json since we are in the root now
-            VERSION=$(node -p "require('./package.json').version")
-            
-            sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
-            aws s3 cp tmp_static/index.html s3://mosaic-release/index.html --content-type "text/html"
-            aws s3 cp static/install-page/style.css s3://mosaic-release/style.css --content-type "text/css"
-            rm -rf tmp_static
-            
-          elif [ "${{ matrix.platform }}" == "mac" ]; then
-            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
-              --include "*.dmg" \
-              --include "*.zip" \
-              --include "latest-mac*.yml"
-          elif [ "${{ matrix.platform }}" == "win" ]; then
-            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
-              --include "*.exe" \
-              --include "latest*.yml"
-          fi
+      # Upload static installation page (Linux x64 only - just need to do it once)
+      - name: Upload static page
+        if: matrix.platform == 'linux' && matrix.arch == 'x64'
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "Updating static installation page for version ${VERSION}..."
+
+          mkdir -p tmp_static
+          sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
+
+          aws s3 cp tmp_static/index.html s3://mosaic-release/index.html --content-type "text/html"
+          aws s3 cp static/install-page/style.css s3://mosaic-release/style.css --content-type "text/css"
+
+          rm -rf tmp_static
+          echo "✓ Static page uploaded"
