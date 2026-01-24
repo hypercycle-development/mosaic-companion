@@ -24,9 +24,9 @@
     "make:win": "electron-forge make --platform win32",
     "make:win:x64": "electron-forge make --platform win32 --arch x64",
     "make:win:arm64": "electron-forge make --platform win32 --arch arm64",
-    "publish": "electron-forge publish",
-    "publish:x64": "electron-forge publish --arch x64",
-    "publish:arm64": "electron-forge publish --arch arm64"
+    "deploy": "electron-forge publish",
+    "deploy:x64": "electron-forge publish --arch x64",
+    "deploy:arm64": "electron-forge publish --arch arm64"
   },
   "dependencies": {
     "@xenova/transformers": "^2.17.2",

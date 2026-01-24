@@ -52,7 +52,9 @@ Or manually:
 | `npm run make:win` | Build Windows (native arch) |
 | `npm run make:win:x64` | Build Windows x64 |
 | `npm run make:win:arm64` | Build Windows arm64 |
-| `npm run publish` | Build and publish to S3 |
+| `npm run deploy` | Build and publish to S3 (native arch) |
+| `npm run deploy:x64` | Build x64 and publish to S3 |
+| `npm run deploy:arm64` | Build arm64 and publish to S3 |
 
 ### Helper Scripts
 
