@@ -6,12 +6,13 @@
  * VERBOSE LOGGING ENABLED FOR MAC DEBUG
  */
 
-import { app, dialog, BrowserWindow } from 'electron';
+import { app, dialog, BrowserWindow, shell } from 'electron';
 import electronUpdater from 'electron-updater';
 import { getAutoDownload, loadSettings } from './settings.js';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import semver from 'semver';
 
 // This way to import and destructure fix the error of "VAAPI version too old"
 const { autoUpdater } = electronUpdater;
@@ -109,8 +110,14 @@ autoUpdater.logger = {
 };
 
 // NOTE: Linux auto-updates are not supported by Squirrel (used by Electron Forge)
-// On Linux, we'll just notify users about new versions
+// On Linux, we'll use a custom version check via latest.json
 const isLinux = os.platform() === 'linux';
+
+// S3 URL for latest.json (used by Linux update check)
+const LATEST_JSON_URL = 'https://mosaic-release.s3.us-east-2.amazonaws.com/latest.json';
+const INSTALL_PAGE_URL = 'https://mosaic-release.s3.us-east-2.amazonaws.com/index.html';
+
+
 
 // Configure S3 provider with Electron Forge folder structure
 // Electron Forge publishes to: releases/{platform}/{arch}/{filename}
@@ -165,6 +172,10 @@ export function applyAutoDownload(enabled) {
  * Check for updates on app startup.
  */
 export function checkForUpdates() {
+    if (isLinux) {
+        checkForUpdatesLinux(false);
+        return;
+    }
     log('INFO', 'Checking for updates (automatic startup check)...');
 
     autoUpdater
@@ -194,12 +205,72 @@ export function checkForUpdates() {
 }
 
 /**
+ * Linux-specific manual check for updates.
+ * Fetches latest.json from S3 and compares version.
+ */
+async function checkForUpdatesLinux(isManual = false) {
+    log('INFO', `Custom Linux check started (isManual: ${isManual})`);
+    try {
+        const response = await fetch(LATEST_JSON_URL);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch version info: ${response.statusText}`);
+        }
+        
+        const latest = await response.json();
+        const currentVersion = app.getVersion();
+        
+        log('INFO', `Linux Version Check: Current=${currentVersion}, Latest=${latest.version}`);
+        
+        if (semver.gt(latest.version, currentVersion)) {
+            log('INFO', 'New version available for Linux!');
+            
+            const { response: buttonIndex } = await dialog.showMessageBox({
+                type: 'info',
+                title: 'Update Available',
+                message: `A new version (${latest.version}) is available.`,
+                detail: 'Linux auto-updates are not supported. Would you like to open the download page to get the latest version?',
+                buttons: ['Open Download Page', 'Later'],
+                defaultId: 0,
+                cancelId: 1
+            });
+            
+            if (buttonIndex === 0) {
+                log('INFO', `Opening download page: ${INSTALL_PAGE_URL}`);
+                shell.openExternal(INSTALL_PAGE_URL);
+            }
+        } else if (isManual) {
+            log('INFO', 'Manual check: Linux version is up to date.');
+            dialog.showMessageBox({
+                type: 'info',
+                title: 'No Updates Available',
+                message: "You're up to date!",
+                detail: `Mosaic Companion ${currentVersion} is the latest version.`
+            });
+        }
+    } catch (err) {
+        log('ERROR', 'Linux update check failed:', err.message);
+        if (isManual) {
+            dialog.showMessageBox({
+                type: 'error',
+                title: 'Update Error',
+                message: 'Failed to check for updates. Please try again later.',
+                detail: err.message
+            });
+        }
+    }
+}
+
+/**
  * Manual check for updates (for "Check for Updates" menu/button).
  * Always shows feedback to the user.
  */
 let isManualCheck = false;
 
 export function manualCheckForUpdates() {
+    if (isLinux) {
+        checkForUpdatesLinux(true);
+        return;
+    }
     log('INFO', '========================================');
     log('INFO', 'MANUAL UPDATE CHECK TRIGGERED');
     log('INFO', '========================================');
