@@ -32,11 +32,13 @@ You can update this file in three ways:
 
 ### 1. Automated (Recommended)
 
-Run the release script. It now automatically pulls the version from `package.json`, populates the template, and uploads the result:
+Run the release script. It detects your platform and only prompts to update `latest.json` if you are on Linux:
 
 ```bash
 ./scripts/upload-release.sh
 ```
+
+If you are on macOS or Windows, the script will skip the `latest.json` update by default to avoid accidental notifications for Linux users.
 
 ### 2. CI/CD (GitHub Actions)
 

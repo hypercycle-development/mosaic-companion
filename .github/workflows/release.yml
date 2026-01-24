@@ -160,6 +160,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       # Upload static installation page and latest.json (Linux x64 only - just need to do it once)
+      # TODO: Add a check to ensure dependencies or artifacts for Linux were actually generated
       - name: Upload static page and version info
         if: matrix.platform == 'linux' && matrix.arch == 'x64'
         run: |
