@@ -154,7 +154,7 @@ jobs:
 
       # Make and publish using Electron Forge with specific arch
       - name: Make and Publish (${{ matrix.platform }}/${{ matrix.arch }})
-        run: npm run publish -- --arch ${{ matrix.arch }}
+        run: npm run deploy -- --arch ${{ matrix.arch }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
