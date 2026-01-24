@@ -117,21 +117,24 @@ const isLinux = os.platform() === 'linux';
 const LATEST_JSON_URL = 'https://mosaic-release.s3.us-east-2.amazonaws.com/latest.json';
 const INSTALL_PAGE_URL = 'https://mosaic-release.s3.us-east-2.amazonaws.com/index.html';
 
-
-
 // Configure S3 provider with Electron Forge folder structure
 // Electron Forge publishes to: releases/{platform}/{arch}/{filename}
 log('INFO', 'Configuring S3 provider for updates');
 const platform = os.platform(); // 'darwin', 'win32', 'linux'
 const arch = os.arch(); // 'x64', 'arm64'
 
-autoUpdater.setFeedURL({
-    provider: 's3',
-    bucket: 'mosaic-release',
-    region: 'us-east-2',
-    path: `/releases/${platform}/${arch}`
-});
-log('INFO', `S3 feed URL configured: bucket=mosaic-release, path=/releases/${platform}/${arch}`);
+// Construct the base URL based on your Publisher's keyResolver:
+// keyResolver: fileName => `releases/${platform}/${arch}/${fileName}`
+const getFeedUrl = () => {
+    if (platform === 'win32') {
+        // Electron Forge Squirrel maker puts files here
+        return `https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/${arch}`;
+    } else if (platform === 'darwin') {
+        // Electron Forge ZIP maker puts files here (e.g. releases/darwin/x64)
+        return `https://mosaic-release.s3.us-east-2.amazonaws.com/releases/${platform}/${arch}`;
+    }
+    return null;
+};
 
 /**
  * Initialize updater with settings.
@@ -157,6 +160,20 @@ export function initUpdater() {
 
     log('INFO', `autoDownload: ${settings.autoDownload}`);
     log('INFO', `autoInstallOnAppQuit: true`);
+    log('INFO', '========================================');
+
+        // Set Feed URL only for Windows and Mac
+    const feedUrl = getFeedUrl();
+    if (feedUrl && !isLinux) {
+        autoUpdater.setFeedURL({
+            provider: 'generic', 
+            url: feedUrl
+        });
+        log('INFO', `Feed URL configured: ${feedUrl}`);
+    } else if (isLinux) {
+        log('INFO', 'Linux detected: Using manual update check via latest.json');
+    }
+
     log('INFO', '========================================');
 }
 
