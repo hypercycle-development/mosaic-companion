@@ -6,7 +6,7 @@
 
 This contains everything you need to run your app locally.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1G6opS0oqO9Ygn97nFvJGFQJakcx1piny
+View your app in AI Studio: <https://ai.studio/apps/drive/1G6opS0oqO9Ygn97nFvJGFQJakcx1piny>
 
 ## Run Locally
 
@@ -41,7 +41,7 @@ Or manually:
 #### Build Scripts (Electron Forge)
 
 | Script | Description |
-|--------|-------------|
+| -------- | ------------- |
 | `npm run make` | Build for current platform/arch |
 | `npm run make:linux` | Build Linux (native arch) |
 | `npm run make:linux:x64` | Build Linux x64 |
@@ -58,5 +58,3 @@ Or manually:
 
 - `./setup.sh` - Automated setup (installs dependencies, creates .env.local)
 - `./start.sh` - Quick start script (installs dependencies if needed, then starts the app)
-
-
