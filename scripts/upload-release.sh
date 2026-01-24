@@ -9,26 +9,34 @@ S3_PATH="releases"
 BUILD_DIR="out/make"
 BUCKET_URL="https://mosaic-release.s3.us-east-2.amazonaws.com/releases"
 
-# Get version type from argument (default: patch)
+# Get arguments
 VERSION_TYPE="${1:-patch}"
 if [[ ! "$VERSION_TYPE" =~ ^(patch|minor|major)$ ]]; then
     echo "Error: Invalid version type. Use: patch, minor, or major"
     exit 1
 fi
 
-if [ ! -d "$BUILD_DIR" ]; then
-    echo "Error: ${BUILD_DIR}/ directory not found. Run 'npm run make' first."
+# Get architecture (optional, default to native)
+DETECTED_ARCH=$(node -p "os.arch()")
+ARCH="${2:-$DETECTED_ARCH}"
+if [[ ! "$ARCH" =~ ^(x64|arm64)$ ]]; then
+    echo "Error: Invalid architecture '$ARCH'. Use: x64 or arm64"
     exit 1
 fi
+
+# Get OS/Platform
+PLATFORM=$(node -p "require('os').platform()")
 
 # Get version from package.json
 VERSION=$(node -p "require('./package.json').version")
 
-echo "=== Release Script (Electron Forge) ==="
+echo "=========================================="
+echo "    MOSAIC COMPANION RELEASE SCRIPT"
+echo "=========================================="
 echo "Version: ${VERSION} (${VERSION_TYPE})"
-echo ""
-echo "Files in ${BUILD_DIR}/:"
-find "$BUILD_DIR" -type f | head -20
+echo "OS     : ${PLATFORM}"
+echo "Arch   : ${ARCH}"
+echo "=========================================="
 echo ""
 
 # Helper function to ask for confirmation
@@ -45,17 +53,13 @@ echo "=== Step 1: Upload to S3 ==="
 if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
     
     # Detect architecture for local publish
-    ARCH=$(node -p "os.arch()")
-    echo "Publishing for current architecture: ${ARCH}..."
+    echo "Publishing for architecture: ${ARCH}..."
     
-    # Use the renamed deploy script
-    npm run deploy -- --arch "$ARCH"
+    # Use the selected architecture
+    npm run deploy:"$ARCH"
     
     echo "✓ Binaries build and uploaded via Electron Forge (S3 Publisher)"
     echo ""
-
-    # Detect platform
-    PLATFORM=$(node -p "require('os').platform()")
 
     # Update and upload index.html (Default behavior)
     # TODO: Add granular behavior for specific platforms runs (e.g. only update certain links)
