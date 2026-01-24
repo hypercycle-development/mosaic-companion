@@ -89,14 +89,29 @@ if confirm "Upload artifacts to S3?"; then
 
     echo ""
 
-    # Update and upload index.html
-    echo "Updating static installation page..."
+    # Update and upload index.html and latest.json
+    echo "Updating static installation page and version info..."
     mkdir -p tmp_static
+    
+    # Update index.html
     sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
+    
+    # Generate latest.json for Linux update check
+    RELEASE_DATE=$(date -u +%Y-%m-%d)
+    cat > tmp_static/latest.json <<EOF
+{
+  "version": "${VERSION}",
+  "releaseDate": "${RELEASE_DATE}",
+  "downloadUrl": "https://mosaic-release.s3.us-east-2.amazonaws.com/index.html"
+}
+EOF
+
     aws s3 cp tmp_static/index.html "s3://${BUCKET}/index.html" --content-type "text/html"
     aws s3 cp static/install-page/style.css "s3://${BUCKET}/style.css" --content-type "text/css"
+    aws s3 cp tmp_static/latest.json "s3://${BUCKET}/latest.json" --content-type "application/json"
+    
     rm -rf tmp_static
-    echo "✓ Static page uploaded"
+    echo "✓ Static page and latest.json uploaded"
     echo ""
 else
     echo "Skipped S3 upload."

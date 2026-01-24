@@ -42,6 +42,7 @@
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",
     "react-toastify": "^11.0.5",
+    "semver": "^7.7.3",
     "server-destroy": "^1.0.1"
   },
   "devDependencies": {
@@ -54,6 +55,7 @@
     "@reforged/maker-appimage": "^5.1.1",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
+    "@types/semver": "^7.7.1",
     "@vitejs/plugin-react": "^5.1.2",
     "electron": "^39.2.7",
     "electron-squirrel-startup": "^1.0.1",
