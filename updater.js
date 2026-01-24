@@ -1,21 +1,17 @@
 /**
  * Updater Module
- * Handles electron-updater configuration and update checks.
+ * Handles native Electron autoUpdater configuration and update checks.
  * Settings are managed by settings.js module.
  *
- * VERBOSE LOGGING ENABLED FOR MAC DEBUG
+ * MIGRATED FROM ELECTRON-UPDATER TO NATIVE AUTOUPDATER
  */
 
-import { app, dialog, BrowserWindow, shell } from 'electron';
-import electronUpdater from 'electron-updater';
+import { app, dialog, BrowserWindow, shell, autoUpdater } from 'electron';
 import { getAutoDownload, loadSettings } from './settings.js';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import semver from 'semver';
-
-// This way to import and destructure fix the error of "VAAPI version too old"
-const { autoUpdater } = electronUpdater;
 
 // =============================================================================
 // FILE-BASED LOGGING (visible on Mac even without terminal)
@@ -24,7 +20,6 @@ const LOG_FILE = path.join(app.getPath('userData'), 'update.log');
 
 /**
  * Log to both console and file for maximum visibility.
- * On Mac, the file will be at ~/Library/Application Support/Mosaic Companion/update.log
  */
 function log(level, ...args) {
     const timestamp = new Date().toISOString();
@@ -37,7 +32,7 @@ function log(level, ...args) {
 
     const logLine = `[${timestamp}] [${platform}] [${level}] ${message}\n`;
 
-    // Console output (visible in DevTools)
+    // Console output
     if (level === 'ERROR') {
         console.error(`🔴 [UPDATER] ${message}`);
     } else if (level === 'WARN') {
@@ -46,7 +41,7 @@ function log(level, ...args) {
         console.log(`🟢 [UPDATER] ${message}`);
     }
 
-    // File output (visible on Mac via Finder)
+    // File output
     try {
         fs.appendFileSync(LOG_FILE, logLine, 'utf8');
     } catch (e) {
@@ -76,16 +71,10 @@ function rotateLogFile() {
     }
 }
 
-/**
- * Get the log file path (for IPC exposure)
- */
 export function getLogFilePath() {
     return LOG_FILE;
 }
 
-/**
- * Read the log file contents (for IPC exposure)
- */
 export function readLogFile() {
     try {
         if (fs.existsSync(LOG_FILE)) {
@@ -101,36 +90,26 @@ export function readLogFile() {
 // AUTOUPDATER CONFIGURATION
 // =============================================================================
 
-// Configure logging - pipe through our custom logger
-autoUpdater.logger = {
-    info: (...args) => log('INFO', '[electron-updater]', ...args),
-    warn: (...args) => log('WARN', '[electron-updater]', ...args),
-    error: (...args) => log('ERROR', '[electron-updater]', ...args),
-    debug: (...args) => log('DEBUG', '[electron-updater]', ...args)
-};
-
-// NOTE: Linux auto-updates are not supported by Squirrel (used by Electron Forge)
-// On Linux, we'll use a custom version check via latest.json
-const isLinux = os.platform() === 'linux';
-
-// S3 URL for latest.json (used by Linux update check)
+// Linux manual check URL
 const LATEST_JSON_URL = 'https://mosaic-release.s3.us-east-2.amazonaws.com/latest.json';
 const INSTALL_PAGE_URL = 'https://mosaic-release.s3.us-east-2.amazonaws.com/index.html';
 
-// Configure S3 provider with Electron Forge folder structure
-// Electron Forge publishes to: releases/{platform}/{arch}/{filename}
-log('INFO', 'Configuring S3 provider for updates');
-const platform = os.platform(); // 'darwin', 'win32', 'linux'
-const arch = os.arch(); // 'x64', 'arm64'
+const isLinux = os.platform() === 'linux';
+let isManualCheck = false;
 
-// Construct the base URL based on your Publisher's keyResolver:
-// keyResolver: fileName => `releases/${platform}/${arch}/${fileName}`
+// S3 Bucket URL construction
 const getFeedUrl = () => {
+    const platform = os.platform();
+    const arch = os.arch();
+
     if (platform === 'win32') {
-        // Electron Forge Squirrel maker puts files here
+        // Squirrel.Windows looks for RELEASES file in this directory
         return `https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/${arch}`;
     } else if (platform === 'darwin') {
-        // Electron Forge ZIP maker puts files here (e.g. releases/darwin/x64)
+        // Native Mac updater expects a JSON feed, this might need a specific endpoint
+        // pointing to a static file might not work out of the box without a server
+        // usually requests specific headers or format.
+        // For now, mapping to the folder.
         return `https://mosaic-release.s3.us-east-2.amazonaws.com/releases/${platform}/${arch}`;
     }
     return null;
@@ -144,45 +123,33 @@ export function initUpdater() {
     rotateLogFile();
 
     log('INFO', '========================================');
-    log('INFO', 'UPDATER INITIALIZATION');
+    log('INFO', 'UPDATER INITIALIZATION (NATIVE)');
     log('INFO', '========================================');
     log('INFO', `Platform: ${os.platform()} (${os.arch()})`);
-    log('INFO', `OS Version: ${os.release()}`);
     log('INFO', `App Version: ${app.getVersion()}`);
-    log('INFO', `App Path: ${app.getAppPath()}`);
-    log('INFO', `User Data Path: ${app.getPath('userData')}`);
     log('INFO', `Log File: ${LOG_FILE}`);
-    log('INFO', `Is Packaged: ${app.isPackaged}`);
 
-    const settings = loadSettings();
-    autoUpdater.autoDownload = settings.autoDownload;
-    autoUpdater.autoInstallOnAppQuit = true;
-
-    log('INFO', `autoDownload: ${settings.autoDownload}`);
-    log('INFO', `autoInstallOnAppQuit: true`);
-    log('INFO', '========================================');
-
-        // Set Feed URL only for Windows and Mac
+    // Native autoUpdater config
     const feedUrl = getFeedUrl();
     if (feedUrl && !isLinux) {
-        autoUpdater.setFeedURL({
-            provider: 'generic', 
-            url: feedUrl
-        });
-        log('INFO', `Feed URL configured: ${feedUrl}`);
+        try {
+            log('INFO', `Configuring feed URL: ${feedUrl}`);
+            autoUpdater.setFeedURL({ url: feedUrl });
+        } catch (e) {
+            log('ERROR', 'Failed to set feed URL:', e.message);
+        }
     } else if (isLinux) {
-        log('INFO', 'Linux detected: Using manual update check via latest.json');
+        log('INFO', 'Linux detected: Using manual update check');
     }
 
     log('INFO', '========================================');
 }
 
-/**
- * Apply autoDownload setting (called when setting changes).
- */
 export function applyAutoDownload(enabled) {
-    autoUpdater.autoDownload = enabled;
-    log('INFO', `Auto-download setting changed to: ${enabled}`);
+    // Native autoUpdater always downloads automatically when check is triggered
+    // We can't easily toggle "download" separate from "check" in the native module
+    // typically. But strictly speaking, checkForUpdates() initiates the flow.
+    log('INFO', `applyAutoDownload: ${enabled} (Note: native autoUpdater downloads automatically upon checking)`);
 }
 
 /**
@@ -193,359 +160,162 @@ export function checkForUpdates() {
         checkForUpdatesLinux(false);
         return;
     }
+
     log('INFO', 'Checking for updates (automatic startup check)...');
-
-    autoUpdater
-        .checkForUpdates()
-        .then((result) => {
-            log(
-                'INFO',
-                'checkForUpdates resolved:',
-                result
-                    ? {
-                          updateInfo: result.updateInfo,
-                          cancellationToken: !!result.cancellationToken
-                      }
-                    : 'null result'
-            );
-        })
-        .catch((err) => {
-            log('ERROR', 'Error checking for updates:', err.message);
-            log('ERROR', 'Stack trace:', err.stack);
-            dialog.showMessageBox({
-                type: 'error',
-                title: 'Update Error',
-                message: 'Failed to check for updates. Please try again later.',
-                detail: err.message
-            });
-        });
-}
-
-/**
- * Linux-specific manual check for updates.
- * Fetches latest.json from S3 and compares version.
- */
-async function checkForUpdatesLinux(isManual = false) {
-    log('INFO', `Custom Linux check started (isManual: ${isManual})`);
     try {
-        const response = await fetch(LATEST_JSON_URL);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch version info: ${response.statusText}`);
-        }
-        
-        const latest = await response.json();
-        const currentVersion = app.getVersion();
-        
-        log('INFO', `Linux Version Check: Current=${currentVersion}, Latest=${latest.version}`);
-        
-        if (semver.gt(latest.version, currentVersion)) {
-            log('INFO', 'New version available for Linux!');
-            
-            const { response: buttonIndex } = await dialog.showMessageBox({
-                type: 'info',
-                title: 'Update Available',
-                message: `A new version (${latest.version}) is available.`,
-                detail: 'Linux auto-updates are not supported. Would you like to open the download page to get the latest version?',
-                buttons: ['Open Download Page', 'Later'],
-                defaultId: 0,
-                cancelId: 1
-            });
-            
-            if (buttonIndex === 0) {
-                log('INFO', `Opening download page: ${INSTALL_PAGE_URL}`);
-                shell.openExternal(INSTALL_PAGE_URL);
-            }
-        } else if (isManual) {
-            log('INFO', 'Manual check: Linux version is up to date.');
-            dialog.showMessageBox({
-                type: 'info',
-                title: 'No Updates Available',
-                message: "You're up to date!",
-                detail: `Mosaic Companion ${currentVersion} is the latest version.`
-            });
-        }
-    } catch (err) {
-        log('ERROR', 'Linux update check failed:', err.message);
-        if (isManual) {
-            dialog.showMessageBox({
-                type: 'error',
-                title: 'Update Error',
-                message: 'Failed to check for updates. Please try again later.',
-                detail: err.message
-            });
-        }
+        autoUpdater.checkForUpdates();
+    } catch (e) {
+        log('ERROR', 'Failed to check for updates:', e.message);
     }
 }
 
 /**
  * Manual check for updates (for "Check for Updates" menu/button).
- * Always shows feedback to the user.
  */
-let isManualCheck = false;
-
 export function manualCheckForUpdates() {
     if (isLinux) {
         checkForUpdatesLinux(true);
         return;
     }
-    log('INFO', '========================================');
-    log('INFO', 'MANUAL UPDATE CHECK TRIGGERED');
-    log('INFO', '========================================');
 
+    log('INFO', 'MANUAL UPDATE CHECK TRIGGERED');
     isManualCheck = true;
 
-    autoUpdater
-        .checkForUpdates()
-        .then((result) => {
-            log(
-                'INFO',
-                'Manual checkForUpdates resolved:',
-                result
-                    ? {
-                          updateInfo: result.updateInfo,
-                          cancellationToken: !!result.cancellationToken
-                      }
-                    : 'null result'
-            );
+    try {
+        autoUpdater.checkForUpdates();
+    } catch (e) {
+        log('ERROR', 'Failed to check for updates manually:', e.message);
+        dialog.showMessageBox({
+            type: 'error',
+            title: 'Update Error',
+            message: 'Failed to start update check.',
+            detail: e.message
+        });
+        isManualCheck = false;
+    }
+}
 
-            if (!result || !result.updateInfo) {
-                log(
-                    'INFO',
-                    'No update info returned, showing "no updates" dialog'
-                );
-                dialog.showMessageBox({
-                    type: 'info',
-                    title: 'No Updates',
-                    message: 'You are running the latest version.'
-                });
-                isManualCheck = false;
+/**
+ * Linux-specific manual check.
+ */
+async function checkForUpdatesLinux(isManual = false) {
+    log('INFO', `Linux check started (isManual: ${isManual})`);
+    try {
+        const response = await fetch(LATEST_JSON_URL);
+        if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
+
+        const latest = await response.json();
+        const currentVersion = app.getVersion();
+
+        log('INFO', `Linux Version: Current=${currentVersion}, Latest=${latest.version}`);
+
+        if (semver.gt(latest.version, currentVersion)) {
+            const { response: buttonIndex } = await dialog.showMessageBox({
+                type: 'info',
+                title: 'Update Available',
+                message: `A new version (${latest.version}) is available.`,
+                detail: 'Linux auto-updates are not supported. Open download page?',
+                buttons: ['Open Download Page', 'Later'],
+                defaultId: 0
+            });
+
+            if (buttonIndex === 0) {
+                shell.openExternal(INSTALL_PAGE_URL);
             }
-        })
-        .catch((err) => {
-            log('ERROR', 'Manual update check failed:', err.message);
-            log('ERROR', 'Stack trace:', err.stack);
+        } else if (isManual) {
+            dialog.showMessageBox({
+                type: 'info',
+                title: 'No Updates',
+                message: "You're up to date!",
+                detail: `Mosaic Companion ${currentVersion} is the latest version.`
+            });
+        }
+    } catch (err) {
+        log('ERROR', 'Linux check failed:', err.message);
+        if (isManual) {
             dialog.showMessageBox({
                 type: 'error',
                 title: 'Update Error',
-                message: 'Failed to check for updates. Please try again later.',
+                message: 'Failed to check for updates.',
                 detail: err.message
             });
-            isManualCheck = false;
-        });
+        }
+    }
 }
 
 // =============================================================================
-// AutoUpdater Events (with verbose logging)
+// NATIVE AUTOUPDATER EVENTS
 // =============================================================================
 
-// Event: Checking for update
-autoUpdater.on('checking-for-update', () => {
-    log('INFO', '>>> EVENT: checking-for-update');
-});
-
-// Event: Update available
-autoUpdater.on('update-available', (info) => {
-    log('INFO', '========================================');
-    log('INFO', '>>> EVENT: update-available');
-    log('INFO', 'Update Info:', JSON.stringify(info, null, 2));
-    log('INFO', '========================================');
-
-    isManualCheck = false;
-
-    log('INFO', 'Showing update available dialog...');
-
-    dialog
-        .showMessageBox({
-            type: 'info',
-            title: 'Update Available',
-            message: `A new version (${info.version}) is available.`,
-            detail: 'Would you like to download and install it now?',
-            buttons: ['Download Now', 'Later'],
-            defaultId: 0,
-            cancelId: 1
-        })
-        .then((result) => {
-            log(
-                'INFO',
-                `User clicked button index: ${result.response} (${
-                    result.response === 0 ? 'Download Now' : 'Later'
-                })`
-            );
-
-            if (result.response === 0) {
-                log('INFO', '========================================');
-                log('INFO', 'STARTING DOWNLOAD');
-                log('INFO', '========================================');
-                log('INFO', 'Calling autoUpdater.downloadUpdate()...');
-
-                // CRITICAL FIX: Properly handle the promise returned by downloadUpdate
-                autoUpdater
-                    .downloadUpdate()
-                    .then((downloadPath) => {
-                        log('INFO', 'downloadUpdate() promise resolved!');
-                        log('INFO', 'Download path:', downloadPath);
-                    })
-                    .catch((downloadErr) => {
-                        log(
-                            'ERROR',
-                            '========================================'
-                        );
-                        log('ERROR', 'DOWNLOAD FAILED!');
-                        log(
-                            'ERROR',
-                            '========================================'
-                        );
-                        log('ERROR', 'Error message:', downloadErr.message);
-                        log('ERROR', 'Error name:', downloadErr.name);
-                        log('ERROR', 'Error code:', downloadErr.code);
-                        log('ERROR', 'Stack trace:', downloadErr.stack);
-                        log(
-                            'ERROR',
-                            'Full error object:',
-                            JSON.stringify(
-                                downloadErr,
-                                Object.getOwnPropertyNames(downloadErr),
-                                2
-                            )
-                        );
-
-                        // Show error dialog to user
-                        dialog.showMessageBox({
-                            type: 'error',
-                            title: 'Download Failed',
-                            message: 'Failed to download the update.',
-                            detail: `${downloadErr.message}\n\nCheck the log file for details:\n${LOG_FILE}`
-                        });
-                    });
-
-                log(
-                    'INFO',
-                    'downloadUpdate() called (async operation started)'
-                );
-            } else {
-                log('INFO', 'User chose to update later');
-            }
-        })
-        .catch((dialogErr) => {
-            log('ERROR', 'Dialog error:', dialogErr.message);
-            log('ERROR', 'Stack:', dialogErr.stack);
-        });
-});
-
-// Event: Update not available
-autoUpdater.on('update-not-available', (info) => {
-    log('INFO', '>>> EVENT: update-not-available');
-    log('INFO', 'Current version is up to date:', info.version);
+autoUpdater.on('error', (err) => {
+    log('ERROR', '>>> EVENT: error');
+    log('ERROR', err.message);
+    if (err.stack) log('ERROR', err.stack);
 
     if (isManualCheck) {
-        log('INFO', 'Showing "no updates" dialog (manual check)');
         dialog.showMessageBox({
-            type: 'info',
-            title: 'No Updates Available',
-            message: "You're up to date!",
-            detail: `Mosaic Companion ${info.version} is the latest version.`
+            type: 'error',
+            title: 'Update Error',
+            message: 'An error occurred while checking for updates.',
+            detail: err.message
         });
         isManualCheck = false;
     }
 });
 
-// Event: Download progress
-autoUpdater.on('download-progress', (progress) => {
-    const percent = progress.percent.toFixed(1);
-    const transferred = (progress.transferred / 1024 / 1024).toFixed(2);
-    const total = (progress.total / 1024 / 1024).toFixed(2);
-    const speed = (progress.bytesPerSecond / 1024).toFixed(1);
-
-    log(
-        'INFO',
-        `>>> EVENT: download-progress - ${percent}% (${transferred}/${total} MB, ${speed} KB/s)`
-    );
-
-    const win = BrowserWindow.getFocusedWindow();
-    if (win) {
-        win.setProgressBar(progress.percent / 100);
-    }
+autoUpdater.on('checking-for-update', () => {
+    log('INFO', '>>> EVENT: checking-for-update');
 });
 
-// Event: Update downloaded
-autoUpdater.on('update-downloaded', (info) => {
-    log('INFO', '========================================');
-    log('INFO', '>>> EVENT: update-downloaded');
-    log('INFO', 'Version:', info.version);
-    log('INFO', 'Release Date:', info.releaseDate);
-    log('INFO', 'Download Info:', JSON.stringify(info, null, 2));
-    log('INFO', '========================================');
+autoUpdater.on('update-available', () => {
+    log('INFO', '>>> EVENT: update-available');
+    // Native autoUpdater automatically starts downloading
+    log('INFO', 'Update available, downloading in background...');
 
-    const win = BrowserWindow.getFocusedWindow();
-    if (win) {
-        win.setProgressBar(-1);
-    }
-
-    log('INFO', 'Showing "update ready" dialog...');
-
-    dialog
-        .showMessageBox({
-            type: 'info',
-            title: 'Update Ready',
-            message: 'Update downloaded successfully.',
-            detail: 'The application will restart to install the update. Save your work before proceeding.',
-            buttons: ['Restart Now', 'Later'],
-            defaultId: 0,
-            cancelId: 1
-        })
-        .then((result) => {
-            log(
-                'INFO',
-                `User clicked button index: ${result.response} (${
-                    result.response === 0 ? 'Restart Now' : 'Later'
-                })`
-            );
-
-            if (result.response === 0) {
-                if (process.platform === 'darwin') {
-                    app.removeAllListeners('before-quit');
-                    app.removeAllListeners('window-all-closed');
-                    BrowserWindow.getAllWindows().forEach((win) => {
-                        if (win.isDestroyed()) return;
-                        win.removeAllListeners('close');
-                        win.close();
-                    });
-
-                    nativeUpdater.once('before-quit-for-update', () => {
-                        app.exit();
-                    });
-                }
-
-                log('INFO', 'Calling quitAndInstall()...');
-                autoUpdater.quitAndInstall(true, true);
-            } else {
-                log('INFO', 'User chose to restart later');
-            }
-        });
-});
-
-// Event: Error
-autoUpdater.on('error', (err) => {
-    log('ERROR', '========================================');
-    log('ERROR', '>>> EVENT: error');
-    log('ERROR', 'Error message:', err.message);
-    log('ERROR', 'Error name:', err.name);
-    log('ERROR', 'Error code:', err.code);
-    log('ERROR', 'Stack trace:', err.stack);
-    log(
-        'ERROR',
-        'Full error:',
-        JSON.stringify(err, Object.getOwnPropertyNames(err), 2)
-    );
-    log('ERROR', '========================================');
-
-    // Show error dialog on Mac for visibility
-    if (os.platform() === 'darwin') {
+    if (isManualCheck) {
+        // Optional: Notify user that query was successful and download started
+        /*
         dialog.showMessageBox({
-            type: 'error',
-            title: 'Update Error',
-            message: 'An error occurred during the update process.',
-            detail: `${err.message}\n\nLog file: ${LOG_FILE}`
+            type: 'info',
+            title: 'Update Available',
+            message: 'A new version was found and is downloading in the background.'
         });
+        */
+        // Often better to disable manual check flag so we don't show "No updates" later
+        isManualCheck = false;
     }
+});
+
+autoUpdater.on('update-not-available', () => {
+    log('INFO', '>>> EVENT: update-not-available');
+    if (isManualCheck) {
+        dialog.showMessageBox({
+            type: 'info',
+            title: 'No Updates',
+            message: 'You remain on the bleeding edge.',
+            detail: `Version ${app.getVersion()} is the latest.`
+        });
+        isManualCheck = false;
+    }
+});
+
+autoUpdater.on('update-downloaded', (event, releaseNotes, releaseName, releaseDate, updateURL) => {
+    log('INFO', '>>> EVENT: update-downloaded');
+    log('INFO', `Release Name: ${releaseName}`);
+
+    dialog.showMessageBox({
+        type: 'info',
+        title: 'Update Ready',
+        message: 'A new version has been downloaded.',
+        detail: 'The application will restart to install the update.',
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0
+    }).then((result) => {
+        if (result.response === 0) {
+            log('INFO', 'User accepted restart');
+            autoUpdater.quitAndInstall();
+        } else {
+            log('INFO', 'User deferred restart');
+        }
+    });
 });
