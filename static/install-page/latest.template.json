@@ -1,0 +1,5 @@
+{
+  "version": "{{VERSION}}",
+  "releaseDate": "{{RELEASE_DATE}}",
+  "downloadUrl": "https://mosaic-release.s3.us-east-2.amazonaws.com/index.html"
+}
