@@ -45,7 +45,7 @@ export default {
         authors: 'hypercycle',
         description: 'Mosaic Companion Application',
         // Remote releases for delta updates
-        remoteReleases: 'https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/x64'
+        // remoteReleases: 'https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/x64'
       }
     },
     // macOS - ZIP for auto-updates (required for Squirrel.Mac)
