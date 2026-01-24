@@ -366,13 +366,8 @@ header {
   pointer-events: none;
   filter: grayscale(1);
   cursor: not-allowed;
-}
-
-.disabled-link {
-  pointer-events: none; /* Prevents mouse clicks */
-  cursor: not-allowed; /* Changes the cursor to indicate it's not clickable */
-  color: var(--color-text-muted); /* Optional: styles the link to look disabled */
-  text-decoration: none; /* Optional: removes the underline */
+  color: var(--color-text-muted);
+  text-decoration: none;
   user-select: none;
 }
 
