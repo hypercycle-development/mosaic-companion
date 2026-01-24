@@ -3,7 +3,7 @@ import 'dotenv/config';
 export default {
   packagerConfig: {
     appId: 'com.mosaic.companion',
-    name: 'Mosaic Companion',
+    name: 'mosaic-companion',
     executableName: 'mosaic-companion',
     asar: true,
     // Unpack native modules that need file system access
@@ -41,7 +41,7 @@ export default {
     {
       name: '@electron-forge/maker-squirrel',
       config: {
-        name: 'MosaicCompanion',
+        name: 'mosaic-companion',
         authors: 'hypercycle',
         description: 'Mosaic Companion Application',
         // Remote releases for delta updates
