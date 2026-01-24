@@ -57,6 +57,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/semver": "^7.7.1",
     "@vitejs/plugin-react": "^5.1.2",
+    "dotenv": "^17.2.3",
     "electron": "^39.2.7",
     "electron-squirrel-startup": "^1.0.1",
     "typescript": "^5.9.3",
