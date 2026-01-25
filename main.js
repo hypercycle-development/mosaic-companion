@@ -97,6 +97,9 @@ function createWindow(urlToLoad = null) {
   const indexPath = path.join(__dirname, "dist", "index.html");
   console.log("Loading index from:", indexPath);
   console.log("File exists?", fs.existsSync(indexPath));
+  const iconPath = path.join(__dirname, "assets", "icon.png");
+  console.log("Icon path:", iconPath);
+  console.log("Icon exists?", fs.existsSync(iconPath));
   
   if (urlToLoad) {
     win.loadURL(urlToLoad);
