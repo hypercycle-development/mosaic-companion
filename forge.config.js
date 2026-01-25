@@ -5,6 +5,7 @@ export default {
     appId: 'com.mosaic.companion',
     name: 'mosaic-companion',
     executableName: 'mosaic-companion',
+    icon:"assets/icon",
     asar: true,
     // Unpack native modules that need file system access
     asarUnpack: [
@@ -44,9 +45,11 @@ export default {
       name: '@electron-forge/maker-squirrel',
       config: {
         name: 'mosaic-companion',
+        productName: 'Mosaic Companion',
         authors: 'hypercycle',
         description: 'Mosaic Companion Application',
         loadingGif: 'assets/loading.gif',
+        setupIcon: 'assets/icon.ico',
         // Remote releases for delta updates
         // remoteReleases: 'https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/x64'
       }
@@ -73,7 +76,8 @@ export default {
           maintainer: 'hern@hypercycle.ai',
           homepage: 'https://hypercycle.ai',
           categories: ['Utility'],
-          section: 'utils'
+          section: 'utils',
+          icon: 'assets/icon.png'
         }
       }
     },
