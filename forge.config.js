@@ -72,6 +72,8 @@ export default {
       name: '@electron-forge/maker-deb',
       platforms: ['linux'],
       config: {
+        name: 'mosaic-companion',
+        productName: 'Mosaic Companion',
         options: {
           maintainer: 'hern@hypercycle.ai',
           homepage: 'https://hypercycle.ai',
