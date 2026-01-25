@@ -46,6 +46,7 @@ export default {
         name: 'mosaic-companion',
         authors: 'hypercycle',
         description: 'Mosaic Companion Application',
+        loadingGif: 'assets/loading.gif',
         // Remote releases for delta updates
         // remoteReleases: 'https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/x64'
       }
