@@ -1,6 +1,6 @@
 {
   "name": "mosaic-companion",
-  "version": "0.0.30",
+  "version": "0.0.39",
   "description": "Mosaic Companion Application",
   "main": "main.js",
   "type": "module",
