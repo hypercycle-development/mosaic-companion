@@ -409,6 +409,17 @@ ipcMain.handle("screenpipe:is-running", async () => {
   return { running };
 });
 
+// Open external URLs in the user's default browser
+ipcMain.handle("open-external", async (event, url) => {
+  try {
+    const { shell } = await import("electron");
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error?.message || "Failed to open external URL" };
+  }
+});
+
 // Handler to get update log file path
 ipcMain.handle("get-update-log-path", async () => {
   return getLogFilePath();
