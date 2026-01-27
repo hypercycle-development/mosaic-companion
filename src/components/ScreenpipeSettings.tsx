@@ -167,6 +167,7 @@ export const ScreenpipeSettings: React.FC<ScreenpipeSettingsProps> = ({
     setInstalling(true);
     try {
       const res = await (window as any).electronAPI?.screenpipe?.install?.();
+      console.log("install screenpipe response:  ", res);
       const ok = !!res?.success || !!res?.installed;
       setInstalled(ok);
       toast[ok ? "success" : "error"](
