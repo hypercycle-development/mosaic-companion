@@ -172,13 +172,13 @@ export const ScreenpipeSettings: React.FC<ScreenpipeSettingsProps> = ({
       toast[ok ? "success" : "error"](
         ok ? "Screenpipe installed" : "Failed to install Screenpipe"
       );
-<!--       const url = "https://screenpi.pe/";
-      if ((window as any).electronAPI?.openExternal) {
-        await (window as any).electronAPI.openExternal(url);
-      } else {
-        window.open(url, "_blank");
-      }
-      toast.info("Opening Screenpipe website..."); -->
+    // const url = "https://screenpi.pe/";
+    //   if ((window as any).electronAPI?.openExternal) {
+    //     await (window as any).electronAPI.openExternal(url);
+    //   } else {
+    //     window.open(url, "_blank");
+    //   }
+    //   toast.info("Opening Screenpipe website...");
     } catch (err) {
       toast.error("Failed to open Screenpipe website");
       console.error(err);
