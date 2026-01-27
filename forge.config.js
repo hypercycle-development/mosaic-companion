@@ -113,7 +113,7 @@ export default {
         // Linux - ZIP as fallback
         {
             name: '@electron-forge/maker-zip',
-            platforms: ['linux']
+            platforms: ['linux', 'darwin', 'win32']
         }
     ],
 
