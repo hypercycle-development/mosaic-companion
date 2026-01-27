@@ -78,7 +78,18 @@ function runShellCommand(command, timeoutMs = 30000) {
 async function isScreenpipeInstalled() {
   const command = process.platform === "win32" ? "where screenpipe" : "command -v screenpipe";
   const result = await runShellCommand(command, 8000);
-  return result.code === 0;
+  if (result.code === 0) return true;
+
+  // Fallback for Linux/macOS: check ~/.local/bin/screenpipe
+  if (process.platform !== "win32") {
+    const home = os.homedir();
+    const localBinPath = path.join(home, ".local", "bin", "screenpipe");
+    if (fs.existsSync(localBinPath)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function checkScreenpipeHealth() {
@@ -347,7 +358,7 @@ ipcMain.handle("screenpipe:install", async () => {
   const command =
     process.platform === "win32"
       ? 'powershell -NoLogo -NonInteractive -Command "iwr https://get.screenpi.pe/cli.ps1 -useb | iex"'
-      : "curl -fsSL https://get.screenpi.pe/install.sh | sh";
+      : "curl -fsSL https://get.screenpi.pe/cli | sh";
 
   const result = await runShellCommand(command, 60000);
   const installed = await isScreenpipeInstalled();
