@@ -56,6 +56,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     stop: () => ipcRenderer.invoke("screenpipe:stop"),
     isRunning: () => ipcRenderer.invoke("screenpipe:is-running"),
   },
+  // Open external URLs in the default browser
+  openExternal: (url) => ipcRenderer.invoke("open-external", url),
   aiAgentsHistory: {
     getAll: (agentId) =>
       ipcRenderer.invoke("ai-agents-history:get-all", agentId),

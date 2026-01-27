@@ -164,19 +164,17 @@ export const ScreenpipeSettings: React.FC<ScreenpipeSettingsProps> = ({
   }, []);
 
   const handleInstall = async () => {
-    setInstalling(true);
     try {
-      const res = await (window as any).electronAPI?.screenpipe?.install?.();
-      const ok = !!res?.success || !!res?.installed;
-      setInstalled(ok);
-      toast[ok ? "success" : "error"](
-        ok ? "Screenpipe installed" : "Failed to install Screenpipe"
-      );
+      const url = "https://screenpi.pe/";
+      if ((window as any).electronAPI?.openExternal) {
+        await (window as any).electronAPI.openExternal(url);
+      } else {
+        window.open(url, "_blank");
+      }
+      toast.info("Opening Screenpipe website...");
     } catch (err) {
-      toast.error("Failed to install Screenpipe");
+      toast.error("Failed to open Screenpipe website");
       console.error(err);
-    } finally {
-      setInstalling(false);
     }
   };
 
@@ -243,11 +241,6 @@ Recent screen text: ${latest.text?.slice(0, 200) || "No text captured"}...
                 <Loader2 size={16} className="animate-spin" />
                 Checking installation...
               </>
-            ) : installing ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Installing Screenpipe...
-              </>
             ) : installed ? (
               <>
                 <CheckCircle2 size={16} className="text-emerald-400" />
@@ -256,7 +249,7 @@ Recent screen text: ${latest.text?.slice(0, 200) || "No text captured"}...
             ) : (
               <>
                 <Zap size={16} />
-                Install Screenpipe
+                Open screenpi.pe
               </>
             )}
           </button>
