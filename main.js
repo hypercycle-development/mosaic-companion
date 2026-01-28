@@ -1,4 +1,34 @@
 // main.js - Complete version with AI agents storage data
+
+// Handle Squirrel.Windows startup events (MUST be first!)
+// This handles install, update, and uninstall events on Windows
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+if (process.platform === 'win32') {
+  try {
+    if (require('electron-squirrel-startup')) {
+      process.exit(0);
+    }
+  } catch (e) {
+    // electron-squirrel-startup not available (dev mode or non-Windows)
+  }
+}
+
+// Single instance lock - prevents multiple instances from running
+// This is important to avoid freezing or conflicts on Windows
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  // Focus existing window if a second instance is started
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
 import { app, BrowserWindow, ipcMain } from "electron";
 import os from "os";
 import path from "path";
@@ -48,7 +78,7 @@ function createWindow(urlToLoad = null) {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    icon: path.join(__dirname, "assets", "icon.png"),
+    icon: "assets/icon.png",
     // Use the setting, or fallback to platform defaults if somehow undefined
     titleBarStyle: titleBarStyle === "default" ? "default" : "hidden",
     trafficLightPosition: { x: 10, y: 10 },
@@ -64,11 +94,23 @@ function createWindow(urlToLoad = null) {
   });
 
   // Load specified URL or default to index.html
+  const indexPath = path.join(__dirname, "dist", "index.html");
+  console.log("Loading index from:", indexPath);
+  console.log("File exists?", fs.existsSync(indexPath));
+  const iconPath = path.join(__dirname, "assets", "icon.png");
+  console.log("Icon path:", iconPath);
+  console.log("Icon exists?", fs.existsSync(iconPath));
+  
   if (urlToLoad) {
     win.loadURL(urlToLoad);
   } else {
-    win.loadFile(path.join(__dirname, "dist", "index.html"));
+    win.loadFile(indexPath);
   }
+
+  // Debug: Log if load fails
+  win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error(`Failed to load ${validatedURL}: ${errorCode} (${errorDescription})`);
+  });
 
   mainWindow = win;
   return win;
@@ -148,16 +190,21 @@ app.whenReady().then(() => {
   // Initialize updater with settings and check for updates on startup (skip in development)
   if (app.isPackaged) {
     initUpdater();
-    checkForUpdates();
+    
+    // FIX: Delay the check by 2 seconds so the app UI loads first
+    setTimeout(() => {
+      console.log("Starting update check...");
+      checkForUpdates();
+    }, 2000);
   }
 
-  // Pre-initialize Gmail OAuth to load tokens early (so chat can access emails immediately)
+  // Pre-initialize Gmail OAuth to load tokens early
   try {
     if (isAuthenticated()) {
       console.log("Gmail: Already authenticated, tokens loaded");
     }
   } catch (e) {
-    // Ignore - credentials may not be set up yet
+    // Ignore
   }
 });
 

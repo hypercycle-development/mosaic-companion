@@ -1,34 +1,42 @@
 #!/bin/bash
-# Upload release artifacts to S3 and create git tag
+# Upload release artifacts to S3 and create git tag (Electron Forge version)
 # Usage: ./scripts/upload-release.sh [patch|minor|major]
 
 set -e
 
 BUCKET="mosaic-release"
 S3_PATH="releases"
-RELEASE_DIR="release"
+BUILD_DIR="out/make"
 BUCKET_URL="https://mosaic-release.s3.us-east-2.amazonaws.com/releases"
 
-# Get version type from argument (default: patch)
+# Get arguments
 VERSION_TYPE="${1:-patch}"
 if [[ ! "$VERSION_TYPE" =~ ^(patch|minor|major)$ ]]; then
     echo "Error: Invalid version type. Use: patch, minor, or major"
     exit 1
 fi
 
-if [ ! -d "$RELEASE_DIR" ]; then
-    echo "Error: ${RELEASE_DIR}/ directory not found. Run a build first."
+# Get architecture (optional, default to native)
+DETECTED_ARCH=$(node -p "os.arch()")
+ARCH="${2:-$DETECTED_ARCH}"
+if [[ ! "$ARCH" =~ ^(x64|arm64)$ ]]; then
+    echo "Error: Invalid architecture '$ARCH'. Use: x64 or arm64"
     exit 1
 fi
+
+# Get OS/Platform
+PLATFORM=$(node -p "require('os').platform()")
 
 # Get version from package.json
 VERSION=$(node -p "require('./package.json').version")
 
-echo "=== Release Script ==="
+echo "=========================================="
+echo "    MOSAIC COMPANION RELEASE SCRIPT"
+echo "=========================================="
 echo "Version: ${VERSION} (${VERSION_TYPE})"
-echo ""
-echo "Files in ${RELEASE_DIR}/:"
-ls "$RELEASE_DIR"
+echo "OS     : ${PLATFORM}"
+echo "Arch   : ${ARCH}"
+echo "=========================================="
 echo ""
 
 # Helper function to ask for confirmation
@@ -42,37 +50,19 @@ confirm() {
 
 # Step 1: Upload to S3
 echo "=== Step 1: Upload to S3 ==="
-echo "Target: s3://${BUCKET}/${S3_PATH}/"
-if confirm "Upload artifacts to S3?"; then
-    cd "$RELEASE_DIR"
+if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
     
-    # Linux
-    aws s3 cp . "s3://${BUCKET}/${S3_PATH}/" --recursive \
-        --exclude "*" \
-        --exclude "*-unpacked/*" \
-        --include "*.AppImage" \
-        --include "*.deb" \
-        --include "latest-linux*.yml" 2>/dev/null && echo "✓ Linux artifacts uploaded" || true
-
-    # macOS
-    aws s3 cp . "s3://${BUCKET}/${S3_PATH}/" --recursive \
-        --exclude "*" \
-        --exclude "*-unpacked/*" \
-        --include "*.dmg" \
-        --include "*.zip" \
-        --include "latest-mac*.yml" 2>/dev/null && echo "✓ macOS artifacts uploaded" || true
-
-    # Windows
-    aws s3 cp . "s3://${BUCKET}/${S3_PATH}/" --recursive \
-        --exclude "*" \
-        --exclude "*-unpacked/*" \
-        --include "*.exe" \
-        --include "latest.yml" 2>/dev/null && echo "✓ Windows artifacts uploaded" || true
+    # Detect architecture for local publish
+    echo "Publishing for architecture: ${ARCH}..."
     
-    cd ..
+    # Use the selected architecture
+    npm run deploy:"$ARCH"
+    
+    echo "✓ Binaries build and uploaded via Electron Forge (S3 Publisher)"
     echo ""
 
-    # Update and upload index.html
+    # Update and upload index.html (Default behavior)
+    # TODO: Add granular behavior for specific platforms runs (e.g. only update certain links)
     echo "Updating static installation page..."
     mkdir -p tmp_static
     sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
@@ -80,6 +70,21 @@ if confirm "Upload artifacts to S3?"; then
     aws s3 cp static/install-page/style.css "s3://${BUCKET}/style.css" --content-type "text/css"
     rm -rf tmp_static
     echo "✓ Static page uploaded"
+
+    # Update and upload latest.json (Linux only or confirmation)
+    if [ "$PLATFORM" == "linux" ]; then
+        if confirm "Linux build detected. Update Latest Version Metadata (latest.json)?"; then
+            echo "Updating version metadata for linux..."
+            mkdir -p tmp_static
+            RELEASE_DATE=$(date -u +%Y-%m-%d)
+            sed -e "s/{{VERSION}}/${VERSION}/g" -e "s/{{RELEASE_DATE}}/${RELEASE_DATE}/g" static/install-page/latest.template.json > tmp_static/latest.json
+            aws s3 cp tmp_static/latest.json "s3://${BUCKET}/latest.json" --content-type "application/json"
+            rm -rf tmp_static
+            echo "✓ latest.json uploaded"
+        fi
+    else
+        echo "Non-Linux platform ($PLATFORM) detected. Skipping latest.json update by default."
+    fi
     echo ""
 else
     echo "Skipped S3 upload."
@@ -92,12 +97,16 @@ echo "Tag: v${VERSION}"
 
 TAG_MESSAGE="Release v${VERSION} (${VERSION_TYPE})
 
-Version names:
-- Linux x64: Mosaic-Companion-${VERSION}-x86_64.AppImage
-- Linux arm64: Mosaic-Companion-${VERSION}-arm64.AppImage
-- Windows x64: Mosaic-Companion-${VERSION}-x64.exe
-- macOS x64: Mosaic-Companion-${VERSION}-x64.dmg
-- macOS arm64: Mosaic-Companion-${VERSION}-arm64.dmg"
+Download links:
+- Linux x64 (AppImage): ${BUCKET_URL}/linux/x64/mosaic-companion-${VERSION}-x64.AppImage
+- Linux x64 (deb): ${BUCKET_URL}/linux/x64/mosaic-companion_${VERSION}_amd64.deb
+- Linux x64 (zip): ${BUCKET_URL}/linux/x64/mosaic-companion-linux-x64-${VERSION}.zip
+- Linux arm64 (AppImage): ${BUCKET_URL}/linux/arm64/mosaic-companion-${VERSION}-arm64.AppImage
+- Linux arm64 (deb): ${BUCKET_URL}/linux/arm64/mosaic-companion_${VERSION}_arm64.deb
+- Linux arm64 (zip): ${BUCKET_URL}/linux/arm64/mosaic-companion-linux-arm64-${VERSION}.zip
+- Windows x64: ${BUCKET_URL}/win32/x64/mosaic-companion-${VERSION}-Setup.exe
+- macOS x64: ${BUCKET_URL}/darwin/x64/mosaic-companion-${VERSION}-x64.dmg
+- macOS arm64: ${BUCKET_URL}/darwin/arm64/mosaic-companion-${VERSION}-arm64.dmg"
 
 echo "Message:"
 echo "$TAG_MESSAGE"
