@@ -84,21 +84,15 @@ if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
             fi
         fi
         
-        # Determine the npm script to run
-        if [ "$ARCH" == "x64" ]; then
-            NPM_SCRIPT="deploy:x64"
-        else
-            NPM_SCRIPT="deploy:arm64"
-        fi
-        
-        # Run Docker build
+        # Run Docker build - use electron-forge directly with platform flag
+        # The npm scripts don't pass --platform, so we call electron-forge directly
         docker run --rm -ti \
           --env-file .env.local \
           -v ${PWD}:/project \
           -v ~/.cache/electron:/root/.cache/electron \
           -v ~/.cache/electron-builder:/root/.cache/electron-builder \
           electronuserland/builder:wine-mono \
-          /bin/bash -c "apt-get update && apt-get install -y zip && npm install && ELECTRON_FORGE_PLATFORM=win32 npm run $NPM_SCRIPT"
+          /bin/bash -c "apt-get update && apt-get install -y zip && npm install && npx electron-forge publish --platform win32 --arch ${ARCH}"
         
         # Fix ownership of generated files
         echo "Fixing file ownership..."
