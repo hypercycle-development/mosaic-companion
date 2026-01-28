@@ -75,6 +75,8 @@ docker run --rm -ti \
 - Clean, isolated build environment
 - Reproducible builds
 
+> 💡 **Tip:** The `scripts/upload-release.sh` script automates this Docker workflow and handles building, uploading to S3, and creating git tags. See [Release Process](release-process.md#using-the-release-script) for details.
+
 **Limitations:**
 - First run downloads ~1-2GB Docker image
 - Generated files may be owned by root (fix: `sudo chown -R $USER:$USER out/`)
