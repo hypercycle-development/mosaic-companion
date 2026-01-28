@@ -1,4 +1,8 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+
+// Load .env first, then .env.local (local overrides base)
+dotenv.config({ path: '.env' });
+dotenv.config({ path: '.env.local', override: true });
 
 export default {
     packagerConfig: {
