@@ -164,17 +164,39 @@ export const ScreenpipeSettings: React.FC<ScreenpipeSettingsProps> = ({
   }, []);
 
   const handleInstall = async () => {
+    setInstalling(true);
     try {
-      const url = "https://screenpi.pe/";
-      if ((window as any).electronAPI?.openExternal) {
-        await (window as any).electronAPI.openExternal(url);
+      const result = await (window as any).electronAPI?.screenpipe?.install?.();
+      
+      if (result?.success) {
+        setInstalled(true);
+        toast.success("Screenpipe installed successfully!");
       } else {
-        window.open(url, "_blank");
+        toast.error("Installation failed. Opening website for manual installation...");
+        // Abrir website si la instalación automática falla
+        setTimeout(async () => {
+          const url = "https://screenpi.pe/";
+          if ((window as any).electronAPI?.openExternal) {
+            await (window as any).electronAPI.openExternal(url);
+          } else {
+            window.open(url, "_blank");
+          }
+        }, 1500);
       }
-      toast.info("Opening Screenpipe website...");
     } catch (err) {
-      toast.error("Failed to open Screenpipe website");
+      toast.error("Installation failed. Opening website for manual installation...");
       console.error(err);
+      // Abrir website si hay error
+      setTimeout(async () => {
+        const url = "https://screenpi.pe/";
+        if ((window as any).electronAPI?.openExternal) {
+          await (window as any).electronAPI.openExternal(url);
+        } else {
+          window.open(url, "_blank");
+        }
+      }, 1500);
+    } finally {
+      setInstalling(false);
     }
   };
 
