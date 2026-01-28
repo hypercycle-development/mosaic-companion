@@ -46,6 +46,71 @@ npm run deploy:x64
 npm run deploy:arm64
 ```
 
+### Using the Release Script
+
+For a more guided release process with version bumping, git tagging, and multi-platform support, use the `upload-release.sh` script:
+
+```bash
+# Basic usage (builds for current platform)
+./scripts/upload-release.sh patch
+
+# Specify platform and architecture
+./scripts/upload-release.sh patch linux x64
+./scripts/upload-release.sh patch linux arm64
+./scripts/upload-release.sh patch win32 x64
+./scripts/upload-release.sh patch darwin x64
+```
+
+**What the script does:**
+
+1. **Builds and uploads** - Uses Electron Forge to build and publish to S3
+2. **Docker support** - Automatically offers Docker for Windows builds on Linux
+3. **Updates static page** - Replaces `{{VERSION}}` in `index.template.html` and uploads to S3
+4. **Updates metadata** - Optionally updates `latest.json` for version checking
+5. **Creates git tags** - Tags the release with download links
+6. **Pushes to GitHub** - Optionally pushes the tag to origin
+
+**Docker for Windows builds (Linux only):**
+
+When building Windows releases from Linux, the script will detect this and offer to use Docker:
+
+```bash
+./scripts/upload-release.sh patch win32 x64
+# Will prompt: "Use Docker for Windows build? (Recommended) [y/N]:"
+```
+
+This uses the `electronuserland/builder:wine-mono` image and automatically:
+
+- Installs dependencies inside the container
+- Builds the Windows installer
+- Uploads to S3
+- Fixes file ownership after the build
+
+**Requirements for Docker builds:**
+
+- Docker installed and running
+- `.env.local` file with AWS credentials (passed to container)
+- Sufficient disk space (~2GB for Docker image)
+
+**Typical multi-platform release workflow:**
+
+```bash
+# 1. Bump version first
+npm version patch --no-git-tag-version
+
+# 2. Build Linux x64
+./scripts/upload-release.sh patch linux x64
+
+# 3. Build Linux arm64
+./scripts/upload-release.sh patch linux arm64
+
+# 4. Build Windows x64 (uses Docker automatically)
+./scripts/upload-release.sh patch win32 x64
+
+# 5. On the last build, create git tag when prompted
+#    Answer "yes" to "Is this the final platform build?"
+```
+
 ### Build Without Publishing
 
 ```bash
@@ -139,10 +204,12 @@ Use semantic versioning:
 
 | Building On | Linux | Windows | macOS |
 | ------------- | ------- | --------- | ------- |
-| **Linux** | ✅ Yes | ⚠️ Wine+Mono | ❌ No |
+| **Linux** | ✅ Yes | ✅ Docker | ❌ No |
 | **macOS** | ✅ Yes | ⚠️ Wine+Mono | ✅ Yes |
 | **Windows** | ❌ No | ✅ Yes | ❌ No |
 
+> ✅ **Docker support:** The `upload-release.sh` script automatically uses Docker for Windows builds on Linux.
+>
 > ⚠️ **Recommended:** Use CI/CD (GitHub Actions) to build for all platforms - each runs on its native OS.
 
 ### Update Not Detected by App
