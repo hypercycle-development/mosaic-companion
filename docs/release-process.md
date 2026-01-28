@@ -1,6 +1,6 @@
 # Release Process Documentation
 
-This document describes how to build and publish releases for Mosaic Companion.
+This document describes how to build and publish releases for Mosaic Companion using **Electron Forge**.
 
 ## Prerequisites
 
@@ -13,26 +13,104 @@ This document describes how to build and publish releases for Mosaic Companion.
 
 ## Building and Publishing Releases
 
-### Quick Start
+### Quick Start (CI/CD Recommended)
+
+The easiest way to release is via GitHub Actions:
+
+```bash
+git commit -m "Your changes [DEPLOY]"        # Patch version
+git commit -m "Your changes [DEPLOY] [MINOR]" # Minor version
+git commit -m "Your changes [DEPLOY] [MAJOR]" # Major version
+git push
+```
+
+This will automatically:
+
+1. Bump the version
+2. Build for all platforms and architectures
+3. Upload to S3
+4. Create a git tag
+
+### Manual Build and Publish
 
 ```bash
 # Set AWS credentials
 export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
 
-# Build and publish for each platform (both x64 and arm64)
-npm run build:win -- --publish always
-npm run build:mac -- --publish always
-npm run build:linux -- --publish always
+# Build and publish for current platform
+npm run deploy
 
-# Or build specific architectures only
-npm run build:linux:x64 -- --publish always
-npm run build:linux:arm64 -- --publish always
+# Or build specific architectures
+npm run deploy:x64
+npm run deploy:arm64
 ```
 
-### Step-by-Step Process
+### Build Without Publishing
 
-#### 1. Update Version Number
+```bash
+# Build for current platform/architecture
+npm run make
+
+# Platform-specific (native arch)
+npm run make:linux
+npm run make:mac
+npm run make:win
+
+# Specific architecture
+npm run make:linux:x64
+npm run make:linux:arm64
+npm run make:mac:x64
+npm run make:mac:arm64
+npm run make:win:x64
+npm run make:win:arm64
+```
+
+## Output Directory
+
+Electron Forge outputs to `out/make/` (not `release/`):
+
+```bash
+out/make/
+├── deb/
+│   └── x64/
+│       └── mosaic-companion_1.2.3_amd64.deb
+├── zip/
+│   └── linux/
+│       └── x64/
+│           └── mosaic-companion-linux-x64-1.2.3.zip
+├── squirrel.windows/
+│   └── x64/
+│       └── MosaicCompanion-1.2.3-Setup.exe
+└── ...
+```
+
+## S3 Bucket Structure
+
+Electron Forge publishes to organized folders:
+
+```bash
+s3://mosaic-release/releases/
+├── linux/
+│   ├── x64/
+│   │   ├── mosaic-companion_1.2.3_amd64.deb
+│   │   └── mosaic-companion-linux-x64-1.2.3.zip
+│   └── arm64/
+│       └── ...
+├── darwin/
+│   ├── x64/
+│   │   ├── mosaic-companion-1.2.3-x64.dmg
+│   │   └── mosaic-companion-darwin-x64-1.2.3.zip
+│   └── arm64/
+│       └── ...
+└── win32/
+    ├── x64/
+    │   └── MosaicCompanion-1.2.3-Setup.exe
+    └── arm64/
+        └── ...
+```
+
+## Version Management
 
 Before building a new release, update the version in `package.json`:
 
@@ -44,189 +122,44 @@ Before building a new release, update the version in `package.json`:
 
 Use semantic versioning:
 
--   **MAJOR** (x.0.0): Breaking changes
--   **MINOR** (0.x.0): New features, backwards compatible
--   **PATCH** (0.0.x): Bug fixes
+- **MAJOR** (x.0.0): Breaking changes
+- **MINOR** (0.x.0): New features, backwards compatible
+- **PATCH** (0.0.x): Bug fixes
 
-> 💡 **Note:** When a release is triggered via CI/CD, a git tag (e.g., `v0.0.31`) is automatically created to track exactly which commit was shipped.
-
-#### 2. Set AWS Credentials
-
-Set the environment variables for S3 access:
-
-```bash
-# Linux/macOS
-export AWS_ACCESS_KEY_ID="AKIA..."
-export AWS_SECRET_ACCESS_KEY="..."
-
-# Windows (PowerShell)
-$env:AWS_ACCESS_KEY_ID = "AKIA..."
-$env:AWS_SECRET_ACCESS_KEY = "..."
-
-# Windows (CMD)
-set AWS_ACCESS_KEY_ID=AKIA...
-set AWS_SECRET_ACCESS_KEY=...
-```
-
-> ⚠️ **Never commit credentials to the repository!**
-
-#### 3. Build and Publish
-
-Run the build command with `--publish always` flag:
-
-```bash
-# Windows (both x64 and arm64)
-npm run build:win -- --publish always
-
-# macOS (both x64 and arm64)
-npm run build:mac -- --publish always
-
-# Linux (both x64 and arm64)
-npm run build:linux -- --publish always
-
-# Or build specific architectures:
-npm run build:linux:x64 -- --publish always   # Linux x64 only
-npm run build:mac:arm64 -- --publish always   # macOS arm64 only
-```
-
-This will:
-
-1. Build the application
-2. Generate installer files
-3. Create the `latest*.yml` manifest
-4. Upload everything to S3
-
-#### 4. Verify Upload
-
-Check the S3 bucket to confirm files were uploaded:
-
-```
-s3://BUCKET_NAME/releases/
-├── latest.yml                    # Windows manifest
-├── latest-linux.yml              # Linux manifest
-├── latest-mac.yml                # macOS manifest
-├── Mosaic-Companion-1.2.3.exe      # Windows installer
-├── Mosaic-Companion-1.2.3.AppImage # Linux installer
-├── Mosaic-Companion-1.2.3.pkg      # macOS installer
-└── ...
-```
-
-## Publish Options
-
-| Flag                     | Behavior                                    |
-| ------------------------ | ------------------------------------------- |
-| `--publish always`       | Always publishes, fails if upload fails     |
-| `--publish onTag`        | Only publishes when building from a git tag |
-| `--publish onTagOrDraft` | Publishes on tag, or creates a draft        |
-| `--publish never`        | Never publishes (build only)                |
+> 💡 **Note:** When a release is triggered via CI/CD with `[DEPLOY]`, the version is bumped automatically and a git tag is created.
 
 ## Troubleshooting
 
 ### "Access Denied" Error
 
--   Check that your IAM user has `s3:PutObject` permission
--   Verify the bucket name in `package.json` matches your actual bucket
+- Check that your IAM user has `s3:PutObject` permission
+- Verify AWS credentials are set correctly
 
-### Files Not Uploading
+### Cross-Compilation Limitations
 
--   Ensure `--publish always` flag is included
--   Check AWS credentials are set correctly
--   Verify internet connection
+| Building On | Linux | Windows | macOS |
+| ------------- | ------- | --------- | ------- |
+| **Linux** | ✅ Yes | ⚠️ Wine+Mono | ❌ No |
+| **macOS** | ✅ Yes | ⚠️ Wine+Mono | ✅ Yes |
+| **Windows** | ❌ No | ✅ Yes | ❌ No |
+
+> ⚠️ **Recommended:** Use CI/CD (GitHub Actions) to build for all platforms - each runs on its native OS.
 
 ### Update Not Detected by App
 
--   Confirm the `latest*.yml` file was uploaded
--   Check that the version in `package.json` is higher than the installed version
--   Verify the bucket/region in `package.json` matches the upload destination
+- Confirm files were uploaded to the correct S3 path
+- Check that the version in `package.json` is higher than the installed version
+- Verify the app can reach the S3 bucket (check network/firewall)
 
 ## CI/CD Integration
 
-For automated releases, set AWS credentials as secrets in your CI/CD system:
+GitHub Actions is configured in `.github/workflows/release.yml`. It uses a matrix strategy to build all 6 platform/arch combinations in parallel:
 
-### GitHub Actions Example
+- Linux x64, Linux arm64
+- macOS x64, macOS arm64
+- Windows x64, Windows arm64
 
-```yaml
-- name: Build and Publish
-  env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  run: npm run build:linux -- --publish always
-```
+Secrets required:
 
-### GitLab CI Example
-
-```yaml
-release:
-    script:
-        - npm run build:linux -- --publish always
-    variables:
-        AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
-        AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
-```
-
-## Manual Build and Upload (Fallback)
-
-Use this when CI is unavailable (e.g., rate-limited, offline).
-
-### 1. Clean and Build
-
-```bash
-# Clean previous builds
-rm -rf release/
-
-# Build the web app
-npm run build
-
-# Build Electron for your platform (with both architectures)
-npx electron-builder --linux --x64 --arm64   # Linux
-npx electron-builder --mac --x64 --arm64     # macOS (requires Mac)
-npx electron-builder --win --x64 --arm64     # Windows (requires Windows)
-```
-
-### 2. Configure AWS CLI
-
-```bash
-# One-time setup
-aws configure
-# Enter: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, region (us-east-2)
-```
-
-### 3. Upload to S3
-
-```bash
-cd release
-
-# Linux
-aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
-  --include "*.AppImage" \
-  --include "*.deb" \
-  --include "latest-linux*.yml"
-
-# macOS
-aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
-  --include "*.dmg" \
-  --include "*.zip" \
-  --include "latest-mac*.yml"
-
-# Windows
-aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
-  --include "*.exe" \
-  --include "latest*.yml"
-```
-
-### 4. Verify Upload
-
-```bash
-aws s3 ls s3://mosaic-release/releases/ | head -20
-```
-
-### Platform Requirements
-
-| Build Target | Requires |
-|--------------|----------|
-| Linux x64/arm64 | Linux machine |
-| macOS x64/arm64 | macOS machine |
-| Windows x64/arm64 | Windows machine |
-
-> ⚠️ **Note:** You cannot cross-compile Electron apps. Each target platform must be built on that platform.
-
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`

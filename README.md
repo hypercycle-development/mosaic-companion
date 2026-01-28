@@ -6,7 +6,7 @@
 
 This contains everything you need to run your app locally.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1G6opS0oqO9Ygn97nFvJGFQJakcx1piny
+View your app in AI Studio: <https://ai.studio/apps/drive/1G6opS0oqO9Ygn97nFvJGFQJakcx1piny>
 
 ## Run Locally
 
@@ -32,29 +32,31 @@ Or manually:
 
 - `npm run dev` - Start development server with hot reload
 - `npm run build` - Build the application for production
-- `npm run start` - Build and run the Electron app
+- `npm run start` - Start the Electron app via Forge
 - `npm run preview` - Preview the production build
 - `npm run typecheck` - Run TypeScript type checking without building
 - `npm run clean` - Remove build artifacts
 - `npm run clean:all` - Remove build artifacts, node_modules, and lockfile
 
-#### Build Scripts
+#### Build Scripts (Electron Forge)
 
 | Script | Description |
-|--------|-------------|
-| `npm run build:linux` | Build Linux x64 + arm64 |
-| `npm run build:linux:x64` | Build Linux x64 only |
-| `npm run build:linux:arm64` | Build Linux arm64 only |
-| `npm run build:mac` | Build macOS x64 + arm64 |
-| `npm run build:mac:x64` | Build macOS x64 only |
-| `npm run build:mac:arm64` | Build macOS arm64 only |
-| `npm run build:win` | Build Windows x64 + arm64 |
-| `npm run build:win:x64` | Build Windows x64 only |
-| `npm run build:win:arm64` | Build Windows arm64 only |
-| `npm run build:all` | Build all platforms, all architectures |
+| -------- | ------------- |
+| `npm run make` | Build for current platform/arch |
+| `npm run make:linux` | Build Linux (native arch) |
+| `npm run make:linux:x64` | Build Linux x64 |
+| `npm run make:linux:arm64` | Build Linux arm64 |
+| `npm run make:mac` | Build macOS (native arch) |
+| `npm run make:mac:x64` | Build macOS x64 |
+| `npm run make:mac:arm64` | Build macOS arm64 |
+| `npm run make:win` | Build Windows (native arch) |
+| `npm run make:win:x64` | Build Windows x64 |
+| `npm run make:win:arm64` | Build Windows arm64 |
+| `npm run deploy` | Build and publish to S3 (native arch) |
+| `npm run deploy:x64` | Build x64 and publish to S3 |
+| `npm run deploy:arm64` | Build arm64 and publish to S3 |
 
 ### Helper Scripts
 
 - `./setup.sh` - Automated setup (installs dependencies, creates .env.local)
 - `./start.sh` - Quick start script (installs dependencies if needed, then starts the app)
-
