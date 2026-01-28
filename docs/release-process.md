@@ -9,6 +9,15 @@ This document describes how to build and publish releases for Mosaic Companion u
     - `AWS_ACCESS_KEY_ID`
     - `AWS_SECRET_ACCESS_KEY`
 
+    Create a `.env.local` file (recommended) or `.env` file in the project root:
+
+    ```env
+    AWS_ACCESS_KEY_ID=your-access-key
+    AWS_SECRET_ACCESS_KEY=your-secret-key
+    ```
+
+    > **Note:** `.env.local` takes priority over `.env`. Both files are loaded automatically by `forge.config.js`.
+
 2. **S3 Bucket** - Must be configured with public read access.
 
 ## Building and Publishing Releases

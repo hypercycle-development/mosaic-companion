@@ -75,19 +75,30 @@ if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
         echo "This will use the electronuserland/builder:wine-mono image."
         echo ""
         
-        # Check if .env.local exists
-        if [ ! -f .env.local ]; then
-            echo "Warning: .env.local not found. AWS credentials may not be available in Docker."
-            if ! confirm "Continue anyway?"; then
+        # Load AWS credentials from .env.local or environment
+        if [ -f .env.local ]; then
+            echo "Loading AWS credentials from .env.local..."
+            # Source the file to handle quoted values properly
+            set -a
+            source .env.local
+            set +a
+        fi
+        
+        # Check if AWS credentials are available
+        if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "Warning: AWS credentials not found in .env.local or environment."
+            echo "Make sure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set."
+            if ! confirm "Continue anyway (build only, no upload)?"; then
                 echo "Aborted."
                 exit 1
             fi
         fi
         
-        # Run Docker build - use electron-forge directly with platform flag
-        # The npm scripts don't pass --platform, so we call electron-forge directly
+        # Run Docker build - pass AWS credentials explicitly via -e flags
+        # The --env-file option doesn't handle quoted values properly
         docker run --rm -ti \
-          --env-file .env.local \
+          -e "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" \
+          -e "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
           -v ${PWD}:/project \
           -v ~/.cache/electron:/root/.cache/electron \
           -v ~/.cache/electron-builder:/root/.cache/electron-builder \
