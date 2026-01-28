@@ -1,6 +1,9 @@
 #!/bin/bash
-# Upload release artifacts to S3 and create git tag (Electron Forge version)
-# Usage: ./scripts/upload-release.sh [patch|minor|major]
+# Upload release artifacts to S3 with Docker support for Windows builds
+# Usage: ./scripts/upload-release-docker.sh [patch|minor|major] [platform] [arch]
+# Examples:
+#   ./scripts/upload-release-docker.sh patch linux x64
+#   ./scripts/upload-release-docker.sh patch win32 x64
 
 set -e
 
@@ -16,16 +19,21 @@ if [[ ! "$VERSION_TYPE" =~ ^(patch|minor|major)$ ]]; then
     exit 1
 fi
 
+# Get platform (optional, default to current)
+DETECTED_PLATFORM=$(node -p "require('os').platform()")
+PLATFORM="${2:-$DETECTED_PLATFORM}"
+if [[ ! "$PLATFORM" =~ ^(linux|darwin|win32)$ ]]; then
+    echo "Error: Invalid platform '$PLATFORM'. Use: linux, darwin, or win32"
+    exit 1
+fi
+
 # Get architecture (optional, default to native)
 DETECTED_ARCH=$(node -p "os.arch()")
-ARCH="${2:-$DETECTED_ARCH}"
+ARCH="${3:-$DETECTED_ARCH}"
 if [[ ! "$ARCH" =~ ^(x64|arm64)$ ]]; then
     echo "Error: Invalid architecture '$ARCH'. Use: x64 or arm64"
     exit 1
 fi
-
-# Get OS/Platform
-PLATFORM=$(node -p "require('os').platform()")
 
 # Get version from package.json
 VERSION=$(node -p "require('./package.json').version")
@@ -34,7 +42,7 @@ echo "=========================================="
 echo "    MOSAIC COMPANION RELEASE SCRIPT"
 echo "=========================================="
 echo "Version: ${VERSION} (${VERSION_TYPE})"
-echo "OS     : ${PLATFORM}"
+echo "Platform: ${PLATFORM}"
 echo "Arch   : ${ARCH}"
 echo "=========================================="
 echo ""
@@ -48,28 +56,85 @@ confirm() {
     esac
 }
 
-# Step 1: Upload to S3
-echo "=== Step 1: Upload to S3 ==="
+# Step 1: Build and Upload to S3
+echo "=== Step 1: Build and Upload to S3 ==="
+
+# Determine if we need Docker for Windows builds on Linux
+USE_DOCKER=false
+if [ "$DETECTED_PLATFORM" == "linux" ] && [ "$PLATFORM" == "win32" ]; then
+    echo "Windows build requested on Linux host."
+    if confirm "Use Docker for Windows build? (Recommended)"; then
+        USE_DOCKER=true
+    fi
+fi
+
 if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
     
-    # Detect architecture for local publish
-    echo "Publishing for architecture: ${ARCH}..."
-    
-    # Use the selected architecture
-    npm run deploy:"$ARCH"
-    
-    echo "✓ Binaries build and uploaded via Electron Forge (S3 Publisher)"
-    echo ""
+    if [ "$USE_DOCKER" == "true" ]; then
+        echo "Building Windows release using Docker..."
+        echo "This will use the electronuserland/builder:wine-mono image."
+        echo ""
+        
+        # Check if .env.local exists
+        if [ ! -f .env.local ]; then
+            echo "Warning: .env.local not found. AWS credentials may not be available in Docker."
+            if ! confirm "Continue anyway?"; then
+                echo "Aborted."
+                exit 1
+            fi
+        fi
+        
+        # Determine the npm script to run
+        if [ "$ARCH" == "x64" ]; then
+            NPM_SCRIPT="deploy:x64"
+        else
+            NPM_SCRIPT="deploy:arm64"
+        fi
+        
+        # Run Docker build
+        docker run --rm -ti \
+          --env-file .env.local \
+          -v ${PWD}:/project \
+          -v ~/.cache/electron:/root/.cache/electron \
+          -v ~/.cache/electron-builder:/root/.cache/electron-builder \
+          electronuserland/builder:wine-mono \
+          /bin/bash -c "apt-get update && apt-get install -y zip && npm install && ELECTRON_FORGE_PLATFORM=win32 npm run $NPM_SCRIPT"
+        
+        # Fix ownership of generated files
+        echo "Fixing file ownership..."
+        sudo chown -R $USER:$USER out/
+        
+        echo "✓ Windows binaries built and uploaded via Docker"
+        echo ""
+    else
+        # Native build (Linux or macOS)
+        echo "Publishing for platform: ${PLATFORM}, architecture: ${ARCH}..."
+        
+        # Determine the npm script to run
+        if [ "$ARCH" == "x64" ]; then
+            NPM_SCRIPT="deploy:x64"
+        else
+            NPM_SCRIPT="deploy:arm64"
+        fi
+        
+        # Use the selected architecture
+        npm run "$NPM_SCRIPT"
+        
+        echo "✓ Binaries built and uploaded via Electron Forge (S3 Publisher)"
+        echo ""
+    fi
 
-    # Update and upload index.html (Default behavior)
-    # TODO: Add granular behavior for specific platforms runs (e.g. only update certain links)
-    echo "Updating static installation page..."
-    mkdir -p tmp_static
-    sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
-    aws s3 cp tmp_static/index.html "s3://${BUCKET}/index.html" --content-type "text/html"
-    aws s3 cp static/install-page/style.css "s3://${BUCKET}/style.css" --content-type "text/css"
-    rm -rf tmp_static
-    echo "✓ Static page uploaded"
+    # Update and upload index.html (only on first/main platform build)
+    if confirm "Update static installation page (index.html)?"; then
+        echo "Updating static installation page..."
+        mkdir -p tmp_static
+        sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
+        aws s3 cp tmp_static/index.html "s3://${BUCKET}/index.html" --content-type "text/html"
+        aws s3 cp static/install-page/style.css "s3://${BUCKET}/style.css" --content-type "text/css"
+        rm -rf tmp_static
+        echo "✓ Static page uploaded"
+        echo ""
+    fi
 
     # Update and upload latest.json (Linux only or confirmation)
     if [ "$PLATFORM" == "linux" ]; then
@@ -89,13 +154,15 @@ if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
 else
     echo "Skipped S3 upload."
     echo ""
+    exit 1
 fi
 
-# Step 2: Create git tag
-echo "=== Step 2: Create Git Tag ==="
-echo "Tag: v${VERSION}"
+# Step 2: Create git tag (only offer if this is the final platform)
+if confirm "Is this the final platform build? (Will create git tag)"; then
+    echo "=== Step 2: Create Git Tag ==="
+    echo "Tag: v${VERSION}"
 
-TAG_MESSAGE="Release v${VERSION} (${VERSION_TYPE})
+    TAG_MESSAGE="Release v${VERSION} (${VERSION_TYPE})
 
 Download links:
 - Linux x64 (AppImage): ${BUCKET_URL}/linux/x64/mosaic-companion-${VERSION}-x64.AppImage
@@ -104,33 +171,41 @@ Download links:
 - Linux arm64 (AppImage): ${BUCKET_URL}/linux/arm64/mosaic-companion-${VERSION}-arm64.AppImage
 - Linux arm64 (deb): ${BUCKET_URL}/linux/arm64/mosaic-companion_${VERSION}_arm64.deb
 - Linux arm64 (zip): ${BUCKET_URL}/linux/arm64/mosaic-companion-linux-arm64-${VERSION}.zip
-- Windows x64: ${BUCKET_URL}/win32/x64/mosaic-companion-${VERSION}-Setup.exe
-- macOS x64: ${BUCKET_URL}/darwin/x64/mosaic-companion-${VERSION}-x64.dmg
-- macOS arm64: ${BUCKET_URL}/darwin/arm64/mosaic-companion-${VERSION}-arm64.dmg"
+- Windows x64 (Setup): ${BUCKET_URL}/win32/x64/mosaic-companion-${VERSION}-Setup.exe
+- Windows x64 (zip): ${BUCKET_URL}/win32/x64/mosaic-companion-win32-x64-${VERSION}.zip
+- macOS x64 (dmg): ${BUCKET_URL}/darwin/x64/mosaic-companion-${VERSION}-x64.dmg
+- macOS x64 (zip): ${BUCKET_URL}/darwin/x64/mosaic-companion-darwin-x64-${VERSION}.zip
+- macOS arm64 (dmg): ${BUCKET_URL}/darwin/arm64/mosaic-companion-${VERSION}-arm64.dmg
+- macOS arm64 (zip): ${BUCKET_URL}/darwin/arm64/mosaic-companion-darwin-arm64-${VERSION}.zip"
 
-echo "Message:"
-echo "$TAG_MESSAGE"
-echo ""
-
-if confirm "Create tag v${VERSION}?"; then
-    git tag -a "v${VERSION}" -m "$TAG_MESSAGE"
-    echo "✓ Tag v${VERSION} created locally"
+    echo "Message:"
+    echo "$TAG_MESSAGE"
     echo ""
+
+    if confirm "Create tag v${VERSION}?"; then
+        git tag -a "v${VERSION}" -m "$TAG_MESSAGE"
+        echo "✓ Tag v${VERSION} created locally"
+        echo ""
+    else
+        echo "Skipped tag creation."
+        echo ""
+    fi
+
+    # Step 3: Push to GitHub
+    echo "=== Step 3: Push to GitHub ==="
+    if confirm "Push tag v${VERSION} to origin?"; then
+        git push origin "v${VERSION}"
+        echo "✓ Tag pushed to GitHub"
+        echo ""
+    else
+        echo "Skipped push. Run manually: git push origin v${VERSION}"
+        echo ""
+    fi
 else
-    echo "Skipped tag creation."
-    echo ""
-fi
-
-# Step 3: Push to GitHub
-echo "=== Step 3: Push to GitHub ==="
-if confirm "Push tag v${VERSION} to origin?"; then
-    git push origin "v${VERSION}"
-    echo "✓ Tag pushed to GitHub"
-    echo ""
-else
-    echo "Skipped push. Run manually: git push origin v${VERSION}"
+    echo "Skipped git tag creation (not final platform build)."
     echo ""
 fi
 
 echo "=== Done! ==="
-echo "View tag: git show v${VERSION}"
+echo "Platform: ${PLATFORM} (${ARCH})"
+echo "Version: ${VERSION}"
