@@ -4,6 +4,48 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env' });
 dotenv.config({ path: '.env.local', override: true });
 
+/**
+ * Generates the Linux AppImage wrapper script for sandbox auto-detection.
+ * This wrapper tries sandbox first and falls back to --no-sandbox if it fails.
+ * 
+ * @param {string} binaryName - The name of the actual binary (e.g., 'mosaic-companion-bin')
+ * @returns {string} The bash wrapper script content
+ */
+function generateLinuxWrapperScript(binaryName) {
+    return `#!/bin/bash
+# Mosaic Companion - Linux AppImage Wrapper
+# Handles sandbox auto-detection and fallback for Ubuntu 24.04+ compatibility
+# See: https://github.com/hypercycle-development/mosaic-browser/blob/main/docs/linux-sandbox.md
+
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+BINARY="$SCRIPT_DIR/${binaryName}"
+SETTINGS_FILE="$HOME/.config/mosaic-companion/app-settings.json"
+
+# Read sandbox preference from user settings
+SANDBOX_PREF=""
+[ -f "$SETTINGS_FILE" ] && SANDBOX_PREF=$(grep -o '"sandboxMode":"[^"]*"' "$SETTINGS_FILE" 2>/dev/null | cut -d'"' -f4)
+
+case "$SANDBOX_PREF" in
+    disabled) exec "$BINARY" --no-sandbox "$@" ;;
+    enabled)  exec "$BINARY" "$@" ;;
+    *)
+        # Auto mode: try sandbox, fallback if it fails (AppImage only)
+        if [ -n "$APPIMAGE" ]; then
+            "$BINARY" "$@" & PID=$!
+            sleep 0.5
+            if ! kill -0 $PID 2>/dev/null; then
+                export MOSAIC_SANDBOX_FALLBACK=1
+                exec "$BINARY" --no-sandbox "$@"
+            fi
+            wait $PID
+        else
+            exec "$BINARY" "$@"
+        fi
+        ;;
+esac
+`;
+}
+
 export default {
     packagerConfig: {
         appId: 'com.mosaic.companion',
@@ -144,6 +186,43 @@ export default {
             const { execSync } = await import('child_process');
             console.log('🔨 Building frontend with Vite...');
             execSync('npm run build', { stdio: 'inherit' });
+        },
+        
+        // Create smart wrapper script for Linux AppImage sandbox handling
+        // This wrapper detects sandbox failures and automatically falls back to --no-sandbox
+        // while setting MOSAIC_SANDBOX_FALLBACK=1 so the UI can show a warning
+        //
+        // ** NOTE: This wrapper script is inside the AppImage, NOT on the user's machine. **
+        //
+        // AppImage runs from a FUSE mount where SUID permissions cannot work,
+        // so we need to pass --no-sandbox to the Electron binary
+        // This is a known issue with Electron AppImage and SUID sandbox on Ubuntu 24.04, see:
+        // - https://github.com/electron/electron/issues/17972
+        // - https://github.com/electron/electron/issues/42510
+        // - https://bugs.launchpad.net/ubuntu/+source/apparmor/+bug/2064672
+        //
+        postPackage: async (config, packageResult) => {
+            if (packageResult.platform !== 'linux') return;
+            
+            const fs = await import('fs/promises');
+            const path = await import('path');
+            
+            const outputPath = packageResult.outputPaths[0];
+            const executableName = config.packagerConfig.executableName || 'mosaic-companion';
+            const binaryPath = path.join(outputPath, executableName);
+            const wrapperPath = path.join(outputPath, `${executableName}-bin`);
+            
+            try {
+                await fs.access(binaryPath);
+                await fs.rename(binaryPath, wrapperPath);
+                
+                const wrapperScript = generateLinuxWrapperScript(`${executableName}-bin`);
+                await fs.writeFile(binaryPath, wrapperScript, { mode: 0o755 });
+                
+                console.log('✅ Created Linux AppImage sandbox wrapper script');
+            } catch (error) {
+                console.warn('⚠️ Could not create AppImage wrapper:', error.message);
+            }
         }
     }
 };
