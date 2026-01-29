@@ -23,22 +23,13 @@ The SUID sandbox helper binary was found, but is not configured correctly.
 
 ## How Mosaic Companion Handles This
 
-Mosaic Companion includes **auto-detection** that handles this automatically:
+Mosaic Companion **automatically detects** this kernel restriction and handles it:
 
-1. **On launch**, the app tries to start with the sandbox enabled
-2. **If the sandbox fails**, the app automatically restarts with `--no-sandbox`
+1. **On launch**, the wrapper script checks `/proc/sys/kernel/apparmor_restrict_unprivileged_userns`
+2. **If the restriction is enabled**, the app automatically starts with `--no-sandbox`
 3. **A warning banner** appears in the app to inform you of reduced security
-4. **You can configure this** in Settings → Linux Sandbox Security
 
-## Sandbox Mode Options
-
-In the Settings page, you can choose between three modes:
-
-| Mode | Description | Best For |
-|------|-------------|----------|
-| **Auto-detect** (default) | Tries sandbox, falls back if it fails | Most users |
-| **Force Enabled** | Always use sandbox (may fail on Ubuntu 24.04+) | Older distros, .deb installs |
-| **Force Disabled** | Never use sandbox | Maximum compatibility |
+This is fully automatic - no user configuration needed.
 
 ## Security Implications
 
@@ -50,26 +41,16 @@ When running without the sandbox:
 
 > ⚠️ **Recommendation**: If security is a priority, consider using the `.deb` package instead of AppImage. The `.deb` installation has full sandbox support.
 
-## Manual Workarounds
+## Alternative: Use .deb Package
 
-### Option 1: Run with Flag
-
-If your AppImage doesn't auto-detect correctly, you can manually run:
-
-```bash
-./Mosaic-Companion-*.AppImage --no-sandbox
-```
-
-### Option 2: Use .deb Package
-
-The `.deb` package installs with proper permissions:
+The `.deb` package installs with proper permissions and has full sandbox support:
 
 ```bash
 sudo dpkg -i mosaic-companion_*.deb
 mosaic-companion
 ```
 
-### Option 3: Disable AppArmor Restriction (Advanced)
+## Advanced: Disable AppArmor Restriction
 
 > ⚠️ **Warning**: This changes system-wide security policy.
 
@@ -78,7 +59,7 @@ mosaic-companion
 sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
 # Permanent
-echo 'kernel.apparmor_restrict_unprivileged_userns=0' | sudo tee -a /etc/sysctl.conf
+echo 'kernel.apparmor_restrict_unprivileged_userns=0' | sudo tee /etc/sysctl.d/99-appimage-sandbox.conf
 ```
 
 ## Affected Distributions
@@ -90,13 +71,13 @@ echo 'kernel.apparmor_restrict_unprivileged_userns=0' | sudo tee -a /etc/sysctl.
 ## Technical Details
 
 The wrapper script inside the AppImage:
-- Reads your sandbox preference from `~/.config/mosaic-companion/app-settings.json`
-- Tries launching with sandbox first (in auto mode)
-- Sets `MOSAIC_SANDBOX_FALLBACK=1` environment variable when falling back
-- The main process reads this variable to show the warning banner
+
+1. Checks `/proc/sys/kernel/apparmor_restrict_unprivileged_userns`
+2. Checks `/proc/sys/kernel/unprivileged_userns_clone` (older restriction)
+3. Sets `MOSAIC_SANDBOX_FALLBACK=1` if sandbox won't work
+4. The main process reads this variable to show the warning banner
 
 ## Related Links
 
-- [Electron Issue #17972](https://github.com/electron/electron/issues/17972)
 - [Electron Issue #42510](https://github.com/electron/electron/issues/42510)
 - [Ubuntu Bug #2064672](https://bugs.launchpad.net/ubuntu/+source/apparmor/+bug/2064672)
