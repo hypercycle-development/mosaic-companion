@@ -9,6 +9,7 @@ interface TabStripProps {
   onSwitchTab: (id: string) => void;
   onCloseTab: (id: string, e: React.MouseEvent) => void;
   onNewTab: () => void;
+  showWindowControls?: boolean;
 }
 
 export const TabStrip: React.FC<TabStripProps> = ({
@@ -17,6 +18,7 @@ export const TabStrip: React.FC<TabStripProps> = ({
   onSwitchTab,
   onCloseTab,
   onNewTab,
+  showWindowControls = true,
 }) => {
   const renderTabIcon = (tab: Tab) => {
     // 1. Loading State with pulsing animation
@@ -86,12 +88,20 @@ export const TabStrip: React.FC<TabStripProps> = ({
   return (
     <div
       className="flex items-center h-10 bg-gray-200 dark:bg-gray-950 px-2 pt-2 gap-1 select-none border-b border-gray-300 dark:border-gray-800 shrink-0"
-      style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+      style={
+        showWindowControls
+          ? ({ WebkitAppRegion: "drag" } as React.CSSProperties)
+          : undefined
+      }
     >
       {/* Tabs area - not draggable */}
       <div
         className="flex items-center gap-1 overflow-x-auto flex-1"
-        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        style={
+          showWindowControls
+            ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties)
+            : undefined
+        }
       >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
@@ -156,13 +166,23 @@ export const TabStrip: React.FC<TabStripProps> = ({
         </button>
       </div>
 
-      {/* Window Controls - always on the right, not draggable */}
-      <div
-        className="flex items-center ml-auto pl-2"
-        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-      >
-        <WindowControls />
-      </div>
+      {/* Draggable spacer - allows window dragging from empty area */}
+      {showWindowControls && (
+        <div
+          className="flex-1 h-full min-w-8"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        />
+      )}
+
+      {/* Window Controls - only show when not using default title bar */}
+      {showWindowControls && (
+        <div
+          className="flex items-center pl-2"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        >
+          <WindowControls />
+        </div>
+      )}
     </div>
   );
 };
