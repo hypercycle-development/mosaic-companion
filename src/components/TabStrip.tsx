@@ -169,7 +169,7 @@ export const TabStrip: React.FC<TabStripProps> = ({
       {/* Draggable spacer - allows window dragging from empty area */}
       {showWindowControls && (
         <div
-          className="flex-1 h-full min-w-8"
+          className="flex-1 h-full min-w-8 bg-gray-800/60 cursor-grab rounded"
           style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         />
       )}
