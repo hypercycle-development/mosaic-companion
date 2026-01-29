@@ -29,6 +29,7 @@ import {
 } from "../types/ai";
 import { AIService } from "../services/AIService";
 import GmailClient from "./GmailClient";
+import { LinuxSandboxSettings } from "./LinuxSandboxSettings";
 import { useTheme } from "../ThemeProvider";
 import { ThemeKey } from "../themes";
 
@@ -1254,6 +1255,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
           </div>
         </section>
+
+        {/* Linux Sandbox Settings */}
+        <LinuxSandboxSettings />
 
         <section>
           <GmailClient />
