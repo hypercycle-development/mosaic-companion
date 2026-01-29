@@ -21,7 +21,6 @@ export function SandboxWarningBanner() {
   useEffect(() => {
     const loadSandboxState = async () => {
       try {
-        // @ts-expect-error sandbox API is added by preload
         const state = await window.electronAPI?.sandbox?.getState();
         if (state) {
           setSandboxState(state);
