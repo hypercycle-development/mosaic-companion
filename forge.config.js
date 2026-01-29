@@ -23,7 +23,7 @@ SETTINGS_FILE="$HOME/.config/mosaic-companion/app-settings.json"
 
 # Read sandbox preference from user settings
 SANDBOX_PREF=""
-[ -f "$SETTINGS_FILE" ] && SANDBOX_PREF=$(grep -o '"sandboxMode":"[^"]*"' "$SETTINGS_FILE" 2>/dev/null | cut -d'"' -f4)
+[ -f "$SETTINGS_FILE" ] && SANDBOX_PREF=$(grep -oP '"sandboxMode"\\s*:\\s*"\\K[^"]+' "$SETTINGS_FILE" 2>/dev/null)
 
 case "$SANDBOX_PREF" in
     disabled) exec "$BINARY" --no-sandbox "$@" ;;
