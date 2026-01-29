@@ -4,6 +4,47 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env' });
 dotenv.config({ path: '.env.local', override: true });
 
+/**
+ * Generates the Linux AppImage wrapper script for sandbox auto-detection.
+ * This wrapper tries sandbox first and falls back to --no-sandbox if it fails.
+ * 
+ * @param {string} binaryName - The name of the actual binary (e.g., 'mosaic-companion-bin')
+ * @returns {string} The bash wrapper script content
+ */
+function generateLinuxWrapperScript(binaryName) {
+    return `#!/bin/bash
+# Mosaic Companion - Linux AppImage Wrapper
+# Auto-detects sandbox compatibility for Ubuntu 24.04+
+
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+BINARY="$SCRIPT_DIR/${binaryName}"
+
+# Check if system restricts unprivileged user namespaces (Ubuntu 24.04+)
+# This kernel setting breaks Electron's SUID sandbox on AppImages
+sandbox_compatible() {
+    # If not an AppImage, sandbox works fine
+    [ -z "$APPIMAGE" ] && return 0
+    
+    # Check kernel.apparmor_restrict_unprivileged_userns (Ubuntu 24.04+)
+    local restrict="/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
+    [ -f "$restrict" ] && [ "$(cat "$restrict" 2>/dev/null)" = "1" ] && return 1
+    
+    # Check kernel.unprivileged_userns_clone (older restriction)
+    local clone="/proc/sys/kernel/unprivileged_userns_clone"
+    [ -f "$clone" ] && [ "$(cat "$clone" 2>/dev/null)" = "0" ] && return 1
+    
+    return 0
+}
+
+if sandbox_compatible; then
+    exec "$BINARY" "$@"
+else
+    export MOSAIC_SANDBOX_FALLBACK=1
+    exec "$BINARY" --no-sandbox "$@"
+fi
+`;
+}
+
 export default {
     packagerConfig: {
         appId: 'com.mosaic.companion',
@@ -144,6 +185,43 @@ export default {
             const { execSync } = await import('child_process');
             console.log('🔨 Building frontend with Vite...');
             execSync('npm run build', { stdio: 'inherit' });
+        },
+        
+        // Create smart wrapper script for Linux AppImage sandbox handling
+        // This wrapper detects sandbox failures and automatically falls back to --no-sandbox
+        // while setting MOSAIC_SANDBOX_FALLBACK=1 so the UI can show a warning
+        //
+        // ** NOTE: This wrapper script is inside the AppImage, NOT on the user's machine. **
+        //
+        // AppImage runs from a FUSE mount where SUID permissions cannot work,
+        // so we need to pass --no-sandbox to the Electron binary
+        // This is a known issue with Electron AppImage and SUID sandbox on Ubuntu 24.04, see:
+        // - https://github.com/electron/electron/issues/17972
+        // - https://github.com/electron/electron/issues/42510
+        // - https://bugs.launchpad.net/ubuntu/+source/apparmor/+bug/2064672
+        //
+        postPackage: async (config, packageResult) => {
+            if (packageResult.platform !== 'linux') return;
+            
+            const fs = await import('fs/promises');
+            const path = await import('path');
+            
+            const outputPath = packageResult.outputPaths[0];
+            const executableName = config.packagerConfig.executableName || 'mosaic-companion';
+            const binaryPath = path.join(outputPath, executableName);
+            const wrapperPath = path.join(outputPath, `${executableName}-bin`);
+            
+            try {
+                await fs.access(binaryPath);
+                await fs.rename(binaryPath, wrapperPath);
+                
+                const wrapperScript = generateLinuxWrapperScript(`${executableName}-bin`);
+                await fs.writeFile(binaryPath, wrapperScript, { mode: 0o755 });
+                
+                console.log('✅ Created Linux AppImage sandbox wrapper script');
+            } catch (error) {
+                console.warn('⚠️ Could not create AppImage wrapper:', error.message);
+            }
         }
     }
 };

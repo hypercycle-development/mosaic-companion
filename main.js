@@ -66,6 +66,23 @@ import {
 } from "./utils/index.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// =============================================================================
+// Linux Sandbox State Detection
+// =============================================================================
+// Detect if running in sandbox fallback mode (set by wrapper script)
+const sandboxState = {
+  isFallback: process.env.MOSAIC_SANDBOX_FALLBACK === '1',
+  isLinux: process.platform === 'linux',
+  isAppImage: !!process.env.APPIMAGE,
+  noSandboxFlag: process.argv.includes('--no-sandbox'),
+};
+
+if (sandboxState.isLinux && sandboxState.isAppImage) {
+  console.log('🐧 Linux AppImage detected');
+  console.log(`   Sandbox fallback: ${sandboxState.isFallback}`);
+  console.log(`   No-sandbox flag: ${sandboxState.noSandboxFlag}`);
+}
+
 // Declare variables of paths to folders that will use user data
 const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 // Keep reference to main window for recreation
@@ -328,6 +345,11 @@ ipcMain.handle("nodes:delete", async (event, id) => {
   }
   return result;
 });
+
+// ============================================
+// Linux Sandbox State (read-only for UI warning)
+// ============================================
+ipcMain.handle("sandbox:get-state", async () => sandboxState);
 
 // ============================================
 // AI Agents Storage

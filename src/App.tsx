@@ -6,6 +6,7 @@ import { TabStrip } from "./components/TabStrip";
 import { BottomBar, InputMode } from "./components/BottomBar";
 import { DemoOverlay } from "./components/DemoOverlay";
 import { CommandPalette } from "./components/CommandPalette";
+import { SandboxWarningBanner } from "./components/SandboxWarningBanner";
 import { INTERNAL_HOME_URL, INTERNAL_CHAT_URL, Tab } from "./types/types";
 import { useTheme } from "./ThemeProvider";
 
@@ -358,6 +359,9 @@ function App() {
           boxShadow: "0 10px 40px var(--shadow)",
         }}
       >
+        {/* Sandbox Warning Banner (Linux only) - at top of main area */}
+        <SandboxWarningBanner />
+
         {/* Conditional Top Bar */}
         {showUrlBar && (
           <div
