@@ -4,7 +4,7 @@ declare global {
   // Update settings configuration
   interface UpdateSettings {
     autoDownload: boolean;
-    titleBarStyle?: "hidden" | "default" | "custom";
+    titleBarStyle?: "hidden" | "default";
     nodes: HypercycleNode[];
   }
 
