@@ -403,6 +403,7 @@ function App() {
           className="flex-1 relative overflow-hidden"
           style={{ backgroundColor: "var(--surface)" }}
         >
+          {/* Sidebar toggle button when sidebar is closed */}
           {!showUrlBar && !isSidebarOpen && !isDemoActive && (
             <button
               onClick={() => setIsSidebarOpen(true)}
