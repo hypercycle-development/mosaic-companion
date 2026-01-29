@@ -6,13 +6,12 @@ interface SandboxState {
   isLinux: boolean;
   isAppImage: boolean;
   noSandboxFlag: boolean;
-  mode: "auto" | "enabled" | "disabled";
 }
 
 /**
  * SandboxWarningBanner
  * Shows a dismissable warning when running without Chromium sandbox protection.
- * Only appears on Linux when sandbox was disabled (either via fallback or user setting).
+ * Only appears on Linux AppImage when sandbox is disabled due to kernel restrictions.
  */
 export function SandboxWarningBanner() {
   const [sandboxState, setSandboxState] = useState<SandboxState | null>(null);
@@ -48,33 +47,11 @@ export function SandboxWarningBanner() {
     sessionStorage.setItem("sandbox-warning-dismissed", "true");
   };
 
-  // Don't show while loading
-  if (isLoading) return null;
+  // Don't show while loading, dismissed, or on non-Linux
+  if (isLoading || isDismissed || !sandboxState?.isLinux) return null;
 
-  // Don't show if dismissed
-  if (isDismissed) return null;
-
-  // Only show on Linux
-  if (!sandboxState?.isLinux) return null;
-
-  // Only show if sandbox is actually disabled
-  const isSandboxDisabled =
-    sandboxState.isFallback ||
-    sandboxState.noSandboxFlag ||
-    sandboxState.mode === "disabled";
-
-  if (!isSandboxDisabled) return null;
-
-  // Determine the reason for disabled sandbox
-  let reasonText = "";
-  if (sandboxState.isFallback) {
-    reasonText =
-      "Sandbox was automatically disabled due to system restrictions (Ubuntu 24.04+).";
-  } else if (sandboxState.mode === "disabled") {
-    reasonText = "Sandbox is disabled in your settings.";
-  } else if (sandboxState.noSandboxFlag) {
-    reasonText = "App was launched with --no-sandbox flag.";
-  }
+  // Only show if sandbox is disabled (via auto-detect fallback or --no-sandbox)
+  if (!sandboxState.isFallback && !sandboxState.noSandboxFlag) return null;
 
   return (
     <div
@@ -94,12 +71,10 @@ export function SandboxWarningBanner() {
         />
         <div className="flex items-center gap-2 flex-wrap text-xs">
           <strong style={{ color: "#eab308" }}>Reduced Security Mode</strong>
-          <span className="opacity-80">{reasonText}</span>
-          <span className="opacity-60">
-            Browser security protections are limited.
+          <span className="opacity-80">
+            Sandbox disabled due to system restrictions (Ubuntu 24.04+).
           </span>
           <a
-            // href="https://github.com/hypercycle-development/mosaic-browser/blob/main/docs/linux-sandbox.md"
             href="https://github.com/electron/electron/issues/42510"
             target="_blank"
             rel="noopener noreferrer"
