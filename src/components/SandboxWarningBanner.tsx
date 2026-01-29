@@ -77,110 +77,46 @@ export function SandboxWarningBanner() {
   }
 
   return (
-    <div className="sandbox-warning-banner">
-      <div className="sandbox-warning-content">
-        <AlertTriangle className="sandbox-warning-icon" size={18} />
-        <div className="sandbox-warning-text">
-          <strong>Reduced Security Mode</strong>
-          <span>{reasonText} Browser security protections are limited.</span>
+    <div
+      className="flex items-center justify-between px-4 py-2 text-sm border-b"
+      style={{
+        background:
+          "linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(234, 179, 8, 0.08) 100%)",
+        borderColor: "rgba(234, 179, 8, 0.3)",
+        color: "var(--text)",
+      }}
+    >
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <AlertTriangle
+          className="flex-shrink-0"
+          size={16}
+          style={{ color: "#eab308" }}
+        />
+        <div className="flex items-center gap-2 flex-wrap text-xs">
+          <strong style={{ color: "#eab308" }}>Reduced Security Mode</strong>
+          <span className="opacity-80">{reasonText}</span>
+          <span className="opacity-60">
+            Browser security protections are limited.
+          </span>
           <a
-            href="https://github.com/hypercycle-development/mosaic-browser/blob/main/docs/linux-sandbox.md"
+            // href="https://github.com/hypercycle-development/mosaic-browser/blob/main/docs/linux-sandbox.md"
+            href="https://github.com/electron/electron/issues/42510"
             target="_blank"
             rel="noopener noreferrer"
-            className="sandbox-warning-link"
+            className="inline-flex items-center gap-1 hover:underline"
+            style={{ color: "#60a5fa" }}
           >
-            Learn more <ExternalLink size={12} />
+            Learn more <ExternalLink size={10} />
           </a>
         </div>
       </div>
       <button
-        className="sandbox-warning-dismiss"
         onClick={handleDismiss}
         aria-label="Dismiss warning"
+        className="flex items-center justify-center p-1 rounded opacity-60 hover:opacity-100 hover:bg-yellow-500/20 transition-all flex-shrink-0 ml-2"
       >
-        <X size={16} />
+        <X size={14} />
       </button>
-
-      <style>{`
-        .sandbox-warning-banner {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          background: linear-gradient(135deg, #fef3cd 0%, #fff3cd 100%);
-          border-bottom: 1px solid #ffc107;
-          padding: 8px 16px;
-          font-size: 13px;
-          color: #856404;
-        }
-
-        .sandbox-warning-content {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex: 1;
-        }
-
-        .sandbox-warning-icon {
-          color: #d39e00;
-          flex-shrink: 0;
-        }
-
-        .sandbox-warning-text {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        .sandbox-warning-text strong {
-          color: #664d03;
-        }
-
-        .sandbox-warning-link {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          color: #0d6efd;
-          text-decoration: none;
-        }
-
-        .sandbox-warning-link:hover {
-          text-decoration: underline;
-        }
-
-        .sandbox-warning-dismiss {
-          background: none;
-          border: none;
-          cursor: pointer;
-          padding: 4px;
-          color: #856404;
-          border-radius: 4px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .sandbox-warning-dismiss:hover {
-          background: rgba(0, 0, 0, 0.1);
-        }
-
-        /* Dark mode support */
-        @media (prefers-color-scheme: dark) {
-          .sandbox-warning-banner {
-            background: linear-gradient(135deg, #332701 0%, #3d2e02 100%);
-            border-bottom-color: #664d03;
-            color: #ffc107;
-          }
-
-          .sandbox-warning-text strong {
-            color: #ffda6a;
-          }
-
-          .sandbox-warning-dismiss {
-            color: #ffc107;
-          }
-        }
-      `}</style>
     </div>
   );
 }
