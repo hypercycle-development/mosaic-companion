@@ -31,6 +31,7 @@ function App() {
   const [isDemoActive, setIsDemoActive] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [hasAgents, setHasAgents] = useState(false);
+  const [titleBarStyle, setTitleBarStyle] = useState<string>("hidden");
 
   // Input mode state (agent or normal)
   const [inputMode, setInputMode] = useState<InputMode>("normal");
@@ -50,6 +51,21 @@ function App() {
       }
     };
     checkAgents();
+  }, []);
+
+  // Load title bar style setting
+  useEffect(() => {
+    const loadTitleBarStyle = async () => {
+      try {
+        const settings = await window.electronAPI?.getUpdateSettings();
+        if (settings?.titleBarStyle) {
+          setTitleBarStyle(settings.titleBarStyle);
+        }
+      } catch {
+        // Keep default
+      }
+    };
+    loadTitleBarStyle();
   }, []);
 
   // --- Tab & Session State ---
@@ -395,6 +411,7 @@ function App() {
             onSwitchTab={handleSwitchTab}
             onCloseTab={handleCloseTab}
             onNewTab={handleNewTab}
+            showWindowControls={titleBarStyle !== "default"}
           />
         )}
 
