@@ -464,38 +464,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   Window Title Bar
                 </span>
                 <p className="text-sm text-gray-500">
-                  Custom shows styled controls in sidebar. Default uses native
-                  OS title bar.
+                  Hidden shows styled controls. Default uses native OS title
+                  bar.
                 </p>
               </div>
               <div className="flex bg-gray-950 rounded-lg p-1 border border-gray-700">
-                <button
-                  onClick={async () => {
-                    if (updateSettings.titleBarStyle === "custom") return;
-
-                    const result =
-                      await window.electronAPI?.showTitleBarConfirm?.();
-                    if (!result || result.buttonIndex === 2) return;
-
-                    await handleUpdateSettingChange("titleBarStyle", "custom");
-
-                    if (result.buttonIndex === 0) {
-                      window.electronAPI?.restartWindow?.();
-                    } else {
-                      toast.info("Change will apply on next restart");
-                    }
-                  }}
-                  className={`
-                    px-3 py-1.5 rounded-md text-sm font-medium transition-all
-                    ${
-                      updateSettings.titleBarStyle === "custom"
-                        ? "bg-indigo-600 text-white shadow-sm"
-                        : "text-gray-400 hover:text-gray-200"
-                    }
-                  `}
-                >
-                  Custom
-                </button>
                 <button
                   onClick={async () => {
                     if (updateSettings.titleBarStyle === "hidden") return;
@@ -515,8 +488,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   className={`
                     px-3 py-1.5 rounded-md text-sm font-medium transition-all
                     ${
-                      updateSettings.titleBarStyle === "hidden"
-                        ? "bg-gray-800 text-white shadow-sm"
+                      updateSettings.titleBarStyle !== "default"
+                        ? "bg-indigo-600 text-white shadow-sm"
                         : "text-gray-400 hover:text-gray-200"
                     }
                   `}
