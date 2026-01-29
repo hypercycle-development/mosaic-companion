@@ -20,11 +20,6 @@ const DEFAULT_SETTINGS = {
   titleBarStyle: process.platform === 'darwin' ? 'default' : 'hidden',
   nodes: [],
   gmailAutoMarkRead: false, // Auto-mark emails as read when viewed
-  // Linux AppImage sandbox mode: 'auto' | 'enabled' | 'disabled'
-  // - auto: Try sandbox first, fallback to no-sandbox if it fails
-  // - enabled: Always use sandbox (may fail on Ubuntu 24.04+)
-  // - disabled: Always use --no-sandbox
-  sandboxMode: 'auto',
 };
 
 // Current settings (loaded from file or defaults)
@@ -147,32 +142,6 @@ export function setGmailAutoMarkRead(value) {
 }
 
 // =============================================================================
-// Linux Sandbox Settings
-// =============================================================================
-
-/**
- * Get Linux AppImage sandbox mode.
- * @returns {'auto' | 'enabled' | 'disabled'}
- */
-export function getSandboxMode() {
-  return settings.sandboxMode || 'auto';
-}
-
-/**
- * Set Linux AppImage sandbox mode.
- * @param {'auto' | 'enabled' | 'disabled'} mode
- * @returns {{ success: boolean, error?: string }}
- */
-export function setSandboxMode(mode) {
-  const validModes = ['auto', 'enabled', 'disabled'];
-  if (!validModes.includes(mode)) {
-    return { success: false, error: `Invalid mode. Must be one of: ${validModes.join(', ')}` };
-  }
-  settings.sandboxMode = mode;
-  console.log(`Sandbox mode set to: ${mode}`);
-  return saveSettings();
-}
-
 // =============================================================================
 // Hypercycle Nodes Management
 // =============================================================================
