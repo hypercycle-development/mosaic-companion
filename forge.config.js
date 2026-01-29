@@ -14,35 +14,34 @@ dotenv.config({ path: '.env.local', override: true });
 function generateLinuxWrapperScript(binaryName) {
     return `#!/bin/bash
 # Mosaic Companion - Linux AppImage Wrapper
-# Handles sandbox auto-detection and fallback for Ubuntu 24.04+ compatibility
-# See: https://github.com/hypercycle-development/mosaic-browser/blob/main/docs/linux-sandbox.md
+# Auto-detects sandbox compatibility for Ubuntu 24.04+
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 BINARY="$SCRIPT_DIR/${binaryName}"
-SETTINGS_FILE="$HOME/.config/mosaic-companion/app-settings.json"
 
-# Read sandbox preference from user settings
-SANDBOX_PREF=""
-[ -f "$SETTINGS_FILE" ] && SANDBOX_PREF=$(grep -oP '"sandboxMode"\\s*:\\s*"\\K[^"]+' "$SETTINGS_FILE" 2>/dev/null)
+# Check if system restricts unprivileged user namespaces (Ubuntu 24.04+)
+# This kernel setting breaks Electron's SUID sandbox on AppImages
+sandbox_compatible() {
+    # If not an AppImage, sandbox works fine
+    [ -z "$APPIMAGE" ] && return 0
+    
+    # Check kernel.apparmor_restrict_unprivileged_userns (Ubuntu 24.04+)
+    local restrict="/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
+    [ -f "$restrict" ] && [ "$(cat "$restrict" 2>/dev/null)" = "1" ] && return 1
+    
+    # Check kernel.unprivileged_userns_clone (older restriction)
+    local clone="/proc/sys/kernel/unprivileged_userns_clone"
+    [ -f "$clone" ] && [ "$(cat "$clone" 2>/dev/null)" = "0" ] && return 1
+    
+    return 0
+}
 
-case "$SANDBOX_PREF" in
-    disabled) exec "$BINARY" --no-sandbox "$@" ;;
-    enabled)  exec "$BINARY" "$@" ;;
-    *)
-        # Auto mode: try sandbox, fallback if it fails (AppImage only)
-        if [ -n "$APPIMAGE" ]; then
-            "$BINARY" "$@" & PID=$!
-            sleep 0.5
-            if ! kill -0 $PID 2>/dev/null; then
-                export MOSAIC_SANDBOX_FALLBACK=1
-                exec "$BINARY" --no-sandbox "$@"
-            fi
-            wait $PID
-        else
-            exec "$BINARY" "$@"
-        fi
-        ;;
-esac
+if sandbox_compatible; then
+    exec "$BINARY" "$@"
+else
+    export MOSAIC_SANDBOX_FALLBACK=1
+    exec "$BINARY" --no-sandbox "$@"
+fi
 `;
 }
 
