@@ -52,8 +52,6 @@ import {
   getTitleBarStyle,
   getGmailAutoMarkRead,
   setGmailAutoMarkRead,
-  getSandboxMode,
-  setSandboxMode,
 } from "./settings.js";
 import { authenticate, signOut, isAuthenticated } from "./gmail-auth.js";
 import { getRecentEmails, getUserProfile, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./gmail-service.js";
@@ -349,32 +347,9 @@ ipcMain.handle("nodes:delete", async (event, id) => {
 });
 
 // ============================================
-// Linux Sandbox Settings
+// Linux Sandbox State (read-only for UI warning)
 // ============================================
-
-// Get sandbox state (for UI to show warnings)
-ipcMain.handle("sandbox:get-state", async () => {
-  return {
-    ...sandboxState,
-    mode: getSandboxMode(),
-  };
-});
-
-// Get sandbox mode setting
-ipcMain.handle("sandbox:get-mode", async () => {
-  return getSandboxMode();
-});
-
-// Set sandbox mode setting
-ipcMain.handle("sandbox:set-mode", async (event, mode) => {
-  return setSandboxMode(mode);
-});
-
-// Restart app (for sandbox mode changes)
-ipcMain.handle("sandbox:restart-app", async () => {
-  app.relaunch();
-  app.exit(0);
-});
+ipcMain.handle("sandbox:get-state", async () => sandboxState);
 
 // ============================================
 // AI Agents Storage

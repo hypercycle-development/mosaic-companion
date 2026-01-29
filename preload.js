@@ -59,11 +59,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     deleteAll: (agentId) =>
       ipcRenderer.invoke("ai-agents-history:delete-all", agentId),
   },
-  // Linux AppImage sandbox management
+  // Linux AppImage sandbox state (read-only)
   sandbox: {
     getState: () => ipcRenderer.invoke("sandbox:get-state"),
-    getMode: () => ipcRenderer.invoke("sandbox:get-mode"),
-    setMode: (mode) => ipcRenderer.invoke("sandbox:set-mode", mode),
-    restartApp: () => ipcRenderer.invoke("sandbox:restart-app"),
   },
 });
