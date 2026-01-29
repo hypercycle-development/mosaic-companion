@@ -4,7 +4,7 @@ declare global {
   // Update settings configuration
   interface UpdateSettings {
     autoDownload: boolean;
-    titleBarStyle?: "hidden" | "default";
+    titleBarStyle?: "hidden" | "default" | "custom";
     nodes: HypercycleNode[];
   }
 
@@ -177,6 +177,24 @@ declare global {
         deleteAll: (
           agentId: string,
         ) => Promise<{ success: boolean; error?: string }>;
+      };
+
+      // Sandbox state
+      sandbox: {
+        getState: () => Promise<{
+          isFallback: boolean;
+          isLinux: boolean;
+          isAppImage: boolean;
+          noSandboxFlag: boolean;
+        }>;
+      };
+
+      // Window controls (for custom title bar)
+      window: {
+        minimize: () => Promise<void>;
+        maximize: () => Promise<void>;
+        close: () => Promise<void>;
+        isMaximized: () => Promise<boolean>;
       };
     };
   }
