@@ -52,6 +52,8 @@ import {
   getTitleBarStyle,
   getGmailAutoMarkRead,
   setGmailAutoMarkRead,
+  getSandboxMode,
+  setSandboxMode,
 } from "./settings.js";
 import { authenticate, signOut, isAuthenticated } from "./gmail-auth.js";
 import { getRecentEmails, getUserProfile, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./gmail-service.js";
@@ -65,6 +67,23 @@ import {
   deleteAllAgentHistories,
 } from "./utils/index.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// =============================================================================
+// Linux Sandbox State Detection
+// =============================================================================
+// Detect if running in sandbox fallback mode (set by wrapper script)
+const sandboxState = {
+  isFallback: process.env.MOSAIC_SANDBOX_FALLBACK === '1',
+  isLinux: process.platform === 'linux',
+  isAppImage: !!process.env.APPIMAGE,
+  noSandboxFlag: process.argv.includes('--no-sandbox'),
+};
+
+if (sandboxState.isLinux && sandboxState.isAppImage) {
+  console.log('🐧 Linux AppImage detected');
+  console.log(`   Sandbox fallback: ${sandboxState.isFallback}`);
+  console.log(`   No-sandbox flag: ${sandboxState.noSandboxFlag}`);
+}
 
 // Declare variables of paths to folders that will use user data
 const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
@@ -327,6 +346,34 @@ ipcMain.handle("nodes:delete", async (event, id) => {
     broadcastNodesChanged(result.nodes);
   }
   return result;
+});
+
+// ============================================
+// Linux Sandbox Settings
+// ============================================
+
+// Get sandbox state (for UI to show warnings)
+ipcMain.handle("sandbox:get-state", async () => {
+  return {
+    ...sandboxState,
+    mode: getSandboxMode(),
+  };
+});
+
+// Get sandbox mode setting
+ipcMain.handle("sandbox:get-mode", async () => {
+  return getSandboxMode();
+});
+
+// Set sandbox mode setting
+ipcMain.handle("sandbox:set-mode", async (event, mode) => {
+  return setSandboxMode(mode);
+});
+
+// Restart app (for sandbox mode changes)
+ipcMain.handle("sandbox:restart-app", async () => {
+  app.relaunch();
+  app.exit(0);
 });
 
 // ============================================
