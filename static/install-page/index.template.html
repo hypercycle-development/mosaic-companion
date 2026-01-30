@@ -30,6 +30,16 @@
     </header>
 
     <main class="container">
+        <!-- Experimental Releases -->
+        <div class="experimental-releases" id="experimental-section">
+          <select id="experimental-select" class="experimental-select">
+            <option value="" disabled selected>
+              Select experimental release...
+            </option>
+          </select>
+          <button id="go-btn" class="go-btn">GO</button>
+        </div>
+
       <!-- Platform Tabs -->
       <div class="platform-tabs">
         <button class="tab-btn mac active" data-platform="mac">
@@ -508,6 +518,58 @@
           setTimeout(() => (button.textContent = "Copy"), 2000);
         });
       }
+
+      // Experimental releases logic
+      async function fetchExperimentalReleases() {
+        // Only run on main index page (not in experimental subfolders)
+        if (window.location.pathname.includes("/experimental/")) {
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            "https://mosaic-release.s3.us-east-2.amazonaws.com/?list-type=2&prefix=releases/experimental/&delimiter=/"
+          );
+          const text = await response.text();
+          const parser = new DOMParser();
+          const xml = parser.parseFromString(text, "text/xml");
+          const prefixes = xml.querySelectorAll("CommonPrefixes Prefix");
+          const select = document.getElementById("experimental-select");
+          const section = document.getElementById("experimental-section");
+
+          let hasReleases = false;
+          prefixes.forEach((prefixNode) => {
+            const prefix = prefixNode.textContent;
+            // Prefix is like "releases/experimental/screenpipe/"
+            const parts = prefix.split("/");
+            const name = parts[parts.length - 2];
+            if (name && name !== "experimental") {
+              const option = document.createElement("option");
+              option.value = prefix;
+              option.textContent = name;
+              select.appendChild(option);
+              hasReleases = true;
+            }
+          });
+
+          if (hasReleases) {
+            section.style.display = "flex";
+          }
+        } catch (error) {
+          console.error("Error fetching experimental releases:", error);
+        }
+      }
+
+      document.getElementById("go-btn").addEventListener("click", () => {
+        const select = document.getElementById("experimental-select");
+        const prefix = select.value;
+        if (prefix) {
+          // Redirect to the experimental index page
+          window.location.href = `https://mosaic-release.s3.us-east-2.amazonaws.com/${prefix}index.html`;
+        }
+      });
+
+      fetchExperimentalReleases();
     </script>
   </body>
 </html>

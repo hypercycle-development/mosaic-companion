@@ -415,6 +415,75 @@ footer a:hover {
   color: var(--color-accent);
 }
 
+/* ===== Experimental Releases Section ===== */
+.experimental-releases {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin: 32px auto 0;
+  flex-wrap: wrap;
+  max-width: 600px;
+  animation: fadeIn 0.4s ease;
+}
+
+.experimental-select {
+  flex: 1;
+  min-width: 250px;
+  padding: 14px 20px;
+  background: var(--color-bg-card);
+  border: 2px solid var(--color-border);
+  border-radius: 50px;
+  color: var(--color-text);
+  font-size: 1rem;
+  font-family: var(--font-main);
+  cursor: pointer;
+  transition: var(--transition);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a0a0b0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 20px center;
+  padding-right: 50px;
+}
+
+.experimental-select:hover {
+  background: var(--color-bg-card-hover);
+  border-color: var(--color-primary);
+}
+
+.experimental-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 4px rgba(0, 206, 201, 0.1);
+}
+
+.go-btn {
+  padding: 14px 28px;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary),
+    var(--color-accent)
+  );
+  border: none;
+  border-radius: 50px;
+  color: white;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.go-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(108, 92, 231, 0.4);
+}
+
+.go-btn:active {
+  transform: translateY(0);
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
   header {
@@ -427,6 +496,18 @@ footer a:hover {
 
   .tagline {
     font-size: 1rem;
+  }
+
+  .experimental-releases {
+    padding: 0 20px;
+  }
+
+  .experimental-select {
+    width: 100%;
+  }
+
+  .go-btn {
+    width: 100%;
   }
 
   .card {
