@@ -252,6 +252,19 @@ EOF
         echo "Non-Linux platform ($PLATFORM) detected. Skipping latest.json update."
     fi
     echo ""
+
+    # Check for custom experimental install page
+    EXPERIMENTAL_PAGE_DIR="static/experimental/${EXPERIMENT_NAME}"
+    if [ -d "$EXPERIMENTAL_PAGE_DIR" ]; then
+        echo "=== Custom Install Page Detected ==="
+        echo "Found custom install page for '${EXPERIMENT_NAME}' at ${EXPERIMENTAL_PAGE_DIR}"
+        if confirm "Upload custom install page to S3?"; then
+            aws s3 cp "$EXPERIMENTAL_PAGE_DIR/" "s3://${BUCKET}/${S3_PATH}/" --recursive
+            echo "✓ Custom install page uploaded to ${S3_PATH}/"
+            echo "Install Page URL: https://${BUCKET}.s3.us-east-2.amazonaws.com/${S3_PATH}/index.html"
+        fi
+        echo ""
+    fi
 else
     echo "Skipped S3 upload."
     echo ""
