@@ -99,6 +99,35 @@ body {
   padding: 0 24px;
 }
 
+/* ===== Back Link ===== */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin-bottom: 24px;
+  transition: var(--transition);
+  padding: 8px 16px;
+  border-radius: 50px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border);
+}
+
+.back-link:hover {
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(-4px);
+  border-color: var(--color-primary);
+}
+
+.back-link svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* ===== Header ===== */
 header {
   padding: 80px 0 60px;
