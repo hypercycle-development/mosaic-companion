@@ -17,7 +17,7 @@ const settingsPath = path.join(app.getPath("userData"), "app-settings.json");
 // Default settings
 const DEFAULT_SETTINGS = {
   autoDownload: false,
-  titleBarStyle: process.platform === 'darwin' ? 'default' : 'hidden',
+  titleBarStyle: 'hidden',
   nodes: [],
   gmailAutoMarkRead: false, // Auto-mark emails as read when viewed
 };

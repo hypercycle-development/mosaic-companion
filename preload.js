@@ -63,4 +63,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   sandbox: {
     getState: () => ipcRenderer.invoke("sandbox:get-state"),
   },
+  // Window controls (for custom title bar)
+  window: {
+    minimize: () => ipcRenderer.invoke("window:minimize"),
+    maximize: () => ipcRenderer.invoke("window:maximize"),
+    close: () => ipcRenderer.invoke("window:close"),
+    isMaximized: () => ipcRenderer.invoke("window:is-maximized"),
+  },
 });

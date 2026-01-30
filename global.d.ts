@@ -178,6 +178,24 @@ declare global {
           agentId: string,
         ) => Promise<{ success: boolean; error?: string }>;
       };
+
+      // Sandbox state
+      sandbox: {
+        getState: () => Promise<{
+          isFallback: boolean;
+          isLinux: boolean;
+          isAppImage: boolean;
+          noSandboxFlag: boolean;
+        }>;
+      };
+
+      // Window controls (for custom title bar)
+      window: {
+        minimize: () => Promise<void>;
+        maximize: () => Promise<void>;
+        close: () => Promise<void>;
+        isMaximized: () => Promise<boolean>;
+      };
     };
   }
 }
