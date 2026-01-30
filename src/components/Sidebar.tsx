@@ -179,7 +179,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const toggleContext = (id: string) => {
     setAiContexts((prev) =>
-      prev.map((ctx) => (ctx.id === id ? { ...ctx, active: !ctx.active } : ctx))
+      prev.map((ctx) =>
+        ctx.id === id ? { ...ctx, active: !ctx.active } : ctx,
+      ),
     );
   };
 

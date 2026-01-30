@@ -89,15 +89,22 @@ const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 let mainWindow = null;
 
 function createWindow(urlToLoad = null) {
-  // Get title bar style from settings (default to 'hidden' on non-Mac if not set)
+  // Get title bar style from settings (default to 'custom' for best UX)
   const titleBarStyle = getTitleBarStyle();
+
+  // Determine frame and titleBarStyle based on setting
+  // - "default": native OS title bar
+  // - "hidden": hidden title bar (macOS hiddenInset style)
+  // - "custom": completely frameless with custom controls
+  const useFrame = titleBarStyle === "default";
+  const electronTitleBarStyle = titleBarStyle === "default" ? "default" : "hidden";
 
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     icon: "assets/icon.png",
-    // Use the setting, or fallback to platform defaults if somehow undefined
-    titleBarStyle: titleBarStyle === "default" ? "default" : "hidden",
+    frame: useFrame,
+    titleBarStyle: electronTitleBarStyle,
     trafficLightPosition: { x: 10, y: 10 },
     backgroundColor: "#111827",
     webPreferences: {
@@ -176,6 +183,31 @@ ipcMain.handle("show-title-bar-confirm", async () => {
 
   // button index: 0 = Apply Now, 1 = Apply Later, 2 = Cancel
   return { buttonIndex: result.response };
+});
+
+// ============================================
+// Window Controls (for custom title bar)
+// ============================================
+ipcMain.handle("window:minimize", () => {
+  if (mainWindow) mainWindow.minimize();
+});
+
+ipcMain.handle("window:maximize", () => {
+  if (mainWindow) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  }
+});
+
+ipcMain.handle("window:close", () => {
+  if (mainWindow) mainWindow.close();
+});
+
+ipcMain.handle("window:is-maximized", () => {
+  return mainWindow ? mainWindow.isMaximized() : false;
 });
 
 // Suppress ERR_ABORTED errors from webviews (harmless redirects, especially Google)
