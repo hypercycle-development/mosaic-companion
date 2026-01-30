@@ -90,9 +90,50 @@ export function readLogFile() {
 // AUTOUPDATER CONFIGURATION
 // =============================================================================
 
-// Linux manual check URL
-const LATEST_JSON_URL = 'https://mosaic-release.s3.us-east-2.amazonaws.com/latest.json';
-const INSTALL_PAGE_URL = 'https://mosaic-release.s3.us-east-2.amazonaws.com/index.html';
+// =============================================================================
+// DYNAMIC UPDATE URL RESOLUTION
+// =============================================================================
+// Main releases: /releases/latest.json
+// Experimental releases (mosaic-companion-{experiment}): /releases/experimental/{experiment}/latest.json
+
+const S3_BASE_URL = 'https://mosaic-release.s3.us-east-2.amazonaws.com';
+
+/**
+ * Get the latest.json URL based on the app name.
+ * - Main release (mosaic-companion): /releases/latest.json
+ * - Experimental (mosaic-companion-screenpipe): /releases/experimental/screenpipe/latest.json
+ */
+function getLatestJsonUrl() {
+    const appName = app.getName(); // Returns packageJson.name or packagerConfig.name
+    const experimentMatch = appName.match(/^mosaic-companion-(.+)$/);
+    
+    if (experimentMatch) {
+        const experimentName = experimentMatch[1];
+        const url = `${S3_BASE_URL}/releases/experimental/${experimentName}/latest.json`;
+        log('INFO', `Experimental build detected: ${experimentName}`);
+        log('INFO', `Using latest.json URL: ${url}`);
+        return url;
+    }
+    
+    // Main release
+    return `${S3_BASE_URL}/releases/latest.json`;
+}
+
+/**
+ * Get the install page URL based on the app name.
+ * Each experimental release has its own index.html in its folder.
+ */
+function getInstallPageUrl() {
+    const appName = app.getName();
+    const experimentMatch = appName.match(/^mosaic-companion-(.+)$/);
+    
+    if (experimentMatch) {
+        const experimentName = experimentMatch[1];
+        return `${S3_BASE_URL}/releases/experimental/${experimentName}/index.html`;
+    }
+    
+    return `${S3_BASE_URL}/index.html`;
+}
 
 const isLinux = os.platform() === 'linux';
 let isManualCheck = false;
@@ -199,9 +240,13 @@ export function manualCheckForUpdates() {
  * Linux-specific manual check.
  */
 async function checkForUpdatesLinux(isManual = false) {
+    const latestJsonUrl = getLatestJsonUrl();
+    const installPageUrl = getInstallPageUrl();
+    
     log('INFO', `Linux check started (isManual: ${isManual})`);
+    log('INFO', `Checking URL: ${latestJsonUrl}`);
     try {
-        const response = await fetch(LATEST_JSON_URL);
+        const response = await fetch(latestJsonUrl);
         if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
 
         const latest = await response.json();
@@ -220,7 +265,7 @@ async function checkForUpdatesLinux(isManual = false) {
             });
 
             if (buttonIndex === 0) {
-                shell.openExternal(INSTALL_PAGE_URL);
+                shell.openExternal(installPageUrl);
             }
         } else if (isManual) {
             dialog.showMessageBox({
