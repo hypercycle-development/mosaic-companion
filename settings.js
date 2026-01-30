@@ -17,7 +17,7 @@ const settingsPath = path.join(app.getPath("userData"), "app-settings.json");
 // Default settings
 const DEFAULT_SETTINGS = {
   autoDownload: false,
-  titleBarStyle: process.platform === 'darwin' ? 'default' : 'hidden',
+  titleBarStyle: 'hidden',
   nodes: [],
   screenpipe: {
     enabled: false,
@@ -169,6 +169,7 @@ export function setGmailAutoMarkRead(value) {
   return saveSettings();
 }
 
+// =============================================================================
 // =============================================================================
 // Hypercycle Nodes Management
 // =============================================================================

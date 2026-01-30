@@ -1,4 +1,34 @@
 // main.js - Complete version with AI agents storage data
+
+// Handle Squirrel.Windows startup events (MUST be first!)
+// This handles install, update, and uninstall events on Windows
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+if (process.platform === 'win32') {
+  try {
+    if (require('electron-squirrel-startup')) {
+      process.exit(0);
+    }
+  } catch (e) {
+    // electron-squirrel-startup not available (dev mode or non-Windows)
+  }
+}
+
+// Single instance lock - prevents multiple instances from running
+// This is important to avoid freezing or conflicts on Windows
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  // Focus existing window if a second instance is started
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
 import { app, BrowserWindow, ipcMain } from "electron";
 import { spawn } from "child_process";
 import os from "os";
@@ -39,6 +69,23 @@ import {
 } from "./utils/index.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// =============================================================================
+// Linux Sandbox State Detection
+// =============================================================================
+// Detect if running in sandbox fallback mode (set by wrapper script)
+const sandboxState = {
+  isFallback: process.env.MOSAIC_SANDBOX_FALLBACK === '1',
+  isLinux: process.platform === 'linux',
+  isAppImage: !!process.env.APPIMAGE,
+  noSandboxFlag: process.argv.includes('--no-sandbox'),
+};
+
+if (sandboxState.isLinux && sandboxState.isAppImage) {
+  console.log('🐧 Linux AppImage detected');
+  console.log(`   Sandbox fallback: ${sandboxState.isFallback}`);
+  console.log(`   No-sandbox flag: ${sandboxState.noSandboxFlag}`);
+}
+
 // Declare variables of paths to folders that will use user data
 const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 // Keep reference to main window for recreation
@@ -78,7 +125,18 @@ function runShellCommand(command, timeoutMs = 30000) {
 async function isScreenpipeInstalled() {
   const command = process.platform === "win32" ? "where screenpipe" : "command -v screenpipe";
   const result = await runShellCommand(command, 8000);
-  return result.code === 0;
+  if (result.code === 0) return true;
+
+  // Fallback for Linux/macOS: check ~/.local/bin/screenpipe
+  if (process.platform !== "win32") {
+    const home = os.homedir();
+    const localBinPath = path.join(home, ".local", "bin", "screenpipe");
+    if (fs.existsSync(localBinPath)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function checkScreenpipeHealth() {
@@ -132,15 +190,22 @@ async function startScreenpipeIfEnabled() {
 }
 
 function createWindow(urlToLoad = null) {
-  // Get title bar style from settings (default to 'hidden' on non-Mac if not set)
+  // Get title bar style from settings (default to 'custom' for best UX)
   const titleBarStyle = getTitleBarStyle();
+
+  // Determine frame and titleBarStyle based on setting
+  // - "default": native OS title bar
+  // - "hidden": hidden title bar (macOS hiddenInset style)
+  // - "custom": completely frameless with custom controls
+  const useFrame = titleBarStyle === "default";
+  const electronTitleBarStyle = titleBarStyle === "default" ? "default" : "hidden";
 
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    icon: path.join(__dirname, "assets", "icon.png"),
-    // Use the setting, or fallback to platform defaults if somehow undefined
-    titleBarStyle: titleBarStyle === "default" ? "default" : "hidden",
+    icon: "assets/icon.png",
+    frame: useFrame,
+    titleBarStyle: electronTitleBarStyle,
     trafficLightPosition: { x: 10, y: 10 },
     backgroundColor: "#111827",
     webPreferences: {
@@ -154,11 +219,23 @@ function createWindow(urlToLoad = null) {
   });
 
   // Load specified URL or default to index.html
+  const indexPath = path.join(__dirname, "dist", "index.html");
+  console.log("Loading index from:", indexPath);
+  console.log("File exists?", fs.existsSync(indexPath));
+  const iconPath = path.join(__dirname, "assets", "icon.png");
+  console.log("Icon path:", iconPath);
+  console.log("Icon exists?", fs.existsSync(iconPath));
+  
   if (urlToLoad) {
     win.loadURL(urlToLoad);
   } else {
-    win.loadFile(path.join(__dirname, "dist", "index.html"));
+    win.loadFile(indexPath);
   }
+
+  // Debug: Log if load fails
+  win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error(`Failed to load ${validatedURL}: ${errorCode} (${errorDescription})`);
+  });
 
   mainWindow = win;
   return win;
@@ -209,6 +286,31 @@ ipcMain.handle("show-title-bar-confirm", async () => {
   return { buttonIndex: result.response };
 });
 
+// ============================================
+// Window Controls (for custom title bar)
+// ============================================
+ipcMain.handle("window:minimize", () => {
+  if (mainWindow) mainWindow.minimize();
+});
+
+ipcMain.handle("window:maximize", () => {
+  if (mainWindow) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  }
+});
+
+ipcMain.handle("window:close", () => {
+  if (mainWindow) mainWindow.close();
+});
+
+ipcMain.handle("window:is-maximized", () => {
+  return mainWindow ? mainWindow.isMaximized() : false;
+});
+
 // Suppress ERR_ABORTED errors from webviews (harmless redirects, especially Google)
 app.on("web-contents-created", (event, contents) => {
   contents.on(
@@ -239,16 +341,21 @@ app.whenReady().then(() => {
   // Initialize updater with settings and check for updates on startup (skip in development)
   if (app.isPackaged) {
     initUpdater();
-    checkForUpdates();
+    
+    // FIX: Delay the check by 2 seconds so the app UI loads first
+    setTimeout(() => {
+      console.log("Starting update check...");
+      checkForUpdates();
+    }, 2000);
   }
 
-  // Pre-initialize Gmail OAuth to load tokens early (so chat can access emails immediately)
+  // Pre-initialize Gmail OAuth to load tokens early
   try {
     if (isAuthenticated()) {
       console.log("Gmail: Already authenticated, tokens loaded");
     }
   } catch (e) {
-    // Ignore - credentials may not be set up yet
+    // Ignore
   }
 });
 
@@ -347,7 +454,7 @@ ipcMain.handle("screenpipe:install", async () => {
   const command =
     process.platform === "win32"
       ? 'powershell -NoLogo -NonInteractive -Command "iwr https://get.screenpi.pe/cli.ps1 -useb | iex"'
-      : "curl -fsSL https://get.screenpi.pe/install.sh | sh";
+      : "curl -fsSL https://get.screenpi.pe/cli | sh";
 
   const result = await runShellCommand(command, 60000);
   const installed = await isScreenpipeInstalled();
@@ -461,6 +568,11 @@ ipcMain.handle("nodes:delete", async (event, id) => {
   }
   return result;
 });
+
+// ============================================
+// Linux Sandbox State (read-only for UI warning)
+// ============================================
+ipcMain.handle("sandbox:get-state", async () => sandboxState);
 
 // ============================================
 // AI Agents Storage
