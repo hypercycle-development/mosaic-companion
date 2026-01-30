@@ -48,8 +48,8 @@ fi
 export default {
     packagerConfig: {
         appId: 'com.mosaic.companion',
-        name: 'mosaic-companion',
-        executableName: 'mosaic-companion',
+        name: 'mosaic-companion-screenpipe',
+        executableName: 'mosaic-companion-screenpipe',
         icon: 'assets/icon',
         asar: true,
         asarUnpack: [
@@ -94,7 +94,7 @@ export default {
         {
             name: '@electron-forge/maker-squirrel',
             config: {
-                name: 'mosaic-companion',
+                name: 'mosaic-companion-screenpipe',
                 productName: 'Mosaic Companion',
                 authors: 'hypercycle',
                 description: 'Mosaic Companion Application',
@@ -128,7 +128,7 @@ export default {
             name: '@electron-forge/maker-deb',
             platforms: ['linux'],
             config: {
-                name: 'mosaic-companion',
+                name: 'mosaic-companion-screenpipe',
                 productName: 'Mosaic Companion',
                 options: {
                     maintainer: 'hern@hypercycle.ai',
@@ -215,7 +215,7 @@ export default {
             const path = await import('path');
             
             const outputPath = packageResult.outputPaths[0];
-            const executableName = config.packagerConfig.executableName || 'mosaic-companion';
+            const executableName = config.packagerConfig.executableName || 'mosaic-companion-screenpipe';
             const binaryPath = path.join(outputPath, executableName);
             const wrapperPath = path.join(outputPath, `${executableName}-bin`);
             
