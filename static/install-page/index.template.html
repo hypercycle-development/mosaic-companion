@@ -7,7 +7,7 @@
       name="description"
       content="Download and install Mosaic Companion for macOS, Linux, and Windows. Get started with the easiest installation guide."
     />
-    <title>Install Mosaic Companion Screenpipe (Experimental)</title>
+    <title>Install Mosaic Companion</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -21,7 +21,7 @@
 
     <header>
       <div class="container">
-        <h1 class="logo">Mosaic Companion Screenpipe (Experimental)</h1>
+        <h1 class="logo">Mosaic Companion</h1>
         <p class="tagline">
           Your AI-powered companion for seamless computing. Choose your platform
           below to get started.
@@ -365,7 +365,21 @@
                 </div>
                 <div class="info">
                   <div>Mosaic Companion (x64)</div>
-                  <div class="arch">For 64-bit Windows</div>
+                  <div class="arch">For 64-bit Windows (most common)</div>
+                </div>
+              </a>
+              <a
+                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/arm64/mosaic-companion-{{VERSION}}+Setup.exe"
+                class="download-btn disabled"
+              >
+                <div class="icon">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                  </svg>
+                </div>
+                <div class="info">
+                  <div>Mosaic Companion (ARM64) - Not Available Yet</div>
+                  <div class="arch">For ARM Windows (Coming Soon)</div>
                 </div>
               </a>
             </div>
@@ -388,8 +402,29 @@
                   <div class="arch">For 64-bit Windows</div>
                 </div>
               </a>
+              <a
+                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/arm64/mosaic-companion-win32-arm64-{{VERSION}}.zip"
+                class="download-btn disabled"
+              >
+                <div class="icon">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                  </svg>
+                </div>
+                <div class="info">
+                  <div>Mosaic Companion (ARM64) - Not Available Yet</div>
+                  <div class="arch">For ARM Windows (Coming Soon)</div>
+                </div>
+              </a>
             </div>
 
+            <div class="notice">
+              <span class="notice-icon">💡</span>
+              <p>
+                Not sure which version? Most Windows PCs use x64. ARM is mainly
+                for newer Surface devices with Snapdragon chips.
+              </p>
+            </div>
           </div>
 
           <div class="card">
