@@ -1,9 +1,9 @@
 #!/bin/bash
 # Upload release artifacts to S3 with Docker support for Windows builds
-# Usage: ./scripts/upload-release-docker.sh [patch|minor|major] [platform] [arch]
+# Usage: ./scripts/upload-release.sh [patch|minor|major] [platform] [arch]
 # Examples:
-#   ./scripts/upload-release-docker.sh patch linux x64
-#   ./scripts/upload-release-docker.sh patch win32 x64
+#   ./scripts/upload-release.sh patch linux x64
+#   ./scripts/upload-release.sh patch win32 x64
 
 set -e
 
