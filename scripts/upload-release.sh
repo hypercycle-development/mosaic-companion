@@ -148,7 +148,7 @@ if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
             mkdir -p tmp_static
             RELEASE_DATE=$(date -u +%Y-%m-%d)
             sed -e "s/{{VERSION}}/${VERSION}/g" -e "s/{{RELEASE_DATE}}/${RELEASE_DATE}/g" static/install-page/latest.template.json > tmp_static/latest.json
-            aws s3 cp tmp_static/latest.json "s3://${BUCKET}/latest.json" --content-type "application/json"
+            aws s3 cp tmp_static/latest.json "s3://${BUCKET}/releases/latest.json" --content-type "application/json"
             rm -rf tmp_static
             echo "✓ latest.json uploaded"
         fi
