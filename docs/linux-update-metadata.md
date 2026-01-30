@@ -1,6 +1,6 @@
 # Linux Update Metadata (S3)
 
-To allow the Mosaic Companion application on Linux to detect new versions, a `latest.json` file must exist at the root of the S3 bucket.
+To allow the Mosaic Companion application on Linux to detect new versions, a `latest.json` file must exist in the appropriate folder in the S3 bucket.
 
 ## Why is this needed?
 
@@ -9,10 +9,19 @@ Unlike Windows and macOS which use "Squirrel" feeds, Linux updates are handled b
 1. Electron Forge does not generate auto-update metadata for Linux by default.
 2. It's much faster to fetch a tiny JSON than to query the entire bucket.
 
-## File Location
+## File Locations
 
-**URL**: `https://mosaic-release.s3.us-east-2.amazonaws.com/latest.json`
-**Bucket Path**: `s3://mosaic-release/latest.json`
+### Main Releases
+**URL**: `https://mosaic-release.s3.us-east-2.amazonaws.com/releases/latest.json`
+**Bucket Path**: `s3://mosaic-release/releases/latest.json`
+
+### Experimental Releases
+Each experimental release has its own `latest.json`:
+**URL**: `https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/{experiment}/latest.json`
+**Bucket Path**: `s3://mosaic-release/releases/experimental/{experiment}/latest.json`
+
+Example for screenpipe experiment:
+`https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/screenpipe/latest.json`
 
 ## Content Format
 
@@ -35,7 +44,11 @@ You can update this file in three ways:
 Run the release script. It detects your platform and only prompts to update `latest.json` if you are on Linux:
 
 ```bash
+# Main release
 ./scripts/upload-release.sh
+
+# Experimental release
+./scripts/upload-experimental-release.sh screenpipe patch linux x64
 ```
 
 If you are on macOS or Windows, the script will skip the `latest.json` update by default to avoid accidental notifications for Linux users.
@@ -49,10 +62,14 @@ The `release.yml` workflow is configured to upload this file automatically every
 If you need to manually override the version:
 
 1. Create the `latest.json` file.
-2. Upload it to the root of the bucket:
+2. Upload it to the appropriate folder:
 
 ```bash
-aws s3 cp latest.json s3://mosaic-release/latest.json --content-type "application/json"
+# Main release
+aws s3 cp latest.json s3://mosaic-release/releases/latest.json --content-type "application/json"
+
+# Experimental release
+aws s3 cp latest.json s3://mosaic-release/releases/experimental/screenpipe/latest.json --content-type "application/json"
 ```
 
 ## Update Logic Flow
