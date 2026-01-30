@@ -170,9 +170,17 @@ export default {
                 region: 'us-east-2',
                 // Note: bucket uses bucket policy for public access, not object ACLs
                 // Custom key resolver to organize by platform/arch
+                // Supports experimental releases via EXPERIMENTAL_S3_PATH env var
                 accessKeyId: process.env.AWS_ACCESS_KEY_ID,
                 secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
                 keyResolver: (fileName, platform, arch) => {
+                    // Check for experimental release path (set by upload-experimental-release.sh)
+                    const experimentalPath = process.env.EXPERIMENTAL_S3_PATH;
+                    if (experimentalPath) {
+                        console.log(`📦 Experimental upload: ${experimentalPath}/${platform}/${arch}/${fileName}`);
+                        return `${experimentalPath}/${platform}/${arch}/${fileName}`;
+                    }
+                    // Default: main release path
                     return `releases/${platform}/${arch}/${fileName}`;
                 }
             }
