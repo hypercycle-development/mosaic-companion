@@ -164,24 +164,39 @@ export const ScreenpipeSettings: React.FC<ScreenpipeSettingsProps> = ({
   }, []);
 
   const handleInstall = async () => {
+    setInstalling(true);
     try {
-      const res = await (window as any).electronAPI?.screenpipe?.install?.();
-      console.log("install screenpipe response:  ", res);
-      const ok = !!res?.success || !!res?.installed;
-      setInstalled(ok);
-      toast[ok ? "success" : "error"](
-        ok ? "Screenpipe installed" : "Failed to install Screenpipe"
-      );
-    // const url = "https://screenpi.pe/";
-    //   if ((window as any).electronAPI?.openExternal) {
-    //     await (window as any).electronAPI.openExternal(url);
-    //   } else {
-    //     window.open(url, "_blank");
-    //   }
-    //   toast.info("Opening Screenpipe website...");
+      const result = await (window as any).electronAPI?.screenpipe?.install?.();
+      
+      if (result?.success) {
+        setInstalled(true);
+        toast.success("Screenpipe installed successfully!");
+      } else {
+        toast.error("Installation failed. Opening website for manual installation...");
+        // Abrir website si la instalación automática falla
+        setTimeout(async () => {
+          const url = "https://screenpi.pe/";
+          if ((window as any).electronAPI?.openExternal) {
+            await (window as any).electronAPI.openExternal(url);
+          } else {
+            window.open(url, "_blank");
+          }
+        }, 1500);
+      }
     } catch (err) {
-      toast.error("Failed to open Screenpipe website");
+      toast.error("Installation failed. Opening website for manual installation...");
       console.error(err);
+      // Abrir website si hay error
+      setTimeout(async () => {
+        const url = "https://screenpi.pe/";
+        if ((window as any).electronAPI?.openExternal) {
+          await (window as any).electronAPI.openExternal(url);
+        } else {
+          window.open(url, "_blank");
+        }
+      }, 1500);
+    } finally {
+      setInstalling(false);
     }
   };
 
