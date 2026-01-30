@@ -6,6 +6,7 @@ import { TabStrip } from "./components/TabStrip";
 import { BottomBar, InputMode } from "./components/BottomBar";
 import { DemoOverlay } from "./components/DemoOverlay";
 import { CommandPalette } from "./components/CommandPalette";
+import { SandboxWarningBanner } from "./components/SandboxWarningBanner";
 import { INTERNAL_HOME_URL, INTERNAL_CHAT_URL, Tab } from "./types/types";
 import { useTheme } from "./ThemeProvider";
 
@@ -30,6 +31,7 @@ function App() {
   const [isDemoActive, setIsDemoActive] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [hasAgents, setHasAgents] = useState(false);
+  const [titleBarStyle, setTitleBarStyle] = useState<string>("hidden");
 
   // Input mode state (agent or normal)
   const [inputMode, setInputMode] = useState<InputMode>("normal");
@@ -49,6 +51,21 @@ function App() {
       }
     };
     checkAgents();
+  }, []);
+
+  // Load title bar style setting
+  useEffect(() => {
+    const loadTitleBarStyle = async () => {
+      try {
+        const settings = await window.electronAPI?.getUpdateSettings();
+        if (settings?.titleBarStyle) {
+          setTitleBarStyle(settings.titleBarStyle);
+        }
+      } catch {
+        // Keep default
+      }
+    };
+    loadTitleBarStyle();
   }, []);
 
   // --- Tab & Session State ---
@@ -358,6 +375,9 @@ function App() {
           boxShadow: "0 10px 40px var(--shadow)",
         }}
       >
+        {/* Sandbox Warning Banner (Linux only) - at top of main area */}
+        <SandboxWarningBanner />
+
         {/* Conditional Top Bar */}
         {showUrlBar && (
           <div
@@ -391,6 +411,7 @@ function App() {
             onSwitchTab={handleSwitchTab}
             onCloseTab={handleCloseTab}
             onNewTab={handleNewTab}
+            showWindowControls={titleBarStyle !== "default"}
           />
         )}
 
@@ -399,6 +420,7 @@ function App() {
           className="flex-1 relative overflow-hidden"
           style={{ backgroundColor: "var(--surface)" }}
         >
+          {/* Sidebar toggle button when sidebar is closed */}
           {!showUrlBar && !isSidebarOpen && !isDemoActive && (
             <button
               onClick={() => setIsSidebarOpen(true)}

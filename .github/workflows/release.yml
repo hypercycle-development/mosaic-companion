@@ -71,7 +71,31 @@ jobs:
           git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
           git push
 
-  # Build for all platforms
+      - name: Create release tag
+        run: |
+          VERSION="${{ steps.bump.outputs.new_version }}"
+          VERSION_TYPE="${{ needs.check-deploy.outputs.version_type }}"
+          BUCKET_URL="https://mosaic-release.s3.us-east-2.amazonaws.com/releases"
+
+          # Create tag message with download links
+          TAG_MESSAGE="Release v${VERSION} (${VERSION_TYPE})
+
+          Download links:
+          - Linux x64 (AppImage): ${BUCKET_URL}/linux/x64/mosaic-companion-${VERSION}-x64.AppImage
+          - Linux x64 (deb): ${BUCKET_URL}/linux/x64/mosaic-companion_${VERSION}_amd64.deb
+          - Linux x64 (zip): ${BUCKET_URL}/linux/x64/mosaic-companion-linux-x64-${VERSION}.zip
+          - Linux arm64 (AppImage): ${BUCKET_URL}/linux/arm64/mosaic-companion-${VERSION}-arm64.AppImage
+          - Linux arm64 (deb): ${BUCKET_URL}/linux/arm64/mosaic-companion_${VERSION}_arm64.deb
+          - Linux arm64 (zip): ${BUCKET_URL}/linux/arm64/mosaic-companion-linux-arm64-${VERSION}.zip
+          - Windows x64: ${BUCKET_URL}/win32/x64/mosaic-companion-${VERSION}-Setup.exe
+          - Windows arm64: ${BUCKET_URL}/win32/arm64/mosaic-companion-${VERSION}-Setup.exe
+          - macOS x64: ${BUCKET_URL}/darwin/x64/mosaic-companion-${VERSION}-x64.dmg
+          - macOS arm64: ${BUCKET_URL}/darwin/arm64/mosaic-companion-${VERSION}-arm64.dmg"
+
+          git tag -a "v${VERSION}" -m "$TAG_MESSAGE"
+          git push origin "v${VERSION}"
+
+  # Build for all platforms using Electron Forge
   build:
     needs: [check-deploy, bump-version]
     if: needs.check-deploy.outputs.should_deploy == 'true'
@@ -79,19 +103,32 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux builds (both archs in one command)
+          # Linux x64
           - os: ubuntu-latest
             platform: linux
-            build_cmd: electron-builder --linux --x64 --arm64
-          # macOS builds (both archs in one command)
+            arch: x64
+          # Linux arm64 (cross-compile)
+          - os: ubuntu-latest
+            platform: linux
+            arch: arm64
+          # macOS x64
           - os: macos-latest
-            platform: mac
-            build_cmd: electron-builder --mac --x64 --arm64
-          # Windows builds (both archs in one command)
+            platform: darwin
+            arch: x64
+          # macOS arm64
+          - os: macos-latest
+            platform: darwin
+            arch: arm64
+          # Windows x64
           - os: windows-latest
-            platform: win
-            build_cmd: electron-builder --win --x64 --arm64
+            platform: win32
+            arch: x64
+          # Windows arm64 (cross-compile)
+          - os: windows-latest
+            platform: win32
+            arch: arm64
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -107,11 +144,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build app
-        run: npm run build
-
-      - name: Build Electron (${{ matrix.platform }})
-        run: npx ${{ matrix.build_cmd }}
+      # Linux-specific: Install build dependencies for deb maker
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -120,26 +156,33 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-2
 
-      - name: Upload to S3
-        shell: bash
-        run: |
-          # Upload all release artifacts to S3
-          cd release
-          echo "=== Files to upload ==="
-          ls -la
+      # Make and publish using Electron Forge with specific arch
+      - name: Make and Publish (${{ matrix.platform }}/${{ matrix.arch }})
+        run: npm run deploy -- --arch ${{ matrix.arch }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-          if [ "${{ matrix.platform }}" == "linux" ]; then
-            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
-              --include "*.AppImage" \
-              --include "*.deb" \
-              --include "latest-linux*.yml"
-          elif [ "${{ matrix.platform }}" == "mac" ]; then
-            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
-              --include "*.dmg" \
-              --include "*.zip" \
-              --include "latest-mac*.yml"
-          elif [ "${{ matrix.platform }}" == "win" ]; then
-            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
-              --include "*.exe" \
-              --include "latest*.yml"
-          fi
+      # Upload static installation page and latest.json (Linux x64 only - just need to do it once)
+      # TODO: Add a check to ensure dependencies or artifacts for Linux were actually generated
+      - name: Upload static page and version info
+        if: matrix.platform == 'linux' && matrix.arch == 'x64'
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          RELEASE_DATE=$(date -u +%Y-%m-%d)
+          echo "Updating static installation page and version info for version ${VERSION}..."
+
+          mkdir -p tmp_static
+
+          # Update index.html
+          sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
+
+          # Generate latest.json from template
+          sed -e "s/{{VERSION}}/${VERSION}/g" -e "s/{{RELEASE_DATE}}/${RELEASE_DATE}/g" static/install-page/latest.template.json > tmp_static/latest.json
+
+          aws s3 cp tmp_static/index.html s3://mosaic-release/index.html --content-type "text/html"
+          aws s3 cp static/install-page/style.css s3://mosaic-release/style.css --content-type "text/css"
+          aws s3 cp tmp_static/latest.json s3://mosaic-release/latest.json --content-type "application/json"
+
+          rm -rf tmp_static
+          echo "✓ Static page and latest.json uploaded"
