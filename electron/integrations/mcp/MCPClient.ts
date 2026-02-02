@@ -3,46 +3,108 @@
  *
  * A TypeScript MCP client that can be used in any Node.js or Electron environment.
  * Supports both STDIO and HTTP transports.
- *
- * Usage:
- * ```typescript
- * import { MCPClient } from './mcp-client';
- *
- * const client = new MCPClient();
- *
- * // Connect to a local MCP server via STDIO
- * await client.connectStdio('my-server', 'python', ['server.py']);
- *
- * // Or connect to a remote server via HTTP
- * await client.connectHttp('remote-server', 'http://localhost:8000/mcp');
- *
- * // List tools
- * const tools = await client.listTools('my-server');
- *
- * // Call a tool
- * const result = await client.callTool('my-server', 'web_fetch', { url: 'https://example.com' });
- * ```
  */
 
 import { spawn, ChildProcess } from "child_process";
 import * as readline from "readline";
 import { EventEmitter } from "events";
-import {
-  MCPServerCapabilities,
-  MCPClientOptions,
-  MCPInitializeResult,
-  MCPTool,
-  MCPToolResult,
-  MCPResource,
-  MCPResourceTemplate,
-  MCPContent,
-  MCPPrompt,
-  JsonRpcRequest,
-  JsonRpcResponse,
-  JsonRpcNotification,
-} from "@/src/types/integrations/mcp";
 
-// ============ TYPE DEFINITIONS ============
+// =============================================================================
+// Type Definitions
+// =============================================================================
+
+interface MCPServerCapabilities {
+  tools?: { listChanged?: boolean };
+  resources?: { subscribe?: boolean; listChanged?: boolean };
+  prompts?: { listChanged?: boolean };
+  logging?: Record<string, unknown>;
+  experimental?: Record<string, unknown>;
+}
+
+interface MCPClientOptions {
+  timeout?: number;
+  debug?: boolean;
+}
+
+interface MCPInitializeResult {
+  protocolVersion: string;
+  capabilities: MCPServerCapabilities;
+  serverInfo?: { name: string; version: string };
+}
+
+interface MCPTool {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
+interface MCPToolResultContent {
+  type: string;
+  text?: string;
+  data?: string;
+  mimeType?: string;
+  uri?: string;
+}
+
+interface MCPToolResult {
+  content: MCPToolResultContent[];
+  isError?: boolean;
+}
+
+interface MCPResource {
+  uri: string;
+  name?: string;
+  description?: string;
+  mimeType?: string;
+}
+
+interface MCPResourceTemplate {
+  uriTemplate: string;
+  name?: string;
+  description?: string;
+  mimeType?: string;
+}
+
+interface MCPContent {
+  type: string;
+  text?: string;
+  data?: string;
+  mimeType?: string;
+}
+
+interface MCPPrompt {
+  name: string;
+  description?: string;
+  arguments?: Array<{
+    name: string;
+    description?: string;
+    required?: boolean;
+  }>;
+}
+
+interface JsonRpcRequest {
+  jsonrpc: "2.0";
+  id: number;
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+interface JsonRpcResponse {
+  jsonrpc: "2.0";
+  id: number | null;
+  result?: unknown;
+  error?: {
+    code: number;
+    message: string;
+    data?: unknown;
+  };
+}
+
+interface JsonRpcNotification {
+  jsonrpc: "2.0";
+  method: string;
+  params?: Record<string, unknown>;
+}
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -91,7 +153,7 @@ export class MCPClient extends EventEmitter {
     name: string,
     command: string,
     args: string[] = [],
-    env?: Record<string, string>
+    env?: Record<string, string>,
   ): Promise<MCPInitializeResult> {
     if (this.connections.has(name)) {
       throw new Error(`Server "${name}" is already connected`);
@@ -121,20 +183,20 @@ export class MCPClient extends EventEmitter {
       crlfDelay: Infinity,
     });
 
-    rl.on("line", (line) => {
+    rl.on("line", (line: string) => {
       this.handleStdioMessage(name, line);
     });
 
-    childProcess.stderr?.on("data", (data) => {
+    childProcess.stderr?.on("data", (data: Buffer) => {
       this.log(`${name} stderr:`, data.toString().trim());
     });
 
-    childProcess.on("exit", (code, signal) => {
+    childProcess.on("exit", (code: number | null, signal: string | null) => {
       this.log(`${name} exited with code ${code}, signal ${signal}`);
       this.handleDisconnect(name, code ?? 0);
     });
 
-    childProcess.on("error", (error) => {
+    childProcess.on("error", (error: Error) => {
       this.log(`${name} error:`, error);
       this.emit("error", { server: name, error });
     });
@@ -151,7 +213,7 @@ export class MCPClient extends EventEmitter {
   async connectHttp(
     name: string,
     url: string,
-    apiKey?: string
+    apiKey?: string,
   ): Promise<MCPInitializeResult> {
     if (this.connections.has(name)) {
       throw new Error(`Server "${name}" is already connected`);
@@ -187,7 +249,7 @@ export class MCPClient extends EventEmitter {
     }
 
     // Reject all pending requests
-    for (const [id, pending] of connection.pendingRequests) {
+    for (const [_id, pending] of connection.pendingRequests) {
       clearTimeout(pending.timeout);
       pending.reject(new Error("Connection closed"));
     }
@@ -224,7 +286,7 @@ export class MCPClient extends EventEmitter {
   // ============ INITIALIZATION ============
 
   private async initializeConnection(
-    name: string
+    name: string,
   ): Promise<MCPInitializeResult> {
     const result = await this.sendRequest<MCPInitializeResult>(
       name,
@@ -239,7 +301,7 @@ export class MCPClient extends EventEmitter {
           name: "typescript-mcp-client",
           version: "1.0.0",
         },
-      }
+      },
     );
 
     const connection = this.connections.get(name)!;
@@ -264,7 +326,7 @@ export class MCPClient extends EventEmitter {
     const result = await this.sendRequest<{ tools: MCPTool[] }>(
       serverName,
       "tools/list",
-      {}
+      {},
     );
     return result.tools || [];
   }
@@ -275,7 +337,7 @@ export class MCPClient extends EventEmitter {
   async callTool(
     serverName: string,
     toolName: string,
-    args: Record<string, unknown> = {}
+    args: Record<string, unknown> = {},
   ): Promise<MCPToolResult> {
     return this.sendRequest<MCPToolResult>(serverName, "tools/call", {
       name: toolName,
@@ -292,7 +354,7 @@ export class MCPClient extends EventEmitter {
     const result = await this.sendRequest<{ resources: MCPResource[] }>(
       serverName,
       "resources/list",
-      {}
+      {},
     );
     return result.resources || [];
   }
@@ -301,7 +363,7 @@ export class MCPClient extends EventEmitter {
    * List resource templates from a server
    */
   async listResourceTemplates(
-    serverName: string
+    serverName: string,
   ): Promise<MCPResourceTemplate[]> {
     const result = await this.sendRequest<{
       resourceTemplates: MCPResourceTemplate[];
@@ -314,7 +376,7 @@ export class MCPClient extends EventEmitter {
    */
   async readResource(
     serverName: string,
-    uri: string
+    uri: string,
   ): Promise<{ contents: MCPContent[] }> {
     return this.sendRequest(serverName, "resources/read", { uri });
   }
@@ -328,7 +390,7 @@ export class MCPClient extends EventEmitter {
     const result = await this.sendRequest<{ prompts: MCPPrompt[] }>(
       serverName,
       "prompts/list",
-      {}
+      {},
     );
     return result.prompts || [];
   }
@@ -339,7 +401,7 @@ export class MCPClient extends EventEmitter {
   async getPrompt(
     serverName: string,
     promptName: string,
-    args: Record<string, string> = {}
+    args: Record<string, string> = {},
   ): Promise<{
     description?: string;
     messages: Array<{
@@ -358,7 +420,7 @@ export class MCPClient extends EventEmitter {
   private async sendRequest<T>(
     serverName: string,
     method: string,
-    params: Record<string, unknown>
+    params: Record<string, unknown>,
   ): Promise<T> {
     const connection = this.connections.get(serverName);
     if (!connection) {
@@ -385,8 +447,8 @@ export class MCPClient extends EventEmitter {
         connection.pendingRequests.delete(id);
         reject(
           new Error(
-            `Request "${method}" timed out after ${this.options.timeout}ms`
-          )
+            `Request "${method}" timed out after ${this.options.timeout}ms`,
+          ),
         );
       }, this.options.timeout);
 
@@ -402,7 +464,7 @@ export class MCPClient extends EventEmitter {
 
   private async sendHttpRequest<T>(
     connection: ServerConnection,
-    request: JsonRpcRequest
+    request: JsonRpcRequest,
   ): Promise<T> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -441,7 +503,7 @@ export class MCPClient extends EventEmitter {
   private async sendNotification(
     serverName: string,
     method: string,
-    params: Record<string, unknown>
+    params: Record<string, unknown>,
   ): Promise<void> {
     const connection = this.connections.get(serverName);
     if (!connection) return;
@@ -507,7 +569,7 @@ export class MCPClient extends EventEmitter {
 
   private handleNotification(
     serverName: string,
-    notification: JsonRpcNotification
+    notification: JsonRpcNotification,
   ): void {
     this.emit("notification", {
       server: serverName,
@@ -572,7 +634,7 @@ export function mcpToolsToOpenAI(tools: MCPTool[]): Array<{
  */
 export function mcpResultToString(result: MCPToolResult): string {
   return result.content
-    .map((content) => {
+    .map((content: MCPToolResultContent) => {
       if (content.type === "text" && content.text) {
         return content.text;
       }

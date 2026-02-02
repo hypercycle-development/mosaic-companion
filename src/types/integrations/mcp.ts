@@ -25,17 +25,16 @@ export interface JsonRpcNotification {
   method: string;
   params?: Record<string, unknown>;
 }
-
 export interface MCPTool {
   name: string;
   description?: string;
   inputSchema: {
-    type: "object";
-    properties?: Record<string, MCPPropertySchema>;
+    type: string;
+    properties?: Record<string, any>;
     required?: string[];
+    [key: string]: any;
   };
 }
-
 export interface MCPPropertySchema {
   type: string;
   description?: string;
@@ -206,6 +205,9 @@ export interface MCPServer {
   tools: MCPTool[];
   resources: MCPResource[];
   prompts: MCPPrompt[];
+  command?: string;
+  args?: string[];
+  url?: string;
 }
 
 export interface MCPResult<T = unknown> {

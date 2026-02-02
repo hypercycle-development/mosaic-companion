@@ -1,6 +1,5 @@
 // main.js - Complete version with AI agents storage data
-import { app, BrowserWindow, ipcMain } from "electron";
-import os from "os";
+import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -11,7 +10,7 @@ import {
   applyAutoDownload,
   getLogFilePath,
   readLogFile,
-} from "./updater.js";
+} from "./updater";
 import {
   getUpdateSettings,
   setUpdateSettings,
@@ -20,7 +19,7 @@ import {
   updateNode,
   deleteNode,
   getTitleBarStyle,
-} from "./settings.js";
+} from "./settings";
 
 import {
   getDirectoryStatus,
@@ -29,31 +28,68 @@ import {
   writeAgentHistory,
   deleteAgentHistory,
   deleteAllAgentHistories,
-} from "./utils/index.js";
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  getErrorMessage,
+} from "./utils/index";
+import { mcpClient } from "./integrations/mcp/index";
+
+// ESM equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.join(__dirname, "..");
+// =============================================================================
+// Type Definitions
+// =============================================================================
+
+interface Node {
+  id: string;
+  name: string;
+  apiHost: string;
+  apiPort: string;
+  hasAdminPanel: boolean;
+  adminHost: string;
+  adminPort: string;
+  isActive: boolean;
+}
+
+interface AIAgent {
+  id: string | number;
+  name: string;
+  [key: string]: unknown;
+}
+
+interface ChatSession {
+  id: string;
+  agentId: string;
+  [key: string]: unknown;
+}
+
+interface ThemeSettings {
+  activeTheme: string;
+}
+
+// =============================================================================
+// App Setup
+// =============================================================================
 
 // Declare variables of paths to folders that will use user data
 const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
-// Keep reference to main window for recreation
-let mainWindow = null;
 
-function createWindow(urlToLoad = null) {
-  // Get title bar style from settings (default to 'hidden' on non-Mac if not set)
+// Keep reference to main window for recreation
+let mainWindow: BrowserWindow | null = null;
+function createWindow(urlToLoad: string | null = null): BrowserWindow {
   const titleBarStyle = getTitleBarStyle();
 
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    // Use the setting, or fallback to platform defaults if somehow undefined
     titleBarStyle: titleBarStyle === "default" ? "default" : "hidden",
     trafficLightPosition: { x: 10, y: 10 },
     backgroundColor: "#111827",
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "preload.js"), // preload is in dist_electron
       nodeIntegration: false,
       contextIsolation: true,
       webviewTag: true,
-      // Suppress console errors from webviews (especially ERR_ABORTED from redirects)
       backgroundThrottling: false,
     },
   });
@@ -62,7 +98,8 @@ function createWindow(urlToLoad = null) {
   if (urlToLoad) {
     win.loadURL(urlToLoad);
   } else {
-    win.loadFile(path.join(__dirname, "dist", "index.html"));
+    // dist folder is at project root, not inside dist_electron
+    win.loadFile(path.join(PROJECT_ROOT, "dist", "index.html"));
   }
 
   mainWindow = win;
@@ -77,7 +114,7 @@ app.on("before-quit", () => {
  * Recreate the window with current settings.
  * Used to apply titleBarStyle changes without full app restart.
  */
-function recreateWindow() {
+function recreateWindow(): void {
   if (!mainWindow) return;
 
   // Get current state
@@ -104,7 +141,7 @@ ipcMain.handle("restart-window", async () => {
 ipcMain.handle("show-title-bar-confirm", async () => {
   const { dialog } = await import("electron");
 
-  const result = await dialog.showMessageBox(mainWindow, {
+  const result = await dialog.showMessageBox(mainWindow!, {
     type: "question",
     title: "Apply Title Bar Style",
     message: "This will refresh the window to apply the new title bar style.",
@@ -119,16 +156,16 @@ ipcMain.handle("show-title-bar-confirm", async () => {
 });
 
 // Suppress ERR_ABORTED errors from webviews (harmless redirects, especially Google)
-app.on("web-contents-created", (event, contents) => {
+app.on("web-contents-created", (_event, contents) => {
   contents.on(
     "did-fail-load",
-    (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    (event, errorCode, _errorDescription, _validatedURL, _isMainFrame) => {
       // Suppress ERR_ABORTED (-3) errors - these are harmless navigation aborts from redirects
       if (errorCode === -3) {
         event.preventDefault();
         return;
       }
-    }
+    },
   );
 });
 
@@ -172,18 +209,21 @@ if (!fs.existsSync(csvPath)) {
   fs.writeFileSync(csvPath, "timestamp,text\n", "utf8");
 }
 
-ipcMain.handle("log-input", async (event, text) => {
-  try {
-    const timestamp = new Date().toISOString();
-    const escapedText = `"${text.replace(/"/g, '""').replace(/\n/g, "\\n")}"`;
-    const line = `${timestamp},${escapedText}\n`;
-    fs.appendFileSync(csvPath, line, "utf8");
-    return { success: true, path: csvPath };
-  } catch (error) {
-    console.log(error);
-    return { success: false, path: csvPath };
-  }
-});
+ipcMain.handle(
+  "log-input",
+  async (_event: IpcMainInvokeEvent, text: string) => {
+    try {
+      const timestamp = new Date().toISOString();
+      const escapedText = `"${text.replace(/"/g, '""').replace(/\n/g, "\\n")}"`;
+      const line = `${timestamp},${escapedText}\n`;
+      fs.appendFileSync(csvPath, line, "utf8");
+      return { success: true, path: csvPath };
+    } catch (error) {
+      console.log(error);
+      return { success: false, path: csvPath };
+    }
+  },
+);
 
 ipcMain.handle("get-csv-path", () => csvPath);
 
@@ -210,14 +250,20 @@ ipcMain.handle("get-update-settings", async () => {
 });
 
 // Handler to set update settings
-ipcMain.handle("set-update-settings", async (event, newSettings) => {
-  const result = setUpdateSettings(newSettings);
-  // Apply autoDownload to updater if it changed
-  if (result.success && result.settings) {
-    applyAutoDownload(result.settings.autoDownload);
-  }
-  return result;
-});
+ipcMain.handle(
+  "set-update-settings",
+  async (
+    _event: IpcMainInvokeEvent,
+    newSettings: { autoDownload?: boolean; titleBarStyle?: string },
+  ) => {
+    const result = setUpdateSettings(newSettings);
+    // Apply autoDownload to updater if it changed
+    if (result.success && result.settings) {
+      applyAutoDownload(result.settings.autoDownload);
+    }
+    return result;
+  },
+);
 
 // Handler to get update log file path
 ipcMain.handle("get-update-log-path", async () => {
@@ -234,7 +280,7 @@ ipcMain.handle("get-update-logs", async () => {
 // ============================================
 
 // Helper to broadcast node changes to all windows
-function broadcastNodesChanged(nodes) {
+function broadcastNodesChanged(nodes: Node[]): void {
   BrowserWindow.getAllWindows().forEach((win) => {
     win.webContents.send("nodes-changed", nodes);
   });
@@ -246,31 +292,44 @@ ipcMain.handle("nodes:get", async () => {
 });
 
 // Add a new node
-ipcMain.handle("nodes:add", async (event, node) => {
-  const result = addNode(node);
-  if (result.success && result.nodes) {
-    broadcastNodesChanged(result.nodes);
-  }
-  return result;
-});
+ipcMain.handle(
+  "nodes:add",
+  async (_event: IpcMainInvokeEvent, node: Partial<Omit<Node, "id">>) => {
+    const result = addNode(node);
+    if (result.success && result.nodes) {
+      broadcastNodesChanged(result.nodes);
+    }
+    return result;
+  },
+);
 
 // Update a node
-ipcMain.handle("nodes:update", async (event, id, updates) => {
-  const result = updateNode(id, updates);
-  if (result.success && result.nodes) {
-    broadcastNodesChanged(result.nodes);
-  }
-  return result;
-});
+ipcMain.handle(
+  "nodes:update",
+  async (
+    _event: IpcMainInvokeEvent,
+    id: string,
+    updates: Partial<Omit<Node, "id">>,
+  ) => {
+    const result = updateNode(id, updates);
+    if (result.success && result.nodes) {
+      broadcastNodesChanged(result.nodes);
+    }
+    return result;
+  },
+);
 
 // Delete a node
-ipcMain.handle("nodes:delete", async (event, id) => {
-  const result = deleteNode(id);
-  if (result.success && result.nodes) {
-    broadcastNodesChanged(result.nodes);
-  }
-  return result;
-});
+ipcMain.handle(
+  "nodes:delete",
+  async (_event: IpcMainInvokeEvent, id: string) => {
+    const result = deleteNode(id);
+    if (result.success && result.nodes) {
+      broadcastNodesChanged(result.nodes);
+    }
+    return result;
+  },
+);
 
 // ============================================
 // AI Agents Storage
@@ -279,7 +338,7 @@ const aiAgentsPath = path.join(app.getPath("userData"), "ai-agents.json");
 const themesPath = path.join(app.getPath("userData"), "themes.json");
 
 // Helper: Read agents from file
-function readAgents() {
+function readAgents(): AIAgent[] {
   try {
     if (fs.existsSync(aiAgentsPath)) {
       const data = fs.readFileSync(aiAgentsPath, "utf8");
@@ -292,7 +351,7 @@ function readAgents() {
 }
 
 // Helper: Write agents to file
-function writeAgents(agents) {
+function writeAgents(agents: AIAgent[]): boolean {
   try {
     fs.writeFileSync(aiAgentsPath, JSON.stringify(agents, null, 2), "utf8");
     return true;
@@ -303,7 +362,7 @@ function writeAgents(agents) {
 }
 
 // Theme helpers
-function readThemeSettings() {
+function readThemeSettings(): ThemeSettings {
   try {
     if (fs.existsSync(themesPath)) {
       const data = fs.readFileSync(themesPath, "utf8");
@@ -315,7 +374,7 @@ function readThemeSettings() {
   return { activeTheme: "dark" };
 }
 
-function writeThemeSettings(settings) {
+function writeThemeSettings(settings: ThemeSettings): boolean {
   try {
     fs.writeFileSync(themesPath, JSON.stringify(settings, null, 2), "utf8");
     return true;
@@ -331,56 +390,72 @@ ipcMain.handle("ai-agents:get", async () => {
 });
 
 // Set all agents (replace entire list)
-ipcMain.handle("ai-agents:set", async (event, agents) => {
-  try {
-    writeAgents(agents);
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+ipcMain.handle(
+  "ai-agents:set",
+  async (_event: IpcMainInvokeEvent, agents: AIAgent[]) => {
+    try {
+      writeAgents(agents);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
+    }
+  },
+);
 
 // Add single agent
-ipcMain.handle("ai-agents:add", async (event, agent) => {
-  try {
-    const agents = readAgents();
-    agents.push(agent);
-    writeAgents(agents);
-    const agentPath = path.join(agentsHistoryPath, agent.id.toString());
-    fs.mkdirSync(agentPath, { recursive: true });
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+ipcMain.handle(
+  "ai-agents:add",
+  async (_event: IpcMainInvokeEvent, agent: AIAgent) => {
+    try {
+      const agents = readAgents();
+      agents.push(agent);
+      writeAgents(agents);
+      const agentPath = path.join(agentsHistoryPath, agent.id.toString());
+      fs.mkdirSync(agentPath, { recursive: true });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
+    }
+  },
+);
 
 // Update single agent
-ipcMain.handle("ai-agents:update", async (event, id, updates) => {
-  try {
-    const agents = readAgents();
-    const index = agents.findIndex((a) => a.id === id);
-    if (index === -1) {
-      return { success: false, error: "Agent not found" };
+ipcMain.handle(
+  "ai-agents:update",
+  async (
+    _event: IpcMainInvokeEvent,
+    id: string,
+    updates: Partial<Omit<AIAgent, "id">>,
+  ) => {
+    try {
+      const agents = readAgents();
+      const index = agents.findIndex((a) => a.id === id);
+      if (index === -1) {
+        return { success: false, error: "Agent not found" };
+      }
+      agents[index] = { ...agents[index], ...updates };
+      writeAgents(agents);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
     }
-    agents[index] = { ...agents[index], ...updates };
-    writeAgents(agents);
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+  },
+);
 
 // Delete single agent
-ipcMain.handle("ai-agents:delete", async (event, id) => {
-  try {
-    const agents = readAgents();
-    const filtered = agents.filter((a) => a.id !== id);
-    writeAgents(filtered);
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+ipcMain.handle(
+  "ai-agents:delete",
+  async (_event: IpcMainInvokeEvent, id: string) => {
+    try {
+      const agents = readAgents();
+      const filtered = agents.filter((a) => a.id !== id);
+      writeAgents(filtered);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
+    }
+  },
+);
 
 // Clear all agents
 ipcMain.handle("ai-agents:clear", async () => {
@@ -388,7 +463,7 @@ ipcMain.handle("ai-agents:clear", async () => {
     writeAgents([]);
     return { success: true };
   } catch (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: getErrorMessage(error) };
   }
 });
 
@@ -397,50 +472,65 @@ ipcMain.handle("themes:get", async () => {
   return readThemeSettings();
 });
 
-ipcMain.handle("themes:set", async (event, activeTheme) => {
-  const settings = { activeTheme };
-  const success = writeThemeSettings(settings);
-  return { success };
-});
+ipcMain.handle(
+  "themes:set",
+  async (_event: IpcMainInvokeEvent, activeTheme: string) => {
+    const settings: ThemeSettings = { activeTheme };
+    const success = writeThemeSettings(settings);
+    return { success };
+  },
+);
 
 // ============================================
 // AI Agents History
 // ============================================
 
-ipcMain.handle("ai-agents-history:get-all", async (event, agentId) => {
-  return readAgentHistories(agentId);
-});
+ipcMain.handle(
+  "ai-agents-history:get-all",
+  async (_event: IpcMainInvokeEvent, agentId: string) => {
+    return readAgentHistories(agentId);
+  },
+);
 
-ipcMain.handle("ai-agents-history:get", async (event, agentId, sessionId) => {
-  return readAgentHistory(agentId, sessionId);
-});
+ipcMain.handle(
+  "ai-agents-history:get",
+  async (_event: IpcMainInvokeEvent, agentId: string, sessionId: string) => {
+    return readAgentHistory(agentId, sessionId);
+  },
+);
 
-ipcMain.handle("ai-agents-history:save", async (event, chatSession) => {
-  try {
-    const success = writeAgentHistory(chatSession);
-    return { success };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+ipcMain.handle(
+  "ai-agents-history:save",
+  async (_event: IpcMainInvokeEvent, chatSession: ChatSession) => {
+    try {
+      const success = writeAgentHistory(chatSession);
+      return { success };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
+    }
+  },
+);
 
 ipcMain.handle(
   "ai-agents-history:delete",
-  async (event, agentId, sessionId) => {
+  async (_event: IpcMainInvokeEvent, agentId: string, sessionId: string) => {
     try {
       const success = deleteAgentHistory(agentId, sessionId);
       return { success };
     } catch (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: getErrorMessage(error) };
     }
-  }
+  },
 );
 
-ipcMain.handle("ai-agents-history:delete-all", async (event, agentId) => {
-  try {
-    const success = deleteAllAgentHistories(agentId);
-    return { success };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+ipcMain.handle(
+  "ai-agents-history:delete-all",
+  async (_event: IpcMainInvokeEvent, agentId: string) => {
+    try {
+      const success = deleteAllAgentHistories(agentId);
+      return { success };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
+    }
+  },
+);

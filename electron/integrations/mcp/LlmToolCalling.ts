@@ -7,8 +7,51 @@
  * Run: npx integrations/mcp/LlmToolCalling.ts
  */
 
-import { MCPTool } from "@/src/types/integrations/mcp";
 import MCPClient, { mcpToolsToOpenAI, mcpResultToString } from "./MCPClient";
+
+// =============================================================================
+// Type Definitions
+// =============================================================================
+
+interface MCPTool {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
+interface Message {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+}
+
+interface ToolCall {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+interface OpenAIResponse {
+  choices: Array<{
+    message: Message;
+  }>;
+}
+
+interface AnthropicContentBlock {
+  type: "text" | "tool_use";
+  text?: string;
+  id?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+}
+
+interface AnthropicResponse {
+  content: AnthropicContentBlock[];
+}
 
 // ============ CONFIGURATION ============
 
@@ -35,28 +78,12 @@ const MCP_SERVERS = [
 
 // ============ LLM INTEGRATION ============
 
-interface Message {
-  role: "system" | "user" | "assistant" | "tool";
-  content: string;
-  tool_calls?: ToolCall[];
-  tool_call_id?: string;
-}
-
-interface ToolCall {
-  id: string;
-  type: "function";
-  function: {
-    name: string;
-    arguments: string;
-  };
-}
-
 /**
  * Call OpenAI's API with tool support
  */
 async function callOpenAI(
   messages: Message[],
-  tools: MCPTool[]
+  tools: MCPTool[],
 ): Promise<{
   message: Message;
   toolCalls?: ToolCall[];
@@ -80,7 +107,7 @@ async function callOpenAI(
     throw new Error(`OpenAI API error: ${error}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as OpenAIResponse;
   const choice = data.choices[0];
 
   return {
@@ -94,7 +121,7 @@ async function callOpenAI(
  */
 async function callAnthropic(
   messages: Message[],
-  tools: MCPTool[]
+  tools: MCPTool[],
 ): Promise<{
   message: Message;
   toolCalls?: ToolCall[];
@@ -147,17 +174,21 @@ async function callAnthropic(
     throw new Error(`Anthropic API error: ${error}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as AnthropicResponse;
 
   // Convert Anthropic response to common format
-  const textContent = data.content.find((c: any) => c.type === "text");
-  const toolUses = data.content.filter((c: any) => c.type === "tool_use");
+  const textContent = data.content.find(
+    (c: AnthropicContentBlock) => c.type === "text",
+  );
+  const toolUses = data.content.filter(
+    (c: AnthropicContentBlock) => c.type === "tool_use",
+  );
 
-  const toolCalls = toolUses.map((tu: any) => ({
-    id: tu.id,
+  const toolCalls: ToolCall[] = toolUses.map((tu: AnthropicContentBlock) => ({
+    id: tu.id!,
     type: "function" as const,
     function: {
-      name: tu.name,
+      name: tu.name!,
       arguments: JSON.stringify(tu.input),
     },
   }));
@@ -181,7 +212,7 @@ async function runAgent(
   mcp: MCPClient,
   serverName: string,
   userQuery: string,
-  provider: "openai" | "anthropic" = "openai"
+  provider: "openai" | "anthropic" = "openai",
 ): Promise<string> {
   console.log("\n🤖 Starting agent with query:", userQuery);
   console.log("─".repeat(50));
@@ -190,7 +221,7 @@ async function runAgent(
   const tools = await mcp.listTools(serverName);
   console.log(
     `📦 Loaded ${tools.length} tools from ${serverName}:`,
-    tools.map((t) => t.name).join(", ")
+    tools.map((t: MCPTool) => t.name).join(", "),
   );
 
   // Initialize conversation
@@ -200,7 +231,7 @@ async function runAgent(
       content: `You are a helpful assistant with access to tools. Use the tools to help answer the user's questions.
       
 Available tools:
-${tools.map((t) => `- ${t.name}: ${t.description}`).join("\n")}
+${tools.map((t: MCPTool) => `- ${t.name}: ${t.description}`).join("\n")}
 
 When you need information or to perform an action, use the appropriate tool.`,
     },
@@ -246,7 +277,7 @@ When you need information or to perform an action, use the appropriate tool.`,
         console.log(
           `   ← Result: ${resultText.slice(0, 100)}${
             resultText.length > 100 ? "..." : ""
-          }`
+          }`,
         );
 
         // Add tool result to messages
@@ -279,7 +310,7 @@ async function main() {
   // Check for API keys
   if (!OPENAI_API_KEY && !ANTHROPIC_API_KEY) {
     console.log(
-      "⚠️  No API keys configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY"
+      "⚠️  No API keys configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY",
     );
     console.log("   This example will demonstrate MCP client setup only.\n");
   }
@@ -288,17 +319,20 @@ async function main() {
   const mcp = new MCPClient({ debug: true });
 
   // Set up event listeners
-  mcp.on("connected", ({ server }) => {
+  mcp.on("connected", ({ server }: { server: string }) => {
     console.log(`✅ Connected to ${server}`);
   });
 
-  mcp.on("disconnected", ({ server }) => {
+  mcp.on("disconnected", ({ server }: { server: string }) => {
     console.log(`❌ Disconnected from ${server}`);
   });
 
-  mcp.on("notification", ({ server, method }) => {
-    console.log(`📬 Notification from ${server}: ${method}`);
-  });
+  mcp.on(
+    "notification",
+    ({ server, method }: { server: string; method: string }) => {
+      console.log(`📬 Notification from ${server}: ${method}`);
+    },
+  );
 
   try {
     // Connect to MCP servers
@@ -348,7 +382,7 @@ async function main() {
         mcp,
         serverName,
         "What is the current time in Tokyo? Also, fetch the homepage of example.com and summarize it.",
-        provider as "openai" | "anthropic"
+        provider as "openai" | "anthropic",
       );
 
       console.log("\n📝 Final Response:");

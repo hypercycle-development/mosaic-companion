@@ -14,16 +14,83 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { spawn, ChildProcess } from "child_process";
 import * as path from "path";
 import * as readline from "readline";
-import {
-  JsonRpcNotification,
-  JsonRpcRequest,
-  JsonRpcResponse,
-  MCPPrompt,
-  MCPResource,
-  MCPServerConfig,
-  MCPServerConnection,
-  MCPTool,
-} from "@/src/types/integrations/mcp";
+
+// =============================================================================
+// Type Definitions
+// =============================================================================
+
+interface JsonRpcRequest {
+  jsonrpc: "2.0";
+  id: number;
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+interface JsonRpcResponse {
+  jsonrpc: "2.0";
+  id: number | null;
+  result?: unknown;
+  error?: {
+    code: number;
+    message: string;
+    data?: unknown;
+  };
+}
+
+interface JsonRpcNotification {
+  jsonrpc: "2.0";
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+interface MCPTool {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
+interface MCPResource {
+  uri: string;
+  name?: string;
+  description?: string;
+  mimeType?: string;
+}
+
+interface MCPPrompt {
+  name: string;
+  description?: string;
+  arguments?: Array<{
+    name: string;
+    description?: string;
+    required?: boolean;
+  }>;
+}
+
+interface MCPServerConfig {
+  name: string;
+  transport: "stdio" | "http";
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  apiKey?: string;
+}
+
+interface PendingRequest {
+  resolve: (value: unknown) => void;
+  reject: (error: Error) => void;
+}
+
+interface MCPServerConnection {
+  config: MCPServerConfig;
+  process?: ChildProcess;
+  requestId: number;
+  pendingRequests: Map<number, PendingRequest>;
+  tools: MCPTool[];
+  resources: MCPResource[];
+  prompts: MCPPrompt[];
+  initialized: boolean;
+}
 
 // ============ MCP CLIENT CLASS ============
 
@@ -68,7 +135,7 @@ class MCPClient {
       crlfDelay: Infinity,
     });
 
-    rl.on("line", (line) => {
+    rl.on("line", (line: string) => {
       try {
         const message = JSON.parse(line) as
           | JsonRpcResponse
@@ -77,18 +144,18 @@ class MCPClient {
       } catch (error) {
         console.error(
           `[MCP] Failed to parse message from ${config.name}:`,
-          error
+          error,
         );
       }
     });
 
     // Handle stderr (logging)
-    childProcess.stderr?.on("data", (data) => {
+    childProcess.stderr?.on("data", (data: Buffer) => {
       console.log(`[MCP] ${config.name} stderr:`, data.toString());
     });
 
     // Handle process exit
-    childProcess.on("exit", (code) => {
+    childProcess.on("exit", (code: number | null) => {
       console.log(`[MCP] ${config.name} exited with code ${code}`);
       this.connections.delete(config.name);
       this.notifyRenderer("mcp:server-disconnected", {
@@ -97,7 +164,7 @@ class MCPClient {
       });
     });
 
-    childProcess.on("error", (error) => {
+    childProcess.on("error", (error: Error) => {
       console.error(`[MCP] ${config.name} error:`, error);
       this.notifyRenderer("mcp:server-error", {
         name: config.name,
@@ -119,7 +186,7 @@ class MCPClient {
     }
 
     console.log(
-      `[MCP] Connecting to ${config.name} via HTTP at ${config.url}...`
+      `[MCP] Connecting to ${config.name} via HTTP at ${config.url}...`,
     );
 
     const connection: MCPServerConnection = {
@@ -184,12 +251,12 @@ class MCPClient {
       const toolsResult = (await this.sendRequest(
         serverName,
         "tools/list",
-        {}
+        {},
       )) as { tools: MCPTool[] };
       connection.tools = toolsResult.tools || [];
       console.log(
         `[MCP] ${serverName} tools:`,
-        connection.tools.map((t) => t.name)
+        connection.tools.map((t: MCPTool) => t.name),
       );
     } catch (error) {
       console.log(`[MCP] ${serverName} does not support tools`);
@@ -200,12 +267,12 @@ class MCPClient {
       const resourcesResult = (await this.sendRequest(
         serverName,
         "resources/list",
-        {}
+        {},
       )) as { resources: MCPResource[] };
       connection.resources = resourcesResult.resources || [];
       console.log(
         `[MCP] ${serverName} resources:`,
-        connection.resources.map((r) => r.uri)
+        connection.resources.map((r: MCPResource) => r.uri),
       );
     } catch (error) {
       console.log(`[MCP] ${serverName} does not support resources`);
@@ -216,12 +283,12 @@ class MCPClient {
       const promptsResult = (await this.sendRequest(
         serverName,
         "prompts/list",
-        {}
+        {},
       )) as { prompts: MCPPrompt[] };
       connection.prompts = promptsResult.prompts || [];
       console.log(
         `[MCP] ${serverName} prompts:`,
-        connection.prompts.map((p) => p.name)
+        connection.prompts.map((p: MCPPrompt) => p.name),
       );
     } catch (error) {
       console.log(`[MCP] ${serverName} does not support prompts`);
@@ -251,7 +318,7 @@ class MCPClient {
   private async sendRequest(
     serverName: string,
     method: string,
-    params: Record<string, unknown>
+    params: Record<string, unknown>,
   ): Promise<unknown> {
     const connection = this.connections.get(serverName);
     if (!connection) throw new Error(`Server ${serverName} not found`);
@@ -290,11 +357,11 @@ class MCPClient {
       // For STDIO, the response comes via handleMessage
       const originalResolve = connection.pendingRequests.get(id)!.resolve;
       connection.pendingRequests.set(id, {
-        resolve: (value) => {
+        resolve: (value: unknown) => {
           clearTimeout(timeout);
           originalResolve(value);
         },
-        reject: (error) => {
+        reject: (error: Error) => {
           clearTimeout(timeout);
           reject(error);
         },
@@ -304,7 +371,7 @@ class MCPClient {
 
   private async sendHttpRequest(
     connection: MCPServerConnection,
-    request: JsonRpcRequest
+    request: JsonRpcRequest,
   ): Promise<unknown> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -336,7 +403,7 @@ class MCPClient {
   private async sendNotification(
     serverName: string,
     method: string,
-    params: Record<string, unknown>
+    params: Record<string, unknown>,
   ): Promise<void> {
     const connection = this.connections.get(serverName);
     if (!connection) throw new Error(`Server ${serverName} not found`);
@@ -366,7 +433,7 @@ class MCPClient {
 
   private handleMessage(
     serverName: string,
-    message: JsonRpcResponse | JsonRpcNotification
+    message: JsonRpcResponse | JsonRpcNotification,
   ): void {
     const connection = this.connections.get(serverName);
     if (!connection) return;
@@ -376,10 +443,12 @@ class MCPClient {
       const pending = connection.pendingRequests.get(message.id);
       if (pending) {
         connection.pendingRequests.delete(message.id);
-        if (message.error) {
-          pending.reject(new Error(message.error.message));
+        if ((message as JsonRpcResponse).error) {
+          pending.reject(
+            new Error((message as JsonRpcResponse).error!.message),
+          );
         } else {
-          pending.resolve(message.result);
+          pending.resolve((message as JsonRpcResponse).result);
         }
       }
     } else {
@@ -390,7 +459,7 @@ class MCPClient {
 
   private handleNotification(
     serverName: string,
-    notification: JsonRpcNotification
+    notification: JsonRpcNotification,
   ): void {
     console.log(`[MCP] ${serverName} notification:`, notification.method);
 
@@ -424,7 +493,7 @@ class MCPClient {
   async callTool(
     serverName: string,
     toolName: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
   ): Promise<unknown> {
     console.log(`[MCP] Calling tool ${toolName} on ${serverName}`);
     return this.sendRequest(serverName, "tools/call", {
@@ -441,7 +510,7 @@ class MCPClient {
   async getPrompt(
     serverName: string,
     promptName: string,
-    args: Record<string, string>
+    args: Record<string, string>,
   ): Promise<unknown> {
     console.log(`[MCP] Getting prompt ${promptName} from ${serverName}`);
     return this.sendRequest(serverName, "prompts/get", {
@@ -534,7 +603,7 @@ ipcMain.handle(
     _event,
     serverName: string,
     toolName: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
   ) => {
     try {
       const result = await mcpClient.callTool(serverName, toolName, args);
@@ -542,7 +611,7 @@ ipcMain.handle(
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
-  }
+  },
 );
 
 // Read a resource
@@ -555,7 +624,7 @@ ipcMain.handle(
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
-  }
+  },
 );
 
 // Get a prompt
@@ -565,7 +634,7 @@ ipcMain.handle(
     _event,
     serverName: string,
     promptName: string,
-    args: Record<string, string>
+    args: Record<string, string>,
   ) => {
     try {
       const result = await mcpClient.getPrompt(serverName, promptName, args);
@@ -573,7 +642,7 @@ ipcMain.handle(
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
-  }
+  },
 );
 
 // ============ APP LIFECYCLE ============

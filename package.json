@@ -7,7 +7,7 @@
   "author": "hypercycle",
   "scripts": {
     "dev": "vite",
-    "build:electron": "tsc --project tsconfig.electron.json",
+    "build:electron": "node esbuild.config.js",
     "build:renderer": "vite build",
     "build": "bun run build:electron && bun run build:renderer",
     "preview": "vite preview",
@@ -35,6 +35,7 @@
     "@vitejs/plugin-react": "^5.1.2",
     "electron": "^39.3.0",
     "electron-builder": "^26.4.0",
+    "esbuild": "^0.27.2",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
   },
