@@ -1,0 +1,179 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # Check if this commit should trigger a release
+  check-deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+      version_type: ${{ steps.check.outputs.version_type }}
+    steps:
+      - name: Check for deploy trigger
+        id: check
+        run: |
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+
+          if [[ "$COMMIT_MSG" == *"[DEPLOY]"* ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            
+            # Determine version type
+            if [[ "$COMMIT_MSG" == *"[MAJOR]"* ]]; then
+              echo "version_type=major" >> $GITHUB_OUTPUT
+            elif [[ "$COMMIT_MSG" == *"[MINOR]"* ]]; then
+              echo "version_type=minor" >> $GITHUB_OUTPUT
+            else
+              echo "version_type=patch" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Bump version and commit
+  bump-version:
+    needs: check-deploy
+    if: needs.check-deploy.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        id: bump
+        run: |
+          # Get current version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Bump version (npm version doesn't require npm install)
+          npm version ${{ needs.check-deploy.outputs.version_type }} --no-git-tag-version
+
+          # Get new version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+          # Commit and push
+          git add package.json
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git push
+
+      - name: Create release tag
+        run: |
+          VERSION="${{ steps.bump.outputs.new_version }}"
+          VERSION_TYPE="${{ needs.check-deploy.outputs.version_type }}"
+          BUCKET_URL="https://mosaic-release.s3.us-east-2.amazonaws.com/releases"
+
+          # Create tag message with download links
+          TAG_MESSAGE="Release v${VERSION} (${VERSION_TYPE})
+
+          Download links:
+          - Linux x64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-x86_64.AppImage
+          - Linux arm64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-arm64.AppImage
+          - Windows x64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-x64.exe
+          - Windows arm64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-arm64.exe
+          - macOS x64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-x64.dmg
+          - macOS arm64: ${BUCKET_URL}/Mosaic-Companion-${VERSION}-arm64.dmg"
+
+          git tag -a "v${VERSION}" -m "$TAG_MESSAGE"
+          git push origin "v${VERSION}"
+
+  # Build for all platforms
+  build:
+    needs: [check-deploy, bump-version]
+    if: needs.check-deploy.outputs.should_deploy == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux builds (both archs in one command)
+          - os: ubuntu-latest
+            platform: linux
+            build_cmd: electron-builder --linux --x64 --arm64
+          # macOS builds (both archs in one command)
+          - os: macos-latest
+            platform: mac
+            build_cmd: electron-builder --mac --x64 --arm64
+          # Windows builds (both archs in one command)
+          - os: windows-latest
+            platform: win
+            build_cmd: electron-builder --win --x64 --arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main # Get the version-bumped code
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Build Electron (${{ matrix.platform }})
+        run: npx ${{ matrix.build_cmd }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Upload to S3
+        shell: bash
+        run: |
+          # Upload all release artifacts to S3
+          cd release
+          echo "=== Files to upload ==="
+          ls -la
+
+          if [ "${{ matrix.platform }}" == "linux" ]; then
+            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
+              --include "*.AppImage" \
+              --include "*.deb" \
+              --include "latest-linux*.yml"
+            
+            # Upload static page only once (during linux build)
+            cd ..
+            echo "Updating static installation page..."
+            mkdir -p tmp_static
+            
+            # Get version from package.json since we are in the root now
+            VERSION=$(node -p "require('./package.json').version")
+            
+            sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
+            aws s3 cp tmp_static/index.html s3://mosaic-release/index.html --content-type "text/html"
+            aws s3 cp static/install-page/style.css s3://mosaic-release/style.css --content-type "text/css"
+            rm -rf tmp_static
+            
+          elif [ "${{ matrix.platform }}" == "mac" ]; then
+            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
+              --include "*.dmg" \
+              --include "*.zip" \
+              --include "latest-mac*.yml"
+          elif [ "${{ matrix.platform }}" == "win" ]; then
+            aws s3 cp . s3://mosaic-release/releases/ --recursive --exclude "*" \
+              --include "*.exe" \
+              --include "latest*.yml"
+          fi

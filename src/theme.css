@@ -1,0 +1,354 @@
+:root {
+  --background: #0b1220;
+  --surface: #0f172a;
+  --surfaceAlt: #111827;
+  --overlay: rgba(11, 18, 32, 0.75);
+  --border: #1f2937;
+  --borderMuted: #1f2937;
+  --text: #e6eef8;
+  --textMuted: #94a3b8;
+  --primary: #60a5fa;
+  --primaryStrong: #3b82f6;
+  --accent: #7c3aed;
+  --accentSoft: rgba(124, 58, 237, 0.2);
+  --muted: #475569;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --highlight: rgba(96, 165, 250, 0.12);
+  --selection: rgba(99, 102, 241, 0.3);
+  --code: #cbd5f5;
+  --shadow: rgba(0, 0, 0, 0.35);
+}
+
+:root, body {
+  background-color: var(--background);
+  color: var(--text);
+}
+
+::selection {
+  background: var(--selection);
+  color: var(--text);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+[data-theme="dark"],
+[data-theme="blue"],
+[data-theme="solarized"] {
+  color-scheme: dark;
+}
+
+.themed-surface {
+  background-color: var(--surface);
+}
+
+.themed-surface-alt {
+  background-color: var(--surfaceAlt);
+}
+
+.themed-border {
+  border-color: var(--border);
+}
+
+.themed-text {
+  color: var(--text);
+}
+
+.themed-text-muted {
+  color: var(--textMuted);
+}
+
+.themed-primary {
+  color: var(--primary);
+}
+
+.themed-bg-primary {
+  background-color: var(--primary);
+}
+
+.themed-shadow {
+  box-shadow: 0 10px 40px var(--shadow);
+}
+
+.glow-primary {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+
+.glow-primary-strong {
+  box-shadow: 0 0 30px color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+.glow-primary-strong:hover {
+  box-shadow: 0 0 50px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+
+.glow-success {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--success) 80%, transparent);
+}
+
+.glow-accent {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+
+.glow-text-soft {
+  filter: drop-shadow(0 0 25px color-mix(in srgb, var(--text) 20%, transparent));
+}
+
+.hover-surface-accent:hover {
+  background-color: color-mix(in srgb, var(--surface) 78%, var(--primary) 22%) !important;
+  border-color: color-mix(in srgb, var(--primary) 18%, var(--border)) !important;
+}
+
+/* Utility overrides to route Tailwind color utilities through theme tokens */
+.bg-white {
+  background-color: var(--surface) !important;
+}
+
+.text-white {
+  color: white!important;
+}
+
+.bg-gray-200 {
+  background-color: color-mix(in srgb, var(--surface) 90%, #ffffff) !important;
+}
+
+.bg-gray-300\/50 {
+  background-color: color-mix(in srgb, var(--surface) 50%, #ffffff) !important;
+}
+
+.bg-gray-900 {
+  background-color: var(--surface) !important;
+}
+
+.bg-gray-900\/50 {
+  background-color: color-mix(in srgb, var(--surface) 50%, transparent) !important;
+}
+
+.bg-gray-900\/30 {
+  background-color: color-mix(in srgb, var(--surface) 30%, transparent) !important;
+}
+
+.bg-gray-900\/80 {
+  background-color: color-mix(in srgb, var(--surface) 80%, transparent) !important;
+}
+
+.bg-gray-950 {
+  background-color: var(--background) !important;
+}
+
+.bg-gray-950\/80 {
+  background-color: color-mix(in srgb, var(--background) 80%, transparent) !important;
+}
+
+.bg-gray-950\/50 {
+  background-color: color-mix(in srgb, var(--background) 50%, transparent) !important;
+}
+
+.bg-gray-950\/95 {
+  background-color: color-mix(in srgb, var(--background) 95%, transparent) !important;
+}
+
+.bg-gray-800 {
+  background-color: color-mix(in srgb, var(--surfaceAlt) 90%, var(--surface)) !important;
+}
+
+.bg-gray-800\/50 {
+  background-color: color-mix(in srgb, var(--surfaceAlt) 50%, transparent) !important;
+}
+
+.bg-gray-700 {
+  background-color: color-mix(in srgb, var(--surfaceAlt) 80%, var(--surface)) !important;
+}
+
+.bg-gray-700\/50 {
+  background-color: color-mix(in srgb, var(--surfaceAlt) 50%, transparent) !important;
+}
+
+.bg-black {
+  background-color: var(--background) !important;
+}
+
+.bg-indigo-500 {
+  background-color: var(--primary) !important;
+}
+
+.text-indigo-500 {
+  color: var(--primary) !important;
+}
+
+.bg-indigo-500\/20 {
+  background-color: color-mix(in srgb, var(--primary) 20%, transparent) !important;
+}
+
+.bg-indigo-500\/30 {
+  background-color: color-mix(in srgb, var(--primary) 30%, transparent) !important;
+}
+
+.bg-indigo-600 {
+  background-color: var(--primaryStrong) !important;
+}
+
+.text-indigo-600 {
+  color: var(--primaryStrong) !important;
+}
+
+.bg-indigo-900\/20,
+.bg-indigo-900\/30,
+.bg-indigo-900\/40,
+.bg-indigo-900\/50 {
+  background-color: color-mix(in srgb, var(--primary) 25%, transparent) !important;
+}
+
+.text-indigo-400 {
+  color: var(--primary) !important;
+}
+
+.border-indigo-500,
+.border-indigo-500\/10,
+.border-indigo-500\/20,
+.border-indigo-500\/30 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent) !important;
+}
+
+.text-gray-100,
+.text-gray-200,
+.text-gray-300 {
+  color: var(--text) !important;
+}
+
+.text-gray-400,
+.text-gray-500,
+.text-gray-600,
+.text-gray-700 {
+  color: var(--textMuted) !important;
+}
+
+.text-gray-800,
+.text-gray-900 {
+  color: var(--text) !important;
+}
+
+.bg-emerald-500 {
+  background-color: var(--success) !important;
+}
+
+.text-emerald-400,
+.text-emerald-500 {
+  color: var(--success) !important;
+}
+
+.bg-emerald-500\/50 {
+  background-color: color-mix(in srgb, var(--success) 50%, transparent) !important;
+}
+
+.bg-red-500 {
+  background-color: var(--danger) !important;
+}
+
+.text-red-500 {
+  color: var(--danger) !important;
+}
+
+.bg-red-500\/20,
+.bg-red-900\/20 {
+  background-color: color-mix(in srgb, var(--danger) 20%, transparent) !important;
+}
+
+.border-red-900\/30 {
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent) !important;
+}
+
+.bg-yellow-500 {
+  background-color: var(--warning) !important;
+}
+
+.text-yellow-300 {
+  color: var(--warning) !important;
+}
+
+.bg-blue-400 {
+  background-color: color-mix(in srgb, var(--accent) 70%, transparent) !important;
+}
+
+.text-blue-400 {
+  color: var(--accent) !important;
+}
+
+.bg-blue-900\/20 {
+  background-color: color-mix(in srgb, var(--accent) 70%, transparent) !important;
+}
+
+.border-blue-900\/50 {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent) !important;
+}
+
+.bg-cyan-500 {
+  background-color: var(--accent) !important;
+}
+
+.text-cyan-400 {
+  color: var(--accent) !important;
+}
+
+.bg-green-500 {
+  background-color: var(--success) !important;
+}
+
+.border-gray-800,
+.border-gray-900,
+.border-gray-700,
+.border-gray-300,
+.border-gray-500 {
+  border-color: var(--border) !important;
+}
+
+.text-indigo-300 {
+  color: color-mix(in srgb, var(--primary) 80%, #fff) !important;
+}
+
+.placeholder-gray-500::placeholder,
+.placeholder-gray-600::placeholder {
+  color: var(--textMuted) !important;
+}
+
+.text-amber-400 {
+  color: var(--warning) !important;
+}
+
+/* Ensure buttons with background classes have white (theme text) color */
+button[class*="bg-"] {
+  color: var(--text) !important;
+}
+
+/* Theme-aware gradient overlay using current background token */
+.themed-gradient-overlay {
+  background-image: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--background) 100%, transparent) 0%,
+    color-mix(in srgb, var(--background) 80%, transparent) 40%,
+    transparent 100%
+  );
+}
+
+/* Theme-aware title gradient for large logo text
+   Uses current text and primary tokens to produce a readable
+   gradient that adapts per-theme. Applied with `bg-clip-text`.
+*/
+.themed-title-gradient {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--text) 92%, var(--primary) 8%),
+    color-mix(in srgb, var(--primary) 60%, var(--text) 40%)
+  );
+}
+
+.bg-gray-300 {
+  background-color: color-mix(in srgb, var(--surface) 85%, #ffffff) !important;
+}
+
+.text-pink-500 {
+  color: var(--accent) !important;
+}
