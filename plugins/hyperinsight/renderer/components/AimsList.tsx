@@ -57,13 +57,13 @@ export const AimsList = ({ data, loading, onSelect }: { data: any[], loading: bo
 
     return (
         <th 
-            className={`px-6 py-3 font-normal cursor-pointer hover:text-indigo-300 transition-colors select-none`}
+            className={`px-6 py-3 font-normal cursor-pointer hover:text-[var(--primary)] transition-colors select-none`}
             onClick={() => handleSort(key)}
         >
             <div className={`flex items-center ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
                  <Icon 
                     size={14} 
-                    className={`mr-1 text-indigo-400 transition-opacity duration-200 ${isActive ? 'opacity-100' : 'opacity-0'}`} 
+                    className={`mr-1 text-[var(--primary)] transition-opacity duration-200 ${isActive ? 'opacity-100' : 'opacity-0'}`} 
                 />
                 <span>{label}</span>
             </div>
@@ -71,24 +71,24 @@ export const AimsList = ({ data, loading, onSelect }: { data: any[], loading: bo
     );
   };
 
-  if (loading && (!data || data.length === 0)) return <div className="text-center py-10 text-gray-500">Loading aims...</div>;
-  if (!data || data.length === 0) return <div className="text-center py-10 text-gray-500">No aims found.</div>;
+  if (loading && (!data || data.length === 0)) return <div className="text-center py-10 text-[var(--textMuted)]">Loading aims...</div>;
+  if (!data || data.length === 0) return <div className="text-center py-10 text-[var(--textMuted)]">No aims found.</div>;
 
   return (
     <div className="space-y-4">
       {/* Toggle */}
       <div className="flex justify-end mb-4">
-        <div className="bg-gray-800 rounded-lg p-1 flex border border-gray-700">
+        <div className="bg-[var(--surface)] rounded-lg p-1 flex border border-[var(--border)]">
           <button 
             onClick={() => setViewMode('grid')}
-            className={`p-2 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`p-2 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-[var(--primary)] text-white' : 'text-[var(--textMuted)] hover:text-[var(--text)]'}`}
             title="Grid View"
           >
             <LayoutGrid size={18} />
           </button>
           <button 
             onClick={() => setViewMode('list')}
-            className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-[var(--primary)] text-white' : 'text-[var(--textMuted)] hover:text-[var(--text)]'}`}
             title="List View"
           >
             <LayoutList size={18} />
@@ -101,30 +101,30 @@ export const AimsList = ({ data, loading, onSelect }: { data: any[], loading: bo
           {sortedData.map((aim, idx) => (
             <div 
                 key={aim.id || idx} 
-                className="bg-gray-800/50 p-4 rounded-xl border border-gray-700/50 hover:border-indigo-500/30 transition-colors cursor-pointer"
+                className="bg-[var(--surface)] p-4 rounded-xl border border-[var(--border)] hover:border-[var(--primary)] transition-colors cursor-pointer"
                 onClick={() => onSelect(aim.name)}
             >
               <div className="flex justify-between items-start mb-2">
-                <h3 className="font-bold text-gray-200">{aim.name}</h3>
-                <span className="text-xs font-mono text-gray-500">ID: {aim.id}</span>
+                <h3 className="font-bold text-[var(--text)]">{aim.name}</h3>
+                <span className="text-xs font-mono text-[var(--textMuted)]">ID: {aim.id}</span>
               </div>
-              <div className="space-y-1 text-sm text-gray-400">
+              <div className="space-y-1 text-sm text-[var(--textMuted)]">
                  <div className="flex justify-between">
                    <span>Nodes:</span>
-                   <span className="text-gray-200">{aim.totalNodesActivated || aim.TotalNodesActivated || 0}</span>
+                   <span className="text-[var(--text)]">{aim.totalNodesActivated || aim.TotalNodesActivated || 0}</span>
                  </div>
                  <div className="flex justify-between">
                    <span>Revenue:</span>
-                   <span className="text-emerald-400">{aim.totalRevenue || aim.TotalRevenue || 'N/A'}</span>
+                   <span className="text-[var(--success)]">{aim.totalRevenue || aim.TotalRevenue || 'N/A'}</span>
                  </div>
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="bg-gray-800/30 rounded-xl border border-gray-700 overflow-hidden font-mono">
-            <table className="w-full text-sm text-left text-gray-300">
-                <thead className="bg-gray-800/80 text-gray-400">
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] overflow-hidden font-mono">
+            <table className="w-full text-sm text-left text-[var(--textMuted)]">
+                <thead className="bg-[var(--background)] text-[var(--textMuted)]">
                     <tr>
                         <th className="px-6 py-3 font-normal">Rank</th>
                         {renderHeader('AIM Name', 'name', 'left')}
@@ -134,21 +134,21 @@ export const AimsList = ({ data, loading, onSelect }: { data: any[], loading: bo
                         {renderHeader('Total Revenue', 'totalRevenue')}
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800">
+                <tbody className="divide-y divide-[var(--border)]">
                     {sortedData.map((item) => (
                         <tr 
                             key={item.id} 
-                            className="hover:bg-gray-800/50 transition-colors cursor-pointer"
+                            className="hover:bg-[var(--surfaceAlt)] transition-colors cursor-pointer"
                             onClick={() => onSelect(item.name)}
                         >
-                            <td className="px-6 py-2 text-gray-500">#{item.originalRank}</td>
-                            <td className="px-6 py-2 font-bold text-indigo-400 hover:text-indigo-300 transition-colors">
+                            <td className="px-6 py-2 text-[var(--muted)]">#{item.originalRank}</td>
+                            <td className="px-6 py-2 font-bold text-[var(--primary)] hover:text-[var(--primaryStrong)] transition-colors">
                                 {item.name}
                             </td>
-                            <td className="px-6 py-2 text-right text-gray-200">{item.totalNodesActivated}</td>
-                            <td className="px-6 py-2 text-right text-gray-400">{formatDate(item.firstSeen)}</td>
-                            <td className="px-6 py-2 text-right text-gray-400">{formatDate(item.lastSeen)}</td>
-                            <td className="px-6 py-2 text-right text-gray-400">{item.totalRevenue || 'N/A'}</td>
+                            <td className="px-6 py-2 text-right text-[var(--text)]">{item.totalNodesActivated}</td>
+                            <td className="px-6 py-2 text-right text-[var(--textMuted)]">{formatDate(item.firstSeen)}</td>
+                            <td className="px-6 py-2 text-right text-[var(--textMuted)]">{formatDate(item.lastSeen)}</td>
+                            <td className="px-6 py-2 text-right text-[var(--textMuted)]">{item.totalRevenue || 'N/A'}</td>
                         </tr>
                     ))}
                 </tbody>

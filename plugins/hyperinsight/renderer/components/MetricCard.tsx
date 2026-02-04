@@ -22,7 +22,7 @@ const Sparkline = ({ data }: { data: any[] }) => {
 
     // Calculate Trend Color
     const isGrowth = last7[last7.length - 1] >= last7[0];
-    const colorClass = isGrowth ? 'text-emerald-500' : 'text-red-500';
+    const colorClass = isGrowth ? 'text-[var(--success)]' : 'text-[var(--danger)]';
 
     const points = last7.map((val, i) => {
         // Apply horizontal padding logic within 0-100 coordinate space
@@ -70,21 +70,21 @@ interface MetricCardProps {
 
 export const MetricCard = ({ title, value, chartData, subtext, tooltipText = "default text" }: MetricCardProps) => {
     return (
-        <div className="bg-gray-800/40 rounded-xl border border-gray-700/50 p-3 flex flex-col h-full relative group">
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-3 flex flex-col h-full relative group">
             <div className="flex items-start justify-between mb-2">
                 <div>
-                    <h3 className="text-gray-400 text-sm font-medium">{title}</h3>
-                    <div className="text-2xl font-bold text-gray-100 mt-1">{value}</div>
-                    {subtext && <div className="text-xs text-gray-500 mt-1">{subtext}</div>}
+                    <h3 className="text-[var(--textMuted)] text-sm font-medium">{title}</h3>
+                    <div className="text-2xl font-bold text-[var(--text)] mt-1">{value}</div>
+                    {subtext && <div className="text-xs text-[var(--textMuted)] mt-1">{subtext}</div>}
                 </div>
                 
                 {/* Help Icon with Tooltip */}
                 <div className="relative group/tooltip">
-                    <div className="p-2 rounded-lg text-gray-500 hover:text-gray-300 transition-colors cursor-help">
+                    <div className="p-2 rounded-lg text-[var(--textMuted)] hover:text-[var(--text)] transition-colors cursor-help">
                         <HelpCircle size={14} />
                     </div>
                     {/* Tooltip Popup - Moved to Top */}
-                    <div className="absolute right-0 bottom-full mt-2 w-72 p-2 bg-gray-900 border border-gray-700 rounded shadow-xl text-xs text-gray-300 z-50 opacity-0 group-hover/tooltip:opacity-85 transition-opacity pointer-events-none group-hover/tooltip:pointer-events-auto">
+                    <div className="absolute right-0 bottom-full mt-2 w-72 p-2 bg-[var(--background)] border border-[var(--border)] rounded shadow-xl text-xs text-[var(--text)] z-50 opacity-0 group-hover/tooltip:opacity-85 transition-opacity pointer-events-none group-hover/tooltip:pointer-events-auto">
                         {tooltipText}
                     </div>
                 </div>

@@ -154,43 +154,43 @@ export const AimDetailView = ({ name, onBack }: { name: string, onBack: () => vo
         <div className="space-y-8 p-6 font-sans animate-in fade-in duration-300">
             <header className="space-y-6">
                 <div className="flex items-center space-x-4">
-                    <button onClick={onBack} className="p-2 hover:bg-gray-800 rounded-full transition-colors text-gray-400">
+                    <button onClick={onBack} className="p-2 hover:bg-[var(--surface)] rounded-full transition-colors text-[var(--textMuted)]">
                         <ArrowLeft size={24} />
                     </button>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-gray-100 font-mono">
-                            <span className="text-indigo-400">{name}</span>
+                        <h1 className="text-3xl font-bold tracking-tight text-[var(--text)] font-mono">
+                            <span className="text-[var(--primary)]">{name}</span>
                         </h1>
-                        <p className="text-gray-500">Performance & Analytics</p>
+                        <p className="text-[var(--textMuted)]">Performance & Analytics</p>
                     </div>
                 </div>
 
                 {/* Current Stats (Real-time) */}
                 <div className="grid gap-4 md:grid-cols-3">
-                    <div className="bg-gray-800/40 rounded-xl border border-gray-700/50 p-4">
+                    <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4">
                         <div className="flex items-center space-x-3 mb-2">
-                            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500"><Server size={20} /></div>
-                            <h3 className="text-sm font-medium text-gray-400 font-mono">Active Nodes</h3>
+                            <div className="p-2 rounded-lg bg-[color-mix(in_srgb,var(--success),transparent_90%)] text-[var(--success)]"><Server size={20} /></div>
+                            <h3 className="text-sm font-medium text-[var(--textMuted)] font-mono">Active Nodes</h3>
                         </div>
-                        <p className="text-2xl font-bold text-gray-100 font-mono">
+                        <p className="text-2xl font-bold text-[var(--text)] font-mono">
                             {realtimeStats ? realtimeStats.activeNodes || 0 : '...'}
                         </p>
                     </div>
-                    <div className="bg-gray-800/40 rounded-xl border border-gray-700/50 p-4">
+                    <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4">
                         <div className="flex items-center space-x-3 mb-2">
-                            <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500"><Zap size={20} /></div>
-                            <h3 className="text-sm font-medium text-gray-400 font-mono">Compute (TFLOPS)</h3>
+                            <div className="p-2 rounded-lg bg-[color-mix(in_srgb,var(--accent),transparent_90%)] text-[var(--accent)]"><Zap size={20} /></div>
+                            <h3 className="text-sm font-medium text-[var(--textMuted)] font-mono">Compute (TFLOPS)</h3>
                         </div>
-                        <p className="text-2xl font-bold text-gray-100 font-mono">
+                        <p className="text-2xl font-bold text-[var(--text)] font-mono">
                             {realtimeStats ? (realtimeStats.totalComputeTflops || 0).toFixed(1) : '...'}
                         </p>
                     </div>
-                    <div className="bg-gray-800/40 rounded-xl border border-gray-700/50 p-4">
+                    <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4">
                         <div className="flex items-center space-x-3 mb-2">
-                            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500"><Cpu size={20} /></div>
-                            <h3 className="text-sm font-medium text-gray-400 font-mono">CPU (cGHz)</h3>
+                            <div className="p-2 rounded-lg bg-[color-mix(in_srgb,var(--primary),transparent_90%)] text-[var(--primary)]"><Cpu size={20} /></div>
+                            <h3 className="text-sm font-medium text-[var(--textMuted)] font-mono">CPU (cGHz)</h3>
                         </div>
-                        <p className="text-2xl font-bold text-gray-100 font-mono">
+                        <p className="text-2xl font-bold text-[var(--text)] font-mono">
                             {realtimeStats ? (realtimeStats.totalComputeCghz || 0).toFixed(0) : '...'}
                         </p>
                     </div>
@@ -198,37 +198,37 @@ export const AimDetailView = ({ name, onBack }: { name: string, onBack: () => vo
 
                 {/* Metadata Card */}
                 {!loadingMeta && meta && (
-                    <div className="bg-gray-800/40 rounded-xl border border-gray-700/50 p-6 grid gap-6 md:grid-cols-2">
+                    <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-6 grid gap-6 md:grid-cols-2">
                         <div>
-                            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2 font-mono">About</h3>
-                            <p className="text-gray-300 text-sm leading-relaxed">{meta.description || 'No description available.'}</p>
+                            <h3 className="text-sm font-medium text-[var(--textMuted)] uppercase tracking-wider mb-2 font-mono">About</h3>
+                            <p className="text-[var(--text)] text-sm leading-relaxed">{meta.description || 'No description available.'}</p>
                         </div>
                         <div className="flex flex-col justify-center space-y-4">
                             <div className="flex items-center space-x-3 text-sm">
-                                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                                <div className="p-2 rounded-lg bg-[color-mix(in_srgb,var(--primary),transparent_90%)] text-[var(--primary)]">
                                     <Download size={18} />
                                 </div>
                                 <div>
-                                    <p className="text-gray-500 text-xs uppercase">Total Pulls</p>
-                                    <p className="text-gray-200 font-mono font-bold">{meta.pullCount?.toLocaleString()}</p>
+                                    <p className="text-[var(--textMuted)] text-xs uppercase">Total Pulls</p>
+                                    <p className="text-[var(--text)] font-mono font-bold">{meta.pullCount?.toLocaleString()}</p>
                                 </div>
                             </div>
                             <div className="flex items-center space-x-3 text-sm">
-                                <div className="p-2 bg-yellow-500/10 rounded-lg text-yellow-500">
+                                <div className="p-2 bg-[color-mix(in_srgb,var(--warning),transparent_90%)] rounded-lg text-[var(--warning)]">
                                     <Star size={18} />
                                 </div>
                                 <div>
-                                    <p className="text-gray-500 text-xs uppercase">Stars</p>
-                                    <p className="text-gray-200 font-mono font-bold">{meta.starCount?.toLocaleString()}</p>
+                                    <p className="text-[var(--textMuted)] text-xs uppercase">Stars</p>
+                                    <p className="text-[var(--text)] font-mono font-bold">{meta.starCount?.toLocaleString()}</p>
                                 </div>
                             </div>
                             <div className="flex items-center space-x-3 text-sm">
-                                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+                                <div className="p-2 rounded-lg bg-[color-mix(in_srgb,var(--success),transparent_90%)] text-[var(--success)]">
                                     <Clock size={18} />
                                 </div>
                                 <div>
-                                    <p className="text-gray-500 text-xs uppercase">Last Updated</p>
-                                    <p className="text-gray-200 font-mono font-bold">
+                                    <p className="text-[var(--textMuted)] text-xs uppercase">Last Updated</p>
+                                    <p className="text-[var(--text)] font-mono font-bold">
                                         {meta.lastUpdated ? new Date(meta.lastUpdated).toLocaleDateString() : 'N/A'}
                                     </p>
                                 </div>
@@ -239,21 +239,21 @@ export const AimDetailView = ({ name, onBack }: { name: string, onBack: () => vo
             </header>
 
             {/* Release Explorer Section */}
-            <section className="bg-gray-800/40 rounded-xl border border-gray-700/50 overflow-hidden">
+            <section className="bg-[var(--surface)] rounded-xl border border-[var(--border)] overflow-hidden">
                 <button 
                     onClick={() => setShowReleaseExplorer(!showReleaseExplorer)}
-                    className="w-full flex items-center justify-between p-4 hover:bg-gray-700/30 transition-colors"
+                    className="w-full flex items-center justify-between p-4 hover:bg-[var(--surfaceAlt)] transition-colors"
                 >
                     <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
+                        <div className="p-2 rounded-lg bg-[color-mix(in_srgb,var(--danger),transparent_90%)] text-[var(--danger)]">
                             <Layers size={20} />
                         </div>
                         <div className="text-left">
-                            <h3 className="text-sm font-medium text-gray-200 font-mono">Release Explorer</h3>
-                            <p className="text-xs text-gray-500">View versions, architectures, and requirements</p>
+                            <h3 className="text-sm font-medium text-[var(--text)] font-mono">Release Explorer</h3>
+                            <p className="text-xs text-[var(--textMuted)]">View versions, architectures, and requirements</p>
                         </div>
                     </div>
-                    {showReleaseExplorer ? <ChevronUp size={20} className="text-gray-500" /> : <ChevronDown size={20} className="text-gray-500" />}
+                    {showReleaseExplorer ? <ChevronUp size={20} className="text-[var(--textMuted)]" /> : <ChevronDown size={20} className="text-[var(--textMuted)]" />}
                 </button>
 
                 {showReleaseExplorer && (
@@ -276,8 +276,8 @@ export const AimDetailView = ({ name, onBack }: { name: string, onBack: () => vo
                                                         onClick={() => setActiveArchIndex(idx)}
                                                         className={`pb-2 text-sm font-mono border-b-2 transition-colors whitespace-nowrap ${
                                                             activeArchIndex === idx 
-                                                                ? "border-indigo-500 text-indigo-400" 
-                                                                : "border-transparent text-gray-500 hover:text-gray-300"
+                                                                ? "border-[var(--primary)] text-[var(--primary)]" 
+                                                                : "border-transparent text-[var(--textMuted)] hover:text-[var(--text)]"
                                                         }`}
                                                     >
                                                         {arch.os}/{arch.architecture}
@@ -285,17 +285,17 @@ export const AimDetailView = ({ name, onBack }: { name: string, onBack: () => vo
                                                 ))}
                                             </div>
                                         ) : (
-                                            <span className="text-sm text-gray-600 italic pb-2">Select a version to view architectures</span>
+                                            <span className="text-sm text-[var(--textMuted)] italic pb-2">Select a version to view architectures</span>
                                         )}
                                     </div>
 
                                     {/* Version Selector (Right) */}
                                     <div className="w-full sm:w-auto min-w-[200px]">
-                                        <label className="block text-xs text-gray-500 mb-1 font-mono uppercase text-left">Version Tag</label>
+                                        <label className="block text-xs text-[var(--textMuted)] mb-1 font-mono uppercase text-left">Version Tag</label>
                                         <select 
                                             value={selectedTag || ''} 
                                             onChange={(e) => setSelectedTag(e.target.value)}
-                                            className="w-full bg-gray-900 border border-gray-700 text-gray-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                            className="w-full bg-[var(--background)] border border-[var(--border)] text-[var(--text)] rounded-lg p-2 text-sm focus:ring-2 focus:ring-[var(--primary)] focus:outline-none"
                                         >
                                             {releases.map((r, idx) => {
                                                 const tag = r.tagName || (typeof r === 'string' ? r : `v${idx}`);
@@ -314,30 +314,30 @@ export const AimDetailView = ({ name, onBack }: { name: string, onBack: () => vo
                                             <div className="grid gap-6 md:grid-cols-2">
                                                 {/* Requirements */}
                                                 <div className="space-y-4">
-                                                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                                    <h4 className="text-xs font-semibold text-[var(--textMuted)] uppercase tracking-wider flex items-center gap-2">
                                                         <Box size={14} /> Requirements & Specs
                                                     </h4>
                                                     <div className="grid grid-cols-2 gap-4">
-                                                        <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/50">
-                                                            <div className="text-xs text-gray-500 mb-1">GPU Memory</div>
-                                                            <div className="text-sm font-mono text-gray-200">{currentArch.gpuMemory || 'N/A'}</div>
+                                                        <div className="bg-[var(--background)] p-3 rounded-lg border border-[var(--border)]">
+                                                            <div className="text-xs text-[var(--textMuted)] mb-1">GPU Memory</div>
+                                                            <div className="text-sm font-mono text-[var(--text)]">{currentArch.gpuMemory || 'N/A'}</div>
                                                         </div>
-                                                        <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/50">
-                                                            <div className="text-xs text-gray-500 mb-1">Image Size</div>
-                                                            <div className="text-sm font-mono text-gray-200">{formatBytes(currentArch.size)}</div>
+                                                        <div className="bg-[var(--background)] p-3 rounded-lg border border-[var(--border)]">
+                                                            <div className="text-xs text-[var(--textMuted)] mb-1">Image Size</div>
+                                                            <div className="text-sm font-mono text-[var(--text)]">{formatBytes(currentArch.size)}</div>
                                                         </div>
-                                                        <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/50 col-span-2">
-                                                            <div className="text-xs text-gray-500 mb-1">Ports</div>
-                                                            <div className="text-sm font-mono text-gray-200 flex flex-wrap gap-2">
+                                                        <div className="bg-[var(--background)] p-3 rounded-lg border border-[var(--border)] col-span-2">
+                                                            <div className="text-xs text-[var(--textMuted)] mb-1">Ports</div>
+                                                            <div className="text-sm font-mono text-[var(--text)] flex flex-wrap gap-2">
                                                                 {currentArch.ports && currentArch.ports.length > 0 
-                                                                    ? currentArch.ports.map(p => <span key={p} className="bg-gray-800 px-2 py-0.5 rounded border border-gray-700 text-xs">{p}</span>)
-                                                                    : <span className="text-gray-500 italic">No exposed ports</span>
+                                                                    ? currentArch.ports.map(p => <span key={p} className="bg-[var(--surface)] px-2 py-0.5 rounded border border-[var(--border)] text-xs">{p}</span>)
+                                                                    : <span className="text-[var(--textMuted)] italic">No exposed ports</span>
                                                                 }
                                                             </div>
                                                         </div>
-                                                        <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/50 col-span-2 overflow-hidden">
-                                                            <div className="text-xs text-gray-500 mb-1">Digest</div>
-                                                            <div className="text-xs font-mono text-gray-400 truncate" title={currentArch.digest}>
+                                                        <div className="bg-[var(--background)] p-3 rounded-lg border border-[var(--border)] col-span-2 overflow-hidden">
+                                                            <div className="text-xs text-[var(--textMuted)] mb-1">Digest</div>
+                                                            <div className="text-xs font-mono text-[var(--textMuted)] truncate" title={currentArch.digest}>
                                                                 {currentArch.digest || 'N/A'}
                                                             </div>
                                                         </div>
@@ -347,29 +347,29 @@ export const AimDetailView = ({ name, onBack }: { name: string, onBack: () => vo
                                                 {/* Labels (Raw JSON Viewer) */}
                                                 <div className="space-y-4">
                                                     <div className="flex items-center justify-between">
-                                                        <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                                        <h3 className="text-sm font-medium text-[var(--textMuted)] uppercase tracking-wider flex items-center gap-2">
                                                             <Info size={16} /> Configuration Labels
                                                         </h3>
                                                         <button 
                                                             onClick={() => setShowRawLabels(!showRawLabels)}
-                                                            className="text-xs text-blue-400 hover:underline"
+                                                            className="text-xs text-[var(--primary)] hover:underline"
                                                         >
                                                             {showRawLabels ? 'Hide' : 'Show All'}
                                                         </button>
                                                     </div>
                                                     
                                                     <div className="relative">
-                                                        <Search className="absolute left-3 top-2.5 text-gray-400" size={14} />
+                                                        <Search className="absolute left-3 top-2.5 text-[var(--textMuted)]" size={14} />
                                                         <input 
                                                             type="text" 
                                                             placeholder="Search labels..." 
-                                                            className="w-full bg-gray-900/50 border border-gray-700 rounded-md py-2 pl-9 pr-4 text-sm focus:ring-1 focus:ring-blue-500 text-gray-300"
+                                                            className="w-full bg-[var(--background)] border border-[var(--border)] rounded-md py-2 pl-9 pr-4 text-sm focus:ring-1 focus:ring-[var(--primary)] text-[var(--text)]"
                                                             value={labelSearch}
                                                             onChange={(e) => setLabelSearch(e.target.value)}
                                                         />
                                                     </div>
 
-                                                    <div className={`bg-gray-900 rounded-lg p-4 overflow-auto font-mono text-xs text-gray-300 custom-scrollbar ${
+                                                    <div className={`bg-[var(--background)] rounded-lg p-4 overflow-auto font-mono text-xs text-[var(--text)] custom-scrollbar ${
                                                         showRawLabels ? "max-h-[500px]" : "max-h-[200px]"
                                                     }`}>
                                                         <table className="w-full border-collapse">
@@ -386,16 +386,16 @@ export const AimDetailView = ({ name, onBack }: { name: string, onBack: () => vo
                                                                                 String(v).toLowerCase().includes(labelSearch.toLowerCase())
                                                                             );
                                                                         
-                                                                        if (entries.length === 0) return <tr><td className="text-gray-500 italic">No matches</td></tr>;
+                                                                        if (entries.length === 0) return <tr><td className="text-[var(--textMuted)] italic">No matches</td></tr>;
 
                                                                         return entries.map(([key, value]) => (
-                                                                            <tr key={key} className="border-b border-gray-800 last:border-0 hover:bg-white/5">
-                                                                                <td className="py-2 pr-4 text-blue-400 font-semibold align-top whitespace-nowrap">{key}</td>
-                                                                                <td className="py-2 text-gray-300 break-all">{String(value)}</td>
+                                                                            <tr key={key} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surfaceAlt)]">
+                                                                                <td className="py-2 pr-4 text-[var(--primary)] font-semibold align-top whitespace-nowrap">{key}</td>
+                                                                                <td className="py-2 text-[var(--text)] break-all">{String(value)}</td>
                                                                             </tr>
                                                                         ));
                                                                     } catch {
-                                                                        return <tr><td className="text-red-400">Error parsing labels</td></tr>;
+                                                                        return <tr><td className="text-[var(--danger)]">Error parsing labels</td></tr>;
                                                                     }
                                                                 })()}
                                                             </tbody>
@@ -417,13 +417,13 @@ export const AimDetailView = ({ name, onBack }: { name: string, onBack: () => vo
             </section>
 
             {/* Controls */}
-            <div className="flex flex-col sm:flex-row justify-between items-center bg-gray-800/40 rounded-xl border border-gray-700/50 p-4 gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4 gap-4">
                 {/* Metric Toggle */}
-                <div className="flex space-x-2 bg-gray-900 p-1 rounded-lg border border-gray-800 transition-colors">
+                <div className="flex space-x-2 bg-[var(--background)] p-1 rounded-lg border border-[var(--border)] transition-colors">
                     <button
                         onClick={() => setMetric('activeNodes')}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-2 ${
-                            metric === 'activeNodes' ? "bg-gray-800 text-white shadow" : "text-gray-400 hover:text-white"
+                            metric === 'activeNodes' ? "bg-[var(--surface)] text-[var(--text)] shadow" : "text-[var(--textMuted)] hover:text-[var(--text)]"
                         }`}
                     >
                         <Server size={16} />
@@ -432,7 +432,7 @@ export const AimDetailView = ({ name, onBack }: { name: string, onBack: () => vo
                     <button
                         onClick={() => setMetric('totalComputeTflops')}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-2 ${
-                            metric === 'totalComputeTflops' ? "bg-gray-800 text-white shadow" : "text-gray-400 hover:text-white"
+                            metric === 'totalComputeTflops' ? "bg-[var(--surface)] text-[var(--text)] shadow" : "text-[var(--textMuted)] hover:text-[var(--text)]"
                         }`}
                     >
                         <Zap size={16} />
@@ -441,7 +441,7 @@ export const AimDetailView = ({ name, onBack }: { name: string, onBack: () => vo
                     <button
                         onClick={() => setMetric('totalComputeCghz')}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-2 ${
-                            metric === 'totalComputeCghz' ? "bg-gray-800 text-white shadow" : "text-gray-400 hover:text-white"
+                            metric === 'totalComputeCghz' ? "bg-[var(--surface)] text-[var(--text)] shadow" : "text-[var(--textMuted)] hover:text-[var(--text)]"
                         }`}
                     >
                         <Cpu size={16} />
@@ -457,8 +457,8 @@ export const AimDetailView = ({ name, onBack }: { name: string, onBack: () => vo
                             onClick={() => setRange(r)}
                             className={`px-3 py-1 rounded-md text-sm font-mono transition-colors border ${
                                 range === r 
-                                    ? "bg-indigo-600 border-indigo-500 text-white" 
-                                    : "bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500"
+                                    ? "bg-[var(--primary)] border-[var(--primary)] text-white" 
+                                    : "bg-[var(--background)] border-[var(--border)] text-[var(--textMuted)] hover:border-[var(--text)]"
                             }`}
                         >
                             {r.toUpperCase()}

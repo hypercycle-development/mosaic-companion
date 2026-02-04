@@ -82,7 +82,7 @@ export const HyperInsightView = () => {
 
   if (status.loading) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-gray-900 text-white">
+      <div className="flex h-full w-full items-center justify-center bg-[var(--background)] text-[var(--text)]">
         <Loader2 className="animate-spin mr-2" /> Initializing HyperInsight...
       </div>
     );
@@ -90,26 +90,26 @@ export const HyperInsightView = () => {
 
   if (status.error) {
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center bg-gray-900 text-red-400">
+      <div className="flex h-full w-full flex-col items-center justify-center bg-[var(--background)] text-[var(--danger)]">
         <p className="mb-4">Error: {status.error}</p>
-        <button onClick={() => window.location.reload()} className="px-4 py-2 bg-gray-800 rounded hover:bg-gray-700 text-white">Retry</button>
+        <button onClick={() => window.location.reload()} className="px-4 py-2 bg-[var(--surface)] rounded hover:bg-[var(--surfaceAlt)] text-[var(--text)]">Retry</button>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-gray-900 text-gray-100 font-sans overflow-auto">
+    <div className="flex h-full w-full flex-col bg-[var(--background)] text-[var(--text)] font-sans overflow-auto">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur sticky top-0 z-40">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] bg-[var(--overlay)] backdrop-blur sticky top-0 z-40">
         <div className="flex items-center gap-2">
-            <div className="text-2xl font-bold tracking-tight text-gray-100 font-mono">
-                Hyper<span className="text-indigo-500">Insight</span>
+            <div className="text-2xl font-bold tracking-tight text-[var(--text)] font-mono">
+                Hyper<span className="text-[var(--primary)]">Insight</span>
             </div>
             <div className="relative group/tooltip">
-                <div className="p-1 rounded-lg text-gray-500 hover:text-gray-300 transition-colors cursor-help">
+                <div className="p-1 rounded-lg text-[var(--textMuted)] hover:text-[var(--text)] transition-colors cursor-help">
                     <HelpCircle size={14} />
                 </div>
-                <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-48 p-2 bg-gray-900 border border-gray-700 rounded shadow-xl text-xs text-gray-300 z-10 opacity-0 group-hover/tooltip:opacity-70 transition-opacity pointer-events-none group-hover/tooltip:pointer-events-auto">
+                <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-48 p-2 bg-[var(--surface)] border border-[var(--border)] rounded shadow-xl text-xs text-[var(--text)] z-10 opacity-0 group-hover/tooltip:opacity-70 transition-opacity pointer-events-none group-hover/tooltip:pointer-events-auto">
                     Be aware data is currently fuzzy and subject to change while the network continues to improve. 
                 </div>
             </div>
@@ -119,7 +119,7 @@ export const HyperInsightView = () => {
             <button 
                 onClick={fetchData} 
                 disabled={dataLoading}
-                className="p-2 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-50"
+                className="p-2 rounded-full hover:bg-[var(--surface)] transition-colors disabled:opacity-50"
             >
                 <RefreshCw size={18} className={dataLoading ? "animate-spin" : ""} />
             </button>
@@ -156,7 +156,7 @@ export const HyperInsightView = () => {
             </div>
 
             {/* Tabs */}
-            <div className="flex px-6 pt-4 border-b border-gray-800 gap-6">
+            <div className="flex px-6 pt-4 border-b border-[var(--border)] gap-6">
                 <TabButton id={TABS.LEADERBOARD} label="Leaderboard" icon={Trophy} active={activeTab === TABS.LEADERBOARD} onClick={setActiveTab} />
                 <TabButton id={TABS.AIMS} label="Aims" icon={Activity} active={activeTab === TABS.AIMS} onClick={setActiveTab} />
                 <TabButton id={TABS.NODES} label="Nodes" icon={Server} active={activeTab === TABS.NODES} onClick={setActiveTab} />
@@ -179,8 +179,8 @@ const TabButton = ({ id, label, icon: Icon, active, onClick }: any) => (
     onClick={() => onClick(id)}
     className={`flex items-center gap-2 pb-3 px-1 border-b-2 transition-all ${
       active 
-        ? "border-indigo-500 text-indigo-400" 
-        : "border-transparent text-gray-500 hover:text-gray-300"
+        ? "border-[var(--primary)] text-[var(--primary)]" 
+        : "border-transparent text-[var(--textMuted)] hover:text-[var(--text)]"
     }`}
   >
     <Icon size={16} />

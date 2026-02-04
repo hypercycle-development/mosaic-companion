@@ -73,22 +73,22 @@ const RollingCounter = ({
                 {/* 0: Primary (Nodes) */}
                 <div className="h-[24px] flex items-center justify-start whitespace-nowrap leading-none">
                     <PrimaryIcon size={16} className={`mr-2 ${primaryColorClass}`} />
-                    <span className="font-bold text-gray-200">{formatNumber(primary)}</span>
-                    <span className="ml-1 text-gray-400">{label}</span>
+                    <span className="font-bold text-[var(--text)]">{formatNumber(primary)}</span>
+                    <span className="ml-1 text-[var(--textMuted)]">{label}</span>
                 </div>
                 
                 {/* 1: Secondary (Licenses) */}
                 <div className="h-[24px] flex items-center justify-start whitespace-nowrap leading-none">
                     <SecondaryIcon size={16} className={`mr-2 ${secondaryColorClass}`} />
-                    <span className="font-bold text-gray-200">{formatNumber(secondary)}</span>
-                    <span className="ml-1 text-gray-400">{secondaryLabel}</span>
+                    <span className="font-bold text-[var(--text)]">{formatNumber(secondary)}</span>
+                    <span className="ml-1 text-[var(--textMuted)]">{secondaryLabel}</span>
                 </div>
 
                 {/* 2: Primary Duplicate (for looping) */}
                 <div className="h-[24px] flex items-center justify-start whitespace-nowrap leading-none">
                     <PrimaryIcon size={16} className={`mr-2 ${primaryColorClass}`} />
-                    <span className="font-bold text-gray-200">{formatNumber(primary)}</span>
-                    <span className="ml-1 text-gray-400">{label}</span>
+                    <span className="font-bold text-[var(--text)]">{formatNumber(primary)}</span>
+                    <span className="ml-1 text-[var(--textMuted)]">{label}</span>
                 </div>
             </div>
         </div>
@@ -131,7 +131,7 @@ const MetricBadge = ({
     }
 
     return (
-        <div className="flex items-center space-x-3 text-sm font-mono border border-gray-700 rounded-md px-3 py-1.5 bg-gray-800/50 backdrop-blur-sm h-[38px]">
+        <div className="flex items-center space-x-3 text-sm font-mono border border-[var(--border)] rounded-md px-3 py-1.5 bg-[var(--surface)] backdrop-blur-sm h-[38px]">
             <div className="flex items-center space-x-2">
                 <RollingCounter 
                     primary={primaryValue} 
@@ -144,10 +144,10 @@ const MetricBadge = ({
                     secondaryColorClass={secondaryColorClass}
                 />
             </div>
-             <div className="flex items-center pl-2 border-l border-gray-700 h-full space-x-1">
-                {trend === 'up' && <ArrowUpRight size={16} className="text-emerald-500" />}
-                {trend === 'down' && <ArrowDownRight size={16} className="text-red-500" />}
-                {trend === 'flat' && <Minus size={16} className="text-gray-500" />}
+             <div className="flex items-center pl-2 border-l border-[var(--border)] h-full space-x-1">
+                {trend === 'up' && <ArrowUpRight size={16} className="text-[var(--success)]" />}
+                {trend === 'down' && <ArrowDownRight size={16} className="text-[var(--danger)]" />}
+                {trend === 'flat' && <Minus size={16} className="text-[var(--muted)]" />}
             </div>
         </div>
     );
@@ -156,7 +156,7 @@ const MetricBadge = ({
 export const ActiveNodesDisplay = ({ stats, history }: { stats: any, history: any }) => {
     return (
         <div className="flex items-center space-x-4">
-             <span className="text-sm font-mono text-gray-400 font-bold">Node Activity |</span>
+             <span className="text-sm font-mono text-[var(--textMuted)] font-bold">Node Activity |</span>
              <MetricBadge 
                 primaryValue={stats?.totalActiveNodes || 0}
                 secondaryValue={stats?.totalActiveLicenses || 0}
@@ -165,8 +165,8 @@ export const ActiveNodesDisplay = ({ stats, history }: { stats: any, history: an
                 historyData={history?.activeNodes}
                 primaryIcon={Server}
                 secondaryIcon={Database}
-                primaryColorClass="text-emerald-500"
-                secondaryColorClass="text-blue-500"
+                primaryColorClass="text-[var(--success)]"
+                secondaryColorClass="text-[var(--primary)]"
              />
              <MetricBadge 
                 primaryValue={stats?.totalDeployedNodes || 0}
@@ -176,8 +176,8 @@ export const ActiveNodesDisplay = ({ stats, history }: { stats: any, history: an
                 historyData={history?.deployedNodes}
                 primaryIcon={Server}
                 secondaryIcon={Database}
-                primaryColorClass="text-emerald-500"
-                secondaryColorClass="text-blue-500"
+                primaryColorClass="text-[var(--success)]"
+                secondaryColorClass="text-[var(--primary)]"
              />
         </div>
     );
