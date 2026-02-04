@@ -5,7 +5,7 @@ import path from "path";
 // Folder handling
 // ============================================
 
-export function getDirectoryStatus(dirPath) {
+export function getDirectoryStatus(dirPath: string) {
   try {
     const stat = fs.statSync(dirPath);
     if (!stat.isDirectory()) {
@@ -14,14 +14,17 @@ export function getDirectoryStatus(dirPath) {
     const files = fs.readdirSync(dirPath);
     return { exists: true, isDirectory: true, isEmpty: files.length === 0 };
   } catch (err) {
-    if (err.code === "ENOENT") {
+    if (
+      err instanceof Error &&
+      (err as NodeJS.ErrnoException).code === "ENOENT"
+    ) {
       return { exists: false, isDirectory: false, isEmpty: null };
     }
     throw err;
   }
 }
 
-export function readJsonFilesFromFolder(folderPath) {
+export function readJsonFilesFromFolder(folderPath: string) {
   const files = fs.readdirSync(folderPath);
 
   return files
@@ -41,15 +44,15 @@ export function readJsonFilesFromFolder(folderPath) {
 // ============================================
 const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 
-function getAgentHistoryFolder(agentId) {
+function getAgentHistoryFolder(agentId: string) {
   return path.join(agentsHistoryPath, agentId.toString());
 }
 
-function getChatSessionPath(agentId, sessionId) {
+function getChatSessionPath(agentId: string, sessionId: string) {
   return path.join(getAgentHistoryFolder(agentId), `${sessionId}.json`);
 }
 
-function ensureAgentFolder(agentId) {
+function ensureAgentFolder(agentId: string) {
   const folderPath = getAgentHistoryFolder(agentId);
   if (!fs.existsSync(folderPath)) {
     fs.mkdirSync(folderPath, { recursive: true });
@@ -61,7 +64,7 @@ function ensureAgentFolder(agentId) {
  * Read ALL chat sessions for an agent
  * Returns an array of all ChatSession objects from the agent's folder
  */
-export function readAgentHistories(agentId) {
+export function readAgentHistories(agentId: string) {
   try {
     const folderPath = getAgentHistoryFolder(agentId);
 
@@ -106,7 +109,7 @@ export function readAgentHistories(agentId) {
 /**
  * Read a SINGLE chat session by agentId and sessionId
  */
-export function readAgentHistory(agentId, sessionId) {
+export function readAgentHistory(agentId: string, sessionId: string) {
   try {
     const filePath = getChatSessionPath(agentId, sessionId);
 
@@ -126,7 +129,7 @@ export function readAgentHistory(agentId, sessionId) {
  * Write/Save a chat session
  * Creates the agent folder if it doesn't exist
  */
-export function writeAgentHistory(chatSession) {
+export function writeAgentHistory(chatSession: any) {
   try {
     // Ensure the agent's folder exists
     ensureAgentFolder(chatSession.agentId);
@@ -145,7 +148,7 @@ export function writeAgentHistory(chatSession) {
 /**
  * Delete a single chat session
  */
-export function deleteAgentHistory(agentId, sessionId) {
+export function deleteAgentHistory(agentId: string, sessionId: string) {
   try {
     const filePath = getChatSessionPath(agentId, sessionId);
 
@@ -163,7 +166,7 @@ export function deleteAgentHistory(agentId, sessionId) {
 /**
  * Delete ALL chat history for an agent (deletes the entire folder)
  */
-export function deleteAllAgentHistories(agentId) {
+export function deleteAllAgentHistories(agentId: any) {
   try {
     const folderPath = getAgentHistoryFolder(agentId);
 
@@ -176,4 +179,8 @@ export function deleteAllAgentHistories(agentId) {
     console.error("Failed to delete all agent histories:", error);
     return false;
   }
+}
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
 }
