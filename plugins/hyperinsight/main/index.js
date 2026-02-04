@@ -104,13 +104,11 @@ export function registerHyperInsightIpc(ipcMain) {
   ipcMain.handle('hyperinsight:ensure-key', async () => {
     let data = loadKeyData();
     if (data) {
-      console.log(`[HyperInsight] Loaded existing client: ${data.clientId}`);
       return { success: true, clientId: data.clientId };
     }
 
     // Register new key
     try {
-      console.log('[HyperInsight] Registering new client...');
       const regData = await apiRequest('/auth/register-client', 'POST', {
         clientName: `Mosaic-${process.platform}`,
         appVersion: app.getVersion() || '1.0.0'
@@ -118,7 +116,6 @@ export function registerHyperInsightIpc(ipcMain) {
       
       if (regData.apiKey) {
         saveKeyData(regData.clientId, regData.apiKey, regData.tier);
-        console.log(`[HyperInsight] Registration successful! Client ID: ${regData.clientId}`);
         return { success: true, clientId: regData.clientId };
       }
       return { success: false, error: 'No API key returned' };
