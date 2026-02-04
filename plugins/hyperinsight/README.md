@@ -2,6 +2,10 @@
 
 This plugin integrates HyperInsight functionality into the Mosaic Browser, allowing users to view AIMs, Leaderboards, Network Statistics, and manage their HyperInsight API connection(*API management is not fully built out yet) directly from the browser.
 
+To test, you may need to run npm install to get the recharts dependency first.
+Then start mosaic using *npm run start*(I could not get the api to function as an independent localhost browser frontend). Navigate to Hyperinsight tab in the navbar. 
+Api key should provision automatically and data should load within a few seconds. 
+
 ## 1. Architecture & Integration
 
 The plugin follows the standard Electron multi-process architecture, split into **Main** and **Renderer** components, and integrates deeply with the host Mosaic application.
