@@ -1,74 +1,41 @@
 /**
  * Example: Using MCP with LLM Tool Calling
  *
- * This demonstrates how to integrate MCP tools with an LLM (OpenAI/Anthropic)
- * for agentic workflows. The LLM can discover and call MCP tools.
+ * Demonstrates how to use the modular recipes and providers for agentic
+ * MCP workflows. This file is now a thin demo — all logic lives in
+ * recipes/ and providers/.
  *
- * Run: npx integrations/mcp/LlmToolCalling.ts
+ * Run: npx ts-node integrations/mcp/LlmToolCalling.ts
  */
 
-import MCPClient, { mcpToolsToOpenAI, mcpResultToString } from "./MCPClient";
+import { MCPClient, mcpResultToString } from "./MCPClient";
+import { OpenAIProvider } from "./providers/openai";
+import { AnthropicProvider } from "./providers/anthropic";
+import type { LLMProvider } from "./providers/types";
+import {
+  directToolCall,
+  batchToolCalls,
+  findAndCallTool,
+} from "./recipes/directToolCall";
+import { runAgentLoop } from "./recipes/agentLoop";
+import { unifiedToolSurface } from "./recipes/multiServerFanout";
+import { discoverPrompts } from "./recipes/promptChaining";
 
 // =============================================================================
-// Type Definitions
+// Configuration
 // =============================================================================
 
-interface MCPTool {
-  name: string;
-  description?: string;
-  inputSchema?: Record<string, unknown>;
-}
-
-interface Message {
-  role: "system" | "user" | "assistant" | "tool";
-  content: string;
-  tool_calls?: ToolCall[];
-  tool_call_id?: string;
-}
-
-interface ToolCall {
-  id: string;
-  type: "function";
-  function: {
-    name: string;
-    arguments: string;
-  };
-}
-
-interface OpenAIResponse {
-  choices: Array<{
-    message: Message;
-  }>;
-}
-
-interface AnthropicContentBlock {
-  type: "text" | "tool_use";
-  text?: string;
-  id?: string;
-  name?: string;
-  input?: Record<string, unknown>;
-}
-
-interface AnthropicResponse {
-  content: AnthropicContentBlock[];
-}
-
-// ============ CONFIGURATION ============
-
-// Replace with your actual API keys
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
-// MCP Server configuration
 const MCP_SERVERS = [
   {
     name: "local-tools",
     transport: "stdio" as const,
     command: "python",
     args: ["../mcp-implementation/python/server.py"],
-    url: "",
   },
-  // Or connect to an HTTP server:
+  // HTTP server example:
   // {
   //   name: 'remote-tools',
   //   transport: 'http' as const,
@@ -76,322 +43,209 @@ const MCP_SERVERS = [
   // },
 ];
 
-// ============ LLM INTEGRATION ============
+// =============================================================================
+// Demo Functions
+// =============================================================================
 
 /**
- * Call OpenAI's API with tool support
+ * Demo 1: Direct tool calls (no LLM)
  */
-async function callOpenAI(
-  messages: Message[],
-  tools: MCPTool[],
-): Promise<{
-  message: Message;
-  toolCalls?: ToolCall[];
-}> {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4-turbo-preview",
-      messages,
-      tools: mcpToolsToOpenAI(tools),
-      tool_choice: "auto",
-    }),
-  });
+async function demoDirectCalls(mcp: MCPClient, serverName: string) {
+  console.log("\n" + "═".repeat(50));
+  console.log("📌 Demo 1: Direct Tool Calls");
+  console.log("═".repeat(50));
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`OpenAI API error: ${error}`);
+  // Single call
+  console.log("\n→ Calling get_current_time...");
+  const time = await directToolCall(mcp, serverName, "get_current_time", {
+    timezone: "America/New_York",
+  });
+  console.log(`  Result: ${time}`);
+
+  // Find and call across servers
+  console.log("\n→ Finding and calling get_current_time across all servers...");
+  try {
+    const { server, result } = await findAndCallTool(mcp, "get_current_time", {
+      timezone: "Asia/Tokyo",
+    });
+    console.log(`  Found on: ${server}`);
+    console.log(`  Result: ${result}`);
+  } catch (error) {
+    console.log(`  Error: ${(error as Error).message}`);
   }
 
-  const data = (await response.json()) as OpenAIResponse;
-  const choice = data.choices[0];
+  // Batch calls
+  console.log("\n→ Batch calling multiple tools in parallel...");
+  const batchResults = await batchToolCalls(mcp, [
+    {
+      server: serverName,
+      tool: "get_current_time",
+      args: { timezone: "America/New_York" },
+    },
+    {
+      server: serverName,
+      tool: "get_current_time",
+      args: { timezone: "Europe/London" },
+    },
+    {
+      server: serverName,
+      tool: "get_current_time",
+      args: { timezone: "Asia/Tokyo" },
+    },
+  ]);
 
-  return {
-    message: choice.message,
-    toolCalls: choice.message.tool_calls,
-  };
+  for (const r of batchResults) {
+    if (r.result) {
+      console.log(`  ${r.tool}: ${r.result}`);
+    } else {
+      console.log(`  ${r.tool}: ERROR - ${r.error}`);
+    }
+  }
 }
 
 /**
- * Call Anthropic's API with tool support
+ * Demo 2: Unified tool surface
  */
-async function callAnthropic(
-  messages: Message[],
-  tools: MCPTool[],
-): Promise<{
-  message: Message;
-  toolCalls?: ToolCall[];
-}> {
-  // Convert tools to Anthropic format
-  const anthropicTools = tools.map((tool) => ({
-    name: tool.name,
-    description: tool.description || "",
-    input_schema: tool.inputSchema,
-  }));
+async function demoToolSurface(mcp: MCPClient) {
+  console.log("\n" + "═".repeat(50));
+  console.log("📌 Demo 2: Unified Tool Surface");
+  console.log("═".repeat(50));
 
-  // Convert messages to Anthropic format
-  const anthropicMessages = messages
-    .filter((m) => m.role !== "system")
-    .map((m) => ({
-      role: m.role === "tool" ? "user" : m.role,
-      content:
-        m.role === "tool"
-          ? [
-              {
-                type: "tool_result",
-                tool_use_id: m.tool_call_id,
-                content: m.content,
-              },
-            ]
-          : m.content,
-    }));
+  const tools = await unifiedToolSurface(mcp);
+  console.log(`\n  Found ${tools.length} tools across all servers:\n`);
 
-  const systemMessage =
-    messages.find((m) => m.role === "system")?.content || "";
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-3-sonnet-20240229",
-      max_tokens: 4096,
-      system: systemMessage,
-      messages: anthropicMessages,
-      tools: anthropicTools,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Anthropic API error: ${error}`);
+  for (const tool of tools) {
+    console.log(`  [${tool.serverName}] ${tool.qualifiedName}`);
+    console.log(`    ${tool.description || "No description"}`);
   }
-
-  const data = (await response.json()) as AnthropicResponse;
-
-  // Convert Anthropic response to common format
-  const textContent = data.content.find(
-    (c: AnthropicContentBlock) => c.type === "text",
-  );
-  const toolUses = data.content.filter(
-    (c: AnthropicContentBlock) => c.type === "tool_use",
-  );
-
-  const toolCalls: ToolCall[] = toolUses.map((tu: AnthropicContentBlock) => ({
-    id: tu.id!,
-    type: "function" as const,
-    function: {
-      name: tu.name!,
-      arguments: JSON.stringify(tu.input),
-    },
-  }));
-
-  return {
-    message: {
-      role: "assistant",
-      content: textContent?.text || "",
-      tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
-    },
-    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-  };
 }
 
-// ============ AGENT LOOP ============
+/**
+ * Demo 3: Prompt discovery
+ */
+async function demoPrompts(mcp: MCPClient) {
+  console.log("\n" + "═".repeat(50));
+  console.log("📌 Demo 3: Prompt Discovery");
+  console.log("═".repeat(50));
+
+  const prompts = await discoverPrompts(mcp);
+
+  if (prompts.length === 0) {
+    console.log("\n  No prompts found on any server.");
+    return;
+  }
+
+  console.log(`\n  Found ${prompts.length} prompts:\n`);
+  for (const prompt of prompts) {
+    console.log(`  [${prompt._serverName}] ${prompt.name}`);
+    console.log(`    ${prompt.description || "No description"}`);
+    if (prompt.arguments?.length) {
+      console.log(
+        `    Args: ${prompt.arguments.map((a) => a.name).join(", ")}`,
+      );
+    }
+  }
+}
 
 /**
- * Run an agentic conversation with MCP tool calling
+ * Demo 4: Agent loop with tool calling
  */
-async function runAgent(
+async function demoAgentLoop(
   mcp: MCPClient,
-  serverName: string,
-  userQuery: string,
-  provider: "openai" | "anthropic" = "openai",
-): Promise<string> {
-  console.log("\n🤖 Starting agent with query:", userQuery);
-  console.log("─".repeat(50));
+  provider: LLMProvider,
+  providerName: string,
+  serverNames: string[],
+) {
+  console.log("\n" + "═".repeat(50));
+  console.log(`📌 Demo 4: Agent Loop (${providerName})`);
+  console.log("═".repeat(50));
 
-  // Get available tools from MCP server
-  const tools = await mcp.listTools(serverName);
-  console.log(
-    `📦 Loaded ${tools.length} tools from ${serverName}:`,
-    tools.map((t: MCPTool) => t.name).join(", "),
-  );
+  const query =
+    "What is the current time in Tokyo? Also, fetch the homepage of example.com and summarize it.";
 
-  // Initialize conversation
-  const messages: Message[] = [
-    {
-      role: "system",
-      content: `You are a helpful assistant with access to tools. Use the tools to help answer the user's questions.
-      
-Available tools:
-${tools.map((t: MCPTool) => `- ${t.name}: ${t.description}`).join("\n")}
+  console.log(`\n  Query: "${query}"\n`);
 
-When you need information or to perform an action, use the appropriate tool.`,
+  const result = await runAgentLoop(mcp, provider, serverNames, query, {
+    maxIterations: 10,
+    onBeforeToolCall: (toolName, args, server) => {
+      console.log(`  🔧 [${server}] Calling: ${toolName}`);
+      console.log(`     Args: ${JSON.stringify(args)}`);
+      return true; // Approve all calls in this demo
     },
-    {
-      role: "user",
-      content: userQuery,
+    onToolResult: (toolName, resultText) => {
+      const preview =
+        resultText.length > 100 ? resultText.slice(0, 100) + "..." : resultText;
+      console.log(`     ← ${preview}`);
     },
-  ];
+    onIteration: (iteration) => {
+      console.log(`\n  🔄 Iteration ${iteration}`);
+    },
+  });
 
-  // Agent loop
-  let iterations = 0;
-  const maxIterations = 10;
-
-  while (iterations < maxIterations) {
-    iterations++;
-    console.log(`\n🔄 Iteration ${iterations}`);
-
-    // Call LLM
-    const llmCall = provider === "openai" ? callOpenAI : callAnthropic;
-    const { message, toolCalls } = await llmCall(messages, tools);
-
-    messages.push(message);
-
-    // Check if we have tool calls
-    if (!toolCalls || toolCalls.length === 0) {
-      // No more tool calls, return the final response
-      console.log("\n✅ Agent completed");
-      return message.content;
-    }
-
-    // Execute tool calls
-    for (const toolCall of toolCalls) {
-      const toolName = toolCall.function.name;
-      const toolArgs = JSON.parse(toolCall.function.arguments);
-
-      console.log(`🔧 Calling tool: ${toolName}`, toolArgs);
-
-      try {
-        // Call the MCP tool
-        const result = await mcp.callTool(serverName, toolName, toolArgs);
-        const resultText = mcpResultToString(result);
-
-        console.log(
-          `   ← Result: ${resultText.slice(0, 100)}${
-            resultText.length > 100 ? "..." : ""
-          }`,
-        );
-
-        // Add tool result to messages
-        messages.push({
-          role: "tool",
-          content: resultText,
-          tool_call_id: toolCall.id,
-        });
-      } catch (error) {
-        const errorMsg = `Tool error: ${(error as Error).message}`;
-        console.log(`   ← Error: ${errorMsg}`);
-
-        messages.push({
-          role: "tool",
-          content: errorMsg,
-          tool_call_id: toolCall.id,
-        });
-      }
-    }
-  }
-
-  throw new Error("Max iterations reached");
+  console.log(`\n  ✅ Completed in ${result.iterations} iterations`);
+  console.log(`\n  📝 Response:\n  ${result.content}`);
 }
 
-// ============ MAIN ============
+// =============================================================================
+// Main
+// =============================================================================
 
 async function main() {
-  console.log("🚀 MCP + LLM Tool Calling Example\n");
+  console.log("🚀 MCP Integration Examples\n");
 
   // Check for API keys
-  if (!OPENAI_API_KEY && !ANTHROPIC_API_KEY) {
+  const hasLLM = !!(OPENAI_API_KEY || ANTHROPIC_API_KEY);
+  if (!hasLLM) {
     console.log(
-      "⚠️  No API keys configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY",
+      "⚠️  No API keys set. Set OPENAI_API_KEY or ANTHROPIC_API_KEY for agent demo.",
     );
-    console.log("   This example will demonstrate MCP client setup only.\n");
+    console.log("   Running non-LLM demos only.\n");
   }
 
-  // Create MCP client
-  const mcp = new MCPClient({ debug: true });
+  // Create client
+  const mcp = new MCPClient({ debug: false });
 
-  // Set up event listeners
-  mcp.on("connected", ({ server }: { server: string }) => {
-    console.log(`✅ Connected to ${server}`);
-  });
-
-  mcp.on("disconnected", ({ server }: { server: string }) => {
-    console.log(`❌ Disconnected from ${server}`);
-  });
-
-  mcp.on(
-    "notification",
-    ({ server, method }: { server: string; method: string }) => {
-      console.log(`📬 Notification from ${server}: ${method}`);
-    },
+  mcp.on("connected", ({ server }) => console.log(`✅ Connected: ${server}`));
+  mcp.on("disconnected", ({ server }) =>
+    console.log(`❌ Disconnected: ${server}`),
   );
 
   try {
-    // Connect to MCP servers
+    // Connect to all servers
     for (const config of MCP_SERVERS) {
       if (config.transport === "stdio") {
         await mcp.connectStdio(config.name, config.command, config.args);
       } else {
-        await mcp.connectHttp(config.name, config.url!);
+        await mcp.connectHttp(config.name, (config as any).url);
       }
     }
-
-    // List tools from all servers
-    for (const serverName of mcp.getConnectedServers()) {
-      const tools = await mcp.listTools(serverName);
-      console.log(`\n📋 Tools from ${serverName}:`);
-      for (const tool of tools) {
-        console.log(`   - ${tool.name}: ${tool.description}`);
-      }
-
-      const resources = await mcp.listResources(serverName);
-      console.log(`\n📄 Resources from ${serverName}:`);
-      for (const resource of resources) {
-        console.log(`   - ${resource.uri}: ${resource.name}`);
-      }
-    }
-
-    // Demo: Call a tool directly
-    console.log("\n─".repeat(50));
-    console.log("🔧 Direct tool call demo:\n");
 
     const serverName = MCP_SERVERS[0].name;
+    const serverNames = mcp.getConnectedServers();
 
-    // Call get_current_time
-    console.log("Calling get_current_time...");
-    const timeResult = await mcp.callTool(serverName, "get_current_time", {
-      timezone: "America/New_York",
-    });
-    console.log("Result:", mcpResultToString(timeResult));
+    // Run demos
+    await demoDirectCalls(mcp, serverName);
+    await demoToolSurface(mcp);
+    await demoPrompts(mcp);
 
-    // If API keys are available, run the agent
-    if (OPENAI_API_KEY || ANTHROPIC_API_KEY) {
-      const provider = OPENAI_API_KEY ? "openai" : "anthropic";
-      console.log(`\n${"─".repeat(50)}`);
-      console.log(`🤖 Running agent with ${provider}...\n`);
+    // Agent loop (requires API key)
+    if (hasLLM) {
+      let provider: LLMProvider;
+      let providerName: string;
 
-      const response = await runAgent(
-        mcp,
-        serverName,
-        "What is the current time in Tokyo? Also, fetch the homepage of example.com and summarize it.",
-        provider as "openai" | "anthropic",
-      );
+      if (ANTHROPIC_API_KEY) {
+        provider = new AnthropicProvider(ANTHROPIC_API_KEY);
+        providerName = "Anthropic";
+      } else {
+        provider = new OpenAIProvider(OPENAI_API_KEY);
+        providerName = "OpenAI";
+      }
 
-      console.log("\n📝 Final Response:");
-      console.log(response);
+      await demoAgentLoop(mcp, provider, providerName, serverNames);
     }
   } catch (error) {
-    console.error("Error:", error);
+    console.error("\n❌ Error:", error);
   } finally {
-    // Cleanup
     await mcp.disconnectAll();
     console.log("\n👋 Done!");
   }

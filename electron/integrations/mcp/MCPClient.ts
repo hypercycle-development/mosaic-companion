@@ -3,6 +3,9 @@
  *
  * A TypeScript MCP client that can be used in any Node.js or Electron environment.
  * Supports both STDIO and HTTP transports.
+ *
+ * This is the single source of truth for all MCP protocol logic.
+ * The Electron main process (index.ts) wraps this with IPC handlers.
  */
 
 import { spawn, ChildProcess } from "child_process";
@@ -13,7 +16,7 @@ import { EventEmitter } from "events";
 // Type Definitions
 // =============================================================================
 
-interface MCPServerCapabilities {
+export interface MCPServerCapabilities {
   tools?: { listChanged?: boolean };
   resources?: { subscribe?: boolean; listChanged?: boolean };
   prompts?: { listChanged?: boolean };
@@ -21,24 +24,24 @@ interface MCPServerCapabilities {
   experimental?: Record<string, unknown>;
 }
 
-interface MCPClientOptions {
+export interface MCPClientOptions {
   timeout?: number;
   debug?: boolean;
 }
 
-interface MCPInitializeResult {
+export interface MCPInitializeResult {
   protocolVersion: string;
   capabilities: MCPServerCapabilities;
   serverInfo?: { name: string; version: string };
 }
 
-interface MCPTool {
+export interface MCPTool {
   name: string;
   description?: string;
   inputSchema?: Record<string, unknown>;
 }
 
-interface MCPToolResultContent {
+export interface MCPToolResultContent {
   type: string;
   text?: string;
   data?: string;
@@ -46,33 +49,33 @@ interface MCPToolResultContent {
   uri?: string;
 }
 
-interface MCPToolResult {
+export interface MCPToolResult {
   content: MCPToolResultContent[];
   isError?: boolean;
 }
 
-interface MCPResource {
+export interface MCPResource {
   uri: string;
   name?: string;
   description?: string;
   mimeType?: string;
 }
 
-interface MCPResourceTemplate {
+export interface MCPResourceTemplate {
   uriTemplate: string;
   name?: string;
   description?: string;
   mimeType?: string;
 }
 
-interface MCPContent {
+export interface MCPContent {
   type: string;
   text?: string;
   data?: string;
   mimeType?: string;
 }
 
-interface MCPPrompt {
+export interface MCPPrompt {
   name: string;
   description?: string;
   arguments?: Array<{
@@ -80,6 +83,16 @@ interface MCPPrompt {
     description?: string;
     required?: boolean;
   }>;
+}
+
+export interface MCPServerConfig {
+  name: string;
+  transport: "stdio" | "http";
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  apiKey?: string;
 }
 
 interface JsonRpcRequest {
@@ -113,6 +126,7 @@ interface PendingRequest {
 }
 
 interface ServerConnection {
+  config: MCPServerConfig;
   transport: "stdio" | "http";
   process?: ChildProcess;
   url?: string;
@@ -122,9 +136,28 @@ interface ServerConnection {
   capabilities: MCPServerCapabilities;
   serverInfo?: { name: string; version: string };
   initialized: boolean;
+  tools: MCPTool[];
+  resources: MCPResource[];
+  prompts: MCPPrompt[];
 }
 
-// ============ MCP CLIENT ============
+// =============================================================================
+// Event Types
+// =============================================================================
+
+export interface MCPClientEvents {
+  connected: { server: string; capabilities: MCPInitializeResult };
+  disconnected: { server: string; code?: number };
+  error: { server: string; error: Error };
+  notification: { server: string; method: string; params?: unknown };
+  "tools-changed": { server: string };
+  "resources-changed": { server: string };
+  "prompts-changed": { server: string };
+}
+
+// =============================================================================
+// MCP Client
+// =============================================================================
 
 export class MCPClient extends EventEmitter {
   private connections: Map<string, ServerConnection> = new Map();
@@ -144,7 +177,9 @@ export class MCPClient extends EventEmitter {
     }
   }
 
-  // ============ CONNECTION MANAGEMENT ============
+  // ==========================================================================
+  // Connection Management
+  // ==========================================================================
 
   /**
    * Connect to an MCP server via STDIO transport
@@ -162,14 +197,17 @@ export class MCPClient extends EventEmitter {
     this.log(`Connecting to ${name} via STDIO: ${command} ${args.join(" ")}`);
 
     const connection: ServerConnection = {
+      config: { name, transport: "stdio", command, args, env },
       transport: "stdio",
       requestId: 0,
       pendingRequests: new Map(),
       capabilities: {},
       initialized: false,
+      tools: [],
+      resources: [],
+      prompts: [],
     };
 
-    // Spawn the process
     const childProcess = spawn(command, args, {
       env: { ...process.env, ...env },
       stdio: ["pipe", "pipe", "pipe"],
@@ -177,7 +215,6 @@ export class MCPClient extends EventEmitter {
 
     connection.process = childProcess;
 
-    // Set up message handling
     const rl = readline.createInterface({
       input: childProcess.stdout!,
       crlfDelay: Infinity,
@@ -203,7 +240,6 @@ export class MCPClient extends EventEmitter {
 
     this.connections.set(name, connection);
 
-    // Initialize the connection
     return this.initializeConnection(name);
   }
 
@@ -222,6 +258,7 @@ export class MCPClient extends EventEmitter {
     this.log(`Connecting to ${name} via HTTP: ${url}`);
 
     const connection: ServerConnection = {
+      config: { name, transport: "http", url, apiKey },
       transport: "http",
       url,
       apiKey,
@@ -229,12 +266,36 @@ export class MCPClient extends EventEmitter {
       pendingRequests: new Map(),
       capabilities: {},
       initialized: false,
+      tools: [],
+      resources: [],
+      prompts: [],
     };
 
     this.connections.set(name, connection);
 
-    // Initialize the connection
     return this.initializeConnection(name);
+  }
+
+  /**
+   * Connect using a config object (convenience for Electron IPC)
+   */
+  async connect(config: MCPServerConfig): Promise<MCPInitializeResult> {
+    if (config.transport === "stdio") {
+      if (!config.command) {
+        throw new Error("STDIO transport requires a command");
+      }
+      return this.connectStdio(
+        config.name,
+        config.command,
+        config.args,
+        config.env,
+      );
+    } else {
+      if (!config.url) {
+        throw new Error("HTTP transport requires a URL");
+      }
+      return this.connectHttp(config.name, config.url, config.apiKey);
+    }
   }
 
   /**
@@ -248,8 +309,7 @@ export class MCPClient extends EventEmitter {
       connection.process.kill();
     }
 
-    // Reject all pending requests
-    for (const [_id, pending] of connection.pendingRequests) {
+    for (const [, pending] of connection.pendingRequests) {
       clearTimeout(pending.timeout);
       pending.reject(new Error("Connection closed"));
     }
@@ -268,7 +328,7 @@ export class MCPClient extends EventEmitter {
   }
 
   /**
-   * Check if a server is connected
+   * Check if a server is connected and initialized
    */
   isConnected(name: string): boolean {
     return (
@@ -277,13 +337,36 @@ export class MCPClient extends EventEmitter {
   }
 
   /**
-   * Get list of connected servers
+   * Get list of connected server names
    */
   getConnectedServers(): string[] {
     return Array.from(this.connections.keys());
   }
 
-  // ============ INITIALIZATION ============
+  /**
+   * Get detailed server info (for IPC/UI)
+   */
+  getServers(): Array<{
+    name: string;
+    transport: string;
+    initialized: boolean;
+    tools: MCPTool[];
+    resources: MCPResource[];
+    prompts: MCPPrompt[];
+  }> {
+    return Array.from(this.connections.entries()).map(([name, conn]) => ({
+      name,
+      transport: conn.transport,
+      initialized: conn.initialized,
+      tools: conn.tools,
+      resources: conn.resources,
+      prompts: conn.prompts,
+    }));
+  }
+
+  // ==========================================================================
+  // Initialization
+  // ==========================================================================
 
   private async initializeConnection(
     name: string,
@@ -308,26 +391,101 @@ export class MCPClient extends EventEmitter {
     connection.capabilities = result.capabilities;
     connection.serverInfo = result.serverInfo;
 
-    // Send initialized notification
     await this.sendNotification(name, "notifications/initialized", {});
 
     connection.initialized = true;
+
+    // Fetch capabilities after init
+    await this.refreshCapabilities(name);
+
     this.emit("connected", { server: name, capabilities: result });
 
     return result;
   }
 
-  // ============ TOOLS ============
+  /**
+   * Refresh tools, resources, and prompts from a server
+   */
+  async refreshCapabilities(serverName: string): Promise<void> {
+    const connection = this.connections.get(serverName);
+    if (!connection) throw new Error(`Server "${serverName}" is not connected`);
+
+    // Fetch tools
+    try {
+      const toolsResult = await this.sendRequest<{ tools: MCPTool[] }>(
+        serverName,
+        "tools/list",
+        {},
+      );
+      connection.tools = toolsResult.tools || [];
+      this.log(
+        `${serverName} tools:`,
+        connection.tools.map((t) => t.name),
+      );
+    } catch {
+      this.log(`${serverName} does not support tools`);
+      connection.tools = [];
+    }
+
+    // Fetch resources
+    try {
+      const resourcesResult = await this.sendRequest<{
+        resources: MCPResource[];
+      }>(serverName, "resources/list", {});
+      connection.resources = resourcesResult.resources || [];
+      this.log(
+        `${serverName} resources:`,
+        connection.resources.map((r) => r.uri),
+      );
+    } catch {
+      this.log(`${serverName} does not support resources`);
+      connection.resources = [];
+    }
+
+    // Fetch prompts
+    try {
+      const promptsResult = await this.sendRequest<{ prompts: MCPPrompt[] }>(
+        serverName,
+        "prompts/list",
+        {},
+      );
+      connection.prompts = promptsResult.prompts || [];
+      this.log(
+        `${serverName} prompts:`,
+        connection.prompts.map((p) => p.name),
+      );
+    } catch {
+      this.log(`${serverName} does not support prompts`);
+      connection.prompts = [];
+    }
+  }
+
+  // ==========================================================================
+  // Tools
+  // ==========================================================================
 
   /**
    * List available tools from a server
    */
   async listTools(serverName: string): Promise<MCPTool[]> {
+    const connection = this.connections.get(serverName);
+    if (!connection) throw new Error(`Server "${serverName}" is not connected`);
+    return connection.tools;
+  }
+
+  /**
+   * Fetch fresh tools from a server (bypasses cache)
+   */
+  async fetchTools(serverName: string): Promise<MCPTool[]> {
     const result = await this.sendRequest<{ tools: MCPTool[] }>(
       serverName,
       "tools/list",
       {},
     );
+    const connection = this.connections.get(serverName);
+    if (connection) {
+      connection.tools = result.tools || [];
+    }
     return result.tools || [];
   }
 
@@ -345,17 +503,32 @@ export class MCPClient extends EventEmitter {
     });
   }
 
-  // ============ RESOURCES ============
+  // ==========================================================================
+  // Resources
+  // ==========================================================================
 
   /**
    * List available resources from a server
    */
   async listResources(serverName: string): Promise<MCPResource[]> {
+    const connection = this.connections.get(serverName);
+    if (!connection) throw new Error(`Server "${serverName}" is not connected`);
+    return connection.resources;
+  }
+
+  /**
+   * Fetch fresh resources from a server (bypasses cache)
+   */
+  async fetchResources(serverName: string): Promise<MCPResource[]> {
     const result = await this.sendRequest<{ resources: MCPResource[] }>(
       serverName,
       "resources/list",
       {},
     );
+    const connection = this.connections.get(serverName);
+    if (connection) {
+      connection.resources = result.resources || [];
+    }
     return result.resources || [];
   }
 
@@ -381,17 +554,32 @@ export class MCPClient extends EventEmitter {
     return this.sendRequest(serverName, "resources/read", { uri });
   }
 
-  // ============ PROMPTS ============
+  // ==========================================================================
+  // Prompts
+  // ==========================================================================
 
   /**
    * List available prompts from a server
    */
   async listPrompts(serverName: string): Promise<MCPPrompt[]> {
+    const connection = this.connections.get(serverName);
+    if (!connection) throw new Error(`Server "${serverName}" is not connected`);
+    return connection.prompts;
+  }
+
+  /**
+   * Fetch fresh prompts from a server (bypasses cache)
+   */
+  async fetchPrompts(serverName: string): Promise<MCPPrompt[]> {
     const result = await this.sendRequest<{ prompts: MCPPrompt[] }>(
       serverName,
       "prompts/list",
       {},
     );
+    const connection = this.connections.get(serverName);
+    if (connection) {
+      connection.prompts = result.prompts || [];
+    }
     return result.prompts || [];
   }
 
@@ -415,7 +603,43 @@ export class MCPClient extends EventEmitter {
     });
   }
 
-  // ============ MESSAGE HANDLING ============
+  // ==========================================================================
+  // Aggregate Helpers (multi-server)
+  // ==========================================================================
+
+  /**
+   * Get all tools from all connected servers, with server origin tracking
+   */
+  async getAllTools(): Promise<
+    Array<MCPTool & { _serverName: string }>
+  > {
+    const allTools: Array<MCPTool & { _serverName: string }> = [];
+    for (const name of this.getConnectedServers()) {
+      const tools = await this.listTools(name);
+      for (const tool of tools) {
+        allTools.push({ ...tool, _serverName: name });
+      }
+    }
+    return allTools;
+  }
+
+  /**
+   * Build a tool-name → server-name map for routing tool calls
+   */
+  async buildToolMap(): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    for (const name of this.getConnectedServers()) {
+      const tools = await this.listTools(name);
+      for (const tool of tools) {
+        map.set(tool.name, name);
+      }
+    }
+    return map;
+  }
+
+  // ==========================================================================
+  // Message Handling (private)
+  // ==========================================================================
 
   private async sendRequest<T>(
     serverName: string,
@@ -517,7 +741,6 @@ export class MCPClient extends EventEmitter {
     if (connection.transport === "stdio" && connection.process) {
       connection.process.stdin?.write(JSON.stringify(notification) + "\n");
     } else if (connection.transport === "http") {
-      // Fire and forget for HTTP notifications
       fetch(connection.url!, {
         method: "POST",
         headers: {
@@ -527,7 +750,7 @@ export class MCPClient extends EventEmitter {
           }),
         },
         body: JSON.stringify(notification),
-      }).catch(() => {}); // Ignore errors for notifications
+      }).catch(() => {});
     }
   }
 
@@ -536,11 +759,12 @@ export class MCPClient extends EventEmitter {
     if (!connection) return;
 
     try {
-      const message = JSON.parse(line) as JsonRpcResponse | JsonRpcNotification;
+      const message = JSON.parse(line) as
+        | JsonRpcResponse
+        | JsonRpcNotification;
       this.log(`← ${serverName}:`, message);
 
       if ("id" in message && message.id !== null) {
-        // It's a response
         const pending = connection.pendingRequests.get(message.id);
         if (pending) {
           clearTimeout(pending.timeout);
@@ -559,7 +783,6 @@ export class MCPClient extends EventEmitter {
           }
         }
       } else {
-        // It's a notification
         this.handleNotification(serverName, message as JsonRpcNotification);
       }
     } catch (error) {
@@ -577,15 +800,17 @@ export class MCPClient extends EventEmitter {
       params: notification.params,
     });
 
-    // Handle specific notifications
     switch (notification.method) {
       case "notifications/tools/list_changed":
+        this.refreshCapabilities(serverName);
         this.emit("tools-changed", { server: serverName });
         break;
       case "notifications/resources/list_changed":
+        this.refreshCapabilities(serverName);
         this.emit("resources-changed", { server: serverName });
         break;
       case "notifications/prompts/list_changed":
+        this.refreshCapabilities(serverName);
         this.emit("prompts-changed", { server: serverName });
         break;
     }
@@ -595,7 +820,6 @@ export class MCPClient extends EventEmitter {
     const connection = this.connections.get(serverName);
     if (!connection) return;
 
-    // Reject all pending requests
     for (const [, pending] of connection.pendingRequests) {
       clearTimeout(pending.timeout);
       pending.reject(new Error(`Server disconnected with code ${code}`));
@@ -606,7 +830,9 @@ export class MCPClient extends EventEmitter {
   }
 }
 
-// ============ UTILITY FUNCTIONS ============
+// =============================================================================
+// Utility Functions
+// =============================================================================
 
 /**
  * Convert MCP tools to OpenAI function calling format
@@ -626,6 +852,23 @@ export function mcpToolsToOpenAI(tools: MCPTool[]): Array<{
       description: tool.description,
       parameters: tool.inputSchema,
     },
+  }));
+}
+
+/**
+ * Convert MCP tools to Anthropic tool format
+ */
+export function mcpToolsToAnthropic(
+  tools: MCPTool[],
+): Array<{
+  name: string;
+  description: string;
+  input_schema: MCPTool["inputSchema"];
+}> {
+  return tools.map((tool) => ({
+    name: tool.name,
+    description: tool.description || "",
+    input_schema: tool.inputSchema,
   }));
 }
 
