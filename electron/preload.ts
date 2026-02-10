@@ -92,7 +92,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("ai-agents-history:delete-all", agentId),
   },
   mcpAPI,
-  gmailAPI,  // Linux AppImage sandbox state (read-only)
+  gmailAPI,  
+  // Linux AppImage sandbox state (read-only)
   sandbox: {
     getState: () => ipcRenderer.invoke("sandbox:get-state"),
   },
