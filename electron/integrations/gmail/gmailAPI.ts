@@ -1,6 +1,6 @@
 import { ipcRenderer } from "electron";
 
-export const gmailAPI = {
+export const gmailAPI: Window['electronAPI']['gmail'] = {
   signIn: () => ipcRenderer.invoke("gmail:sign-in"),
   signOut: () => ipcRenderer.invoke("gmail:sign-out"),
   getStatus: () => ipcRenderer.invoke("gmail:get-status"),
