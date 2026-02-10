@@ -180,17 +180,15 @@ export function registerHyperInsightIpc(ipcMain) {
 
   ipcMain.handle('hyperinsight:get-aim-stats', async (event, name, range) => {
     try {
-      // Handle slash for stats too if needed, but previously it worked? 
-      // Actually stats historical endpoint also has {namespace}/{name}/stats, so let's be safe
-      const pathSafeName = name.split('/').map(part => encodeURIComponent(part)).join('/');
-      return await handleDataRequest(`/aims/${pathSafeName}/stats?range=${range || '1d'}`);
+      // Changed to use query parameters to match backend implementation
+      return await handleDataRequest(`/aims/stats?name=${encodeURIComponent(name)}&range=${range || '1d'}`);
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:get-aim-stats-current', async (event, name) => {
     try {
-      const pathSafeName = name.split('/').map(part => encodeURIComponent(part)).join('/');
-      return await handleDataRequest(`/aims/${pathSafeName}/stats/current`);
+      // Changed to use query parameters to match backend implementation
+      return await handleDataRequest(`/aims/stats/current?name=${encodeURIComponent(name)}`);
     } catch (e) { return { error: e.message }; }
   });
 
