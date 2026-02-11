@@ -5,7 +5,7 @@ await esbuild.build({
   entryPoints: ["electron/main.ts", "electron/preload.ts"],
   bundle: true,
   platform: "node",
-  outdir: "dist_electron",
+  outdir: "dist/main",
   format: "cjs",  // Changed from "esm" to "cjs" for better compatibility
   external: [
     // Electron
