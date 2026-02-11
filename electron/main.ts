@@ -39,10 +39,10 @@ import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsR
 // ESM Path Setup
 // =============================================================================
 
-// In packaged app: __dirname = /path/to/resources/app.asar/dist_electron
-// In development:  __dirname = /path/to/project/dist_electron
-// PROJECT_ROOT should be one level up (the app.asar root or project root)
-const PROJECT_ROOT = path.join(__dirname, "..");
+// In packaged app: __dirname = /path/to/resources/app.asar/dist/main
+// In development:  __dirname = /path/to/project/dist/main
+// PROJECT_ROOT should be two levels up (the app.asar root or project root)
+const PROJECT_ROOT = path.join(__dirname, "..", "..");
 
 // Helper to check if we're running in development
 const isDev = !app.isPackaged;
@@ -158,7 +158,7 @@ function createWindow(urlToLoad: string | null = null): BrowserWindow {
     trafficLightPosition: { x: 10, y: 10 },
     backgroundColor: "#111827",
     webPreferences: {
-      // preload.js is in the same directory as main.js (dist_electron)
+      // preload.js is in the same directory as main.js (dist/main)
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
@@ -177,8 +177,8 @@ function createWindow(urlToLoad: string | null = null): BrowserWindow {
     win.webContents.openDevTools();
   } else {
     // Production: load from built files
-    // dist folder is at PROJECT_ROOT/dist
-    const indexPath = path.join(PROJECT_ROOT, "dist", "index.html");
+    // Renderer build is at PROJECT_ROOT/dist/renderer
+    const indexPath = path.join(PROJECT_ROOT, "dist", "renderer", "index.html");
     console.log("Loading index from:", indexPath);
     console.log("File exists:", fs.existsSync(indexPath));
     win.loadFile(indexPath);
