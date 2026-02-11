@@ -196,6 +196,30 @@
               </p>
             </div>
           </div>
+
+          <div class="card">
+            <h3><span class="step-number">4</span> Troubleshooting (Temporary for macOS)</h3>
+            <p>Since Mosaic Companion is not yet code-signed, you may encounter additional security warnings. Here are temporary workarounds:</p>
+
+            <h4>Option 1: Terminal Command (Immediate Fix)</h4>
+            <p>If you trust the Mosaic's source, you can bypass this security check using the Terminal:</p>
+            <ol class="steps-list">
+              <li>Open Terminal from Applications > Utilities or via Spotlight search.</li>
+              <li>Run the following command, replacing <code>~/MosaicCompanion/Mosaic\ Companion.app</code> with the actual path to your application (you can type the command and then drag the application icon into the Terminal window to auto-fill the path):</li>
+            </ol>
+            <div class="code-block">
+              <code>xattr -cr ~/MosaicCompanion/Mosaic\ Companion.app</code>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <p>(Note: the -cr flags remove all extended attributes recursively).</p>
+            <p>Press Enter to execute the command. You may need to enter your administrator password.</p>
+            <p>Attempt to open the app again. It should now launch without the error.</p>
+
+            <h4>Option 2: Override Security Settings</h4>
+            <p>Go to System Settings > Privacy & Security, look for a message about Mosaic Companion (recently blocked) and click the "Open Anyway" button.</p>
+
+            <p><strong>Note:</strong> This is a temporary measure while we obtain proper code signing. These steps will not be needed in future releases.</p>
+          </div>
         </section>
 
         <!-- Linux Section -->
