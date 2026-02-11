@@ -1,6 +1,6 @@
 // gmail-service.js - Gmail API service for fetching emails
 import { google } from 'googleapis';
-import { getOAuth2Client, isAuthenticated } from './gmail-auth.js';
+import { getOAuth2Client, isAuthenticated } from './index';
 
 /**
  * Get authenticated Gmail API client

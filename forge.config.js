@@ -1,15 +1,11 @@
+// forge.config.js
 import dotenv from 'dotenv';
 
-// Load .env first, then .env.local (local overrides base)
 dotenv.config({ path: '.env' });
 dotenv.config({ path: '.env.local', override: true });
 
 /**
  * Generates the Linux AppImage wrapper script for sandbox auto-detection.
- * This wrapper tries sandbox first and falls back to --no-sandbox if it fails.
- * 
- * @param {string} binaryName - The name of the actual binary (e.g., 'mosaic-companion-bin')
- * @returns {string} The bash wrapper script content
  */
 function generateLinuxWrapperScript(binaryName) {
     return `#!/bin/bash
@@ -19,20 +15,12 @@ function generateLinuxWrapperScript(binaryName) {
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 BINARY="$SCRIPT_DIR/${binaryName}"
 
-# Check if system restricts unprivileged user namespaces (Ubuntu 24.04+)
-# This kernel setting breaks Electron's SUID sandbox on AppImages
 sandbox_compatible() {
-    # If not an AppImage, sandbox works fine
     [ -z "$APPIMAGE" ] && return 0
-    
-    # Check kernel.apparmor_restrict_unprivileged_userns (Ubuntu 24.04+)
     local restrict="/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
     [ -f "$restrict" ] && [ "$(cat "$restrict" 2>/dev/null)" = "1" ] && return 1
-    
-    # Check kernel.unprivileged_userns_clone (older restriction)
     local clone="/proc/sys/kernel/unprivileged_userns_clone"
     [ -f "$clone" ] && [ "$(cat "$clone" 2>/dev/null)" = "0" ] && return 1
-    
     return 0
 }
 
@@ -57,7 +45,9 @@ export default {
             'node_modules/sharp/**'
         ],
         ignore: [
+            // Source directories (not needed in build)
             /^\/src$/,
+            /^\/electron$/,           // TypeScript source files
             /^\/\.git/,
             /^\/\.github/,
             /^\/\.vscode/,
@@ -66,13 +56,17 @@ export default {
             /^\/scripts$/,
             /^\/release$/,
             /^\/out$/,
+            // Config and dev files
             /\.md$/,
             /\.sh$/,
-            /tsconfig\.json$/,
+            /tsconfig.*\.json$/,
             /vite\.config\.ts$/,
+            /esbuild\.config\.js$/,
             /forge\.config\.js$/,
             /package-lock\.json/,
-            /\.antigravityignore/
+            /\.antigravityignore/,
+            /\.env$/,
+            /\.env\.local$/,
         ],
         extraResource: [],
         protocols: [
@@ -90,7 +84,6 @@ export default {
     rebuildConfig: {},
 
     makers: [
-        // Windows - Squirrel installer with auto-update support
         {
             name: '@electron-forge/maker-squirrel',
             config: {
@@ -100,16 +93,12 @@ export default {
                 description: 'Mosaic Companion Application',
                 loadingGif: 'assets/loading.gif',
                 setupIcon: 'assets/icon.ico'
-                // Remote releases for delta updates
-                // remoteReleases: 'https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/x64'
             }
         },
-        // macOS - ZIP for auto-updates (required for Squirrel.Mac)
         {
             name: '@electron-forge/maker-zip',
             platforms: ['darwin']
         },
-        // macOS - DMG for distribution
         {
             name: '@electron-forge/maker-dmg',
             platforms: ['darwin'],
@@ -123,7 +112,6 @@ export default {
                 }
             }
         },
-        // Linux - Deb package
         {
             name: '@electron-forge/maker-deb',
             platforms: ['linux'],
@@ -145,7 +133,6 @@ export default {
                 }
             }
         },
-        // Linux - AppImage (universal, portable)
         {
             name: '@reforged/maker-appimage',
             platforms: ['linux'],
@@ -155,7 +142,6 @@ export default {
                 }
             }
         },
-        // Linux - ZIP as fallback
         {
             name: '@electron-forge/maker-zip',
             platforms: ['linux', 'darwin', 'win32']
@@ -168,19 +154,14 @@ export default {
             config: {
                 bucket: 'mosaic-release',
                 region: 'us-east-2',
-                // Note: bucket uses bucket policy for public access, not object ACLs
-                // Custom key resolver to organize by platform/arch
-                // Supports experimental releases via EXPERIMENTAL_S3_PATH env var
                 accessKeyId: process.env.AWS_ACCESS_KEY_ID,
                 secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
                 keyResolver: (fileName, platform, arch) => {
-                    // Check for experimental release path (set by upload-experimental-release.sh)
                     const experimentalPath = process.env.EXPERIMENTAL_S3_PATH;
                     if (experimentalPath) {
                         console.log(`📦 Experimental upload: ${experimentalPath}/${platform}/${arch}/${fileName}`);
                         return `${experimentalPath}/${platform}/${arch}/${fileName}`;
                     }
-                    // Default: main release path
                     return `releases/${platform}/${arch}/${fileName}`;
                 }
             }
@@ -188,26 +169,18 @@ export default {
     ],
 
     hooks: {
-        // Ensure frontend is built before packaging
         generateAssets: async () => {
             const { execSync } = await import('child_process');
+            
+            // 1. Build Electron TypeScript with esbuild
+            console.log('🔨 Building Electron with esbuild...');
+            execSync('node esbuild.config.js', { stdio: 'inherit' });
+            
+            // 2. Build frontend with Vite
             console.log('🔨 Building frontend with Vite...');
             execSync('npm run build', { stdio: 'inherit' });
         },
         
-        // Create smart wrapper script for Linux AppImage sandbox handling
-        // This wrapper detects sandbox failures and automatically falls back to --no-sandbox
-        // while setting MOSAIC_SANDBOX_FALLBACK=1 so the UI can show a warning
-        //
-        // ** NOTE: This wrapper script is inside the AppImage, NOT on the user's machine. **
-        //
-        // AppImage runs from a FUSE mount where SUID permissions cannot work,
-        // so we need to pass --no-sandbox to the Electron binary
-        // This is a known issue with Electron AppImage and SUID sandbox on Ubuntu 24.04, see:
-        // - https://github.com/electron/electron/issues/17972
-        // - https://github.com/electron/electron/issues/42510
-        // - https://bugs.launchpad.net/ubuntu/+source/apparmor/+bug/2064672
-        //
         postPackage: async (config, packageResult) => {
             if (packageResult.platform !== 'linux') return;
             
