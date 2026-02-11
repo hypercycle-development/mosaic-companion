@@ -108,5 +108,16 @@ import_electron3.contextBridge.exposeInMainWorld("electronAPI", {
     deleteAll: (agentId) => import_electron3.ipcRenderer.invoke("ai-agents-history:delete-all", agentId)
   },
   mcpAPI,
-  gmailAPI
+  gmailAPI,
+  // Linux AppImage sandbox state (read-only)
+  sandbox: {
+    getState: () => import_electron3.ipcRenderer.invoke("sandbox:get-state")
+  },
+  // Window controls (for custom title bar)
+  window: {
+    minimize: () => import_electron3.ipcRenderer.invoke("window:minimize"),
+    maximize: () => import_electron3.ipcRenderer.invoke("window:maximize"),
+    close: () => import_electron3.ipcRenderer.invoke("window:close"),
+    isMaximized: () => import_electron3.ipcRenderer.invoke("window:is-maximized")
+  }
 });
