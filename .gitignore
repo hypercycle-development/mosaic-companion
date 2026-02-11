@@ -12,9 +12,6 @@ release/
 *.asar
 tmp_static/
 
-# Electron-builder outputs
-dist-electron/
-
 # Logs
 *.log
 npm-debug.log*

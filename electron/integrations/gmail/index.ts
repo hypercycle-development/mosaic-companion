@@ -1,3 +1,4 @@
+
 // gmail-auth.js - OAuth2 authentication for Gmail using loopback flow
 import { google } from 'googleapis';
 import http from 'http';
@@ -9,7 +10,6 @@ import path from 'path';
 import { app } from 'electron';
 import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Gmail scopes we need - gmail.modify allows read/write (mark read/unread)
 const SCOPES = ['https://www.googleapis.com/auth/gmail.modify'];
