@@ -46,8 +46,10 @@ jobs:
       - name: Smoke test - verify app launches (x64 only)
         if: matrix.arch == 'x64'
         run: |
+          APP_NAME=$(node -p "require('./package.json').name")
+          echo "Detected app name: $APP_NAME"
           sudo apt-get install -y xvfb
-          xvfb-run --auto-servernum out/mosaic-companion-linux-x64/mosaic-companion --no-sandbox &
+          xvfb-run --auto-servernum "out/${APP_NAME}-linux-x64/${APP_NAME}" --no-sandbox &
           APP_PID=$!
           sleep 5
           if kill -0 $APP_PID 2>/dev/null; then
