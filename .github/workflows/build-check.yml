@@ -65,7 +65,7 @@ jobs:
       - name: Smoke test (Linux x64 only)
         if: matrix.platform == 'linux' && matrix.arch == 'x64'
         run: |
-          echo "=== Running smoke test on x64 deb ==="${
+          echo "=== Running smoke test on x64 deb ==="
           # Find the deb package
           DEB=$(ls out/make/deb/x64/*.deb 2>/dev/null | head -1)
           if [ -z "$DEB" ]; then
@@ -83,7 +83,7 @@ jobs:
       - name: Verify build artifacts exist
         shell: bash
         run: |
-          echo "=== Build output ==="${
+          echo "=== Build output ==="
           find out/make -type f 2>/dev/null | head -20 || echo "No artifacts in out/make"
           echo ""
 
