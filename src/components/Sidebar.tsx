@@ -24,6 +24,7 @@ import {
   INTERNAL_HOME_URL,
   INTERNAL_SETTINGS_URL,
   INTERNAL_CHAT_URL,
+  INTERNAL_HYPERINSIGHT_URL,
 } from "../types/types";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
 
@@ -150,6 +151,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems: SidebarItem[] = [
     { id: "home", label: "Home", icon: "Home", url: INTERNAL_HOME_URL },
     { id: "chat", label: "AI Chat", icon: "Bot", url: INTERNAL_CHAT_URL },
+    {
+      id: "hyperinsight",
+      label: "HyperInsight",
+      icon: "Activity",
+      url: INTERNAL_HYPERINSIGHT_URL,
+    },
     {
       id: "bookmarks",
       label: "Bookmarks",

@@ -36,6 +36,9 @@ export interface AppSettings {
     showUrlBar: boolean;
 }
 
+// TODO: Get his own folder
+export const INTERNAL_HYPERINSIGHT_URL = 'mosaic://hyperinsight';
+
 // Add definition for Electron webview tag
 declare global {
     namespace JSX {

@@ -34,6 +34,8 @@ import { mcpClient } from "./integrations/mcp/index";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
+import { registerHyperInsightIpc } from "@plugins/hyperinsight/main";
+
 
 // =============================================================================
 // ESM Path Setup
@@ -236,6 +238,8 @@ app.whenReady().then(() => {
   console.log("User data path:", app.getPath("userData"));
   console.log("__dirname:", __dirname);
   console.log("PROJECT_ROOT:", PROJECT_ROOT);
+
+  registerHyperInsightIpc(ipcMain)
 
   // Ensure agents history directory exists
   const agentsHistoryPathExist = getDirectoryStatus(agentsHistoryPath);

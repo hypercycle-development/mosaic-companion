@@ -196,6 +196,22 @@ declare global {
         close: () => Promise<void>;
         isMaximized: () => Promise<boolean>;
       };
+      // TODO: Get from his own folder
+      hyperinsight: {
+        getStatus: () => Promise<{ registered: boolean; tier?: string; clientId?: string }>;
+        ensureKey: () => Promise<{ success: boolean; clientId?: string; error?: string }>;
+        resetKey: () => Promise<{ success: boolean; error?: string }>;
+        getAims: () => Promise<any[]>;
+        getLeaderboard: () => Promise<any[]>;
+        getNodes: () => Promise<any[]>;
+        getNetworkStats: () => Promise<any>;
+        getNetworkHistory: () => Promise<any>;
+        getAimStats: (name: string, range?: string) => Promise<any[]>;
+        getAimStatsCurrent: (name: string) => Promise<any>;
+        getAimDetails: (name: string) => Promise<any>;
+        getAimReleases: (name: string) => Promise<any[]>;
+        getAimReleaseDetail: (name: string, tag: string) => Promise<any>;
+      };
     };
   }
 }

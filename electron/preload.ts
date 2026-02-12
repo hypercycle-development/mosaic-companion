@@ -104,4 +104,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
     close: () => ipcRenderer.invoke("window:close"),
     isMaximized: () => ipcRenderer.invoke("window:is-maximized"),
   },
+  // TODO: Get from his own folde and add typing
+  hyperinsight: {
+  getStatus: () => ipcRenderer.invoke("hyperinsight:get-status"),
+  ensureKey: () => ipcRenderer.invoke("hyperinsight:ensure-key"),
+  resetKey: () => ipcRenderer.invoke("hyperinsight:reset-key"),
+  getAims: () => ipcRenderer.invoke("hyperinsight:get-aims"),
+  getLeaderboard: () => ipcRenderer.invoke("hyperinsight:get-leaderboard"),
+  getNodes: () => ipcRenderer.invoke("hyperinsight:get-nodes"),
+  getNetworkStats: () => ipcRenderer.invoke("hyperinsight:get-network-stats"),
+  getNetworkHistory: () => ipcRenderer.invoke("hyperinsight:get-network-history"),
+  getAimStats: (name, range) => ipcRenderer.invoke("hyperinsight:get-aim-stats", name, range),
+  getAimStatsCurrent: (name) => ipcRenderer.invoke("hyperinsight:get-aim-stats-current", name),
+  getAimDetails: (name) => ipcRenderer.invoke("hyperinsight:get-aim-details", name),
+  getAimReleases: (name) => ipcRenderer.invoke("hyperinsight:get-aim-releases", name),
+  getAimReleaseDetail: (name, tag) => ipcRenderer.invoke("hyperinsight:get-aim-release-detail", name, tag),
+},
 });

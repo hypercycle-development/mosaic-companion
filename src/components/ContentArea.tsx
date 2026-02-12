@@ -4,11 +4,13 @@ import {
   INTERNAL_HOME_URL,
   INTERNAL_SETTINGS_URL,
   Tab,
+  INTERNAL_HYPERINSIGHT_URL,
 } from "../types/types";
 import { LandingPage } from "./LandingPage";
 import { SettingsPage } from "./SettingsPage";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
+import { HyperInsightView } from "@plugins/hyperinsight/renderer";
 
 interface ContentAreaProps {
   url: string;
@@ -328,6 +330,18 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
         />
       </div>
     );
+  }
+
+  if (url === INTERNAL_HYPERINSIGHT_URL) {
+    useEffect(() => {
+      onUpdateTab({
+        title: "HyperInsight",
+        isLoading: false,
+        favicon: undefined,
+      });
+    }, [url]);
+
+    return <HyperInsightView />;
   }
 
   if (url.startsWith("browser://")) {
