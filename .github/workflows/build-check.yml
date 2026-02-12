@@ -61,6 +61,27 @@ jobs:
       - name: Build Electron (${{ matrix.platform }}/${{ matrix.arch }})
         run: npm run make -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
 
+      # Launch test: verify the app actually starts without crashing (Linux x64 only)
+      - name: Smoke test - verify app launches (Linux x64 only)
+        if: matrix.platform == 'linux' && matrix.arch == 'x64'
+        run: |
+          sudo apt-get install -y xvfb
+          # Launch the app with a virtual display, give it 5s to start, then check it's still running
+          xvfb-run --auto-servernum out/mosaic-companion-linux-x64/mosaic-companion --no-sandbox &
+          APP_PID=$!
+          sleep 5
+          if kill -0 $APP_PID 2>/dev/null; then
+            echo "✓ App launched successfully (PID $APP_PID)"
+            kill $APP_PID 2>/dev/null || true
+            wait $APP_PID 2>/dev/null || true
+          else
+            echo "✗ App crashed or failed to start"
+            wait $APP_PID 2>/dev/null
+            EXIT_CODE=$?
+            echo "Exit code: $EXIT_CODE"
+            exit 1
+          fi
+
       - name: Verify build artifacts exist
         shell: bash
         run: |
