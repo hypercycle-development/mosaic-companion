@@ -61,25 +61,6 @@ jobs:
       - name: Build Electron (${{ matrix.platform }}/${{ matrix.arch }})
         run: npm run make -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
 
-      # Smoke test only for x64 Linux (can actually run in GitHub Actions)
-      - name: Smoke test (Linux x64 only)
-        if: matrix.platform == 'linux' && matrix.arch == 'x64'
-        run: |
-          echo "=== Running smoke test on x64 deb ==="
-          # Find the deb package
-          DEB=$(ls out/make/deb/x64/*.deb 2>/dev/null | head -1)
-          if [ -z "$DEB" ]; then
-            echo "No deb found, checking zip..."
-            ZIP=$(ls out/make/zip/linux/x64/*.zip 2>/dev/null | head -1)
-            if [ -n "$ZIP" ]; then
-              echo "✓ ZIP package found: $ZIP"
-            else
-              echo "No packages found, skipping smoke test"
-            fi
-            exit 0
-          fi
-          echo "✓ Deb package found: $DEB"
-
       - name: Verify build artifacts exist
         shell: bash
         run: |
