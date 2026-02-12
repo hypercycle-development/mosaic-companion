@@ -1,5 +1,5 @@
 {
-  "name": "mosaic-companion",
+  "name": "mosaic-companion-hyperinsight",
   "description": "Mosaic Companion Application",
   "version": "0.0.41",
   "main": "dist/main/main.js",
