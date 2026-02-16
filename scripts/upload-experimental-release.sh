@@ -214,30 +214,25 @@ if confirm "Build and upload experimental artifacts to S3?"; then
   "downloads": {
     "linux": {
       "x64": {
-        "appimage": "${BUCKET_URL}/linux/x64/${APP_NAME}-${VERSION}-x64.AppImage",
-        "deb": "${BUCKET_URL}/linux/x64/${APP_NAME}_${VERSION}_amd64.deb",
-        "zip": "${BUCKET_URL}/linux/x64/${APP_NAME}-linux-x64-${VERSION}.zip"
+        "appimage": "${BUCKET_URL}/linux/x64/mosaic-companion-${VERSION}-x64.AppImage",
+        "deb": "${BUCKET_URL}/linux/x64/mosaic-companion_${VERSION}_amd64.deb"
       },
       "arm64": {
-        "appimage": "${BUCKET_URL}/linux/arm64/${APP_NAME}-${VERSION}-arm64.AppImage",
-        "deb": "${BUCKET_URL}/linux/arm64/${APP_NAME}_${VERSION}_arm64.deb",
-        "zip": "${BUCKET_URL}/linux/arm64/${APP_NAME}-linux-arm64-${VERSION}.zip"
+        "appimage": "${BUCKET_URL}/linux/arm64/mosaic-companion-${VERSION}-arm64.AppImage",
+        "deb": "${BUCKET_URL}/linux/arm64/mosaic-companion_${VERSION}_arm64.deb"
       }
     },
     "win32": {
       "x64": {
-        "setup": "${BUCKET_URL}/win32/x64/${APP_NAME}-${VERSION}-Setup.exe",
-        "zip": "${BUCKET_URL}/win32/x64/${APP_NAME}-win32-x64-${VERSION}.zip"
+        "setup": "${BUCKET_URL}/win32/x64/mosaic-companion-${VERSION}-Setup.exe"
       }
     },
     "darwin": {
       "x64": {
-        "dmg": "${BUCKET_URL}/darwin/x64/${APP_NAME}-${VERSION}-x64.dmg",
-        "zip": "${BUCKET_URL}/darwin/x64/${APP_NAME}-darwin-x64-${VERSION}.zip"
+        "dmg": "${BUCKET_URL}/darwin/x64/mosaic-companion-${VERSION}-x64.dmg"
       },
       "arm64": {
-        "dmg": "${BUCKET_URL}/darwin/arm64/${APP_NAME}-${VERSION}-arm64.dmg",
-        "zip": "${BUCKET_URL}/darwin/arm64/${APP_NAME}-darwin-arm64-${VERSION}.zip"
+        "dmg": "${BUCKET_URL}/darwin/arm64/mosaic-companion-${VERSION}-arm64.dmg"
       }
     }
   }
