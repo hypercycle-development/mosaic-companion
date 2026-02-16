@@ -172,16 +172,11 @@ if confirm "Is this the final platform build? (Will create git tag)"; then
 Download links:
 - Linux x64 (AppImage): ${BUCKET_URL}/linux/x64/mosaic-companion-${VERSION}-x64.AppImage
 - Linux x64 (deb): ${BUCKET_URL}/linux/x64/mosaic-companion_${VERSION}_amd64.deb
-- Linux x64 (zip): ${BUCKET_URL}/linux/x64/mosaic-companion-linux-x64-${VERSION}.zip
 - Linux arm64 (AppImage): ${BUCKET_URL}/linux/arm64/mosaic-companion-${VERSION}-arm64.AppImage
 - Linux arm64 (deb): ${BUCKET_URL}/linux/arm64/mosaic-companion_${VERSION}_arm64.deb
-- Linux arm64 (zip): ${BUCKET_URL}/linux/arm64/mosaic-companion-linux-arm64-${VERSION}.zip
 - Windows x64 (Setup): ${BUCKET_URL}/win32/x64/mosaic-companion-${VERSION}-Setup.exe
-- Windows x64 (zip): ${BUCKET_URL}/win32/x64/mosaic-companion-win32-x64-${VERSION}.zip
 - macOS x64 (dmg): ${BUCKET_URL}/darwin/x64/mosaic-companion-${VERSION}-x64.dmg
-- macOS x64 (zip): ${BUCKET_URL}/darwin/x64/mosaic-companion-darwin-x64-${VERSION}.zip
-- macOS arm64 (dmg): ${BUCKET_URL}/darwin/arm64/mosaic-companion-${VERSION}-arm64.dmg
-- macOS arm64 (zip): ${BUCKET_URL}/darwin/arm64/mosaic-companion-darwin-arm64-${VERSION}.zip"
+- macOS arm64 (dmg): ${BUCKET_URL}/darwin/arm64/mosaic-companion-${VERSION}-arm64.dmg"
 
     echo "Message:"
     echo "$TAG_MESSAGE"
