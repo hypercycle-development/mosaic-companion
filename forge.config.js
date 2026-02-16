@@ -96,10 +96,6 @@ export default {
             }
         },
         {
-            name: '@electron-forge/maker-zip',
-            platforms: ['darwin']
-        },
-        {
             name: '@electron-forge/maker-dmg',
             platforms: ['darwin'],
             config: {
@@ -139,11 +135,11 @@ export default {
                     categories: ['Utility']
                 }
             }
-        },
-        {
-            name: '@electron-forge/maker-zip',
-            platforms: ['linux', 'darwin', 'win32']
         }
+        // {
+        //     name: '@electron-forge/maker-zip',
+        //     platforms: ['linux', 'darwin', 'win32']
+        // }
     ],
 
     publishers: [
