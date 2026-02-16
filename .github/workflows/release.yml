@@ -86,7 +86,6 @@ jobs:
           - Linux arm64 (AppImage): ${BUCKET_URL}/linux/arm64/mosaic-companion-${VERSION}-arm64.AppImage
           - Linux arm64 (deb): ${BUCKET_URL}/linux/arm64/mosaic-companion_${VERSION}_arm64.deb
           - Windows x64: ${BUCKET_URL}/win32/x64/mosaic-companion-${VERSION}-Setup.exe
-          - Windows arm64: ${BUCKET_URL}/win32/arm64/mosaic-companion-${VERSION}-Setup.exe
           - macOS x64: ${BUCKET_URL}/darwin/x64/mosaic-companion-${VERSION}-x64.dmg
           - macOS arm64: ${BUCKET_URL}/darwin/arm64/mosaic-companion-${VERSION}-arm64.dmg"
 
@@ -121,10 +120,6 @@ jobs:
           - os: windows-latest
             platform: win32
             arch: x64
-          # Windows arm64 (cross-compile)
-          - os: windows-latest
-            platform: win32
-            arch: arm64
     runs-on: ${{ matrix.os }}
 
     steps:
