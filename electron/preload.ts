@@ -104,4 +104,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     close: () => ipcRenderer.invoke("window:close"),
     isMaximized: () => ipcRenderer.invoke("window:is-maximized"),
   },
+  trading: {
+    saveWallet: (key: string) => ipcRenderer.invoke("trading:save-wallet", key),
+    deleteWallet: () => ipcRenderer.invoke("trading:delete-wallet"),
+    walletExists: () => ipcRenderer.invoke("trading:wallet-exists"),
+  },
 });
