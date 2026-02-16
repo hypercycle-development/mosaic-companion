@@ -136,10 +136,6 @@ export default {
                 }
             }
         }
-        // {
-        //     name: '@electron-forge/maker-zip',
-        //     platforms: ['linux', 'darwin', 'win32']
-        // }
     ],
 
     publishers: [
