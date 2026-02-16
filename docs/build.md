@@ -1,6 +1,6 @@
 # Building Mosaic Companion
 
-This guide explains how to build Mosaic Companion for different platforms and architectures using Electron Forge.
+This explains how to build Mosaic Companion for different platforms and architectures using Electron Forge.
 
 ## Overview
 
