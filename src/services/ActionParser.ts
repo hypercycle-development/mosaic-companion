@@ -8,11 +8,12 @@ export type GmailActionType =
   | "GMAIL_READ"
   | "GMAIL_MARK_READ"
   | "GMAIL_MARK_UNREAD"
+  | "MCP_TOOL_CALL"
   | "NONE";
 
 export interface ParsedAction {
   type: GmailActionType;
-  params?: Record<string, string | number>;
+  params?: Record<string, any>;
   cleanResponse: string; // Response with action tags removed
   rawTag?: string; // The original tag found
 }
@@ -251,11 +252,76 @@ export function parseAction(response: string): ParsedAction {
     };
   }
 
+  // Check for MCP Tool Call (XML-style)
+  // <use_tool server="name" tool="name">{"arg":"val"}</use_tool>
+  const mcpMatch = response.match(/<use_tool\s+server="([^"]+)"\s+tool="([^"]+)">([\s\S]*?)<\/use_tool>/);
+  if (mcpMatch) {
+    const serverName = mcpMatch[1];
+    const toolName = mcpMatch[2];
+    const argsString = mcpMatch[3];
+    let args = {};
+    try {
+      args = JSON.parse(argsString);
+    } catch (e) {
+      console.error("Failed to parse MCP tool args:", e);
+    }
+
+    return {
+      type: "MCP_TOOL_CALL",
+      params: { server: serverName, tool: toolName, args },
+      cleanResponse: response.replace(/<use_tool[\s\S]*?<\/use_tool>/, "").trim(),
+      rawTag: mcpMatch[0],
+    };
+  }
+
   // No action found
   return {
     type: "NONE",
     cleanResponse: response,
   };
+}
+
+/**
+ * Execute an MCP action
+ */
+export async function executeMCPAction(action: ParsedAction): Promise<string> {
+   if (action.type !== "MCP_TOOL_CALL" || !action.params) {
+       return "Invalid MCP action";
+   }
+   
+   const { server, tool, args } = action.params as { server: string; tool: string; args: any };
+   
+   try {
+       const result = await window.electronAPI.mcpAPI.callTool(server, tool, args);
+       if (result.success) {
+           return JSON.stringify(result.result, null, 2);
+       } else {
+           return `Error calling tool ${tool}: ${result.error}`;
+       }
+   } catch (e) {
+       return `Error calling tool ${tool}: ${(e as Error).message}`;
+   }
+}
+
+/**
+ * Generate system prompt for MCP tools
+ */
+export function getMCPSystemPrompt(servers: any[]): string {
+    if (!servers || servers.length === 0) return "";
+    
+    let prompt = "You have access to the following tools. To use a tool, output its XML tag.\n\n";
+    
+    servers.forEach(server => {
+        if (!server.tools || server.tools.length === 0) return;
+        
+        prompt += `Server: ${server.name}\n`;
+        server.tools.forEach((tool: any) => {
+            prompt += `- Tool: ${tool.name}\n  Description: ${tool.description || "No description"}\n  Input Schema: ${JSON.stringify(tool.inputSchema)}\n`;
+            prompt += `  Usage: <use_tool server="${server.name}" tool="${tool.name}">JSON_ARGS</use_tool>\n\n`;
+        });
+    });
+    
+    return prompt;
 }
 
 /**
