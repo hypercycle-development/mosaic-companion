@@ -196,6 +196,22 @@ declare global {
         close: () => Promise<void>;
         isMaximized: () => Promise<boolean>;
       };
+
+      // Trading Agent
+      trading: {
+          saveWallet: (key: string) => Promise<{ success: boolean }>;
+          deleteWallet: () => Promise<{ success: boolean }>;
+          walletExists: () => Promise<{ exists: boolean }>;
+      };
+
+      // MCP API
+      mcpAPI: {
+          listServers: () => Promise<any[]>;
+          callTool: (server: string, tool: string, args: any) => Promise<{ success: boolean; result?: any; error?: string }>;
+          connect: (config: any) => Promise<{ success: boolean; error?: string }>;
+          disconnect: (server: string) => Promise<{ success: boolean }>;
+          readResource: (server: string, uri: string) => Promise<{ success: boolean; result?: any; error?: string }>;
+      };
     };
   }
 }
