@@ -81,6 +81,12 @@ interface ThemeSettings {
   activeTheme: string;
 }
 
+interface ShellResult {
+  code: number | null;
+  stdout: string;
+  stderr: string;
+}
+
 // =============================================================================
 // Linux Sandbox State Detection
 // =============================================================================
@@ -125,8 +131,8 @@ if (!gotTheLock) {
 const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 let screenpipeProcess = null;
 
-function runShellCommand(command, timeoutMs = 30000) {
-  return new Promise((resolve) => {
+function runShellCommand(command: string, timeoutMs = 30000): Promise<ShellResult> {
+  return new Promise<ShellResult>((resolve) => {
     try {
       const child = spawn(command, { shell: true, env: { ...process.env } });
       let stdout = "";
