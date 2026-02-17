@@ -135,7 +135,7 @@ if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
         mkdir -p tmp_static
         sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
         aws s3 cp tmp_static/index.html "s3://${BUCKET}/index.html" --content-type "text/html"
-        aws s3 cp static/install-page/style.css "s3://${BUCKET}/style.css" --content-type "text/css"
+        aws s3 cp static/install-page/style.css "s3://${BUCKET}/style.css" --content-type "text/css" --cache-control "no-cache, must-revalidate"
         rm -rf tmp_static
         echo "✓ Static page uploaded"
         echo ""
