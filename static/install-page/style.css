@@ -152,7 +152,7 @@ header {
 .section-title {
   font-size: 1.8rem;
   font-weight: 700;
-  color: var(--color-text);
+  color: var(--color-primary);
   margin: 48px 0 0;
 }
 
@@ -479,7 +479,7 @@ footer a:hover {
 
 .specialized-link {
   color: var(--color-text);
-  text-decoration: none;
+  text-decoration: underline;
   font-weight: 600;
   transition: var(--transition);
 }
