@@ -5,18 +5,17 @@ This document describes how to build and publish releases for Mosaic Companion u
 ## Prerequisites
 
 1. **AWS Credentials** - You need access keys for the S3 release bucket:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
 
-    - `AWS_ACCESS_KEY_ID`
-    - `AWS_SECRET_ACCESS_KEY`
+   Create a `.env.local` file (recommended) or `.env` file in the project root:
 
-    Create a `.env.local` file (recommended) or `.env` file in the project root:
+   ```env
+   AWS_ACCESS_KEY_ID=your-access-key
+   AWS_SECRET_ACCESS_KEY=your-secret-key
+   ```
 
-    ```env
-    AWS_ACCESS_KEY_ID=your-access-key
-    AWS_SECRET_ACCESS_KEY=your-secret-key
-    ```
-
-    > **Note:** `.env.local` takes priority over `.env`. Both files are loaded automatically by `forge.config.js`.
+   > **Note:** `.env.local` takes priority over `.env`. Both files are loaded automatically by `forge.config.js`.
 
 2. **S3 Bucket** - Must be configured with public read access.
 
@@ -149,10 +148,6 @@ out/make/
 ├── deb/
 │   └── x64/
 │       └── mosaic-companion_1.2.3_amd64.deb
-├── zip/
-│   └── linux/
-│       └── x64/
-│           └── mosaic-companion-linux-x64-1.2.3.zip
 ├── squirrel.windows/
 │   └── x64/
 │       └── MosaicCompanion-1.2.3-Setup.exe
@@ -167,14 +162,12 @@ Electron Forge publishes to organized folders:
 s3://mosaic-release/releases/
 ├── linux/
 │   ├── x64/
-│   │   ├── mosaic-companion_1.2.3_amd64.deb
-│   │   └── mosaic-companion-linux-x64-1.2.3.zip
+│   │   └── mosaic-companion_1.2.3_amd64.deb
 │   └── arm64/
 │       └── ...
 ├── darwin/
 │   ├── x64/
-│   │   ├── mosaic-companion-1.2.3-x64.dmg
-│   │   └── mosaic-companion-darwin-x64-1.2.3.zip
+│   │   └── mosaic-companion-1.2.3-x64.dmg
 │   └── arm64/
 │       └── ...
 └── win32/
@@ -190,7 +183,7 @@ Before building a new release, update the version in `package.json`:
 
 ```json
 {
-    "version": "1.2.3"
+  "version": "1.2.3"
 }
 ```
 
@@ -211,11 +204,11 @@ Use semantic versioning:
 
 ### Cross-Compilation Limitations
 
-| Building On | Linux | Windows | macOS |
-| ------------- | ------- | --------- | ------- |
-| **Linux** | ✅ Yes | ✅ Docker | ❌ No |
-| **macOS** | ✅ Yes | ⚠️ Wine+Mono | ✅ Yes |
-| **Windows** | ❌ No | ✅ Yes | ❌ No |
+| Building On | Linux  | Windows      | macOS  |
+| ----------- | ------ | ------------ | ------ |
+| **Linux**   | ✅ Yes | ✅ Docker    | ❌ No  |
+| **macOS**   | ✅ Yes | ⚠️ Wine+Mono | ✅ Yes |
+| **Windows** | ❌ No  | ✅ Yes       | ❌ No  |
 
 > ✅ **Docker support:** The `upload-release.sh` script automatically uses Docker for Windows builds on Linux.
 >

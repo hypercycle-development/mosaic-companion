@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   base: './', // Ensure relative paths for Electron file:// protocol
   build: {
-    outDir: 'dist',
+    outDir: 'dist/renderer',
     emptyOutDir: true,
   }
 })

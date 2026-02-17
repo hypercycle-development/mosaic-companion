@@ -1,18 +1,16 @@
 {
   "name": "mosaic-companion-screenpipe",
-  "version": "0.0.41",
   "description": "Mosaic Companion Application",
-  "main": "main.js",
-  "type": "module",
+  "version": "0.0.43",
+  "main": "dist/main/main.js",
   "author": "hypercycle",
   "scripts": {
     "dev": "vite",
+    "build:electron": "node esbuild.config.js",
+    "build:renderer": "vite build",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "start": "electron-forge start",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist out node_modules/.vite",
-    "clean:all": "npm run clean && rm -rf node_modules package-lock.json",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "make:linux": "electron-forge make --platform linux",
@@ -26,7 +24,9 @@
     "make:win:arm64": "electron-forge make --platform win32 --arch arm64",
     "deploy": "electron-forge publish",
     "deploy:x64": "electron-forge publish --arch x64",
-    "deploy:arm64": "electron-forge publish --arch arm64"
+    "deploy:arm64": "electron-forge publish --arch arm64",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist release node_modules/.vite"
   },
   "engines": {
     "node": ">=18.0.0",
@@ -55,6 +55,7 @@
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",
     "react-toastify": "^11.0.5",
+    "recharts": "^3.7.0",
     "semver": "^7.7.3",
     "server-destroy": "^1.0.1"
   },
@@ -63,15 +64,17 @@
     "@electron-forge/maker-deb": "^7.11.1",
     "@electron-forge/maker-dmg": "^7.11.1",
     "@electron-forge/maker-squirrel": "^7.11.1",
-    "@electron-forge/maker-zip": "^7.11.1",
     "@electron-forge/publisher-s3": "^7.11.1",
     "@reforged/maker-appimage": "^5.1.1",
+    "@types/node": "^25.0.10",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
     "@types/semver": "^7.7.1",
+    "@types/server-destroy": "^1.0.4",
     "@vitejs/plugin-react": "^5.1.2",
     "dotenv": "^17.2.3",
-    "electron": "^39.2.7",
+    "electron": "^39.3.0",
+    "esbuild": "^0.27.2",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
   }

@@ -7,6 +7,36 @@
 import { app } from "electron";
 import fs from "fs";
 import path from "path";
+import { getErrorMessage } from "./utils";
+
+// =============================================================================
+// Type Definitions
+// =============================================================================
+
+interface Node {
+  id: string;
+  name: string;
+  apiHost: string;
+  apiPort: string;
+  hasAdminPanel: boolean;
+  adminHost: string;
+  adminPort: string;
+  isActive: boolean;
+}
+
+interface Settings {
+  autoDownload: boolean;
+  titleBarStyle: string;
+  nodes: Node[];
+  gmailAutoMarkRead: boolean
+  screenpipe: {
+    enabled: boolean;
+    url: string;
+    command: string;
+    args: string[];
+    healthPath: string;
+  };
+}
 
 // =============================================================================
 // Settings File Management
@@ -15,9 +45,9 @@ import path from "path";
 const settingsPath = path.join(app.getPath("userData"), "app-settings.json");
 
 // Default settings
-const DEFAULT_SETTINGS = {
+const DEFAULT_SETTINGS: Settings = {
   autoDownload: false,
-  titleBarStyle: 'hidden',
+  titleBarStyle: process.platform === "darwin" ? "default" : "hidden",
   nodes: [],
   screenpipe: {
     enabled: false,
@@ -30,24 +60,24 @@ const DEFAULT_SETTINGS = {
 };
 
 // Current settings (loaded from file or defaults)
-let settings = { ...DEFAULT_SETTINGS };
+let settings: Settings = { ...DEFAULT_SETTINGS };
 
 /**
  * Load settings from JSON file.
  * Called at module initialization.
  */
-export function loadSettings() {
+export function loadSettings(): Settings {
   try {
     if (fs.existsSync(settingsPath)) {
       const data = fs.readFileSync(settingsPath, "utf8");
       const loaded = JSON.parse(data);
-      settings = { 
-        ...DEFAULT_SETTINGS, 
+      settings = {
+        ...DEFAULT_SETTINGS,
         ...loaded,
         nodes: loaded.nodes || [],
         screenpipe: { ...(loaded.screenpipe || DEFAULT_SETTINGS.screenpipe) }
       };
-      
+
       // Ensure titleBarStyle has a valid default if missing from file
       if (!settings.titleBarStyle) {
         settings.titleBarStyle = DEFAULT_SETTINGS.titleBarStyle;
@@ -56,6 +86,7 @@ export function loadSettings() {
         settings.screenpipe = { ...DEFAULT_SETTINGS.screenpipe };
       }
       
+
       console.log("Settings loaded from:", settingsPath);
     } else {
       console.log("No settings file found, using defaults");
@@ -69,16 +100,15 @@ export function loadSettings() {
 
 /**
  * Save current settings to JSON file.
- * @returns {{ success: boolean, error?: string }}
  */
-function saveSettings() {
+function saveSettings(): { success: boolean; error?: string } {
   try {
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf8");
     console.log("Settings saved to:", settingsPath);
     return { success: true };
   } catch (error) {
     console.error("Failed to save settings:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: getErrorMessage(error) };
   }
 }
 
@@ -88,10 +118,20 @@ function saveSettings() {
 
 /**
  * Get current update settings.
- * @returns {object} Current settings
  */
-export function getUpdateSettings() {
-  return { 
+export function getUpdateSettings(): {
+  autoDownload: boolean;
+  titleBarStyle: string;
+  nodes: Node[];
+  screenpipe: {
+    enabled: boolean;
+    url: string;
+    command: string;
+    args: string[];
+    healthPath: string;
+  };
+} {
+  return {
     autoDownload: settings.autoDownload,
     titleBarStyle: settings.titleBarStyle,
     nodes: [...settings.nodes],
@@ -101,10 +141,12 @@ export function getUpdateSettings() {
 
 /**
  * Set update settings and save to file.
- * @param {object} newSettings - Partial settings to update
- * @returns {{ success: boolean, settings: object, error?: string }}
  */
-export function setUpdateSettings(newSettings) {
+export function setUpdateSettings(newSettings: Partial<Settings>): {
+  success: boolean;
+  settings: ReturnType<typeof getUpdateSettings>;
+  error?: string;
+} {
   if (typeof newSettings.autoDownload === "boolean") {
     settings.autoDownload = newSettings.autoDownload;
   }
@@ -120,17 +162,15 @@ export function setUpdateSettings(newSettings) {
 
 /**
  * Get autoDownload setting for updater module.
- * @returns {boolean}
  */
-export function getAutoDownload() {
+export function getAutoDownload(): boolean {
   return settings.autoDownload;
 }
 
 /**
  * Get titleBarStyle setting.
- * @returns {string}
  */
-export function getTitleBarStyle() {
+export function getTitleBarStyle(): string {
   return settings.titleBarStyle;
 }
 
@@ -178,23 +218,24 @@ const MAX_NODES = 3;
 
 /**
  * Get all nodes.
- * @returns {Array} Array of nodes
  */
-export function getNodes() {
+export function getNodes(): Node[] {
   return [...settings.nodes];
 }
 
 /**
  * Add a new node.
- * @param {object} node - Node configuration
- * @returns {{ success: boolean, nodes?: Array, error?: string }}
  */
-export function addNode(node) {
+export function addNode(node: Partial<Omit<Node, "id">>): {
+  success: boolean;
+  error?: string;
+  nodes?: Node[];
+} {
   if (settings.nodes.length >= MAX_NODES) {
     return { success: false, error: `Maximum ${MAX_NODES} nodes allowed` };
   }
-  
-  const newNode = {
+
+  const newNode: Node = {
     id: `node-${Date.now()}`,
     name: node.name || "New Node",
     apiHost: node.apiHost || "",
@@ -204,7 +245,7 @@ export function addNode(node) {
     adminPort: node.adminPort || "8006",
     isActive: node.isActive !== undefined ? node.isActive : true,
   };
-  
+
   settings.nodes.push(newNode);
   const saveResult = saveSettings();
   return { ...saveResult, nodes: getNodes() };
@@ -212,16 +253,16 @@ export function addNode(node) {
 
 /**
  * Update an existing node.
- * @param {string} id - Node ID
- * @param {object} updates - Partial node updates
- * @returns {{ success: boolean, nodes?: Array, error?: string }}
  */
-export function updateNode(id, updates) {
-  const index = settings.nodes.findIndex(n => n.id === id);
+export function updateNode(
+  id: string,
+  updates: Partial<Omit<Node, "id">>,
+): { success: boolean; nodes?: Node[]; error?: string } {
+  const index = settings.nodes.findIndex((n) => n.id === id);
   if (index === -1) {
     return { success: false, error: "Node not found" };
   }
-  
+
   settings.nodes[index] = { ...settings.nodes[index], ...updates };
   const saveResult = saveSettings();
   return { ...saveResult, nodes: getNodes() };
@@ -229,15 +270,17 @@ export function updateNode(id, updates) {
 
 /**
  * Delete a node.
- * @param {string} id - Node ID
- * @returns {{ success: boolean, nodes?: Array, error?: string }}
  */
-export function deleteNode(id) {
-  const index = settings.nodes.findIndex(n => n.id === id);
+export function deleteNode(id: string): {
+  success: boolean;
+  nodes?: Node[];
+  error?: string;
+} {
+  const index = settings.nodes.findIndex((n) => n.id === id);
   if (index === -1) {
     return { success: false, error: "Node not found" };
   }
-  
+
   settings.nodes.splice(index, 1);
   const saveResult = saveSettings();
   return { ...saveResult, nodes: getNodes() };

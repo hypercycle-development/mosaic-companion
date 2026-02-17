@@ -9,34 +9,17 @@ on:
       - main
 
 jobs:
-  build-check:
+  # Fast, cheap build check — runs on all PRs and main pushes
+  build-linux:
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux x64
           - os: ubuntu-latest
             platform: linux
             arch: x64
-          # Linux arm64 (cross-compile)
           - os: ubuntu-latest
             platform: linux
-            arch: arm64
-          # macOS x64
-          - os: macos-latest
-            platform: darwin
-            arch: x64
-          # macOS arm64
-          - os: macos-latest
-            platform: darwin
-            arch: arm64
-          # Windows x64
-          - os: windows-latest
-            platform: win32
-            arch: x64
-          # Windows arm64 (cross-compile)
-          - os: windows-latest
-            platform: win32
             arch: arm64
     runs-on: ${{ matrix.os }}
 
@@ -53,48 +36,88 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Linux-specific: Install build dependencies for deb maker
       - name: Install Linux build dependencies
-        if: matrix.platform == 'linux'
         run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot
 
       - name: Build Electron (${{ matrix.platform }}/${{ matrix.arch }})
         run: npm run make -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
 
-      # Smoke test only for x64 Linux (can actually run in GitHub Actions)
-      - name: Smoke test (Linux x64 only)
-        if: matrix.platform == 'linux' && matrix.arch == 'x64'
+      # Launch test: verify the app actually starts without crashing (x64 only)
+      - name: Smoke test - verify app launches (x64 only)
+        if: matrix.arch == 'x64'
         run: |
-          echo "=== Running smoke test on x64 deb ==="${
-          # Find the deb package
-          DEB=$(ls out/make/deb/x64/*.deb 2>/dev/null | head -1)
-          if [ -z "$DEB" ]; then
-            echo "No deb found, checking zip..."
-            ZIP=$(ls out/make/zip/linux/x64/*.zip 2>/dev/null | head -1)
-            if [ -n "$ZIP" ]; then
-              echo "✓ ZIP package found: $ZIP"
-            else
-              echo "No packages found, skipping smoke test"
-            fi
-            exit 0
+          APP_NAME=$(node -p "require('./package.json').name")
+          echo "Detected app name: $APP_NAME"
+          sudo apt-get install -y xvfb
+          xvfb-run --auto-servernum "out/${APP_NAME}-linux-x64/${APP_NAME}" --no-sandbox &
+          APP_PID=$!
+          sleep 5
+          if kill -0 $APP_PID 2>/dev/null; then
+            echo "✓ App launched successfully (PID $APP_PID)"
+            kill $APP_PID 2>/dev/null || true
+            wait $APP_PID 2>/dev/null || true
+          else
+            echo "✗ App crashed or failed to start"
+            wait $APP_PID 2>/dev/null
+            EXIT_CODE=$?
+            echo "Exit code: $EXIT_CODE"
+            exit 1
           fi
-          echo "✓ Deb package found: $DEB"
 
       - name: Verify build artifacts exist
         shell: bash
         run: |
-          echo "=== Build output ==="${
+          echo "=== Linux ${{ matrix.arch }} artifacts ==="
+          find out/make -type f 2>/dev/null | head -20 || echo "No artifacts in out/make"
+          ls out/make/deb/${{ matrix.arch }}/*.deb 2>/dev/null && echo "✓ DEB found" || echo "No DEB"
+
+  # Full platform builds — only on push to main (expensive macOS/Windows runners)
+  build-all-platforms:
+    if: github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS x64
+          - os: macos-latest
+            platform: darwin
+            arch: x64
+          # macOS arm64
+          - os: macos-latest
+            platform: darwin
+            arch: arm64
+          # Windows x64
+          - os: windows-latest
+            platform: win32
+            arch: x64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Electron (${{ matrix.platform }}/${{ matrix.arch }})
+        run: npm run make -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+
+      - name: Verify build artifacts exist
+        shell: bash
+        run: |
+          echo "=== Build output ==="
           find out/make -type f 2>/dev/null | head -20 || echo "No artifacts in out/make"
           echo ""
 
-          if [ "${{ matrix.platform }}" == "linux" ]; then
-            echo "=== Linux ${{ matrix.arch }} artifacts ==="
-            ls out/make/deb/${{ matrix.arch }}/*.deb 2>/dev/null && echo "✓ DEB found" || echo "No DEB"
-            ls out/make/zip/linux/${{ matrix.arch }}/*.zip 2>/dev/null && echo "✓ ZIP found" || echo "No ZIP"
-          elif [ "${{ matrix.platform }}" == "darwin" ]; then
+          if [ "${{ matrix.platform }}" == "darwin" ]; then
             echo "=== macOS ${{ matrix.arch }} artifacts ==="
             ls out/make/*.dmg 2>/dev/null && echo "✓ DMG found" || echo "No DMG"
-            ls out/make/zip/darwin/${{ matrix.arch }}/*.zip 2>/dev/null && echo "✓ ZIP found" || echo "No ZIP"
           elif [ "${{ matrix.platform }}" == "win32" ]; then
             echo "=== Windows ${{ matrix.arch }} artifacts ==="
             ls out/make/squirrel.windows/${{ matrix.arch }}/*.exe 2>/dev/null && echo "✓ EXE found" || echo "No EXE"

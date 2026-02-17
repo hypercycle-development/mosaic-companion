@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "lib": ["ESNext"],
+    "outDir": "./dist/main",
+    "rootDir": "./electron",
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,  "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["electron/**/*"]
+}
