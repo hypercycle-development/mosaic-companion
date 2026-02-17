@@ -6,6 +6,28 @@ const Narrator: React.FC<{ text: string; autoPlay?: boolean }> = ({ text, autoPl
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isThinking, setIsThinking] = useState(false);
     const [isModelLoaded, setIsModelLoaded] = useState(false);
+    const [isEnabled, setIsEnabled] = useState(true);
+
+    // Load settings on mount
+    useEffect(() => {
+        const loadSettings = () => {
+            try {
+                const stored = localStorage.getItem('narrator_settings');
+                if (stored) {
+                    const settings = JSON.parse(stored);
+                    setIsEnabled(settings.enabled !== false);
+                    
+                    // Apply voice settings if available
+                    if (settings.voice) {
+                        TTSService.setVoice(settings.voice);
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading narrator settings:', e);
+            }
+        };
+        loadSettings();
+    }, []);
 
     useEffect(() => {
         // Initialize TTS model on component mount
@@ -29,7 +51,7 @@ const Narrator: React.FC<{ text: string; autoPlay?: boolean }> = ({ text, autoPl
     }, []);
 
     const speak = async () => {
-        if (!text || isSpeaking || isThinking) return;
+        if (!text || isSpeaking || isThinking || !isEnabled) return;
 
         setIsThinking(true);
         try {
@@ -53,15 +75,19 @@ const Narrator: React.FC<{ text: string; autoPlay?: boolean }> = ({ text, autoPl
     };
 
     useEffect(() => {
-        if (autoPlay && text && isModelLoaded && !isSpeaking && !isThinking) {
+        if (autoPlay && text && isModelLoaded && !isSpeaking && !isThinking && isEnabled) {
             speak();
         }
-    }, [autoPlay, text, isModelLoaded]);
+    }, [autoPlay, text, isModelLoaded, isEnabled]);
+
+    if (!isEnabled) {
+        return null;
+    }
 
     return (
         <div className="flex items-center gap-2">
             {isLoading && (
-                <span className="text-xs text-gray-400">Loading model...</span>
+                <span className="text-xs text-gray-400">Loading...</span>
             )}
             {isThinking && (
                 <button 
@@ -77,7 +103,7 @@ const Narrator: React.FC<{ text: string; autoPlay?: boolean }> = ({ text, autoPl
                     onClick={speak}
                     disabled={isLoading || !isModelLoaded}
                     className="p-2 hover:bg-gray-800 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Speak (Local TTS)"
+                    title="Speak"
                 >
                     🔊
                 </button>

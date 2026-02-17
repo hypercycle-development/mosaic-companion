@@ -20,6 +20,8 @@ import {
   Server,
   Thermometer,
   Zap,
+  Volume2,
+  Play,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -28,6 +30,7 @@ import {
   PROVIDER_INFO,
 } from "../types/ai";
 import { AIService } from "../services/AIService";
+import TTSService from "../services/TTSService";
 import GmailClient from "./GmailClient";
 import { useTheme } from "../ThemeProvider";
 import { ThemeKey } from "../themes";
@@ -355,6 +358,83 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     };
     getAgents();
   }, []);
+
+  // Narrator (TTS) Settings State
+  const [narratorSettings, setNarratorSettings] = useState({
+    enabled: false,
+    rate: 1.0,
+    pitch: 1.0,
+    volume: 1.0,
+    voice: "",
+  });
+  const [testMessage, setTestMessage] = useState(
+    "Hello! This is a test of the narrator. Your settings are working correctly.",
+  );
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [isNarratorInitialized, setIsNarratorInitialized] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+
+  // Load narrator settings on mount
+  useEffect(() => {
+    const loadNarratorSettings = async () => {
+      try {
+        await TTSService.initialize();
+        const voices = TTSService.getAvailableVoices();
+        setAvailableVoices(voices);
+        setIsNarratorInitialized(true);
+
+        const stored = localStorage.getItem("narrator_settings");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setNarratorSettings(parsed);
+          if (parsed?.voice) {
+            TTSService.setVoice(parsed.voice);
+          }
+        }
+
+        const storedMessage = localStorage.getItem("narrator_test_message");
+        if (storedMessage) {
+          setTestMessage(storedMessage);
+        }
+      } catch (error) {
+        console.error("Failed to initialize TTS:", error);
+      }
+    };
+    loadNarratorSettings();
+  }, []);
+
+  const saveNarratorSettings = (newSettings: typeof narratorSettings) => {
+    setNarratorSettings(newSettings);
+    localStorage.setItem("narrator_settings", JSON.stringify(newSettings));
+    toast.success("Narrator settings saved");
+  };
+
+  const saveTestMessage = (message: string) => {
+    setTestMessage(message);
+    localStorage.setItem("narrator_test_message", message);
+  };
+
+  const testNarrator = async () => {
+    if (isTesting) return;
+    setIsTesting(true);
+    try {
+      await TTSService.speak(
+        testMessage.trim().length > 0
+          ? testMessage
+          : "Hello! This is a test of the narrator. Your settings are working correctly.",
+        () => {
+          // onStart
+        }
+      );
+    } catch (error) {
+      console.error("TTS test error:", error);
+      toast.error("Failed to play test audio");
+    } finally {
+      // Wait a bit for the audio to finish
+      setTimeout(() => setIsTesting(false), 3000);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-8 md:p-12 animate-in slide-in-from-bottom-4 duration-300 text-gray-100 font-sans">
       <h1 className="text-3xl font-bold text-white mb-8 border-b border-gray-800 pb-4 tracking-tight">
@@ -549,6 +629,210 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 placeholder="browser://home"
               />
             </label>
+          </div>
+        </section>
+
+        {/* Narrator (TTS) Section */}
+        <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
+            <Volume2 size={20} />
+            Narrator (Text-to-Speech)
+          </h2>
+          <div className="space-y-6">
+            {/* Enable/Disable Toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-gray-200 font-medium block">Enable Narrator</span>
+                <p className="text-sm text-gray-500">
+                  Enable text-to-speech for narration features
+                </p>
+              </div>
+              <button
+                onClick={() =>
+                  saveNarratorSettings({
+                    ...narratorSettings,
+                    enabled: !narratorSettings.enabled,
+                  })
+                }
+                className={`
+                  relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900
+                  ${narratorSettings.enabled ? "bg-indigo-600" : "bg-gray-600"}
+                `}
+              >
+                <span
+                  className={`
+                    inline-block h-4 w-4 transform rounded-full transition duration-200 ease-in-out
+                    ${narratorSettings.enabled ? "bg-white translate-x-6" : "bg-gray-300 translate-x-1"}
+                  `}
+                />
+              </button>
+            </div>
+
+            {/* Collapsible Options Container */}
+            <div
+              className="overflow-hidden transition-all duration-300 ease-in-out"
+              style={{
+                maxHeight: narratorSettings.enabled ? "1000px" : "0px",
+                opacity: narratorSettings.enabled ? 1 : 0,
+              }}
+            >
+              <div className="space-y-6">
+                {/* Voice Selection */}
+                <div>
+                  <label className="block mb-2">
+                    <span className="text-gray-200 font-medium">Voice</span>
+                    <p className="text-sm text-gray-500 mb-2">
+                      Select the voice for text-to-speech
+                    </p>
+                    <select
+                      value={narratorSettings.voice}
+                      onChange={(e) => {
+                        const newSettings = {
+                          ...narratorSettings,
+                          voice: e.target.value,
+                        };
+                        saveNarratorSettings(newSettings);
+                        TTSService.setVoice(e.target.value);
+                      }}
+                      className="w-full max-w-md px-4 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100"
+                      disabled={!narratorSettings.enabled}
+                    >
+                      <option value="">Default Voice</option>
+                      {availableVoices.map((voice) => (
+                        <option key={voice.name} value={voice.name}>
+                          {voice.name} ({voice.lang})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                {/* Rate Slider */}
+                <div>
+                  <label className="block mb-2">
+                    <span className="text-gray-200 font-medium">
+                      Speed: {narratorSettings.rate.toFixed(1)}x
+                    </span>
+                    <p className="text-sm text-gray-500 mb-2">
+                      Adjust how fast the narration speaks
+                    </p>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="2.0"
+                      step="0.1"
+                      value={narratorSettings.rate}
+                      onChange={(e) => {
+                        const newSettings = {
+                          ...narratorSettings,
+                          rate: parseFloat(e.target.value),
+                        };
+                        saveNarratorSettings(newSettings);
+                      }}
+                      className="w-full max-w-md h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                      disabled={!narratorSettings.enabled}
+                    />
+                  </label>
+                </div>
+
+                {/* Pitch Slider */}
+                <div>
+                  <label className="block mb-2">
+                    <span className="text-gray-200 font-medium">
+                      Pitch: {narratorSettings.pitch.toFixed(1)}
+                    </span>
+                    <p className="text-sm text-gray-500 mb-2">
+                      Adjust the pitch of the narration
+                    </p>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="2.0"
+                      step="0.1"
+                      value={narratorSettings.pitch}
+                      onChange={(e) => {
+                        const newSettings = {
+                          ...narratorSettings,
+                          pitch: parseFloat(e.target.value),
+                        };
+                        saveNarratorSettings(newSettings);
+                      }}
+                      className="w-full max-w-md h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                      disabled={!narratorSettings.enabled}
+                    />
+                  </label>
+                </div>
+
+                {/* Volume Slider */}
+                <div>
+                  <label className="block mb-2">
+                    <span className="text-gray-200 font-medium">
+                      Volume: {Math.round(narratorSettings.volume * 100)}%
+                    </span>
+                    <p className="text-sm text-gray-500 mb-2">
+                      Adjust the volume of the narration
+                    </p>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={narratorSettings.volume}
+                      onChange={(e) => {
+                        const newSettings = {
+                          ...narratorSettings,
+                          volume: parseFloat(e.target.value),
+                        };
+                        saveNarratorSettings(newSettings);
+                      }}
+                      className="w-full max-w-md h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                      disabled={!narratorSettings.enabled}
+                    />
+                  </label>
+                </div>
+
+                {/* Test Message */}
+                <div>
+                  <label className="block mb-2">
+                    <span className="text-gray-200 font-medium">Test Message</span>
+                    <p className="text-sm text-gray-500 mb-2">
+                      Write the text you want to hear when testing the narrator
+                    </p>
+                    <textarea
+                      value={testMessage}
+                      onChange={(e) => saveTestMessage(e.target.value)}
+                      rows={3}
+                      className="w-full max-w-2xl px-4 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100 placeholder-gray-600"
+                      placeholder="Type your test message here..."
+                      disabled={!narratorSettings.enabled}
+                    />
+                  </label>
+                </div>
+
+                {/* Test Button */}
+                <div className="pt-4 border-t border-gray-800">
+                  <button
+                    onClick={testNarrator}
+                    disabled={
+                      isTesting || !narratorSettings.enabled || !isNarratorInitialized
+                    }
+                    className={`
+                      flex items-center gap-2 px-4 py-2 rounded-lg transition-all
+                      ${
+                        isTesting ||
+                        !narratorSettings.enabled ||
+                        !isNarratorInitialized
+                          ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+                          : "bg-indigo-600 hover:bg-indigo-700 text-white hover:scale-[1.02]"
+                      }
+                    `}
+                  >
+                    <Play size={16} />
+                    <span>{isTesting ? "Playing..." : "Test Narrator"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

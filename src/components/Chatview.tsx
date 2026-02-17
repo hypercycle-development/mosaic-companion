@@ -39,6 +39,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import { INTERNAL_SETTINGS_URL } from "../types/types";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
+import { MessagePlayer } from "./MessagePlayer";
+import { VoiceDictation } from "./VoiceDictation";
 
 interface ChatViewProps {
   onNavigate?: (url: string) => void;
@@ -63,6 +65,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [gmailConnected, setGmailConnected] = useState(false);
   const [showHistorySidebar, setShowHistorySidebar] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isNarratorEnabled, setIsNarratorEnabled] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -81,6 +84,34 @@ export const ChatView: React.FC<ChatViewProps> = ({
       }
     };
     getAgents();
+  }, []);
+
+  // Load narrator settings on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("narrator_settings");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setIsNarratorEnabled(parsed.enabled ?? false);
+      }
+    } catch (error) {
+      console.error("Failed to load narrator settings:", error);
+    }
+
+    // Listen for changes to narrator settings
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "narrator_settings" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setIsNarratorEnabled(parsed.enabled ?? false);
+        } catch (error) {
+          console.error("Failed to parse narrator settings:", error);
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
   // Auto-select first active agent
@@ -982,6 +1013,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         ${message.role === "user" ? "justify-end" : ""}
                       `}
                       >
+                        {message.role === "assistant" && isNarratorEnabled && (
+                          <MessagePlayer content={message.content} messageId={message.id} />
+                        )}
                         <button
                           onClick={() =>
                             copyMessage(message.id, message.content)
@@ -1058,12 +1092,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   disabled={isGenerating}
                 />
               </div>
+              {isNarratorEnabled && (
+                <VoiceDictation
+                  onTranscription={(text) => {
+                    setInput((prev) => (prev ? prev + " " + text : text));
+                  }}
+                  disabled={isGenerating}
+                />
+              )}
               <button
                 onClick={sendMessage}
                 data-auto-send
                 disabled={!input.trim() || isGenerating}
                 className={`
-                  p-4 rounded-xl transition-all flex items-center justify-center
+                  h-12 px-4 rounded-xl transition-all flex items-center justify-center
                   ${
                     input.trim() && !isGenerating
                       ? "bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-105 shadow-lg shadow-indigo-500/25"

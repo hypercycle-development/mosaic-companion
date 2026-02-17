@@ -1,14 +1,13 @@
-// Text-to-Speech Service using local models
-import { pipeline } from '@xenova/transformers';
-
+// Text-to-Speech Service using Web Speech API (built into Electron/Chromium)
 class TTSService {
     private static instance: TTSService;
-    private ttsModel: any = null;
-    private isLoading: boolean = false;
-    private audioContext: AudioContext | null = null;
-    private audioCache: Map<string, AudioBuffer> = new Map();
+    private synth: SpeechSynthesis;
+    private voice: SpeechSynthesisVoice | null = null;
+    private isInitialized: boolean = false;
 
-    private constructor() {}
+    private constructor() {
+        this.synth = window.speechSynthesis;
+    }
 
     static getInstance(): TTSService {
         if (!TTSService.instance) {
@@ -18,105 +17,122 @@ class TTSService {
     }
 
     async initialize(): Promise<void> {
-        if (this.ttsModel || this.isLoading) return;
+        if (this.isInitialized) return;
 
-        this.isLoading = true;
-        try {
-            console.log('Loading TTS model...');
-            // Using Speecht5 model for text-to-speech
-            this.ttsModel = await pipeline(
-                'text-to-speech',
-                'Xenova/speecht5_tts',
-                { quantized: false }
-            );
-            
-            this.audioContext = new AudioContext();
-            console.log('TTS model loaded successfully');
-        } catch (error) {
-            console.error('Error loading TTS model:', error);
-            throw error;
-        } finally {
-            this.isLoading = false;
-        }
+        return new Promise((resolve, reject) => {
+            const loadVoices = () => {
+                const voices = this.synth.getVoices();
+                if (voices.length > 0) {
+                    // Try to find a good English voice
+                    this.voice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Natural')) 
+                        || voices.find(v => v.lang.startsWith('en'))
+                        || voices[0];
+                    this.isInitialized = true;
+                    console.log('TTS initialized with voice:', this.voice?.name);
+                    resolve();
+                } else {
+                    reject(new Error('No voices available'));
+                }
+            };
+
+            // Voices might load asynchronously
+            if (this.synth.getVoices().length > 0) {
+                loadVoices();
+            } else {
+                this.synth.onvoiceschanged = loadVoices;
+                // Timeout fallback
+                setTimeout(() => {
+                    if (!this.isInitialized) {
+                        const voices = this.synth.getVoices();
+                        if (voices.length > 0) {
+                            this.voice = voices[0];
+                            this.isInitialized = true;
+                            resolve();
+                        }
+                    }
+                }, 1000);
+            }
+        });
     }
 
     async speak(text: string, onStart?: () => void): Promise<void> {
-        if (!this.ttsModel) {
+        if (!this.isInitialized) {
             await this.initialize();
         }
 
-        if (!this.ttsModel || !this.audioContext) {
-            throw new Error('TTS model not initialized');
-        }
+        return new Promise((resolve, reject) => {
+            // Cancel any ongoing speech
+            this.synth.cancel();
 
+            const utterance = new SpeechSynthesisUtterance(text);
+            
+            if (this.voice) {
+                utterance.voice = this.voice;
+            }
+            
+            // Get settings from localStorage or use defaults
+            const settings = this.getSettings();
+            utterance.rate = settings.rate;
+            utterance.pitch = settings.pitch;
+            utterance.volume = settings.volume;
+
+            utterance.onstart = () => {
+                console.log('TTS started');
+                if (onStart) onStart();
+            };
+
+            utterance.onend = () => {
+                console.log('TTS finished');
+                resolve();
+            };
+
+            utterance.onerror = (event) => {
+                console.error('TTS error:', event);
+                reject(new Error(event.error));
+            };
+
+            this.synth.speak(utterance);
+        });
+    }
+
+    private getSettings(): { rate: number; pitch: number; volume: number } {
         try {
-            let audioBuffer: AudioBuffer;
-
-            // Check if audio is cached
-            if (this.audioCache.has(text)) {
-                console.log('Using cached audio for:', text.substring(0, 50));
-                audioBuffer = this.audioCache.get(text)!;
-            } else {
-                console.log('Generating new audio for:', text.substring(0, 50));
-                // Generate speech
-                const output = await this.ttsModel(text, {
-                    speaker_embeddings: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin'
-                });
-
-                // Convert the output to audio
-                const audioData = output.audio;
-                const sampleRate = output.sampling_rate;
-
-                // Create audio buffer
-                audioBuffer = this.audioContext.createBuffer(
-                    1, // mono
-                    audioData.length,
-                    sampleRate
-                );
-
-                // Fill the buffer with audio data
-                const channelData = audioBuffer.getChannelData(0);
-                channelData.set(audioData);
-
-                // Cache the audio buffer
-                this.audioCache.set(text, audioBuffer);
+            const stored = localStorage.getItem('narrator_settings');
+            if (stored) {
+                return JSON.parse(stored);
             }
+        } catch (e) {
+            console.error('Error reading narrator settings:', e);
+        }
+        return { rate: 1.0, pitch: 1.0, volume: 1.0 };
+    }
 
-            // Play the audio
-            const source = this.audioContext.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(this.audioContext.destination);
-            
-            // Notify when audio starts playing
-            if (onStart) {
-                onStart();
-            }
-            
-            source.start();
-
-            // Return a promise that resolves when audio finishes playing
-            return new Promise((resolve) => {
-                source.onended = () => resolve();
-            });
-        } catch (error) {
-            console.error('Error generating speech:', error);
-            throw error;
+    setVoice(voiceName: string): void {
+        const voices = this.synth.getVoices();
+        const voice = voices.find(v => v.name === voiceName);
+        if (voice) {
+            this.voice = voice;
         }
     }
 
-    clearCache(): void {
-        this.audioCache.clear();
+    getAvailableVoices(): SpeechSynthesisVoice[] {
+        return this.synth.getVoices();
     }
 
     stop(): void {
-        if (this.audioContext) {
-            this.audioContext.close();
-            this.audioContext = new AudioContext();
-        }
+        this.synth.cancel();
+    }
+
+    clearCache(): void {
+        // Not needed for Web Speech API
     }
 
     isModelLoaded(): boolean {
-        return this.ttsModel !== null;
+        return this.isInitialized;
+    }
+
+    isSpeaking(): boolean {
+        return this.synth.speaking;
     }
 }
 
