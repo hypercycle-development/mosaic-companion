@@ -149,6 +149,11 @@ header {
 }
 
 /* ===== Back Link ===== */
+.back-link-container {
+  display: flex;
+  justify-content: center;
+}
+
 .back-link {
   display: inline-flex;
   align-items: center;
@@ -189,7 +194,7 @@ header {
   display: flex;
   justify-content: center;
   gap: 10px;
-  margin: 48px 0 32px;
+  margin: 20px 0 32px;
   flex-wrap: wrap;
 }
 
