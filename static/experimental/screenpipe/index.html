@@ -28,9 +28,9 @@
           Back to Main Release
         </a>
         <h1 class="logo">Mosaic Companion Screenpipe (Experimental)</h1>
+        <p class="subtitle">My Own Secure AI Companion</p>
         <p class="tagline">
-          Your AI-powered companion for seamless computing. Choose your platform
-          below to get started.
+          Screenpipe experimental release. Choose your platform below to get started.
         </p>
       </div>
     </header>
@@ -102,40 +102,6 @@
               </a>
             </div>
 
-            <p style="margin-top: 24px; margin-bottom: 8px">
-              <strong>Portable ZIP (.zip):</strong>
-            </p>
-            <div class="download-grid">
-              <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/screenpipe/darwin/x64/mosaic-companion-screenpipe-darwin-x64-{{VERSION}}.zip"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (Intel)</div>
-                  <div class="arch">For Intel Macs (x64)</div>
-                </div>
-              </a>
-              <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/screenpipe/darwin/arm64/mosaic-companion-screenpipe-darwin-arm64-{{VERSION}}.zip"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (Apple Silicon)</div>
-                  <div class="arch">For M1/M2/M3 Macs (arm64)</div>
-                </div>
-              </a>
-            </div>
-
             <div class="notice">
               <span class="notice-icon">💡</span>
               <p>
@@ -156,16 +122,6 @@
               </li>
               <li>Eject the disk image when done</li>
             </ul>
-            <p style="margin-top: 16px">
-              <strong>ZIP:</strong> Extract and run:
-            </p>
-            <div class="code-block">
-              <code
-                >unzip ~/Downloads/mosaic-companion-darwin*.zip -d ~/MosaicCompanion &&
-                open ~/MosaicCompanion/Mosaic\ Companion.app</code
-              >
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            </div>
           </div>
 
           <div class="card">
@@ -192,6 +148,65 @@
               </p>
             </div>
           </div>
+
+          <div class="card">
+            <h3>
+              <span class="step-number">4</span> Troubleshooting (Temporary for
+              macOS)
+            </h3>
+            <p>
+              Since Mosaic Companion is not yet code-signed, you may encounter
+              additional security warnings. Here are temporary workarounds:
+            </p>
+
+            <h4>Option 1: Terminal Command (Immediate Fix)</h4>
+            <p>
+              If you trust the Mosaic's source, you can bypass this security
+              check using the Terminal:
+            </p>
+            <ol class="steps-list">
+              <li>
+                Open Terminal from Applications > Utilities or via Spotlight
+                search.
+              </li>
+              <li>
+                Run the following command, replacing
+                <code>~/MosaicCompanion/Mosaic\ Companion.app</code> with the
+                actual path to your application (you can type the command and
+                then drag the application icon into the Terminal window to
+                auto-fill the path):
+              </li>
+            </ol>
+            <div class="code-block">
+              <code>xattr -cr ~/MosaicCompanion/Mosaic\ Companion.app</code>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <p>
+              (Note: the -cr flags remove all extended attributes recursively).
+            </p>
+            <p>
+              Press Enter to execute the command. You may need to enter your
+              administrator password.
+            </p>
+            <p>
+              Attempt to open the app again. It should now launch without the
+              error.
+            </p>
+
+            <h4>Option 2: Override Security Settings</h4>
+            <p>
+              Go to System Settings > Privacy & Security, look for a message
+              about Mosaic Companion (recently blocked) and click the "Open
+              Anyway" button.
+            </p>
+
+            <p>
+              <strong>Note:</strong> This is a temporary measure while we obtain
+              proper code signing. These steps will not be needed in future
+              releases.
+            </p>
+          </div>
+
         </section>
 
         <!-- Linux Section -->
@@ -267,40 +282,6 @@
                 </div>
               </a>
             </div>
-
-            <p style="margin-top: 24px; margin-bottom: 8px">
-              <strong>Portable ZIP (.zip):</strong>
-            </p>
-            <div class="download-grid">
-              <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/screenpipe/linux/x64/mosaic-companion-screenpipe-linux-x64-{{VERSION}}.zip"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (x64)</div>
-                  <div class="arch">For 64-bit Intel/AMD</div>
-                </div>
-              </a>
-              <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/screenpipe/linux/arm64/mosaic-companion-screenpipe-linux-arm64-{{VERSION}}.zip"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (ARM64)</div>
-                  <div class="arch">For ARM 64-bit</div>
-                </div>
-              </a>
-            </div>
           </div>
 
           <div class="card">
@@ -320,16 +301,7 @@
               <code>sudo dpkg -i ~/Downloads/mosaic-companion*.deb</code>
               <button class="copy-btn" onclick="copyCode(this)">Copy</button>
             </div>
-            <p style="margin-top: 16px">
-              <strong>ZIP:</strong> Extract and run:
-            </p>
-            <div class="code-block">
-              <code
-                >unzip ~/Downloads/mosaic-companion-linux*.zip -d ~/MosaicCompanion &&
-                ~/MosaicCompanion/mosaic-companion</code
-              >
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            </div>
+
             <div class="notice">
               <span class="notice-icon">💡</span>
               <p>
@@ -376,24 +348,16 @@
               </a>
             </div>
 
-            <p style="margin-top: 24px; margin-bottom: 8px">
-              <strong>Portable ZIP (.zip):</strong>
-            </p>
-            <div class="download-grid">
-              <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/screenpipe/win32/x64/mosaic-companion-screenpipe-win32-x64-{{VERSION}}.zip"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (x64)</div>
-                  <div class="arch">For 64-bit Windows</div>
-                </div>
-              </a>
+            <div class="notice">
+              <span class="notice-icon">💡</span>
+              <p>
+                <strong>Edge browser users:</strong> Edge may flag the download
+                as uncommon. Click the <strong>"···"</strong> (More actions)
+                icon next to the file → <strong>"Keep"</strong> →
+                then expand the <strong>"···"</strong> dropdown beside
+                "Delete" and select <strong>"Keep anyway"</strong>.
+                Chrome and Firefox download without issues.
+              </p>
             </div>
 
           </div>
@@ -410,16 +374,7 @@
               <li>Then click <strong>"Run anyway"</strong></li>
               <li>The app will install and launch automatically</li>
             </ul>
-            <p style="margin-top: 16px">
-              <strong>ZIP:</strong> Extract and run:
-            </p>
-            <div class="code-block">
-              <code
-                >Expand-Archive -Path "$env:USERPROFILE\Downloads\mosaic-companion-win32*.zip" -DestinationPath "$env:USERPROFILE\MosaicCompanion" &&
-                Start-Process "$env:USERPROFILE\MosaicCompanion\Mosaic Companion.exe"</code
-              >
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            </div>
+
             <div class="notice warning">
               <span class="notice-icon">⚠️</span>
               <p>
@@ -448,7 +403,7 @@
           <a href="mailto:hern@hypercycle.ai">hern@hypercycle.ai</a>
         </p>
         <p style="margin-top: 8px; font-size: 0.9rem">
-          © 2026 Mosaic Companion. Built with ❤️ by HyperCycle.
+          © 2026 Mosaic Companion. Built with ❤️ by AIMarkets.
         </p>
       </div>
     </footer>
