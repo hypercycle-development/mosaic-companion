@@ -266,8 +266,17 @@ EOF
                 echo "✓ Version injected into index.html"
             fi
             
-            # Upload the processed files
-            aws s3 cp tmp_page/ "s3://${BUCKET}/${S3_PATH}/" --recursive
+            # Upload style.css with no-cache headers
+            if [ -f "tmp_page/style.css" ]; then
+                aws s3 cp tmp_page/style.css "s3://${BUCKET}/${S3_PATH}/style.css" \
+                    --cache-control "no-cache, must-revalidate" \
+                    --content-type "text/css"
+                echo "✓ style.css uploaded with no-cache headers"
+            fi
+            
+            # Upload the remaining processed files
+            aws s3 cp tmp_page/ "s3://${BUCKET}/${S3_PATH}/" --recursive \
+                --exclude "style.css"
             echo "✓ Custom install page uploaded to ${S3_PATH}/"
             echo "Install Page URL: https://${BUCKET}.s3.us-east-2.amazonaws.com/${S3_PATH}/index.html"
             
