@@ -1098,6 +1098,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     setInput((prev) => (prev ? prev + " " + text : text));
                   }}
                   disabled={isGenerating}
+                  resetKey={`${activeSessionId ?? ""}-${tabId ?? ""}-${selectedAgentId ?? ""}`}
                 />
               )}
               <button
