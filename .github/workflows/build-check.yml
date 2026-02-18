@@ -39,6 +39,10 @@ jobs:
       - name: Install Linux build dependencies
         run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot
 
+      - name: Write mock Gmail credentials (build check only)
+        run: cp config/gmail-credentials.example.json config/gmail-credentials.json
+        # shell: bash
+
       - name: Build Electron (${{ matrix.platform }}/${{ matrix.arch }})
         run: npm run make -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
 
@@ -104,6 +108,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Write mock Gmail credentials (build check only)
+        run: cp config/gmail-credentials.example.json config/gmail-credentials.json
+        shell: bash
 
       - name: Build Electron (${{ matrix.platform }}/${{ matrix.arch }})
         run: npm run make -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
