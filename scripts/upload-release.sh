@@ -134,8 +134,12 @@ if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
         echo "Updating static installation page..."
         mkdir -p tmp_static
         sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
-        aws s3 cp tmp_static/index.html "s3://${BUCKET}/index.html" --content-type "text/html"
-        aws s3 cp static/install-page/style.css "s3://${BUCKET}/style.css" --content-type "text/css" --cache-control "no-cache, must-revalidate"
+        aws s3 cp tmp_static/index.html "s3://${BUCKET}/index.html" \
+            --cache-control "no-cache, must-revalidate" \
+            --content-type "text/html"
+        aws s3 cp static/install-page/style.css "s3://${BUCKET}/style.css" \
+            --cache-control "no-cache, must-revalidate" \
+            --content-type "text/css"
         rm -rf tmp_static
         echo "✓ Static page uploaded"
         echo ""
@@ -148,7 +152,9 @@ if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
             mkdir -p tmp_static
             RELEASE_DATE=$(date -u +%Y-%m-%d)
             sed -e "s/{{VERSION}}/${VERSION}/g" -e "s/{{RELEASE_DATE}}/${RELEASE_DATE}/g" static/install-page/latest.template.json > tmp_static/latest.json
-            aws s3 cp tmp_static/latest.json "s3://${BUCKET}/releases/latest.json" --content-type "application/json"
+            aws s3 cp tmp_static/latest.json "s3://${BUCKET}/releases/latest.json" \
+                --cache-control "no-cache, must-revalidate" \
+                --content-type "application/json"
             rm -rf tmp_static
             echo "✓ latest.json uploaded"
         fi
