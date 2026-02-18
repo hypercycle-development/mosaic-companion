@@ -15,7 +15,11 @@ import { fileURLToPath } from 'url';
 const SCOPES = ['https://www.googleapis.com/auth/gmail.modify'];
 const REDIRECT_URI = 'http://127.0.0.1:3000/oauth2callback';
 const TOKEN_FILE = 'gmail-tokens.json';
-const CREDENTIALS_FILE = path.join(__dirname, 'config', 'gmail-credentials.json');
+// In dev: __dirname is dist/main, so go up two levels to project root.
+// In packaged app: credentials are bundled as an extraResource under process.resourcesPath.
+const CREDENTIALS_FILE = app.isPackaged
+  ? path.join(process.resourcesPath, 'gmail-credentials.json')
+  : path.join(__dirname, '../../config', 'gmail-credentials.json');
 
 let oauth2Client = null;
 
