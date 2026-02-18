@@ -1,24 +1,32 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Mic, MicOff, Loader2, AlertCircle } from "lucide-react";
+import { Mic, MicOff, Loader2 } from "lucide-react";
 import { pipeline } from "@xenova/transformers";
+
+const MIC_DEVICE_STORAGE_KEY = "voice_input_device_id";
 
 interface VoiceDictationProps {
   onTranscription: (text: string) => void;
   disabled?: boolean;
+  resetKey?: string;
 }
 
 export const VoiceDictation: React.FC<VoiceDictationProps> = ({
   onTranscription,
   disabled = false,
+  resetKey,
 }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDeviceId, setSelectedDeviceId] = useState("");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const transcriber = useRef<any>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const processingTokenRef = useRef<string | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
 
   // Load Whisper model on component mount
   useEffect(() => {
@@ -41,10 +49,73 @@ export const VoiceDictation: React.FC<VoiceDictationProps> = ({
     loadModel();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
+      processingTokenRef.current = null;
+      setIsRecording(false);
+      setIsProcessing(false);
+    };
+  }, []);
+
+  const stopAll = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    cancelProcessing();
+    setIsRecording(false);
+  };
+
+  useEffect(() => {
+    if (disabled) {
+      stopAll();
+    }
+  }, [disabled]);
+
+  useEffect(() => {
+    stopAll();
+  }, [resetKey]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(MIC_DEVICE_STORAGE_KEY) || "";
+    setSelectedDeviceId(stored);
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === MIC_DEVICE_STORAGE_KEY) {
+        setSelectedDeviceId(event.newValue || "");
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
   const startRecording = async () => {
     try {
       setError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (isProcessing) {
+        return;
+      }
+      const storedDeviceId = localStorage.getItem(MIC_DEVICE_STORAGE_KEY) || selectedDeviceId;
+      const constraints = storedDeviceId
+        ? { audio: { deviceId: { exact: storedDeviceId } } }
+        : { audio: true };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
@@ -57,28 +128,46 @@ export const VoiceDictation: React.FC<VoiceDictationProps> = ({
       mediaRecorder.onstop = async () => {
         try {
           setIsProcessing(true);
+          const processingToken = `proc-${Date.now()}`;
+          processingTokenRef.current = processingToken;
           const audioBlob = new Blob(audioChunksRef.current, {
             type: "audio/webm",
           });
 
-          // Convert blob to ArrayBuffer
-          const arrayBuffer = await audioBlob.arrayBuffer();
-          
-          // Transcribe audio
           if (transcriber.current) {
-            const result = await transcriber.current(arrayBuffer);
-            const transcribedText = result.text || "";
-            
-            if (transcribedText.trim()) {
-              onTranscription(transcribedText.trim());
+            const audioUrl = URL.createObjectURL(audioBlob);
+            audioUrlRef.current = audioUrl;
+            const result = await transcriber.current(audioUrl, {
+              chunk_length_s: 30,
+              stride_length_s: 5,
+              task: "transcribe",
+            });
+            if (audioUrlRef.current === audioUrl) {
+              URL.revokeObjectURL(audioUrl);
+              audioUrlRef.current = null;
             }
-          }
 
-          setIsProcessing(false);
+            if (processingTokenRef.current === processingToken) {
+              const transcribedText = result?.text || "";
+              if (transcribedText.trim()) {
+                onTranscription(transcribedText.trim());
+              }
+            }
+          } else {
+            setError("Speech model not ready yet.");
+          }
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           console.error("Error transcribing audio:", err);
           setError("Error transcribing: " + errorMsg);
+        } finally {
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach((track) => track.stop());
+            streamRef.current = null;
+          }
+          if (processingTokenRef.current) {
+            processingTokenRef.current = null;
+          }
           setIsProcessing(false);
         }
       };
@@ -99,9 +188,20 @@ export const VoiceDictation: React.FC<VoiceDictationProps> = ({
     }
   };
 
+  const cancelProcessing = () => {
+    processingTokenRef.current = null;
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    setIsProcessing(false);
+  };
+
   const handleMicClick = () => {
     if (isRecording) {
       stopRecording();
+    } else if (isProcessing) {
+      cancelProcessing();
     } else {
       startRecording();
     }
@@ -113,18 +213,26 @@ export const VoiceDictation: React.FC<VoiceDictationProps> = ({
     <div className="relative">
       <button
         onClick={handleMicClick}
-        disabled={disabled || isLoading || !transcriber.current}
+        disabled={disabled || isModelLoading || (!transcriber.current && !isProcessing)}
         className={`
           h-12 px-3 rounded-xl transition-all flex items-center justify-center
           ${
             isRecording
               ? "bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/25"
-              : disabled || isLoading || !transcriber.current
-                ? "bg-gray-800 text-gray-500 cursor-not-allowed"
-                : "bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-300"
+              : isProcessing
+                ? "bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-500/25"
+                : disabled || isModelLoading || !transcriber.current
+                  ? "bg-gray-800 text-gray-500 cursor-not-allowed"
+                  : "bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-300"
           }
         `}
-        title={isRecording ? "Stop recording" : "Start voice dictation"}
+        title={
+          isProcessing
+            ? "Cancel dictation"
+            : isRecording
+            ? "Stop recording"
+            : "Start voice dictation"
+        }
       >
         {isLoading ? (
           <Loader2 size={20} className="animate-spin" />

@@ -22,6 +22,7 @@ import {
   Zap,
   Volume2,
   Play,
+  Mic,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -46,6 +47,8 @@ interface SettingsPageProps {
   setAiAgents?: (agents: AIAgentConfig[]) => void;
   scrollSection?: string;
 }
+
+const MIC_DEVICE_STORAGE_KEY = "voice_input_device_id";
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
   homeUrl,
@@ -374,6 +377,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [isNarratorInitialized, setIsNarratorInitialized] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
+  // Microphone settings
+  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMicId, setSelectedMicId] = useState<string>("");
+  const [micPermission, setMicPermission] = useState<"unknown" | "granted" | "denied">(
+    "unknown",
+  );
+  const [micError, setMicError] = useState<string | null>(null);
+
   // Load narrator settings on mount
   useEffect(() => {
     const loadNarratorSettings = async () => {
@@ -402,6 +413,64 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     };
     loadNarratorSettings();
   }, []);
+
+  const loadMicDevices = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter((device) => device.kind === "audioinput");
+      setMicDevices(audioInputs);
+
+      if (audioInputs.length === 0) return;
+
+      setSelectedMicId((current) => {
+        if (current && audioInputs.some((d) => d.deviceId === current)) {
+          return current;
+        }
+        const stored = localStorage.getItem(MIC_DEVICE_STORAGE_KEY) || "";
+        if (stored && audioInputs.some((d) => d.deviceId === stored)) {
+          return stored;
+        }
+        return audioInputs[0].deviceId;
+      });
+    } catch (error) {
+      console.error("Failed to enumerate audio devices:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(MIC_DEVICE_STORAGE_KEY) || "";
+    setSelectedMicId(stored);
+    loadMicDevices();
+
+    const handleDeviceChange = () => loadMicDevices();
+    navigator.mediaDevices?.addEventListener?.("devicechange", handleDeviceChange);
+    return () => {
+      navigator.mediaDevices?.removeEventListener?.("devicechange", handleDeviceChange);
+    };
+  }, [loadMicDevices]);
+
+  useEffect(() => {
+    if (selectedMicId) {
+      localStorage.setItem(MIC_DEVICE_STORAGE_KEY, selectedMicId);
+    } else {
+      localStorage.removeItem(MIC_DEVICE_STORAGE_KEY);
+    }
+  }, [selectedMicId]);
+
+  const requestMicAccess = async () => {
+    try {
+      setMicError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setMicPermission("granted");
+      stream.getTracks().forEach((track) => track.stop());
+      loadMicDevices();
+    } catch (error) {
+      console.error("Microphone permission error:", error);
+      setMicPermission("denied");
+      setMicError("Microphone access was denied.");
+    }
+  };
 
   const saveNarratorSettings = (newSettings: typeof narratorSettings) => {
     setNarratorSettings(newSettings);
@@ -833,6 +902,61 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* Microphone (Dictation) Section */}
+        <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
+            <Mic size={20} />
+            Microphone (Dictation)
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <span className="text-gray-200 font-medium block">
+                Microphone device
+              </span>
+              <p className="text-sm text-gray-500 mb-2">
+                Choose the microphone used for dictation.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  value={selectedMicId}
+                  onChange={(e) => setSelectedMicId(e.target.value)}
+                  className="w-full max-w-md px-4 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100"
+                >
+                  <option value="">System default</option>
+                  {micDevices.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
+                    </option>
+                  ))}
+                </select>
+
+                {micPermission !== "granted" && (
+                  <button
+                    onClick={requestMicAccess}
+                    className="px-3 py-2 rounded-lg text-sm bg-gray-800 text-gray-200 hover:bg-gray-700 transition-all"
+                  >
+                    Allow microphone
+                  </button>
+                )}
+              </div>
+              {micDevices.length === 0 && (
+                <p className="text-xs text-gray-500 mt-2">
+                  No devices found. Grant permission and connect a microphone.
+                </p>
+              )}
+            </div>
+
+            {micError && (
+              <div className="text-sm text-red-400">{micError}</div>
+            )}
+            {micPermission === "denied" && (
+              <div className="text-xs text-gray-500">
+                Microphone blocked. Check system permissions.
+              </div>
+            )}
           </div>
         </section>
 
