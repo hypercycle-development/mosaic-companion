@@ -75,7 +75,7 @@
             <p>Choose the correct version for your Mac's processor:</p>
             <div class="download-grid">
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/darwin/x64/mosaic-companion-{{VERSION}}-x64.dmg"
+                href="https://licenses.aimarkets.ai/releases/darwin/x64/mosaic-companion-{{VERSION}}-x64.dmg"
                 class="download-btn"
               >
                 <div class="icon">
@@ -89,7 +89,7 @@
                 </div>
               </a>
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/darwin/arm64/mosaic-companion-{{VERSION}}-arm64.dmg"
+                href="https://licenses.aimarkets.ai/releases/darwin/arm64/mosaic-companion-{{VERSION}}-arm64.dmg"
                 class="download-btn"
               >
                 <div class="icon">
@@ -180,7 +180,7 @@
               </li>
             </ol>
             <div class="code-block">
-              <code>xattr -cr ~/MosaicCompanion/Mosaic\ Companion.app</code>
+              <code>xattr -cr /Applications/mosaic-companion.app</code>
               <button class="copy-btn" onclick="copyCode(this)">Copy</button>
             </div>
             <p>
@@ -221,7 +221,7 @@
             </p>
             <div class="download-grid">
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/x64/mosaic-companion_{{VERSION}}_amd64.deb"
+                href="https://licenses.aimarkets.ai/releases/linux/x64/mosaic-companion_{{VERSION}}_amd64.deb"
                 class="download-btn"
               >
                 <div class="icon">
@@ -235,7 +235,7 @@
                 </div>
               </a>
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/arm64/mosaic-companion_{{VERSION}}_arm64.deb"
+                href="https://licenses.aimarkets.ai/releases/linux/arm64/mosaic-companion_{{VERSION}}_arm64.deb"
                 class="download-btn"
               >
                 <div class="icon">
@@ -255,7 +255,7 @@
             </p>
             <div class="download-grid">
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/x64/mosaic-companion-{{VERSION}}-x64.AppImage"
+                href="https://licenses.aimarkets.ai/releases/linux/x64/mosaic-companion-{{VERSION}}-x64.AppImage"
                 class="download-btn"
               >
                 <div class="icon">
@@ -269,7 +269,7 @@
                 </div>
               </a>
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/arm64/mosaic-companion-{{VERSION}}-arm64.AppImage"
+                href="https://licenses.aimarkets.ai/releases/linux/arm64/mosaic-companion-{{VERSION}}-arm64.AppImage"
                 class="download-btn"
               >
                 <div class="icon">
@@ -334,7 +334,7 @@
             <p>Choose the correct version for your system:</p>
             <div class="download-grid">
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/x64/mosaic-companion-{{VERSION}}+Setup.exe"
+                href="https://licenses.aimarkets.ai/releases/win32/x64/mosaic-companion-{{VERSION}}+Setup.exe"
                 class="download-btn"
               >
                 <div class="icon">
@@ -348,7 +348,7 @@
                 </div>
               </a>
               <!-- <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/arm64/mosaic-companion-{{VERSION}}+Setup.exe"
+                href="https://licenses.aimarkets.ai/releases/win32/arm64/mosaic-companion-{{VERSION}}+Setup.exe"
                 class="download-btn disabled"
               >
                 <div class="icon">
@@ -489,7 +489,7 @@
           if (names.length > 0) {
             names.forEach((item, index) => {
               const link = document.createElement("a");
-              link.href = `https://mosaic-release.s3.us-east-2.amazonaws.com/${item.prefix}index.html`;
+              link.href = `https://licenses.aimarkets.ai/${item.prefix}`;
               link.textContent = item.name;
               link.className = "specialized-link";
               linksContainer.appendChild(link);

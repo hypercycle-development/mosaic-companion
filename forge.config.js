@@ -68,7 +68,9 @@ export default {
             /\.env$/,
             /\.env\.local$/,
         ],
-        extraResource: [],
+        extraResource: [
+            'config/gmail-credentials.json'
+        ],
         protocols: [
             {
                 name: 'Mosaic Companion',
