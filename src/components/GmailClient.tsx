@@ -111,7 +111,7 @@ export default function GmailClient() {
       setError(null);
       const result = await window.electronAPI.gmail.getEmails(15);
       if (result.success) {
-        setEmails(result.emails);
+        setEmails(result.emails ?? []);
       } else {
         setError(result.error || "Failed to fetch emails");
       }

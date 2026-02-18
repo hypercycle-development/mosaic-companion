@@ -68,6 +68,7 @@ jobs:
 
           # Commit and push
           git add package.json
+          git add package-lock.json
           git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
           git push
 
@@ -141,6 +142,12 @@ jobs:
       - name: Install Linux build dependencies
         if: matrix.platform == 'linux'
         run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot
+
+      - name: Write Gmail credentials
+        run: |
+          mkdir -p config
+          echo '${{ secrets.GMAIL_CREDENTIALS }}' > config/gmail-credentials.json
+        shell: bash
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
