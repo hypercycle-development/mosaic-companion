@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import { fileURLToPath } from 'url';
+import { OAuth2Client } from 'google-auth-library';
 
 
 // Gmail scopes we need - gmail.modify allows read/write (mark read/unread)
@@ -21,7 +22,7 @@ const CREDENTIALS_FILE = app.isPackaged
   ? path.join(process.resourcesPath, 'gmail-credentials.json')
   : path.join(__dirname, '../../config', 'gmail-credentials.json');
 
-let oauth2Client = null;
+let oauth2Client: OAuth2Client | null = null;
 
 /**
  * Load credentials from config file
@@ -64,7 +65,7 @@ function loadTokens() {
 /**
  * Save tokens to disk
  */
-function saveTokens(tokens) {
+function saveTokens(tokens: object) {
   try {
     const tokenPath = getTokenPath();
     fs.writeFileSync(tokenPath, JSON.stringify(tokens, null, 2), 'utf8');
@@ -105,11 +106,11 @@ function getOAuth2Client() {
     throw new Error('Gmail credentials not found. Please create config/gmail-credentials.json');
   }
 
-  oauth2Client = new google.auth.OAuth2(
-    credentials.client_id,
-    credentials.client_secret,
-    REDIRECT_URI
-  );
+  oauth2Client = new google.auth.OAuth2({
+    clientId: credentials.client_id,
+    clientSecret: credentials.client_secret,
+    redirectUri: REDIRECT_URI
+  });
 
   // Try to load existing tokens
   const tokens = loadTokens();
@@ -124,7 +125,9 @@ function getOAuth2Client() {
     const existingTokens = loadTokens() || {};
     const newTokens = { ...existingTokens, ...tokens };
     saveTokens(newTokens);
-    oauth2Client.setCredentials(newTokens);
+    if (oauth2Client) {
+      oauth2Client.setCredentials(newTokens);
+    }
   });
 
   return oauth2Client;
@@ -154,7 +157,7 @@ async function authenticate() {
     // Create a local server to catch the callback
     const server = http.createServer(async (req, res) => {
       try {
-        if (req.url.startsWith('/oauth2callback')) {
+        if (req.url && req.url.startsWith('/oauth2callback')) {
           const qs = new URL(req.url, 'http://127.0.0.1:3000').searchParams;
           const code = qs.get('code');
           const error = qs.get('error');
