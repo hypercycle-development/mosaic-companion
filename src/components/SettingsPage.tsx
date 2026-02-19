@@ -48,6 +48,10 @@ interface SettingsPageProps {
   scrollSection?: string;
 }
 
+/**
+ * localStorage key used by both SettingsPage (writer) and VoiceDictation (reader)
+ * to share the user's preferred microphone device across components.
+ */
 const MIC_DEVICE_STORAGE_KEY = "voice_input_device_id";
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
@@ -414,6 +418,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     loadNarratorSettings();
   }, []);
 
+  /**
+   * Queries the browser for available audio input devices and updates state.
+   * Preserves the current selection if it is still valid; falls back to the
+   * stored preference, then the first device in the list.
+   */
   const loadMicDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
     try {
@@ -424,9 +433,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       if (audioInputs.length === 0) return;
 
       setSelectedMicId((current) => {
+        // Keep the current selection if it's still present after the refresh.
         if (current && audioInputs.some((d) => d.deviceId === current)) {
           return current;
         }
+        // Fall back to whatever was stored before the component mounted.
         const stored = localStorage.getItem(MIC_DEVICE_STORAGE_KEY) || "";
         if (stored && audioInputs.some((d) => d.deviceId === stored)) {
           return stored;
@@ -438,6 +449,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   }, []);
 
+  // Seed from storage, load the device list, and re-load whenever a device
+  // is plugged in or removed (browser fires the "devicechange" event).
   useEffect(() => {
     const stored = localStorage.getItem(MIC_DEVICE_STORAGE_KEY) || "";
     setSelectedMicId(stored);
@@ -450,6 +463,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     };
   }, [loadMicDevices]);
 
+  // Persist the selected device whenever the user changes it in the UI.
   useEffect(() => {
     if (selectedMicId) {
       localStorage.setItem(MIC_DEVICE_STORAGE_KEY, selectedMicId);
@@ -458,6 +472,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   }, [selectedMicId]);
 
+  /**
+   * Requests mic permission by opening a temporary stream, then immediately
+   * closing it. This is the minimum action needed for the browser to reveal
+   * device labels (which are hidden until permission is granted).
+   */
   const requestMicAccess = async () => {
     try {
       setMicError(null);

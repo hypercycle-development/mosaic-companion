@@ -2,11 +2,20 @@ import React, { useState, useRef, useEffect } from "react";
 import { Mic, MicOff, Loader2 } from "lucide-react";
 import { pipeline } from "@xenova/transformers";
 
+/**
+ * localStorage key shared with SettingsPage so the user's preferred microphone
+ * device persists across sessions without needing a backend.
+ */
 const MIC_DEVICE_STORAGE_KEY = "voice_input_device_id";
 
 interface VoiceDictationProps {
   onTranscription: (text: string) => void;
   disabled?: boolean;
+  /**
+   * When this value changes (e.g. new chat session, different tab),
+   * any in-progress recording or transcription is cancelled immediately
+   * so stale results are never inserted into the wrong conversation.
+   */
   resetKey?: string;
 }
 
@@ -23,12 +32,21 @@ export const VoiceDictation: React.FC<VoiceDictationProps> = ({
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  // Holds the loaded Whisper pipeline; null until the model finishes downloading.
   const transcriber = useRef<any>(null);
+  // Active media stream kept in a ref so it can be stopped from any code path.
   const streamRef = useRef<MediaStream | null>(null);
+  /**
+   * Unique token stamped at the start of each transcription job.
+   * If the token is cleared (cancel) before Whisper responds, the result
+   * is silently dropped — preventing insertion into the wrong session.
+   */
   const processingTokenRef = useRef<string | null>(null);
+  // Blob URL passed to Whisper; stored so it can be revoked on cancel.
   const audioUrlRef = useRef<string | null>(null);
 
-  // Load Whisper model on component mount
+  // Load the Whisper ASR model once on mount. The model (~145 MB) is fetched
+  // from Hugging Face CDN and cached by the browser on subsequent loads.
   useEffect(() => {
     const loadModel = async () => {
       try {
@@ -49,6 +67,8 @@ export const VoiceDictation: React.FC<VoiceDictationProps> = ({
     loadModel();
   }, []);
 
+  // Full cleanup on unmount: release the mic, cancel pending work, and revoke
+  // any object URLs so the browser can free the associated memory.
   useEffect(() => {
     return () => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
@@ -68,6 +88,10 @@ export const VoiceDictation: React.FC<VoiceDictationProps> = ({
     };
   }, []);
 
+  /**
+   * Unconditionally stops recording and cancels any pending transcription.
+   * Called when the parent disables the button or navigates away.
+   */
   const stopAll = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
@@ -80,16 +104,20 @@ export const VoiceDictation: React.FC<VoiceDictationProps> = ({
     setIsRecording(false);
   };
 
+  // Stop immediately when the parent disables the control (e.g. message sending).
   useEffect(() => {
     if (disabled) {
       stopAll();
     }
   }, [disabled]);
 
+  // Stop when the context changes (new chat, different tab, different agent).
   useEffect(() => {
     stopAll();
   }, [resetKey]);
 
+  // Sync the preferred device from localStorage on mount and react to changes
+  // made in the Settings page (different tab → storage event).
   useEffect(() => {
     const stored = localStorage.getItem(MIC_DEVICE_STORAGE_KEY) || "";
     setSelectedDeviceId(stored);
@@ -105,22 +133,27 @@ export const VoiceDictation: React.FC<VoiceDictationProps> = ({
   }, []);
 
   const startRecording = async () => {
+    // Prevent starting a new recording while the previous one is still being transcribed.
+    if (isProcessing) return;
+
     try {
       setError(null);
-      if (isProcessing) {
-        return;
-      }
+
+      // Read the device preference directly from storage so it's always current,
+      // even if the Settings page changed it in another tab since mount.
       const storedDeviceId = localStorage.getItem(MIC_DEVICE_STORAGE_KEY) || selectedDeviceId;
       const constraints = storedDeviceId
         ? { audio: { deviceId: { exact: storedDeviceId } } }
         : { audio: true };
+
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
+
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
-
       audioChunksRef.current = [];
 
+      // Accumulate chunks as they arrive from the MediaRecorder.
       mediaRecorder.ondataavailable = (event) => {
         audioChunksRef.current.push(event.data);
       };
@@ -128,25 +161,32 @@ export const VoiceDictation: React.FC<VoiceDictationProps> = ({
       mediaRecorder.onstop = async () => {
         try {
           setIsProcessing(true);
+
+          // Stamp a token so we can detect whether this job was cancelled before
+          // Whisper finishes; if the token no longer matches, discard the result.
           const processingToken = `proc-${Date.now()}`;
           processingTokenRef.current = processingToken;
-          const audioBlob = new Blob(audioChunksRef.current, {
-            type: "audio/webm",
-          });
+
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
 
           if (transcriber.current) {
+            // Whisper accepts a blob URL; we revoke it as soon as it's no longer needed.
             const audioUrl = URL.createObjectURL(audioBlob);
             audioUrlRef.current = audioUrl;
+
             const result = await transcriber.current(audioUrl, {
               chunk_length_s: 30,
               stride_length_s: 5,
               task: "transcribe",
             });
+
+            // Revoke only if this job still owns the URL (not already cleared by cancel).
             if (audioUrlRef.current === audioUrl) {
               URL.revokeObjectURL(audioUrl);
               audioUrlRef.current = null;
             }
 
+            // Deliver the result only if the transcription wasn't cancelled.
             if (processingTokenRef.current === processingToken) {
               const transcribedText = result?.text || "";
               if (transcribedText.trim()) {
@@ -161,13 +201,12 @@ export const VoiceDictation: React.FC<VoiceDictationProps> = ({
           console.error("Error transcribing audio:", err);
           setError("Error transcribing: " + errorMsg);
         } finally {
+          // Always release the mic and reset state, regardless of outcome.
           if (streamRef.current) {
             streamRef.current.getTracks().forEach((track) => track.stop());
             streamRef.current = null;
           }
-          if (processingTokenRef.current) {
-            processingTokenRef.current = null;
-          }
+          processingTokenRef.current = null;
           setIsProcessing(false);
         }
       };
@@ -181,6 +220,7 @@ export const VoiceDictation: React.FC<VoiceDictationProps> = ({
     }
   };
 
+  /** Stops the MediaRecorder; the `onstop` handler will take care of transcription. */
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
@@ -188,6 +228,11 @@ export const VoiceDictation: React.FC<VoiceDictationProps> = ({
     }
   };
 
+  /**
+   * Aborts an in-flight transcription by invalidating its token and revoking
+   * the audio URL. The Whisper call may still complete internally, but its
+   * result will be silently dropped.
+   */
   const cancelProcessing = () => {
     processingTokenRef.current = null;
     if (audioUrlRef.current) {
