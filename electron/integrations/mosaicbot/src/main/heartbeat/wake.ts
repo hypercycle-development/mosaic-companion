@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Priority-based, coalescing wake queue for the heartbeat system
-// Mirrors src/infra/heartbeat-wake.ts from OpenClaw
+// Mirrors src/infra/heartbeat-wake.ts from OpenMosaic
 //
 // Multiple callers can request a heartbeat wake simultaneously.
 // Requests are coalesced per agentId — only the highest-priority one fires.
@@ -83,5 +83,8 @@ function scheduleWake(coalesceMs: number, isRetry = false): void {
 }
 
 function clearTimer(): void {
-  if (timer) { clearTimeout(timer); timer = null; }
+  if (timer) {
+    clearTimeout(timer);
+    timer = null;
+  }
 }

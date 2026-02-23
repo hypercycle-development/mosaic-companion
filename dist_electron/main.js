@@ -5541,10 +5541,15 @@ var isWsl = () => {
     return true;
   }
   try {
-    return import_node_fs3.default.readFileSync("/proc/version", "utf8").toLowerCase().includes("microsoft") ? !isInsideContainer() : false;
+    if (import_node_fs3.default.readFileSync("/proc/version", "utf8").toLowerCase().includes("microsoft")) {
+      return !isInsideContainer();
+    }
   } catch {
-    return false;
   }
+  if (import_node_fs3.default.existsSync("/proc/sys/fs/binfmt_misc/WSLInterop") || import_node_fs3.default.existsSync("/run/WSL")) {
+    return !isInsideContainer();
+  }
+  return false;
 };
 var is_wsl_default = import_node_process.default.env.__IS_WSL_TEST__ ? isWsl : isWsl();
 
@@ -5765,11 +5770,11 @@ async function defaultBrowser(_execFileAsync = execFileAsync4) {
     throw new UnknownBrowserError(`Cannot find Windows browser in stdout: ${JSON.stringify(stdout)}`);
   }
   const { id } = match.groups;
-  const browser = windowsBrowserProgIds[id];
-  if (!browser) {
-    throw new UnknownBrowserError(`Unknown browser ID: ${id}`);
-  }
-  return browser;
+  const dotIndex = id.lastIndexOf(".");
+  const hyphenIndex = id.lastIndexOf("-");
+  const baseIdByDot = dotIndex === -1 ? void 0 : id.slice(0, dotIndex);
+  const baseIdByHyphen = hyphenIndex === -1 ? void 0 : id.slice(0, hyphenIndex);
+  return windowsBrowserProgIds[id] ?? windowsBrowserProgIds[baseIdByDot] ?? windowsBrowserProgIds[baseIdByHyphen] ?? { name: id, id };
 }
 
 // node_modules/default-browser/index.js

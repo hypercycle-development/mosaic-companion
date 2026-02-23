@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // SKILL.md discovery and loading
-// Mirrors src/agents/skills/workspace.ts (loadSkillEntries) from OpenClaw
+// Mirrors src/agents/skills/workspace.ts (loadSkillEntries) from OpenMosaic
 //
 // Skills are Markdown files with YAML frontmatter at {dir}/{skillName}/SKILL.md.
 // Multiple source directories are supported; later sources (higher precedence)
@@ -11,7 +11,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type {
   SkillEntry,
-  OpenClawSkillMetadata,
+  OpenMosaicSkillMetadata,
   SkillInvocationPolicy,
   SkillCommandDispatch,
 } from "./types.js";
@@ -29,7 +29,9 @@ export type SkillSource = {
  * Load skills from multiple source directories.
  * Precedence: bundled < managed < workspace (later overwrites by name).
  */
-export async function loadSkillEntries(sources: SkillSource[]): Promise<SkillEntry[]> {
+export async function loadSkillEntries(
+  sources: SkillSource[],
+): Promise<SkillEntry[]> {
   const seen = new Map<string, SkillEntry>(); // keyed by lowercased name
   for (const src of sources) {
     for (const entry of await loadFromDir(src.dir, src.source)) {
@@ -39,11 +41,16 @@ export async function loadSkillEntries(sources: SkillSource[]): Promise<SkillEnt
   return [...seen.values()];
 }
 
-async function loadFromDir(dir: string, source: SkillEntry["source"]): Promise<SkillEntry[]> {
+async function loadFromDir(
+  dir: string,
+  source: SkillEntry["source"],
+): Promise<SkillEntry[]> {
   let subdirs: string[];
   try {
     const ents = await fs.readdir(dir, { withFileTypes: true });
-    subdirs = ents.filter((e) => e.isDirectory()).map((e) => path.join(dir, e.name));
+    subdirs = ents
+      .filter((e) => e.isDirectory())
+      .map((e) => path.join(dir, e.name));
   } catch {
     return [];
   }
@@ -57,7 +64,9 @@ async function loadFromDir(dir: string, source: SkillEntry["source"]): Promise<S
       const content = await fs.readFile(skillPath, "utf-8");
       const entry = parseSkillFile(skillPath, subdir, source, content);
       if (entry) skills.push(entry);
-    } catch { /* no SKILL.md */ }
+    } catch {
+      /* no SKILL.md */
+    }
   }
   return skills;
 }
@@ -75,13 +84,15 @@ function parseSkillFile(
   const description = fm.description?.trim();
   if (!name || !description) return null;
 
-  let metadata: OpenClawSkillMetadata = {};
+  let metadata: OpenMosaicSkillMetadata = {};
   try {
     if (fm.metadata) {
       const parsed = JSON.parse(fm.metadata);
-      metadata = parsed?.openclaw ?? {};
+      metadata = parsed?.OpenMosaic ?? {};
     }
-  } catch { /* malformed metadata */ }
+  } catch {
+    /* malformed metadata */
+  }
 
   const policy: SkillInvocationPolicy = {
     userInvocable: fm["user-invocable"] !== "false",
@@ -101,7 +112,17 @@ function parseSkillFile(
     }
   }
 
-  return { name, description, filePath, source, baseDir, content, metadata, policy, dispatch };
+  return {
+    name,
+    description,
+    filePath,
+    source,
+    baseDir,
+    content,
+    metadata,
+    policy,
+    dispatch,
+  };
 }
 
 /** Extract YAML frontmatter between --- delimiters. Returns flat string key-value map. */
@@ -113,14 +134,20 @@ function extractFrontmatter(content: string): Record<string, string> | null {
     const idx = line.indexOf(":");
     if (idx < 1) continue;
     const key = line.slice(0, idx).trim();
-    const val = line.slice(idx + 1).trim().replace(/^["']|["']$/g, "");
+    const val = line
+      .slice(idx + 1)
+      .trim()
+      .replace(/^["']|["']$/g, "");
     if (key) out[key] = val;
   }
   return out;
 }
 
 /** Return default skill source directories for an Electron app. */
-export function defaultSkillSources(appDir: string, workspaceDir: string): SkillSource[] {
+export function defaultSkillSources(
+  appDir: string,
+  workspaceDir: string,
+): SkillSource[] {
   return [
     // Bundled with the app binary (lowest precedence)
     { dir: path.join(__dirname, "../../bundled-skills"), source: "bundled" },

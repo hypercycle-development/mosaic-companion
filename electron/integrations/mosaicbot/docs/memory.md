@@ -1,6 +1,6 @@
 # Memory Backend
 
-Semantic search over Markdown files, faithful to the OpenClaw architecture.
+Semantic search over Markdown files, faithful to the OpenMosaic architecture.
 
 ## Architecture
 
@@ -40,16 +40,16 @@ getMemoryManager(cfg)
 
 ## Files
 
-| File | Mirrors OpenClaw | Purpose |
-|---|---|---|
-| `types.ts` | `src/memory/types.ts` | All interfaces and config types |
-| `schema.ts` | `src/memory/memory-schema.ts` | SQLite DDL (tables, FTS5, vec0) |
-| `chunker.ts` | `src/memory/embedding-chunk-limits.ts` | Text → overlapping chunks |
-| `scoring.ts` | `src/memory/hybrid.ts` + `temporal-decay.ts` + `mmr.ts` | Scoring algorithms |
-| `embedding.ts` | `src/memory/embeddings.ts` | OpenAI / Ollama / null providers |
-| `sqlite-backend.ts` | `src/memory/manager.ts` + `manager-search.ts` + `manager-embedding-ops.ts` + `sync-index.ts` | Main SQLite manager |
-| `qmd-backend.ts` | `src/memory/qmd-manager.ts` | QMD subprocess manager |
-| `index.ts` | `src/memory/search-manager.ts` | Factory + FallbackMemoryManager |
+| File                | Mirrors OpenMosaic                                                                           | Purpose                          |
+| ------------------- | -------------------------------------------------------------------------------------------- | -------------------------------- |
+| `types.ts`          | `src/memory/types.ts`                                                                        | All interfaces and config types  |
+| `schema.ts`         | `src/memory/memory-schema.ts`                                                                | SQLite DDL (tables, FTS5, vec0)  |
+| `chunker.ts`        | `src/memory/embedding-chunk-limits.ts`                                                       | Text → overlapping chunks        |
+| `scoring.ts`        | `src/memory/hybrid.ts` + `temporal-decay.ts` + `mmr.ts`                                      | Scoring algorithms               |
+| `embedding.ts`      | `src/memory/embeddings.ts`                                                                   | OpenAI / Ollama / null providers |
+| `sqlite-backend.ts` | `src/memory/manager.ts` + `manager-search.ts` + `manager-embedding-ops.ts` + `sync-index.ts` | Main SQLite manager              |
+| `qmd-backend.ts`    | `src/memory/qmd-manager.ts`                                                                  | QMD subprocess manager           |
+| `index.ts`          | `src/memory/search-manager.ts`                                                               | Factory + FallbackMemoryManager  |
 
 ## Setup
 
@@ -150,14 +150,14 @@ const mem = await getMemoryManager({
     workspaceDir: process.cwd(),
     agentId: "main",
     stateDir: path.join(os.homedir(), ".myapp"),
-    command: "qmd",             // must be in PATH
+    command: "qmd", // must be in PATH
     searchMode: "search",
     update: { onBoot: true, intervalMs: 5 * 60_000 },
   },
   fallback: {
     workspaceDir: process.cwd(),
     dbPath: "...",
-    embedding: { provider: "none" },  // FTS-only if qmd fails
+    embedding: { provider: "none" }, // FTS-only if qmd fails
   },
 });
 // Automatically switches to SQLite if qmd errors or is not installed.
@@ -228,6 +228,7 @@ qmd query   <query> --json -n <limit> -c <collection> ...
 ```
 
 JSON response shape:
+
 ```json
 [
   {
