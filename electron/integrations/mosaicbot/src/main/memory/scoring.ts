@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Hybrid search scoring: vector + BM25 merge, temporal decay, MMR re-ranking
-// Mirrors src/memory/hybrid.ts + temporal-decay.ts + mmr.ts from OpenClaw
+// Mirrors src/memory/hybrid.ts + temporal-decay.ts + mmr.ts from OpenMosaic
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── FTS helpers ───────────────────────────────────────────────────────────────
@@ -20,7 +20,11 @@ export function bm25RankToScore(rank: number): number {
  * Mirrors buildFtsQuery() in manager-search.ts.
  */
 export function buildFtsQuery(raw: string): string | null {
-  const tokens = raw.match(/[\p{L}\p{N}_]+/gu)?.map((t) => t.trim()).filter(Boolean) ?? [];
+  const tokens =
+    raw
+      .match(/[\p{L}\p{N}_]+/gu)
+      ?.map((t) => t.trim())
+      .filter(Boolean) ?? [];
   if (tokens.length === 0) return null;
   return tokens.map((t) => `"${t.replaceAll('"', "")}"`).join(" AND ");
 }
@@ -79,7 +83,8 @@ export function mergeResults(
     const existing = byId.get(r.id);
     if (existing) {
       existing.textScore = ts;
-      existing.finalScore = weights.vector * existing.vectorScore + weights.text * ts;
+      existing.finalScore =
+        weights.vector * existing.vectorScore + weights.text * ts;
     } else {
       byId.set(r.id, {
         ...r,
@@ -153,7 +158,10 @@ export function applyMMR(
   const min = Math.min(...scores);
   const max = Math.max(...scores);
   const range = max - min || 1;
-  const normed = chunks.map((c, i) => ({ chunk: c, norm: (scores[i] - min) / range }));
+  const normed = chunks.map((c, i) => ({
+    chunk: c,
+    norm: (scores[i] - min) / range,
+  }));
 
   const tokenSets = chunks.map((c) => tokenize(c.text));
   const selected: number[] = []; // indices into normed/tokenSets
@@ -168,12 +176,15 @@ export function applyMMR(
       const maxSim =
         selected.length === 0
           ? 0
-          : Math.max(...selected.map((s) => jaccard(tokenSets[i], tokenSets[s])));
+          : Math.max(
+              ...selected.map((s) => jaccard(tokenSets[i], tokenSets[s])),
+            );
       const mmrScore = lambda * relevance - (1 - lambda) * maxSim;
 
       if (
         mmrScore > bestScore ||
-        (mmrScore === bestScore && chunks[i].finalScore > chunks[bestIdx]?.finalScore)
+        (mmrScore === bestScore &&
+          chunks[i].finalScore > chunks[bestIdx]?.finalScore)
       ) {
         bestScore = mmrScore;
         bestIdx = i;

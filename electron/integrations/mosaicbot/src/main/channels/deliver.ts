@@ -1,4 +1,4 @@
-// Mirrors src/infra/outbound/deliver.ts from OpenClaw
+// Mirrors src/infra/outbound/deliver.ts from OpenMosaic
 
 import type { SendResult } from "./types.js";
 import { loadChannelOutboundAdapter } from "./registry.js";
@@ -17,9 +17,12 @@ export type DeliverParams<Cfg = unknown> = {
  * Deliver a message to a channel, chunking text to the adapter's limit.
  * Tries paragraph-boundary splits before hard truncation.
  */
-export async function deliverMessage<Cfg>(params: DeliverParams<Cfg>): Promise<SendResult[]> {
+export async function deliverMessage<Cfg>(
+  params: DeliverParams<Cfg>,
+): Promise<SendResult[]> {
   const adapter = loadChannelOutboundAdapter(params.channel);
-  if (!adapter) throw new Error(`No outbound adapter for channel: "${params.channel}"`);
+  if (!adapter)
+    throw new Error(`No outbound adapter for channel: "${params.channel}"`);
 
   const chunks = chunkText(params.text, adapter.textChunkLimit ?? 4_000);
   const results: SendResult[] = [];

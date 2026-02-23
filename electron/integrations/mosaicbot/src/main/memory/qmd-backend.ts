@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // QMD memory backend — wraps the `qmd` CLI subprocess
-// Mirrors src/memory/qmd-manager.ts from OpenClaw
+// Mirrors src/memory/qmd-manager.ts from OpenMosaic
 //
 // QMD is an external tool (https://qmd.dev or similar) that provides:
 //   - Local document indexing with BM25 + vector search
@@ -49,7 +49,7 @@ type CollectionDef = { path: string; name: string; pattern: string };
 
 // JSON shape returned by `qmd {search|vsearch|query} --json`
 type QmdQueryResult = {
-  docid?: string;   // document hash, sometimes prefixed with "#"
+  docid?: string; // document hash, sometimes prefixed with "#"
   score?: number;
   snippet?: string; // "@@ -LINE,COUNT\n...content..."
   file?: string;
@@ -95,21 +95,29 @@ export class QmdMemoryManager implements MemorySearchManager {
     const collections: CollectionDef[] = [
       // Default: index the whole workspace for *.md files
       { path: cfg.workspaceDir, name: "memory-root", pattern: "**/*.md" },
-      ...(resolved.paths.map((p, i) => ({
-        path: path.isAbsolute(p.path) ? p.path : path.join(cfg.workspaceDir, p.path),
+      ...resolved.paths.map((p, i) => ({
+        path: path.isAbsolute(p.path)
+          ? p.path
+          : path.join(cfg.workspaceDir, p.path),
         name: p.name ?? `custom-${i}`,
         pattern: p.pattern ?? "**/*.md",
-      }))),
+      })),
     ];
 
-    const agentQmdDir = path.join(resolved.stateDir, "agents", resolved.agentId, "qmd");
+    const agentQmdDir = path.join(
+      resolved.stateDir,
+      "agents",
+      resolved.agentId,
+      "qmd",
+    );
     const xdgConfigHome = path.join(agentQmdDir, "xdg-config");
     const xdgCacheHome = path.join(agentQmdDir, "xdg-cache");
 
     // Probe that the qmd binary exists before committing
     try {
       await runQmdCommand(resolved.command, ["--version"], {
-        xdgConfigHome, xdgCacheHome,
+        xdgConfigHome,
+        xdgCacheHome,
         workspaceDir: cfg.workspaceDir,
         timeoutMs: 5_000,
       });
@@ -152,7 +160,10 @@ export class QmdMemoryManager implements MemorySearchManager {
 
   // ── Search ─────────────────────────────────────────────────────────────────
 
-  async search(query: string, opts: SearchOpts = {}): Promise<MemorySearchResult[]> {
+  async search(
+    query: string,
+    opts: SearchOpts = {},
+  ): Promise<MemorySearchResult[]> {
     // Give the boot update a brief head-start
     if (this.pendingUpdate) {
       await Promise.race([this.pendingUpdate, sleep(500)]);
@@ -218,9 +229,11 @@ export class QmdMemoryManager implements MemorySearchManager {
     }
     try {
       const clean = docid.replace(/^#/, "");
-      const row = this.db.prepare(
-        "SELECT path FROM documents WHERE hash = ? AND active = 1 LIMIT 1",
-      ).get(clean) as { path?: string } | undefined;
+      const row = this.db
+        .prepare(
+          "SELECT path FROM documents WHERE hash = ? AND active = 1 LIMIT 1",
+        )
+        .get(clean) as { path?: string } | undefined;
       return row?.path ?? null;
     } catch {
       return null;
@@ -230,7 +243,10 @@ export class QmdMemoryManager implements MemorySearchManager {
   // ── Sync ───────────────────────────────────────────────────────────────────
 
   async sync(params: SyncParams = {}): Promise<void> {
-    this.pendingUpdate = this.runUpdate(params.reason ?? "manual", params.force ?? true);
+    this.pendingUpdate = this.runUpdate(
+      params.reason ?? "manual",
+      params.force ?? true,
+    );
     await this.pendingUpdate;
     this.pendingUpdate = null;
   }
@@ -276,7 +292,9 @@ export class QmdMemoryManager implements MemorySearchManager {
       );
       const parsed = JSON.parse(stdout || "[]") as Array<{ name?: string }>;
       existing = parsed.map((c) => c.name ?? "").filter(Boolean);
-    } catch { /* first run */ }
+    } catch {
+      /* first run */
+    }
 
     const desired = new Set(this.collections.map((c) => c.name));
 
@@ -288,7 +306,9 @@ export class QmdMemoryManager implements MemorySearchManager {
           xdgCacheHome: this.xdgCacheHome,
           workspaceDir: this.cfg.workspaceDir,
           timeoutMs: 10_000,
-        }).catch(() => { /* ignore */ });
+        }).catch(() => {
+          /* ignore */
+        });
       }
     }
 
@@ -297,23 +317,40 @@ export class QmdMemoryManager implements MemorySearchManager {
       if (!existing.includes(col.name)) {
         await runQmdCommand(
           this.cfg.command,
-          ["collection", "add", col.path, "--name", col.name, "--mask", col.pattern],
+          [
+            "collection",
+            "add",
+            col.path,
+            "--name",
+            col.name,
+            "--mask",
+            col.pattern,
+          ],
           {
             xdgConfigHome: this.xdgConfigHome,
             xdgCacheHome: this.xdgCacheHome,
             workspaceDir: this.cfg.workspaceDir,
             timeoutMs: 10_000,
           },
-        ).catch(() => { /* ignore if already exists */ });
+        ).catch(() => {
+          /* ignore if already exists */
+        });
       }
     }
   }
 
   // ── readFile ───────────────────────────────────────────────────────────────
 
-  async readFile(params: ReadFileParams): Promise<{ text: string; path: string }> {
-    const rel = params.relPath.trim().replace(/^[./]+/, "").replace(/\\/g, "/");
-    const abs = path.isAbsolute(rel) ? rel : path.join(this.cfg.workspaceDir, rel);
+  async readFile(
+    params: ReadFileParams,
+  ): Promise<{ text: string; path: string }> {
+    const rel = params.relPath
+      .trim()
+      .replace(/^[./]+/, "")
+      .replace(/\\/g, "/");
+    const abs = path.isAbsolute(rel)
+      ? rel
+      : path.join(this.cfg.workspaceDir, rel);
     const content = await fs.readFile(abs, "utf-8");
 
     if (params.from === undefined) return { text: content, path: rel };
@@ -332,11 +369,13 @@ export class QmdMemoryManager implements MemorySearchManager {
         this.db = new BetterSqlite3(this.indexPath, { readonly: true });
         this.db.pragma("busy_timeout = 1");
       }
-      const row = this.db.prepare(
-        "SELECT COUNT(*) AS n FROM documents WHERE active = 1",
-      ).get() as { n: number };
+      const row = this.db
+        .prepare("SELECT COUNT(*) AS n FROM documents WHERE active = 1")
+        .get() as { n: number };
       files = row.n;
-    } catch { /* index not yet created */ }
+    } catch {
+      /* index not yet created */
+    }
 
     return {
       backend: "qmd",
@@ -358,7 +397,9 @@ export class QmdMemoryManager implements MemorySearchManager {
     if (this.closed) return;
     this.closed = true;
     if (this.updateTimer) clearInterval(this.updateTimer);
-    await this.pendingUpdate?.catch(() => { /* ignore */ });
+    await this.pendingUpdate?.catch(() => {
+      /* ignore */
+    });
     this.db?.close();
   }
 }
@@ -409,7 +450,10 @@ function runQmdCommand(
       else reject(new Error(`qmd exited ${code}: ${stderr.slice(0, 500)}`));
     });
 
-    proc.on("error", (err) => { clearTimeout(timer); reject(err); });
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
   });
 }
 
@@ -434,7 +478,10 @@ function parseQmdJson(stdout: string): QmdQueryResult[] {
 }
 
 /** Extract 1-indexed start/end line from QMD snippet header: "@@ -LINE,COUNT" */
-function extractLineNumbers(snippet: string): { startLine: number; endLine: number } {
+function extractLineNumbers(snippet: string): {
+  startLine: number;
+  endLine: number;
+} {
   const m = snippet.match(/@@ -(\d+),(\d+)/);
   if (!m) return { startLine: 1, endLine: 1 };
   const start = parseInt(m[1], 10);
@@ -460,7 +507,9 @@ async function symlinkSharedModels(xdgCacheHome: string): Promise<void> {
   try {
     await fs.access(agentModels);
     return; // already exists
-  } catch { /* create symlink */ }
+  } catch {
+    /* create symlink */
+  }
 
   try {
     await fs.mkdir(sharedModels, { recursive: true });

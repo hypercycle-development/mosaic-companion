@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Embedding provider implementations
-// Mirrors src/memory/embeddings.ts from OpenClaw
+// Mirrors src/memory/embeddings.ts from OpenMosaic
 //
 // Supported providers:
 //   openai  → api.openai.com (or custom baseUrl, e.g. Azure)
@@ -18,18 +18,25 @@ export async function createEmbeddingProvider(
   if (cfg.provider === "openai") {
     const model = cfg.model ?? "text-embedding-3-small";
     const dims = cfg.dimensions ?? 1536;
-    const baseUrl = (cfg.baseUrl ?? "https://api.openai.com/v1").replace(/\/$/, "");
+    const baseUrl = (cfg.baseUrl ?? "https://api.openai.com/v1").replace(
+      /\/$/,
+      "",
+    );
     return {
       id: "openai",
       model,
       dimensions: dims,
-      embed: async (texts) => embedOpenAI(baseUrl, cfg.apiKey, model, dims, texts),
+      embed: async (texts) =>
+        embedOpenAI(baseUrl, cfg.apiKey, model, dims, texts),
     };
   }
 
   if (cfg.provider === "ollama") {
     const model = cfg.model ?? "nomic-embed-text";
-    const baseUrl = (cfg.baseUrl ?? "http://localhost:11434").replace(/\/$/, "");
+    const baseUrl = (cfg.baseUrl ?? "http://localhost:11434").replace(
+      /\/$/,
+      "",
+    );
     // Probe dimensions on first use if not specified
     let dims = cfg.dimensions ?? 0;
     if (!dims) {

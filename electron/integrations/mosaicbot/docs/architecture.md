@@ -1,6 +1,6 @@
-# OpenClaw Electron — Architecture
+# OpenMosaic Electron — Architecture
 
-Port of the three core OpenClaw subsystems into a standalone Electron + TypeScript application.
+Port of the three core OpenMosaic subsystems into a standalone Electron + TypeScript application.
 
 ## File tree
 
@@ -83,36 +83,38 @@ produces a prompt block for the agent and a list of `SkillCommandSpec` for `/com
 Two backends, same `MemorySearchManager` interface:
 
 **Builtin SQLite** (`sqlite-backend.ts`)
+
 - File watcher (chokidar) marks index dirty on change
 - Incremental sync: hash-compare → chunk → embed → upsert
 - Hybrid search: sqlite-vec cosine + FTS5 BM25 → weighted merge
 - Post-processing: temporal decay (exp(-λ·age)) + MMR (Jaccard diversity)
 
 **QMD** (`qmd-backend.ts`)
+
 - Spawns `qmd` subprocess with per-agent XDG dirs
 - `qmd update` + `qmd embed` on boot and interval
 - `qmd search --json` returns `[{docid, score, snippet}]`
 - Resolves doc paths from qmd's own `index.sqlite` (read-only)
 - `FallbackMemoryManager` transparently switches to builtin on first error
 
-## OpenClaw source mapping
+## OpenMosaic source mapping
 
-| This file | OpenClaw source |
-|---|---|
-| `heartbeat/wake.ts` | `src/infra/heartbeat-wake.ts` |
-| `heartbeat/runner.ts` | `src/infra/heartbeat-runner.ts` |
-| `channels/types.ts` | `src/channels/plugins/types.adapters.ts` + `types.plugin.ts` |
-| `channels/registry.ts` | `src/channels/plugins/index.ts` + `load.ts` |
-| `channels/deliver.ts` | `src/infra/outbound/deliver.ts` |
-| `skills/loader.ts` | `src/agents/skills/workspace.ts` (loadSkillEntries) |
-| `skills/registry.ts` | `src/agents/skills/workspace.ts` (buildWorkspaceSkillSnapshot) + `src/auto-reply/skill-commands.ts` |
-| `memory/schema.ts` | `src/memory/memory-schema.ts` |
-| `memory/chunker.ts` | `src/memory/embedding-chunk-limits.ts` |
-| `memory/scoring.ts` | `src/memory/hybrid.ts` + `temporal-decay.ts` + `mmr.ts` |
-| `memory/embedding.ts` | `src/memory/embeddings.ts` |
-| `memory/sqlite-backend.ts` | `src/memory/manager.ts` + `manager-search.ts` + `manager-embedding-ops.ts` + `sync-index.ts` |
-| `memory/qmd-backend.ts` | `src/memory/qmd-manager.ts` |
-| `memory/index.ts` | `src/memory/search-manager.ts` |
+| This file                  | OpenMosaic source                                                                                   |
+| -------------------------- | --------------------------------------------------------------------------------------------------- |
+| `heartbeat/wake.ts`        | `src/infra/heartbeat-wake.ts`                                                                       |
+| `heartbeat/runner.ts`      | `src/infra/heartbeat-runner.ts`                                                                     |
+| `channels/types.ts`        | `src/channels/plugins/types.adapters.ts` + `types.plugin.ts`                                        |
+| `channels/registry.ts`     | `src/channels/plugins/index.ts` + `load.ts`                                                         |
+| `channels/deliver.ts`      | `src/infra/outbound/deliver.ts`                                                                     |
+| `skills/loader.ts`         | `src/agents/skills/workspace.ts` (loadSkillEntries)                                                 |
+| `skills/registry.ts`       | `src/agents/skills/workspace.ts` (buildWorkspaceSkillSnapshot) + `src/auto-reply/skill-commands.ts` |
+| `memory/schema.ts`         | `src/memory/memory-schema.ts`                                                                       |
+| `memory/chunker.ts`        | `src/memory/embedding-chunk-limits.ts`                                                              |
+| `memory/scoring.ts`        | `src/memory/hybrid.ts` + `temporal-decay.ts` + `mmr.ts`                                             |
+| `memory/embedding.ts`      | `src/memory/embeddings.ts`                                                                          |
+| `memory/sqlite-backend.ts` | `src/memory/manager.ts` + `manager-search.ts` + `manager-embedding-ops.ts` + `sync-index.ts`        |
+| `memory/qmd-backend.ts`    | `src/memory/qmd-manager.ts`                                                                         |
+| `memory/index.ts`          | `src/memory/search-manager.ts`                                                                      |
 
 ## IPC surface (preload.ts)
 

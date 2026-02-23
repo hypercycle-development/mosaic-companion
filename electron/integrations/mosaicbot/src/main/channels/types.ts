@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Channel adapter interfaces
-// Mirrors src/channels/plugins/types.adapters.ts + types.plugin.ts from OpenClaw
+// Mirrors src/channels/plugins/types.adapters.ts + types.plugin.ts from OpenMosaic
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ChannelCapabilities = {
@@ -81,11 +81,10 @@ export type ChannelSecurityAdapter<
   A extends ResolvedAccount = ResolvedAccount,
   Cfg = unknown,
 > = {
-  resolveDmPolicy(params: {
-    cfg: Cfg;
-    account: A;
-    accountId?: string;
-  }): { policy: DmPolicy; allowFrom: string[] };
+  resolveDmPolicy(params: { cfg: Cfg; account: A; accountId?: string }): {
+    policy: DmPolicy;
+    allowFrom: string[];
+  };
 };
 
 // ── Full Plugin ───────────────────────────────────────────────────────────────

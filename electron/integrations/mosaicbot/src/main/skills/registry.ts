@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Skill registry: eligibility checking, snapshot building, command matching
 // Mirrors src/agents/skills/workspace.ts (buildWorkspaceSkillSnapshot, buildWorkspaceSkillCommandSpecs)
-// and src/auto-reply/skill-commands.ts from OpenClaw
+// and src/auto-reply/skill-commands.ts from OpenMosaic
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { execFile } from "node:child_process";
@@ -29,9 +29,13 @@ export async function buildEligibilityContext(
   await Promise.all(
     binsToProbe.map(async (bin) => {
       try {
-        await execFileAsync(process.platform === "win32" ? "where" : "which", [bin]);
+        await execFileAsync(process.platform === "win32" ? "where" : "which", [
+          bin,
+        ]);
         availableBins.add(bin);
-      } catch { /* not found */ }
+      } catch {
+        /* not found */
+      }
     }),
   );
   return {
@@ -41,7 +45,10 @@ export async function buildEligibilityContext(
   };
 }
 
-export function isSkillEligible(skill: SkillEntry, ctx: SkillEligibilityContext): boolean {
+export function isSkillEligible(
+  skill: SkillEntry,
+  ctx: SkillEligibilityContext,
+): boolean {
   const { metadata } = skill;
   if (metadata.always) return true;
   if (metadata.os?.length && !metadata.os.includes(ctx.platform)) return false;
@@ -51,7 +58,8 @@ export function isSkillEligible(skill: SkillEntry, ctx: SkillEligibilityContext)
     }
   }
   if (metadata.requires?.anyBins?.length) {
-    if (!metadata.requires.anyBins.some((b) => ctx.availableBins.has(b))) return false;
+    if (!metadata.requires.anyBins.some((b) => ctx.availableBins.has(b)))
+      return false;
   }
   if (metadata.requires?.env) {
     for (const v of metadata.requires.env) {
@@ -92,7 +100,12 @@ export function buildSkillCommandSpecs(
       name = `${name}_${n}`;
     }
     usedNames.add(name);
-    specs.push({ name, skillName: skill.name, description: skill.description, dispatch: skill.dispatch });
+    specs.push({
+      name,
+      skillName: skill.name,
+      description: skill.description,
+      dispatch: skill.dispatch,
+    });
   }
   return specs;
 }
@@ -102,7 +115,7 @@ export function buildSkillCommandSpecs(
 /**
  * Build the skill snapshot injected into the agent system prompt.
  * Filters by eligibility and enforces character budget.
- * Mirrors buildWorkspaceSkillSnapshot() in OpenClaw.
+ * Mirrors buildWorkspaceSkillSnapshot() in OpenMosaic.
  */
 export function buildSkillSnapshot(
   skills: SkillEntry[],
@@ -125,15 +138,23 @@ export function buildSkillSnapshot(
   let truncated = 0;
   for (const s of eligible) {
     const line = `- **${s.name}**: ${s.description}`;
-    if (chars + line.length > MAX_SKILLS_PROMPT_CHARS) { truncated++; continue; }
+    if (chars + line.length > MAX_SKILLS_PROMPT_CHARS) {
+      truncated++;
+      continue;
+    }
     lines.push(line);
     chars += line.length + 1;
   }
 
   let prompt = `## Available Skills\n\n${lines.join("\n")}`;
-  if (truncated > 0) prompt += `\n\n_(${truncated} skills omitted — context budget reached)_`;
+  if (truncated > 0)
+    prompt += `\n\n_(${truncated} skills omitted — context budget reached)_`;
 
-  return { prompt, skills: eligible, commandSpecs: buildSkillCommandSpecs(eligible) };
+  return {
+    prompt,
+    skills: eligible,
+    commandSpecs: buildSkillCommandSpecs(eligible),
+  };
 }
 
 // ── Command matching ──────────────────────────────────────────────────────────

@@ -1,6 +1,10 @@
-// Mirrors src/channels/plugins/index.ts + load.ts from OpenClaw
+// Mirrors src/channels/plugins/index.ts + load.ts from OpenMosaic
 
-import type { ChannelPlugin, ChannelOutboundAdapter, ResolvedAccount } from "./types.js";
+import type {
+  ChannelPlugin,
+  ChannelOutboundAdapter,
+  ResolvedAccount,
+} from "./types.js";
 
 type Registration = { plugin: ChannelPlugin };
 
@@ -22,8 +26,10 @@ export function getChannelPlugin(id: string): ChannelPlugin | undefined {
   return registrations.get(id)?.plugin;
 }
 
-// Cached outbound adapter lookup — same pattern as loadChannelOutboundAdapter() in OpenClaw
-export function loadChannelOutboundAdapter(id: string): ChannelOutboundAdapter | undefined {
+// Cached outbound adapter lookup — same pattern as loadChannelOutboundAdapter() in OpenMosaic
+export function loadChannelOutboundAdapter(
+  id: string,
+): ChannelOutboundAdapter | undefined {
   const cached = outboundCache.get(id);
   if (cached) return cached;
   const adapter = registrations.get(id)?.plugin.outbound;

@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Memory manager factory + FallbackMemoryManager facade
-// Mirrors src/memory/search-manager.ts from OpenClaw
+// Mirrors src/memory/search-manager.ts from OpenMosaic
 //
 // Usage:
 //   // Builtin SQLite (always works):
@@ -55,10 +55,13 @@ export async function getMemoryManager(
     const qmd = await QmdMemoryManager.create(cfg.config);
     if (qmd) {
       const fallbackFactory = cfg.fallback
-        ? (): Promise<MemorySearchManager> => SqliteMemoryManager.create(cfg.fallback!)
+        ? (): Promise<MemorySearchManager> =>
+            SqliteMemoryManager.create(cfg.fallback!)
         : undefined;
       manager = fallbackFactory
-        ? new FallbackMemoryManager(qmd, fallbackFactory, () => cache.delete(key))
+        ? new FallbackMemoryManager(qmd, fallbackFactory, () =>
+            cache.delete(key),
+          )
         : qmd;
     } else if (cfg.fallback) {
       console.warn("[Memory] qmd unavailable — using builtin SQLite backend");
@@ -96,11 +99,16 @@ class FallbackMemoryManager implements MemorySearchManager {
     private readonly onEvict?: () => void,
   ) {}
 
-  async search(query: string, opts?: SearchOpts): Promise<MemorySearchResult[]> {
+  async search(
+    query: string,
+    opts?: SearchOpts,
+  ): Promise<MemorySearchResult[]> {
     return this.via((m) => m.search(query, opts));
   }
 
-  async readFile(params: ReadFileParams): Promise<{ text: string; path: string }> {
+  async readFile(
+    params: ReadFileParams,
+  ): Promise<{ text: string; path: string }> {
     return this.via((m) => m.readFile(params));
   }
 
@@ -109,15 +117,24 @@ class FallbackMemoryManager implements MemorySearchManager {
   }
 
   status(): MemoryProviderStatus {
-    const base = (this.primaryFailed ? this.fallback?.status() : null) ?? this.primary.status();
+    const base =
+      (this.primaryFailed ? this.fallback?.status() : null) ??
+      this.primary.status();
     return this.primaryFailed
-      ? { ...base, fallback: { from: "qmd", reason: this.lastError ?? "unknown" } }
+      ? {
+          ...base,
+          fallback: { from: "qmd", reason: this.lastError ?? "unknown" },
+        }
       : base;
   }
 
   async close(): Promise<void> {
-    await this.primary.close().catch(() => { /* ignore */ });
-    await this.fallback?.close().catch(() => { /* ignore */ });
+    await this.primary.close().catch(() => {
+      /* ignore */
+    });
+    await this.fallback?.close().catch(() => {
+      /* ignore */
+    });
   }
 
   private async via<T>(fn: (m: MemorySearchManager) => Promise<T>): Promise<T> {
@@ -127,9 +144,13 @@ class FallbackMemoryManager implements MemorySearchManager {
       } catch (err) {
         this.primaryFailed = true;
         this.lastError = String(err);
-        console.warn(`[Memory] qmd failed — switching to builtin: ${this.lastError}`);
+        console.warn(
+          `[Memory] qmd failed — switching to builtin: ${this.lastError}`,
+        );
         this.onEvict?.();
-        this.primary.close().catch(() => { /* ignore */ });
+        this.primary.close().catch(() => {
+          /* ignore */
+        });
       }
     }
     if (!this.fallback) this.fallback = await this.fallbackFactory();

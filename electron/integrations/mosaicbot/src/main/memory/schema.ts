@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // SQLite schema for the builtin memory backend
-// Mirrors src/memory/memory-schema.ts from OpenClaw
+// Mirrors src/memory/memory-schema.ts from OpenMosaic
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const SCHEMA_VERSION = 3;

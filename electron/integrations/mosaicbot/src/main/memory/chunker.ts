@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Markdown text chunker
-// Mirrors src/memory/embedding-chunk-limits.ts from OpenClaw
+// Mirrors src/memory/embedding-chunk-limits.ts from OpenMosaic
 //
 // Algorithm:
 //   - Split content by newlines; split any line exceeding maxBytes into segments
@@ -13,8 +13,8 @@ import crypto from "node:crypto";
 import type { MemoryChunk, MemorySource } from "./types.js";
 
 export type ChunkingConfig = {
-  tokens: number;   // target chunk size (~4 UTF-8 bytes per token)
-  overlap: number;  // overlap with previous chunk in tokens
+  tokens: number; // target chunk size (~4 UTF-8 bytes per token)
+  overlap: number; // overlap with previous chunk in tokens
 };
 
 const DEFAULTS: ChunkingConfig = { tokens: 400, overlap: 80 };
@@ -50,7 +50,15 @@ export function chunkText(
     if (!text) return;
     const textHash = sha256(text);
     const id = sha256(`${filePath}:${startLine}:${endLine}:${textHash}`);
-    chunks.push({ id, path: filePath, source, startLine, endLine, hash: textHash, text });
+    chunks.push({
+      id,
+      path: filePath,
+      source,
+      startLine,
+      endLine,
+      hash: textHash,
+      text,
+    });
   };
 
   for (let i = 0; i < lines.length; i++) {
@@ -98,7 +106,9 @@ function splitToByteLimit(text: string, maxBytes: number): string[] {
     let hi = rest.length;
     while (lo < hi - 1) {
       const mid = (lo + hi) >> 1;
-      Buffer.byteLength(rest.slice(0, mid), "utf8") <= maxBytes ? (lo = mid) : (hi = mid);
+      Buffer.byteLength(rest.slice(0, mid), "utf8") <= maxBytes
+        ? (lo = mid)
+        : (hi = mid);
     }
     segments.push(rest.slice(0, lo));
     rest = rest.slice(lo);
