@@ -622,4 +622,16 @@ ipcMain.handle(
   },
 );
 
+
+app.on("window-all-closed", () => {
+  mcpClient.disconnectAll();
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+
+app.on("before-quit", () => {
+  mcpClient.disconnectAll();
+});
+
 export { mcpClient };
