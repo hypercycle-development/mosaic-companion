@@ -966,7 +966,7 @@ var require_range = __commonJS({
       parseRange(range) {
         const memoOpts = (this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) | (this.options.loose && FLAG_LOOSE);
         const memoKey = memoOpts + ":" + range;
-        const cached = cache.get(memoKey);
+        const cached = cache2.get(memoKey);
         if (cached) {
           return cached;
         }
@@ -1000,7 +1000,7 @@ var require_range = __commonJS({
           rangeMap.delete("");
         }
         const result = [...rangeMap.values()];
-        cache.set(memoKey, result);
+        cache2.set(memoKey, result);
         return result;
       }
       intersects(range, options) {
@@ -1039,7 +1039,7 @@ var require_range = __commonJS({
     };
     module2.exports = Range;
     var LRU = require_lrucache();
-    var cache = new LRU();
+    var cache2 = new LRU();
     var parseOptions = require_parse_options();
     var Comparator = require_comparator();
     var debug = require_debug();
@@ -1977,7 +1977,7 @@ var require_server_destroy = __commonJS({
 });
 
 // electron/main.ts
-var import_electron6 = require("electron");
+var import_electron8 = require("electron");
 var import_path5 = __toESM(require("path"));
 var import_fs5 = __toESM(require("fs"));
 
@@ -2462,34 +2462,50 @@ loadSettings();
 
 // electron/integrations/mcp/index.ts
 var import_electron4 = require("electron");
-var import_child_process = require("child_process");
 var path4 = __toESM(require("path"));
+
+// electron/integrations/mcp/MCPClient.ts
+var import_child_process = require("child_process");
 var readline = __toESM(require("readline"));
-var MCPClient = class {
-  constructor() {
+var import_events = require("events");
+var MCPClient = class extends import_events.EventEmitter {
+  constructor(options = {}) {
+    super();
     this.connections = /* @__PURE__ */ new Map();
-    this.mainWindow = null;
+    this.options = {
+      timeout: options.timeout ?? 3e4,
+      debug: options.debug ?? false
+    };
   }
-  setMainWindow(window) {
-    this.mainWindow = window;
-  }
-  // ============ STDIO TRANSPORT ============
-  async connectStdio(config) {
-    if (!config.command) {
-      throw new Error("STDIO transport requires a command");
+  log(...args) {
+    if (this.options.debug) {
+      console.error("[MCP]", ...args);
     }
-    console.log(`[MCP] Connecting to ${config.name} via STDIO...`);
+  }
+  // ==========================================================================
+  // Connection Management
+  // ==========================================================================
+  /**
+   * Connect to an MCP server via STDIO transport
+   */
+  async connectStdio(name, command, args = [], env) {
+    if (this.connections.has(name)) {
+      throw new Error(`Server "${name}" is already connected`);
+    }
+    this.log(`Connecting to ${name} via STDIO: ${command} ${args.join(" ")}`);
     const connection = {
-      config,
+      config: { name, transport: "stdio", command, args, env },
+      transport: "stdio",
       requestId: 0,
       pendingRequests: /* @__PURE__ */ new Map(),
+      capabilities: {},
+      initialized: false,
       tools: [],
       resources: [],
-      prompts: [],
-      initialized: false
+      prompts: []
     };
-    const childProcess4 = (0, import_child_process.spawn)(config.command, config.args || [], {
-      env: { ...process.env, ...config.env },
+    const childProcess4 = (0, import_child_process.spawn)(command, args, {
+      env: { ...process.env, ...env },
       stdio: ["pipe", "pipe", "pipe"]
     });
     connection.process = childProcess4;
@@ -2498,86 +2514,150 @@ var MCPClient = class {
       crlfDelay: Infinity
     });
     rl.on("line", (line) => {
-      try {
-        const message = JSON.parse(line);
-        this.handleMessage(config.name, message);
-      } catch (error) {
-        console.error(
-          `[MCP] Failed to parse message from ${config.name}:`,
-          error
-        );
-      }
+      this.handleStdioMessage(name, line);
     });
     childProcess4.stderr?.on("data", (data) => {
-      console.log(`[MCP] ${config.name} stderr:`, data.toString());
+      this.log(`${name} stderr:`, data.toString().trim());
     });
-    childProcess4.on("exit", (code) => {
-      console.log(`[MCP] ${config.name} exited with code ${code}`);
-      this.connections.delete(config.name);
-      this.notifyRenderer("mcp:server-disconnected", {
-        name: config.name,
-        code
-      });
+    childProcess4.on("exit", (code, signal) => {
+      this.log(`${name} exited with code ${code}, signal ${signal}`);
+      this.handleDisconnect(name, code ?? 0);
     });
     childProcess4.on("error", (error) => {
-      console.error(`[MCP] ${config.name} error:`, error);
-      this.notifyRenderer("mcp:server-error", {
-        name: config.name,
-        error: error.message
-      });
+      this.log(`${name} error:`, error);
+      this.emit("error", { server: name, error });
     });
-    this.connections.set(config.name, connection);
-    await this.initializeConnection(config.name);
+    this.connections.set(name, connection);
+    return this.initializeConnection(name);
   }
-  // ============ HTTP TRANSPORT ============
-  async connectHttp(config) {
-    if (!config.url) {
-      throw new Error("HTTP transport requires a URL");
+  /**
+   * Connect to an MCP server via HTTP transport (Streamable HTTP)
+   */
+  async connectHttp(name, url, apiKey) {
+    if (this.connections.has(name)) {
+      throw new Error(`Server "${name}" is already connected`);
     }
-    console.log(
-      `[MCP] Connecting to ${config.name} via HTTP at ${config.url}...`
-    );
+    this.log(`Connecting to ${name} via HTTP: ${url}`);
     const connection = {
-      config,
+      config: { name, transport: "http", url, apiKey },
+      transport: "http",
+      url,
+      apiKey,
       requestId: 0,
       pendingRequests: /* @__PURE__ */ new Map(),
+      capabilities: {},
+      initialized: false,
       tools: [],
       resources: [],
-      prompts: [],
-      initialized: false
+      prompts: []
     };
-    this.connections.set(config.name, connection);
-    await this.initializeConnection(config.name);
+    this.connections.set(name, connection);
+    return this.initializeConnection(name);
   }
-  // ============ CONNECTION MANAGEMENT ============
-  async initializeConnection(serverName) {
-    const connection = this.connections.get(serverName);
-    if (!connection) throw new Error(`Server ${serverName} not found`);
-    const initResult = await this.sendRequest(serverName, "initialize", {
-      protocolVersion: "2024-11-05",
-      capabilities: {
-        roots: { listChanged: true },
-        sampling: {}
-      },
-      clientInfo: {
-        name: "electron-mcp-client",
-        version: "1.0.0"
+  /**
+   * Connect using a config object (convenience for Electron IPC)
+   */
+  async connect(config2) {
+    if (config2.transport === "stdio") {
+      if (!config2.command) {
+        throw new Error("STDIO transport requires a command");
       }
-    });
-    console.log(`[MCP] ${serverName} initialized:`, initResult);
-    await this.sendNotification(serverName, "notifications/initialized", {});
-    connection.initialized = true;
-    await this.refreshCapabilities(serverName);
-    this.notifyRenderer("mcp:server-connected", {
-      name: serverName,
-      tools: connection.tools,
-      resources: connection.resources,
-      prompts: connection.prompts
-    });
+      return this.connectStdio(
+        config2.name,
+        config2.command,
+        config2.args,
+        config2.env
+      );
+    } else {
+      if (!config2.url) {
+        throw new Error("HTTP transport requires a URL");
+      }
+      return this.connectHttp(config2.name, config2.url, config2.apiKey);
+    }
   }
+  /**
+   * Disconnect from an MCP server
+   */
+  async disconnect(name) {
+    const connection = this.connections.get(name);
+    if (!connection) return;
+    if (connection.process) {
+      connection.process.kill();
+    }
+    for (const [, pending] of connection.pendingRequests) {
+      clearTimeout(pending.timeout);
+      pending.reject(new Error("Connection closed"));
+    }
+    this.connections.delete(name);
+    this.log(`Disconnected from ${name}`);
+    this.emit("disconnected", { server: name });
+  }
+  /**
+   * Disconnect from all servers
+   */
+  async disconnectAll() {
+    const names = Array.from(this.connections.keys());
+    await Promise.all(names.map((name) => this.disconnect(name)));
+  }
+  /**
+   * Check if a server is connected and initialized
+   */
+  isConnected(name) {
+    return this.connections.has(name) && this.connections.get(name).initialized;
+  }
+  /**
+   * Get list of connected server names
+   */
+  getConnectedServers() {
+    return Array.from(this.connections.keys());
+  }
+  /**
+   * Get detailed server info (for IPC/UI)
+   */
+  getServers() {
+    return Array.from(this.connections.entries()).map(([name, conn]) => ({
+      name,
+      transport: conn.transport,
+      initialized: conn.initialized,
+      tools: conn.tools,
+      resources: conn.resources,
+      prompts: conn.prompts
+    }));
+  }
+  // ==========================================================================
+  // Initialization
+  // ==========================================================================
+  async initializeConnection(name) {
+    const result = await this.sendRequest(
+      name,
+      "initialize",
+      {
+        protocolVersion: "2024-11-05",
+        capabilities: {
+          roots: { listChanged: true },
+          sampling: {}
+        },
+        clientInfo: {
+          name: "typescript-mcp-client",
+          version: "1.0.0"
+        }
+      }
+    );
+    const connection = this.connections.get(name);
+    connection.capabilities = result.capabilities;
+    connection.serverInfo = result.serverInfo;
+    await this.sendNotification(name, "notifications/initialized", {});
+    connection.initialized = true;
+    await this.refreshCapabilities(name);
+    this.emit("connected", { server: name, capabilities: result });
+    return result;
+  }
+  /**
+   * Refresh tools, resources, and prompts from a server
+   */
   async refreshCapabilities(serverName) {
     const connection = this.connections.get(serverName);
-    if (!connection) throw new Error(`Server ${serverName} not found`);
+    if (!connection) throw new Error(`Server "${serverName}" is not connected`);
     try {
       const toolsResult = await this.sendRequest(
         serverName,
@@ -2585,26 +2665,24 @@ var MCPClient = class {
         {}
       );
       connection.tools = toolsResult.tools || [];
-      console.log(
-        `[MCP] ${serverName} tools:`,
+      this.log(
+        `${serverName} tools:`,
         connection.tools.map((t) => t.name)
       );
-    } catch (error) {
-      console.log(`[MCP] ${serverName} does not support tools`);
+    } catch {
+      this.log(`${serverName} does not support tools`);
+      connection.tools = [];
     }
     try {
-      const resourcesResult = await this.sendRequest(
-        serverName,
-        "resources/list",
-        {}
-      );
+      const resourcesResult = await this.sendRequest(serverName, "resources/list", {});
       connection.resources = resourcesResult.resources || [];
-      console.log(
-        `[MCP] ${serverName} resources:`,
+      this.log(
+        `${serverName} resources:`,
         connection.resources.map((r) => r.uri)
       );
-    } catch (error) {
-      console.log(`[MCP] ${serverName} does not support resources`);
+    } catch {
+      this.log(`${serverName} does not support resources`);
+      connection.resources = [];
     }
     try {
       const promptsResult = await this.sendRequest(
@@ -2613,32 +2691,161 @@ var MCPClient = class {
         {}
       );
       connection.prompts = promptsResult.prompts || [];
-      console.log(
-        `[MCP] ${serverName} prompts:`,
+      this.log(
+        `${serverName} prompts:`,
         connection.prompts.map((p) => p.name)
       );
-    } catch (error) {
-      console.log(`[MCP] ${serverName} does not support prompts`);
+    } catch {
+      this.log(`${serverName} does not support prompts`);
+      connection.prompts = [];
     }
   }
-  async disconnect(serverName) {
+  // ==========================================================================
+  // Tools
+  // ==========================================================================
+  /**
+   * List available tools from a server
+   */
+  async listTools(serverName) {
     const connection = this.connections.get(serverName);
-    if (!connection) return;
-    if (connection.process) {
-      connection.process.kill();
-    }
-    this.connections.delete(serverName);
-    console.log(`[MCP] Disconnected from ${serverName}`);
+    if (!connection) throw new Error(`Server "${serverName}" is not connected`);
+    return connection.tools;
   }
-  async disconnectAll() {
-    for (const name of this.connections.keys()) {
-      await this.disconnect(name);
+  /**
+   * Fetch fresh tools from a server (bypasses cache)
+   */
+  async fetchTools(serverName) {
+    const result = await this.sendRequest(
+      serverName,
+      "tools/list",
+      {}
+    );
+    const connection = this.connections.get(serverName);
+    if (connection) {
+      connection.tools = result.tools || [];
     }
+    return result.tools || [];
   }
-  // ============ MESSAGE HANDLING ============
+  /**
+   * Call a tool on a server
+   */
+  async callTool(serverName, toolName, args = {}) {
+    return this.sendRequest(serverName, "tools/call", {
+      name: toolName,
+      arguments: args
+    });
+  }
+  // ==========================================================================
+  // Resources
+  // ==========================================================================
+  /**
+   * List available resources from a server
+   */
+  async listResources(serverName) {
+    const connection = this.connections.get(serverName);
+    if (!connection) throw new Error(`Server "${serverName}" is not connected`);
+    return connection.resources;
+  }
+  /**
+   * Fetch fresh resources from a server (bypasses cache)
+   */
+  async fetchResources(serverName) {
+    const result = await this.sendRequest(
+      serverName,
+      "resources/list",
+      {}
+    );
+    const connection = this.connections.get(serverName);
+    if (connection) {
+      connection.resources = result.resources || [];
+    }
+    return result.resources || [];
+  }
+  /**
+   * List resource templates from a server
+   */
+  async listResourceTemplates(serverName) {
+    const result = await this.sendRequest(serverName, "resources/templates/list", {});
+    return result.resourceTemplates || [];
+  }
+  /**
+   * Read a resource from a server
+   */
+  async readResource(serverName, uri) {
+    return this.sendRequest(serverName, "resources/read", { uri });
+  }
+  // ==========================================================================
+  // Prompts
+  // ==========================================================================
+  /**
+   * List available prompts from a server
+   */
+  async listPrompts(serverName) {
+    const connection = this.connections.get(serverName);
+    if (!connection) throw new Error(`Server "${serverName}" is not connected`);
+    return connection.prompts;
+  }
+  /**
+   * Fetch fresh prompts from a server (bypasses cache)
+   */
+  async fetchPrompts(serverName) {
+    const result = await this.sendRequest(
+      serverName,
+      "prompts/list",
+      {}
+    );
+    const connection = this.connections.get(serverName);
+    if (connection) {
+      connection.prompts = result.prompts || [];
+    }
+    return result.prompts || [];
+  }
+  /**
+   * Get a prompt from a server
+   */
+  async getPrompt(serverName, promptName, args = {}) {
+    return this.sendRequest(serverName, "prompts/get", {
+      name: promptName,
+      arguments: args
+    });
+  }
+  // ==========================================================================
+  // Aggregate Helpers (multi-server)
+  // ==========================================================================
+  /**
+   * Get all tools from all connected servers, with server origin tracking
+   */
+  async getAllTools() {
+    const allTools = [];
+    for (const name of this.getConnectedServers()) {
+      const tools = await this.listTools(name);
+      for (const tool of tools) {
+        allTools.push({ ...tool, _serverName: name });
+      }
+    }
+    return allTools;
+  }
+  /**
+   * Build a tool-name → server-name map for routing tool calls
+   */
+  async buildToolMap() {
+    const map = /* @__PURE__ */ new Map();
+    for (const name of this.getConnectedServers()) {
+      const tools = await this.listTools(name);
+      for (const tool of tools) {
+        map.set(tool.name, name);
+      }
+    }
+    return map;
+  }
+  // ==========================================================================
+  // Message Handling (private)
+  // ==========================================================================
   async sendRequest(serverName, method, params) {
     const connection = this.connections.get(serverName);
-    if (!connection) throw new Error(`Server ${serverName} not found`);
+    if (!connection) {
+      throw new Error(`Server "${serverName}" is not connected`);
+    }
     const id = ++connection.requestId;
     const request = {
       jsonrpc: "2.0",
@@ -2646,42 +2853,35 @@ var MCPClient = class {
       method,
       params
     };
+    this.log(`\u2192 ${serverName}:`, method, params);
+    if (connection.transport === "http") {
+      return this.sendHttpRequest(connection, request);
+    }
     return new Promise((resolve, reject) => {
-      connection.pendingRequests.set(id, { resolve, reject });
       const timeout = setTimeout(() => {
         connection.pendingRequests.delete(id);
-        reject(new Error(`Request ${method} timed out`));
-      }, 3e4);
-      if (connection.config.transport === "stdio" && connection.process) {
-        connection.process.stdin?.write(JSON.stringify(request) + "\n");
-      } else if (connection.config.transport === "http") {
-        this.sendHttpRequest(connection, request).then(resolve).catch(reject).finally(() => {
-          clearTimeout(timeout);
-          connection.pendingRequests.delete(id);
-        });
-        return;
-      }
-      const originalResolve = connection.pendingRequests.get(id).resolve;
+        reject(
+          new Error(
+            `Request "${method}" timed out after ${this.options.timeout}ms`
+          )
+        );
+      }, this.options.timeout);
       connection.pendingRequests.set(id, {
-        resolve: (value) => {
-          clearTimeout(timeout);
-          originalResolve(value);
-        },
-        reject: (error) => {
-          clearTimeout(timeout);
-          reject(error);
-        }
+        resolve,
+        reject,
+        timeout
       });
+      connection.process?.stdin?.write(JSON.stringify(request) + "\n");
     });
   }
   async sendHttpRequest(connection, request) {
     const headers = {
       "Content-Type": "application/json"
     };
-    if (connection.config.apiKey) {
-      headers["Authorization"] = `Bearer ${connection.config.apiKey}`;
+    if (connection.apiKey) {
+      headers["Authorization"] = `Bearer ${connection.apiKey}`;
     }
-    const response = await fetch(connection.config.url, {
+    const response = await fetch(connection.url, {
       method: "POST",
       headers,
       body: JSON.stringify(request)
@@ -2691,145 +2891,461 @@ var MCPClient = class {
     }
     const result = await response.json();
     if (result.error) {
-      throw new Error(`MCP Error: ${result.error.message}`);
+      const error = new Error(result.error.message);
+      error.code = result.error.code;
+      error.data = result.error.data;
+      throw error;
     }
+    this.log(`\u2190 HTTP:`, result.result);
     return result.result;
   }
   async sendNotification(serverName, method, params) {
     const connection = this.connections.get(serverName);
-    if (!connection) throw new Error(`Server ${serverName} not found`);
+    if (!connection) return;
     const notification = {
       jsonrpc: "2.0",
       method,
       params
     };
-    if (connection.config.transport === "stdio" && connection.process) {
+    if (connection.transport === "stdio" && connection.process) {
       connection.process.stdin?.write(JSON.stringify(notification) + "\n");
-    } else if (connection.config.transport === "http") {
-      fetch(connection.config.url, {
+    } else if (connection.transport === "http") {
+      fetch(connection.url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...connection.config.apiKey && {
-            Authorization: `Bearer ${connection.config.apiKey}`
+          ...connection.apiKey && {
+            Authorization: `Bearer ${connection.apiKey}`
           }
         },
         body: JSON.stringify(notification)
-      }).catch(console.error);
+      }).catch(() => {
+      });
     }
   }
-  handleMessage(serverName, message) {
+  handleStdioMessage(serverName, line) {
     const connection = this.connections.get(serverName);
     if (!connection) return;
-    if ("id" in message && message.id !== null) {
-      const pending = connection.pendingRequests.get(message.id);
-      if (pending) {
-        connection.pendingRequests.delete(message.id);
-        if (message.error) {
-          pending.reject(
-            new Error(message.error.message)
-          );
-        } else {
-          pending.resolve(message.result);
+    try {
+      const message = JSON.parse(line);
+      this.log(`\u2190 ${serverName}:`, message);
+      if ("id" in message && message.id !== null) {
+        const pending = connection.pendingRequests.get(message.id);
+        if (pending) {
+          clearTimeout(pending.timeout);
+          connection.pendingRequests.delete(message.id);
+          if (message.error) {
+            const error = new Error(message.error.message);
+            error.code = message.error.code;
+            error.data = message.error.data;
+            pending.reject(error);
+          } else {
+            pending.resolve(message.result);
+          }
         }
+      } else {
+        this.handleNotification(serverName, message);
       }
-    } else {
-      this.handleNotification(serverName, message);
+    } catch (error) {
+      this.log(`Failed to parse message from ${serverName}:`, error);
     }
   }
   handleNotification(serverName, notification) {
-    console.log(`[MCP] ${serverName} notification:`, notification.method);
+    this.emit("notification", {
+      server: serverName,
+      method: notification.method,
+      params: notification.params
+    });
     switch (notification.method) {
       case "notifications/tools/list_changed":
         this.refreshCapabilities(serverName);
+        this.emit("tools-changed", { server: serverName });
         break;
       case "notifications/resources/list_changed":
         this.refreshCapabilities(serverName);
+        this.emit("resources-changed", { server: serverName });
         break;
       case "notifications/prompts/list_changed":
         this.refreshCapabilities(serverName);
+        this.emit("prompts-changed", { server: serverName });
         break;
-      default:
-        this.notifyRenderer("mcp:notification", {
-          server: serverName,
-          method: notification.method,
-          params: notification.params
-        });
     }
   }
-  notifyRenderer(channel, data) {
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.webContents.send(channel, data);
+  handleDisconnect(serverName, code) {
+    const connection = this.connections.get(serverName);
+    if (!connection) return;
+    for (const [, pending] of connection.pendingRequests) {
+      clearTimeout(pending.timeout);
+      pending.reject(new Error(`Server disconnected with code ${code}`));
     }
-  }
-  // ============ PUBLIC API (exposed via IPC) ============
-  async callTool(serverName, toolName, args) {
-    console.log(`[MCP] Calling tool ${toolName} on ${serverName}`);
-    return this.sendRequest(serverName, "tools/call", {
-      name: toolName,
-      arguments: args
-    });
-  }
-  async readResource(serverName, uri) {
-    console.log(`[MCP] Reading resource ${uri} from ${serverName}`);
-    return this.sendRequest(serverName, "resources/read", { uri });
-  }
-  async getPrompt(serverName, promptName, args) {
-    console.log(`[MCP] Getting prompt ${promptName} from ${serverName}`);
-    return this.sendRequest(serverName, "prompts/get", {
-      name: promptName,
-      arguments: args
-    });
-  }
-  getServers() {
-    return Array.from(this.connections.entries()).map(([name, conn]) => ({
-      name,
-      transport: conn.config.transport,
-      initialized: conn.initialized,
-      tools: conn.tools,
-      resources: conn.resources,
-      prompts: conn.prompts
-    }));
+    this.connections.delete(serverName);
+    this.emit("disconnected", { server: serverName, code });
   }
 };
-var mcpClient = new MCPClient();
-var mainWindow = null;
-function createWindow() {
-  mainWindow = new import_electron4.BrowserWindow({
-    width: 1200,
-    height: 800,
-    webPreferences: {
-      preload: path4.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false
+function mcpToolsToOpenAI(tools) {
+  return tools.map((tool) => ({
+    type: "function",
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.inputSchema
     }
-  });
-  mcpClient.setMainWindow(mainWindow);
-  if (process.env.NODE_ENV === "development") {
-    mainWindow.loadURL("http://localhost:5173");
-    mainWindow.webContents.openDevTools();
-  } else {
-    mainWindow.loadFile(path4.join(__dirname, "../renderer/index.html"));
-  }
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-  });
+  }));
 }
-import_electron4.ipcMain.handle("mcp:connect", async (_event, config) => {
-  try {
-    if (config.transport === "stdio") {
-      await mcpClient.connectStdio(config);
-    } else {
-      await mcpClient.connectHttp(config);
+function mcpToolsToAnthropic(tools) {
+  return tools.map((tool) => ({
+    name: tool.name,
+    description: tool.description || "",
+    input_schema: tool.inputSchema
+  }));
+}
+function mcpResultToString(result) {
+  return result.content.map((content) => {
+    if (content.type === "text" && content.text) {
+      return content.text;
     }
+    if (content.type === "image" && content.data) {
+      return `[Image: ${content.mimeType || "unknown type"}]`;
+    }
+    if (content.type === "resource" && content.uri) {
+      return `[Resource: ${content.uri}]`;
+    }
+    return "";
+  }).filter(Boolean).join("\n");
+}
+
+// electron/integrations/mcp/recipes/agentLoop.ts
+async function runAgentLoop(mcp, provider, serverNames, userQuery, options = {}) {
+  const {
+    maxIterations = 10,
+    onBeforeToolCall,
+    onToolResult,
+    onIteration,
+    onText
+  } = options;
+  const toolMap = /* @__PURE__ */ new Map();
+  const allTools = [];
+  for (const serverName of serverNames) {
+    const tools = await mcp.listTools(serverName);
+    for (const tool of tools) {
+      if (toolMap.has(tool.name)) {
+        const prefixed = `${serverName}__${tool.name}`;
+        toolMap.set(prefixed, serverName);
+        allTools.push({ ...tool, name: prefixed });
+      } else {
+        toolMap.set(tool.name, serverName);
+        allTools.push(tool);
+      }
+    }
+  }
+  const systemPrompt = options.systemPrompt ?? buildDefaultSystemPrompt(allTools);
+  const messages = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userQuery }
+  ];
+  for (let iteration = 1; iteration <= maxIterations; iteration++) {
+    onIteration?.(iteration, messages);
+    const response = await provider.chat(messages, allTools);
+    const assistantMessage = {
+      role: "assistant",
+      content: response.content
+    };
+    if (response.toolCalls && response.toolCalls.length > 0) {
+      assistantMessage.tool_calls = response.toolCalls;
+    }
+    messages.push(assistantMessage);
+    if (response.content) {
+      onText?.(response.content);
+    }
+    if (!response.toolCalls || response.toolCalls.length === 0) {
+      return { content: response.content, messages, iterations: iteration };
+    }
+    for (const toolCall of response.toolCalls) {
+      const result = await executeToolCall(
+        mcp,
+        toolMap,
+        toolCall,
+        onBeforeToolCall,
+        onToolResult
+      );
+      messages.push({
+        role: "tool",
+        content: result,
+        tool_call_id: toolCall.id
+      });
+    }
+  }
+  const lastAssistant = messages.filter((m) => m.role === "assistant").pop();
+  return {
+    content: lastAssistant?.content || "[Agent reached maximum iterations without a final response]",
+    messages,
+    iterations: maxIterations
+  };
+}
+async function executeToolCall(mcp, toolMap, toolCall, onBeforeToolCall, onToolResult) {
+  const serverName = toolMap.get(toolCall.name);
+  if (!serverName) {
+    return `Error: Unknown tool "${toolCall.name}"`;
+  }
+  const actualToolName = toolCall.name.includes("__") ? toolCall.name.split("__").slice(1).join("__") : toolCall.name;
+  if (onBeforeToolCall) {
+    const approved = await onBeforeToolCall(
+      actualToolName,
+      toolCall.arguments,
+      serverName
+    );
+    if (!approved) {
+      return `Tool call "${actualToolName}" was blocked by user.`;
+    }
+  }
+  try {
+    const result = await mcp.callTool(serverName, actualToolName, toolCall.arguments);
+    const resultText = mcpResultToString(result);
+    onToolResult?.(actualToolName, resultText, serverName);
+    if (result.isError) {
+      return `Tool error: ${resultText}`;
+    }
+    return resultText;
+  } catch (error) {
+    const errorMsg = `Tool execution error: ${error.message}`;
+    return errorMsg;
+  }
+}
+function buildDefaultSystemPrompt(tools) {
+  const toolDescriptions = tools.map((t) => `- ${t.name}: ${t.description || "No description"}`).join("\n");
+  return `You are a helpful assistant with access to tools. Use them to help answer the user's questions.
+
+Available tools:
+${toolDescriptions}
+
+When you need information or need to perform an action, use the appropriate tool. You can call multiple tools in sequence. Once you have enough information, provide a clear, helpful answer.`;
+}
+
+// electron/integrations/mcp/providers/openai.ts
+var OpenAIProvider = class {
+  constructor(apiKey, defaultModel = "gpt-4-turbo-preview") {
+    if (!apiKey) {
+      throw new Error("OpenAI API key is required");
+    }
+    this.apiKey = apiKey;
+    this.defaultModel = defaultModel;
+  }
+  async chat(messages, tools, options) {
+    const openaiMessages = messages.map((m) => {
+      const msg = {
+        role: m.role,
+        content: m.content
+      };
+      if (m.tool_calls) {
+        msg.tool_calls = m.tool_calls.map((tc) => ({
+          id: tc.id,
+          type: "function",
+          function: {
+            name: tc.name,
+            arguments: JSON.stringify(tc.arguments)
+          }
+        }));
+      }
+      if (m.tool_call_id) {
+        msg.tool_call_id = m.tool_call_id;
+      }
+      return msg;
+    });
+    const body = {
+      model: options?.model ?? this.defaultModel,
+      messages: openaiMessages
+    };
+    if (tools.length > 0) {
+      body.tools = mcpToolsToOpenAI(tools);
+      body.tool_choice = "auto";
+    }
+    if (options?.maxTokens) {
+      body.max_tokens = options.maxTokens;
+    }
+    if (options?.temperature !== void 0) {
+      body.temperature = options.temperature;
+    }
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI API error (${response.status}): ${error}`);
+    }
+    const data = await response.json();
+    const choice = data.choices[0];
+    let toolCalls;
+    if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
+      toolCalls = choice.message.tool_calls.map((tc) => ({
+        id: tc.id,
+        name: tc.function.name,
+        arguments: JSON.parse(tc.function.arguments)
+      }));
+    }
+    return {
+      content: choice.message.content || "",
+      toolCalls
+    };
+  }
+};
+
+// electron/integrations/mcp/providers/anthropic.ts
+var AnthropicProvider = class {
+  constructor(apiKey, defaultModel = "claude-sonnet-4-20250514", apiVersion = "2023-06-01") {
+    if (!apiKey) {
+      throw new Error("Anthropic API key is required");
+    }
+    this.apiKey = apiKey;
+    this.defaultModel = defaultModel;
+    this.apiVersion = apiVersion;
+  }
+  async chat(messages, tools, options) {
+    const systemMessage = messages.find((m) => m.role === "system")?.content || "";
+    const anthropicMessages = messages.filter((m) => m.role !== "system").map((m) => this.convertMessage(m));
+    const body = {
+      model: options?.model ?? this.defaultModel,
+      max_tokens: options?.maxTokens ?? 4096,
+      messages: anthropicMessages
+    };
+    if (systemMessage) {
+      body.system = systemMessage;
+    }
+    if (tools.length > 0) {
+      body.tools = mcpToolsToAnthropic(tools);
+    }
+    if (options?.temperature !== void 0) {
+      body.temperature = options.temperature;
+    }
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": this.apiKey,
+        "anthropic-version": this.apiVersion
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Anthropic API error (${response.status}): ${error}`);
+    }
+    const data = await response.json();
+    const textContent = data.content.filter((c) => c.type === "text").map((c) => c.text || "").join("");
+    const toolUses = data.content.filter((c) => c.type === "tool_use");
+    let toolCalls;
+    if (toolUses.length > 0) {
+      toolCalls = toolUses.map((tu) => ({
+        id: tu.id,
+        name: tu.name,
+        arguments: tu.input || {}
+      }));
+    }
+    return {
+      content: textContent,
+      toolCalls
+    };
+  }
+  convertMessage(m) {
+    if (m.role === "tool") {
+      return {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: m.tool_call_id,
+            content: m.content
+          }
+        ]
+      };
+    }
+    if (m.role === "assistant" && m.tool_calls && m.tool_calls.length > 0) {
+      const content = [];
+      if (m.content) {
+        content.push({ type: "text", text: m.content });
+      }
+      for (const tc of m.tool_calls) {
+        content.push({
+          type: "tool_use",
+          id: tc.id,
+          name: tc.name,
+          input: tc.arguments
+        });
+      }
+      return { role: "assistant", content };
+    }
+    return {
+      role: m.role === "user" ? "user" : "assistant",
+      content: m.content
+    };
+  }
+};
+
+// electron/integrations/mcp/index.ts
+var mcpClient = new MCPClient({ debug: true });
+var mainWindow = null;
+function notifyRenderer(channel, data) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, data);
+  }
+}
+mcpClient.on("connected", ({ server }) => {
+  const servers = mcpClient.getServers();
+  const serverInfo = servers.find((s) => s.name === server);
+  notifyRenderer("mcp:server-connected", {
+    name: server,
+    tools: serverInfo?.tools ?? [],
+    resources: serverInfo?.resources ?? [],
+    prompts: serverInfo?.prompts ?? []
+  });
+});
+mcpClient.on("disconnected", ({ server, code }) => {
+  notifyRenderer("mcp:server-disconnected", { name: server, code });
+});
+mcpClient.on("error", ({ server, error }) => {
+  notifyRenderer("mcp:server-error", {
+    name: server,
+    error: error.message
+  });
+});
+mcpClient.on("notification", ({ server, method, params }) => {
+  notifyRenderer("mcp:notification", { server, method, params });
+});
+mcpClient.on("tools-changed", ({ server }) => {
+  const servers = mcpClient.getServers();
+  const serverInfo = servers.find((s) => s.name === server);
+  notifyRenderer("mcp:tools-changed", {
+    name: server,
+    tools: serverInfo?.tools ?? []
+  });
+});
+mcpClient.on("resources-changed", ({ server }) => {
+  const servers = mcpClient.getServers();
+  const serverInfo = servers.find((s) => s.name === server);
+  notifyRenderer("mcp:resources-changed", {
+    name: server,
+    resources: serverInfo?.resources ?? []
+  });
+});
+import_electron4.ipcMain.handle("mcp:connect", async (_event, config2) => {
+  try {
+    await mcpClient.connect(config2);
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
   }
 });
 import_electron4.ipcMain.handle("mcp:disconnect", async (_event, serverName) => {
-  await mcpClient.disconnect(serverName);
-  return { success: true };
+  try {
+    await mcpClient.disconnect(serverName);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 });
 import_electron4.ipcMain.handle("mcp:list-servers", () => {
   return mcpClient.getServers();
@@ -2845,6 +3361,14 @@ import_electron4.ipcMain.handle(
     }
   }
 );
+import_electron4.ipcMain.handle("mcp:list-tools", async (_event, serverName) => {
+  try {
+    const tools = await mcpClient.listTools(serverName);
+    return { success: true, tools };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
 import_electron4.ipcMain.handle(
   "mcp:read-resource",
   async (_event, serverName, uri) => {
@@ -2856,6 +3380,14 @@ import_electron4.ipcMain.handle(
     }
   }
 );
+import_electron4.ipcMain.handle("mcp:list-resources", async (_event, serverName) => {
+  try {
+    const resources = await mcpClient.listResources(serverName);
+    return { success: true, resources };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
 import_electron4.ipcMain.handle(
   "mcp:get-prompt",
   async (_event, serverName, promptName, args) => {
@@ -2867,6 +3399,74 @@ import_electron4.ipcMain.handle(
     }
   }
 );
+import_electron4.ipcMain.handle("mcp:list-prompts", async (_event, serverName) => {
+  try {
+    const prompts = await mcpClient.listPrompts(serverName);
+    return { success: true, prompts };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+import_electron4.ipcMain.handle("mcp:run-agent", async (_event, request) => {
+  try {
+    const provider = createProvider(request.provider, request.model);
+    const result = await runAgentLoop(
+      mcpClient,
+      provider,
+      request.serverNames,
+      request.query,
+      {
+        maxIterations: request.maxIterations,
+        systemPrompt: request.systemPrompt,
+        onToolResult: (toolName, resultText, serverName) => {
+          notifyRenderer("mcp:agent-tool-result", {
+            toolName,
+            result: resultText,
+            server: serverName
+          });
+        },
+        onText: (text) => {
+          notifyRenderer("mcp:agent-text", { text });
+        }
+      }
+    );
+    return { success: true, ...result };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+function createProvider(provider, model) {
+  if (provider === "openai") {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY environment variable not set");
+    return new OpenAIProvider(apiKey, model);
+  } else {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey)
+      throw new Error("ANTHROPIC_API_KEY environment variable not set");
+    return new AnthropicProvider(apiKey, model);
+  }
+}
+function createWindow() {
+  mainWindow = new import_electron4.BrowserWindow({
+    width: 1200,
+    height: 800,
+    webPreferences: {
+      preload: path4.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  if (process.env.NODE_ENV === "development") {
+    mainWindow.loadURL("http://localhost:5173");
+    mainWindow.webContents.openDevTools();
+  } else {
+    mainWindow.loadFile(path4.join(__dirname, "../renderer/index.html"));
+  }
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
+}
 import_electron4.app.whenReady().then(() => {
   createWindow();
   import_electron4.app.on("activate", () => {
@@ -2885,29 +3485,2005 @@ import_electron4.app.on("before-quit", () => {
   mcpClient.disconnectAll();
 });
 
+// electron/integrations/mosaicbot/src/main/index.ts
+var import_electron6 = require("electron");
+var import_node_path4 = __toESM(require("node:path"));
+
+// electron/integrations/mosaicbot/src/main/heartbeat/types.ts
+var WAKE_PRIORITY = {
+  retry: 0,
+  // automatic retry after failure
+  interval: 1,
+  // scheduled tick
+  default: 2,
+  // generic on-demand request
+  action: 3
+  // manual / exec-event / hook (highest)
+};
+
+// electron/integrations/mosaicbot/src/main/heartbeat/wake.ts
+var DEFAULT_COALESCE_MS = 250;
+var RETRY_COOLDOWN_MS = 1e3;
+var wakeHandler = null;
+var timer = null;
+var timerDueAt = 0;
+var timerIsRetry = false;
+var pendingRequests = [];
+function setHeartbeatWakeHandler(handler) {
+  wakeHandler = handler;
+  return () => {
+    if (wakeHandler === handler) {
+      wakeHandler = null;
+      clearTimer();
+    }
+  };
+}
+function requestHeartbeatNow(req = {}) {
+  const request = {
+    agentId: req.agentId,
+    reason: req.reason ?? "default",
+    priority: req.priority ?? WAKE_PRIORITY.default
+  };
+  const idx = pendingRequests.findIndex((r) => r.agentId === request.agentId);
+  if (idx >= 0) {
+    if (request.priority > pendingRequests[idx].priority) {
+      pendingRequests[idx] = request;
+    }
+  } else {
+    pendingRequests.push(request);
+  }
+  scheduleWake(DEFAULT_COALESCE_MS);
+}
+function scheduleWake(coalesceMs, isRetry = false) {
+  const dueAt = Date.now() + coalesceMs;
+  if (timer && timerIsRetry && !isRetry) return;
+  if (timer && timerDueAt <= dueAt) return;
+  clearTimer();
+  timerDueAt = dueAt;
+  timerIsRetry = isRetry;
+  timer = setTimeout(async () => {
+    timer = null;
+    timerIsRetry = false;
+    const reqs = pendingRequests.splice(0);
+    if (wakeHandler && reqs.length > 0) {
+      try {
+        await wakeHandler(reqs);
+      } catch {
+        scheduleWake(RETRY_COOLDOWN_MS, true);
+      }
+    }
+  }, coalesceMs);
+}
+function clearTimer() {
+  if (timer) {
+    clearTimeout(timer);
+    timer = null;
+  }
+}
+
+// electron/integrations/mosaicbot/src/main/heartbeat/runner.ts
+var TOKEN_RE = /(\*\*HEARTBEAT_OK\*\*|<b>HEARTBEAT_OK<\/b>|HEARTBEAT_OK)/g;
+function startHeartbeatRunner(opts) {
+  const states = /* @__PURE__ */ new Map();
+  let stopped = false;
+  for (const agentCfg of opts.agents) {
+    if (!agentCfg.heartbeat.enabled) continue;
+    const state = {
+      agentId: agentCfg.agentId,
+      cfg: agentCfg.heartbeat,
+      lastRunAt: 0,
+      nextDueAt: Date.now() + agentCfg.heartbeat.intervalMs,
+      timer: null
+    };
+    states.set(agentCfg.agentId, state);
+    scheduleAgent(state);
+  }
+  const removeWake = setHeartbeatWakeHandler(
+    async (requests) => {
+      if (stopped) return;
+      const ids = new Set(
+        requests.map((r) => r.agentId).filter(Boolean)
+      );
+      const targets = ids.size > 0 ? ids : new Set(states.keys());
+      for (const id of targets) {
+        const state = states.get(id);
+        if (state) await runHeartbeat(state);
+      }
+    }
+  );
+  function scheduleAgent(state) {
+    if (stopped || state.timer) return;
+    const delay = Math.max(0, state.nextDueAt - Date.now());
+    state.timer = setTimeout(async () => {
+      state.timer = null;
+      if (!stopped) {
+        await runHeartbeat(state);
+        state.lastRunAt = Date.now();
+        state.nextDueAt = state.lastRunAt + state.cfg.intervalMs;
+        scheduleAgent(state);
+      }
+    }, delay);
+  }
+  async function runHeartbeat(state) {
+    const { agentId, cfg } = state;
+    const startedAt = Date.now();
+    if (cfg.activeHours && !isWithinActiveHours(cfg.activeHours)) {
+      emit({
+        ts: startedAt,
+        agentId,
+        status: "skipped",
+        reason: "quiet-hours"
+      });
+      return;
+    }
+    const basePrompt = cfg.prompt ?? "Check HEARTBEAT.md for pending tasks. If nothing needs attention, reply HEARTBEAT_OK.";
+    const prompt = await buildPromptWithMemory(basePrompt, cfg, opts.memory);
+    let rawReply = null;
+    try {
+      rawReply = await opts.onReply({
+        agentId,
+        prompt,
+        now: new Date(startedAt)
+      });
+    } catch (err) {
+      emit({
+        ts: startedAt,
+        agentId,
+        status: "failed",
+        reason: String(err),
+        durationMs: Date.now() - startedAt
+      });
+      return;
+    }
+    const durationMs = Date.now() - startedAt;
+    if (!rawReply?.trim()) {
+      emit({ ts: startedAt, agentId, status: "ok-empty", durationMs });
+      return;
+    }
+    const alert = stripHeartbeatToken(rawReply, cfg.ackMaxChars ?? 300);
+    if (alert === null) {
+      emit({ ts: startedAt, agentId, status: "ok-token", durationMs });
+      return;
+    }
+    const channel = cfg.channel ?? "ipc";
+    const to = cfg.to ?? agentId;
+    try {
+      await opts.onDeliver(agentId, channel, to, alert);
+      emit({
+        ts: startedAt,
+        agentId,
+        status: "sent",
+        channel,
+        preview: alert.slice(0, 120),
+        durationMs
+      });
+    } catch (err) {
+      emit({
+        ts: startedAt,
+        agentId,
+        status: "failed",
+        reason: String(err),
+        durationMs
+      });
+    }
+  }
+  function emit(evt) {
+    opts.onEvent?.(evt);
+  }
+  return {
+    stop() {
+      stopped = true;
+      removeWake();
+      for (const s of states.values()) {
+        if (s.timer) clearTimeout(s.timer);
+      }
+      states.clear();
+    },
+    triggerNow(agentId) {
+      requestHeartbeatNow({ agentId, reason: "action", priority: 3 });
+    }
+  };
+}
+async function buildPromptWithMemory(base, cfg, memory) {
+  if (!memory || !cfg.memorySearch) return base;
+  const ms = cfg.memorySearch;
+  const query = ms.query ?? "pending tasks actions reminders";
+  const maxResults = ms.maxResults ?? 5;
+  const maxChars = ms.maxInjectedChars ?? 2e3;
+  let chunks;
+  try {
+    chunks = await memory.search(query, { maxResults });
+  } catch {
+    return base;
+  }
+  if (!chunks.length) return base;
+  const lines = [];
+  let chars = 0;
+  for (const c of chunks) {
+    const block = `### ${c.source} (score ${c.score.toFixed(2)})
+${c.snippet}`;
+    if (chars + block.length > maxChars) break;
+    lines.push(block);
+    chars += block.length + 1;
+  }
+  if (!lines.length) return base;
+  const memoryBlock = `## Recalled Memory
+
+${lines.join("\n\n")}`;
+  return `${memoryBlock}
+
+---
+
+${base}`;
+}
+function stripHeartbeatToken(raw, ackMaxChars) {
+  const stripped = raw.replace(TOKEN_RE, "").trim();
+  return !stripped || stripped.length <= ackMaxChars ? null : stripped;
+}
+function isWithinActiveHours(hours) {
+  const now = /* @__PURE__ */ new Date();
+  const toMin = (hhmm) => {
+    const [h, m] = hhmm.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const startMin = toMin(hours.start);
+  const endMin = toMin(hours.end);
+  const cur = now.getHours() * 60 + now.getMinutes();
+  return endMin > startMin ? cur >= startMin && cur < endMin : cur >= startMin || cur < endMin;
+}
+
+// electron/integrations/mosaicbot/src/main/channels/registry.ts
+var registrations = /* @__PURE__ */ new Map();
+var outboundCache = /* @__PURE__ */ new Map();
+function registerChannel(plugin) {
+  registrations.set(plugin.id, { plugin });
+  outboundCache.delete(plugin.id);
+}
+function loadChannelOutboundAdapter(id) {
+  const cached = outboundCache.get(id);
+  if (cached) return cached;
+  const adapter = registrations.get(id)?.plugin.outbound;
+  if (adapter) outboundCache.set(id, adapter);
+  return adapter;
+}
+
+// electron/integrations/mosaicbot/src/main/channels/deliver.ts
+async function deliverMessage(params) {
+  const adapter = loadChannelOutboundAdapter(params.channel);
+  if (!adapter)
+    throw new Error(`No outbound adapter for channel: "${params.channel}"`);
+  const chunks = chunkText(params.text, adapter.textChunkLimit ?? 4e3);
+  const results = [];
+  for (const chunk2 of chunks) {
+    const base = {
+      cfg: params.cfg,
+      to: params.to,
+      text: chunk2,
+      accountId: params.accountId,
+      threadId: params.threadId
+    };
+    const result = params.mediaUrl && adapter.sendMedia ? await adapter.sendMedia({ ...base, mediaUrl: params.mediaUrl }) : await adapter.sendText(base);
+    results.push(result);
+  }
+  return results;
+}
+function chunkText(text, limit) {
+  if (text.length <= limit) return [text];
+  const chunks = [];
+  let rest = text;
+  while (rest.length > 0) {
+    let cut = limit;
+    const para = rest.lastIndexOf("\n\n", limit);
+    if (para > limit / 2) cut = para;
+    chunks.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  return chunks;
+}
+
+// electron/integrations/mosaicbot/src/main/channels/adapters/ipc.ts
+var import_electron5 = require("electron");
+var ipcChannelPlugin = {
+  id: "ipc",
+  meta: { label: "In-App (IPC)", order: 0 },
+  capabilities: { chatTypes: ["direct"] },
+  config: {
+    listAccountIds: () => ["default"],
+    defaultAccountId: () => "default",
+    resolveAccount: (cfg, accountId = "default") => ({
+      accountId,
+      enabled: cfg.channels?.ipc?.enabled !== false,
+      configured: true
+    }),
+    isConfigured: (account) => account.enabled
+  },
+  outbound: {
+    deliveryMode: "direct",
+    textChunkLimit: 65536,
+    chunkerMode: "markdown",
+    sendText: async ({ to, text }) => {
+      const messageId = `ipc-${Date.now()}`;
+      for (const win of import_electron5.BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) {
+          win.webContents.send("agent:message", { to, text, channel: "ipc", messageId });
+        }
+      }
+      return { channel: "ipc", messageId };
+    }
+  }
+};
+
+// electron/integrations/mosaicbot/src/main/channels/adapters/http.ts
+var httpChannelPlugin = {
+  id: "http",
+  meta: { label: "HTTP Webhook", order: 10 },
+  capabilities: { chatTypes: ["direct"] },
+  config: {
+    listAccountIds: () => ["default"],
+    defaultAccountId: () => "default",
+    resolveAccount: (cfg, accountId = "default") => ({
+      accountId,
+      enabled: cfg.channels?.http?.enabled !== false,
+      configured: Boolean(cfg.channels?.http?.webhookUrl),
+      webhookUrl: cfg.channels?.http?.webhookUrl ?? ""
+    }),
+    isConfigured: (account) => account.enabled && Boolean(account.webhookUrl)
+  },
+  outbound: {
+    deliveryMode: "direct",
+    textChunkLimit: 4e3,
+    chunkerMode: "plain",
+    sendText: async ({ cfg, to, text }) => {
+      const webhookUrl = cfg.channels?.http?.webhookUrl;
+      if (!webhookUrl) throw new Error("http channel: webhookUrl not configured");
+      const res = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, text, ts: Date.now() })
+      });
+      if (!res.ok) throw new Error(`http channel: POST failed ${res.status}`);
+      const json = await res.json().catch(() => ({}));
+      return { channel: "http", messageId: json.messageId };
+    }
+  }
+};
+
+// electron/integrations/mosaicbot/src/main/skills/loader.ts
+var import_promises = __toESM(require("node:fs/promises"));
+var import_node_path = __toESM(require("node:path"));
+var MAX_SKILL_FILE_BYTES = 256e3;
+var MAX_PER_SOURCE = 200;
+var SKILL_FILENAME = "SKILL.md";
+async function loadSkillEntries(sources) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const src of sources) {
+    for (const entry of await loadFromDir(src.dir, src.source)) {
+      seen.set(entry.name.toLowerCase(), entry);
+    }
+  }
+  return [...seen.values()];
+}
+async function loadFromDir(dir, source) {
+  let subdirs;
+  try {
+    const ents = await import_promises.default.readdir(dir, { withFileTypes: true });
+    subdirs = ents.filter((e) => e.isDirectory()).map((e) => import_node_path.default.join(dir, e.name));
+  } catch {
+    return [];
+  }
+  const skills = [];
+  for (const subdir of subdirs.slice(0, MAX_PER_SOURCE)) {
+    const skillPath = import_node_path.default.join(subdir, SKILL_FILENAME);
+    try {
+      const stat = await import_promises.default.stat(skillPath);
+      if (stat.size > MAX_SKILL_FILE_BYTES) continue;
+      const content = await import_promises.default.readFile(skillPath, "utf-8");
+      const entry = parseSkillFile(skillPath, subdir, source, content);
+      if (entry) skills.push(entry);
+    } catch {
+    }
+  }
+  return skills;
+}
+function parseSkillFile(filePath, baseDir, source, content) {
+  const fm = extractFrontmatter(content);
+  if (!fm) return null;
+  const name = fm.name?.trim();
+  const description = fm.description?.trim();
+  if (!name || !description) return null;
+  let metadata = {};
+  try {
+    if (fm.metadata) {
+      const parsed = JSON.parse(fm.metadata);
+      metadata = parsed?.OpenMosaic ?? {};
+    }
+  } catch {
+  }
+  const policy = {
+    userInvocable: fm["user-invocable"] !== "false",
+    disableModelInvocation: fm["disable-model-invocation"] === "true"
+  };
+  let dispatch;
+  const dispatchKind = fm["command-dispatch"] ?? fm["command_dispatch"];
+  if (dispatchKind === "tool") {
+    const toolName = fm["command-tool"] ?? fm["command_tool"];
+    if (toolName) {
+      dispatch = {
+        kind: "tool",
+        toolName,
+        argMode: fm["command-arg-mode"] === "raw" ? "raw" : void 0
+      };
+    }
+  }
+  return {
+    name,
+    description,
+    filePath,
+    source,
+    baseDir,
+    content,
+    metadata,
+    policy,
+    dispatch
+  };
+}
+function extractFrontmatter(content) {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!match) return null;
+  const out = {};
+  for (const line of match[1].split(/\r?\n/)) {
+    const idx = line.indexOf(":");
+    if (idx < 1) continue;
+    const key = line.slice(0, idx).trim();
+    const val = line.slice(idx + 1).trim().replace(/^["']|["']$/g, "");
+    if (key) out[key] = val;
+  }
+  return out;
+}
+function defaultSkillSources(appDir, workspaceDir) {
+  return [
+    // Bundled with the app binary (lowest precedence)
+    { dir: import_node_path.default.join(__dirname, "../../bundled-skills"), source: "bundled" },
+    // User-managed skills
+    { dir: import_node_path.default.join(appDir, "skills"), source: "managed" },
+    // Workspace-local skills (highest precedence)
+    { dir: import_node_path.default.join(workspaceDir, "skills"), source: "workspace" }
+  ];
+}
+
+// electron/integrations/mosaicbot/src/main/skills/registry.ts
+var import_node_child_process = require("node:child_process");
+var import_node_util = require("node:util");
+var import_node_os = __toESM(require("node:os"));
+var execFileAsync = (0, import_node_util.promisify)(import_node_child_process.execFile);
+var MAX_SKILLS_IN_PROMPT = 150;
+var MAX_SKILLS_PROMPT_CHARS = 3e4;
+async function buildEligibilityContext(binsToProbe = ["git", "gh", "node", "python3", "docker", "curl"]) {
+  const availableBins = /* @__PURE__ */ new Set();
+  await Promise.all(
+    binsToProbe.map(async (bin) => {
+      try {
+        await execFileAsync(process.platform === "win32" ? "where" : "which", [
+          bin
+        ]);
+        availableBins.add(bin);
+      } catch {
+      }
+    })
+  );
+  return {
+    platform: import_node_os.default.platform(),
+    availableBins,
+    availableEnv: new Set(Object.keys(process.env))
+  };
+}
+function isSkillEligible(skill, ctx) {
+  const { metadata } = skill;
+  if (metadata.always) return true;
+  if (metadata.os?.length && !metadata.os.includes(ctx.platform)) return false;
+  if (metadata.requires?.bins) {
+    for (const bin of metadata.requires.bins) {
+      if (!ctx.availableBins.has(bin)) return false;
+    }
+  }
+  if (metadata.requires?.anyBins?.length) {
+    if (!metadata.requires.anyBins.some((b) => ctx.availableBins.has(b)))
+      return false;
+  }
+  if (metadata.requires?.env) {
+    for (const v of metadata.requires.env) {
+      if (!ctx.availableEnv.has(v)) return false;
+    }
+  }
+  return true;
+}
+function sanitizeCommandName(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "").slice(0, 32) || "skill";
+}
+function buildSkillCommandSpecs(skills, reservedNames = /* @__PURE__ */ new Set()) {
+  const usedNames = new Set(reservedNames);
+  const specs = [];
+  for (const skill of skills) {
+    if (!skill.policy.userInvocable) continue;
+    let name = sanitizeCommandName(skill.name);
+    if (usedNames.has(name)) {
+      let n = 2;
+      while (usedNames.has(`${name}_${n}`)) n++;
+      name = `${name}_${n}`;
+    }
+    usedNames.add(name);
+    specs.push({
+      name,
+      skillName: skill.name,
+      description: skill.description,
+      dispatch: skill.dispatch
+    });
+  }
+  return specs;
+}
+function buildSkillSnapshot(skills, ctx, filter) {
+  let eligible = skills.filter(
+    (s) => !s.policy.disableModelInvocation && isSkillEligible(s, ctx)
+  );
+  if (filter?.length) {
+    const set = new Set(filter.map((n) => n.toLowerCase()));
+    eligible = eligible.filter((s) => set.has(s.name.toLowerCase()));
+  }
+  eligible = eligible.slice(0, MAX_SKILLS_IN_PROMPT);
+  const lines = [];
+  let chars = 0;
+  let truncated = 0;
+  for (const s of eligible) {
+    const line = `- **${s.name}**: ${s.description}`;
+    if (chars + line.length > MAX_SKILLS_PROMPT_CHARS) {
+      truncated++;
+      continue;
+    }
+    lines.push(line);
+    chars += line.length + 1;
+  }
+  let prompt = `## Available Skills
+
+${lines.join("\n")}`;
+  if (truncated > 0)
+    prompt += `
+
+_(${truncated} skills omitted \u2014 context budget reached)_`;
+  return {
+    prompt,
+    skills: eligible,
+    commandSpecs: buildSkillCommandSpecs(eligible)
+  };
+}
+function resolveSkillCommand(input, specs) {
+  const text = input.trim();
+  for (const spec of specs) {
+    const p1 = `/${spec.name}`;
+    if (text === p1 || text.startsWith(`${p1} `)) {
+      return { spec, args: text.slice(p1.length).trim() || void 0 };
+    }
+    const p2 = `/skill ${spec.skillName}`;
+    if (text === p2 || text.startsWith(`${p2} `)) {
+      return { spec, args: text.slice(p2.length).trim() || void 0 };
+    }
+  }
+  return null;
+}
+
+// electron/integrations/mosaicbot/src/main/memory/sqlite-backend.ts
+var import_node_path2 = __toESM(require("node:path"));
+var import_promises2 = __toESM(require("node:fs/promises"));
+var import_better_sqlite3 = __toESM(require("better-sqlite3"));
+var import_chokidar = __toESM(require("chokidar"));
+
+// electron/integrations/mosaicbot/src/main/memory/schema.ts
+var SCHEMA_VERSION = 3;
+var CREATE_TABLES_SQL = `
+  CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
+  -- Tracks indexed files with hash-based change detection
+  CREATE TABLE IF NOT EXISTS files (
+    path   TEXT PRIMARY KEY,
+    source TEXT NOT NULL DEFAULT 'memory',
+    hash   TEXT NOT NULL,
+    mtime  INTEGER NOT NULL,
+    size   INTEGER NOT NULL
+  );
+
+  -- Chunked content with optional embeddings (JSON float array, [] when none)
+  CREATE TABLE IF NOT EXISTS chunks (
+    id         TEXT PRIMARY KEY,
+    path       TEXT NOT NULL,
+    source     TEXT NOT NULL DEFAULT 'memory',
+    start_line INTEGER NOT NULL,
+    end_line   INTEGER NOT NULL,
+    hash       TEXT NOT NULL,
+    model      TEXT NOT NULL,
+    text       TEXT NOT NULL,
+    embedding  TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  -- Embedding cache: avoids re-embedding unchanged content
+  CREATE TABLE IF NOT EXISTS embedding_cache (
+    provider     TEXT NOT NULL,
+    model        TEXT NOT NULL,
+    provider_key TEXT NOT NULL,
+    hash         TEXT NOT NULL,
+    embedding    TEXT NOT NULL,
+    dims         INTEGER,
+    updated_at   INTEGER NOT NULL,
+    PRIMARY KEY (provider, model, provider_key, hash)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_chunks_path   ON chunks(path);
+  CREATE INDEX IF NOT EXISTS idx_chunks_source ON chunks(source);
+  CREATE INDEX IF NOT EXISTS idx_emb_cache_at  ON embedding_cache(updated_at);
+`;
+var CREATE_FTS_SQL = `
+  CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+    text,
+    id         UNINDEXED,
+    path       UNINDEXED,
+    source     UNINDEXED,
+    model      UNINDEXED,
+    start_line UNINDEXED,
+    end_line   UNINDEXED
+  );
+`;
+function createVecTableSQL(dimensions) {
+  return `
+    CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(
+      id        TEXT PRIMARY KEY,
+      embedding FLOAT[${dimensions}]
+    );
+  `;
+}
+var SET_SCHEMA_VERSION_SQL = `
+  INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', '${SCHEMA_VERSION}');
+`;
+
+// electron/integrations/mosaicbot/src/main/memory/chunker.ts
+var import_node_crypto = __toESM(require("node:crypto"));
+var DEFAULTS = { tokens: 400, overlap: 80 };
+function chunkText2(content, filePath, source, cfg = {}) {
+  const { tokens, overlap } = { ...DEFAULTS, ...cfg };
+  const maxBytes = Math.max(32, tokens * 4);
+  const overlapBytes = Math.max(0, overlap * 4);
+  const rawLines = content.split("\n");
+  const lines = [];
+  for (const line of rawLines) {
+    if (Buffer.byteLength(line, "utf8") <= maxBytes) {
+      lines.push(line);
+    } else {
+      lines.push(...splitToByteLimit(line, maxBytes));
+    }
+  }
+  const chunks = [];
+  let current = [];
+  let currentBytes = 0;
+  let startLine = 1;
+  const flush = (endLine) => {
+    const text = current.join("\n").trim();
+    if (!text) return;
+    const textHash = sha256(text);
+    const id = sha256(`${filePath}:${startLine}:${endLine}:${textHash}`);
+    chunks.push({
+      id,
+      path: filePath,
+      source,
+      startLine,
+      endLine,
+      hash: textHash,
+      text
+    });
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineBytes = Buffer.byteLength(line, "utf8") + 1;
+    if (currentBytes + lineBytes > maxBytes && current.length > 0) {
+      flush(startLine + current.length - 1);
+      let overlapLines = [];
+      let overlapAcc = 0;
+      for (let j = current.length - 1; j >= 0; j--) {
+        const lb = Buffer.byteLength(current[j], "utf8") + 1;
+        if (overlapAcc + lb > overlapBytes) break;
+        overlapLines.unshift(current[j]);
+        overlapAcc += lb;
+      }
+      startLine = startLine + current.length - overlapLines.length;
+      current = overlapLines;
+      currentBytes = overlapAcc;
+    }
+    current.push(line);
+    currentBytes += lineBytes;
+  }
+  if (current.length > 0) {
+    flush(startLine + current.length - 1);
+  }
+  return chunks;
+}
+function splitToByteLimit(text, maxBytes) {
+  const segments = [];
+  let rest = text;
+  while (Buffer.byteLength(rest, "utf8") > maxBytes) {
+    let lo = 0;
+    let hi = rest.length;
+    while (lo < hi - 1) {
+      const mid = lo + hi >> 1;
+      Buffer.byteLength(rest.slice(0, mid), "utf8") <= maxBytes ? lo = mid : hi = mid;
+    }
+    segments.push(rest.slice(0, lo));
+    rest = rest.slice(lo);
+  }
+  if (rest) segments.push(rest);
+  return segments;
+}
+function sha256(text) {
+  return import_node_crypto.default.createHash("sha256").update(text).digest("hex");
+}
+
+// electron/integrations/mosaicbot/src/main/memory/scoring.ts
+function bm25RankToScore(rank) {
+  const normalized = Number.isFinite(rank) ? Math.max(0, -rank) : 0;
+  return 1 / (1 + normalized);
+}
+function buildFtsQuery(raw) {
+  const tokens = raw.match(/[\p{L}\p{N}_]+/gu)?.map((t) => t.trim()).filter(Boolean) ?? [];
+  if (tokens.length === 0) return null;
+  return tokens.map((t) => `"${t.replaceAll('"', "")}"`).join(" AND ");
+}
+function mergeResults(vector, keyword, weights) {
+  const byId = /* @__PURE__ */ new Map();
+  for (const r of vector) {
+    byId.set(r.id, {
+      ...r,
+      vectorScore: r.score,
+      textScore: 0,
+      finalScore: weights.vector * r.score
+    });
+  }
+  for (const r of keyword) {
+    const ts = bm25RankToScore(r.rank);
+    const existing = byId.get(r.id);
+    if (existing) {
+      existing.textScore = ts;
+      existing.finalScore = weights.vector * existing.vectorScore + weights.text * ts;
+    } else {
+      byId.set(r.id, {
+        ...r,
+        score: 0,
+        vectorScore: 0,
+        textScore: ts,
+        finalScore: weights.text * ts
+      });
+    }
+  }
+  return [...byId.values()].sort((a, b) => b.finalScore - a.finalScore);
+}
+function applyTemporalDecay(chunks, halfLifeDays, nowMs = Date.now()) {
+  const lambda = Math.LN2 / halfLifeDays;
+  return chunks.map((c) => {
+    const date = extractDateFromPath(c.path);
+    if (!date) return c;
+    const ageInDays = (nowMs - date.getTime()) / 864e5;
+    const multiplier = Math.exp(-lambda * Math.max(0, ageInDays));
+    return { ...c, finalScore: c.finalScore * multiplier };
+  }).sort((a, b) => b.finalScore - a.finalScore);
+}
+function extractDateFromPath(filePath) {
+  const m = filePath.match(/(\d{4}-\d{2}-\d{2})\.md$/);
+  if (!m) return null;
+  const d = /* @__PURE__ */ new Date(`${m[1]}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+function applyMMR(chunks, lambda, maxResults) {
+  if (chunks.length <= 1) return chunks.slice(0, maxResults);
+  const scores = chunks.map((c) => c.finalScore);
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  const range = max - min || 1;
+  const normed = chunks.map((c, i) => ({
+    chunk: c,
+    norm: (scores[i] - min) / range
+  }));
+  const tokenSets = chunks.map((c) => tokenize(c.text));
+  const selected = [];
+  const remaining = new Set(normed.map((_, i) => i));
+  while (selected.length < maxResults && remaining.size > 0) {
+    let bestIdx = -1;
+    let bestScore = -Infinity;
+    for (const i of remaining) {
+      const relevance = normed[i].norm;
+      const maxSim = selected.length === 0 ? 0 : Math.max(
+        ...selected.map((s) => jaccard(tokenSets[i], tokenSets[s]))
+      );
+      const mmrScore = lambda * relevance - (1 - lambda) * maxSim;
+      if (mmrScore > bestScore || mmrScore === bestScore && chunks[i].finalScore > chunks[bestIdx]?.finalScore) {
+        bestScore = mmrScore;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx < 0) break;
+    selected.push(bestIdx);
+    remaining.delete(bestIdx);
+  }
+  return selected.map((i) => chunks[i]);
+}
+function tokenize(text) {
+  return new Set(text.toLowerCase().match(/[a-z0-9_]+/g) ?? []);
+}
+function jaccard(a, b) {
+  if (a.size === 0 && b.size === 0) return 1;
+  if (a.size === 0 || b.size === 0) return 0;
+  let intersection = 0;
+  for (const t of a) if (b.has(t)) intersection++;
+  return intersection / (a.size + b.size - intersection);
+}
+
+// electron/integrations/mosaicbot/src/main/memory/embedding.ts
+async function createEmbeddingProvider(cfg) {
+  if (!cfg || cfg.provider === "none") return NULL_PROVIDER;
+  if (cfg.provider === "openai") {
+    const model = cfg.model ?? "text-embedding-3-small";
+    const dims = cfg.dimensions ?? 1536;
+    const baseUrl = (cfg.baseUrl ?? "https://api.openai.com/v1").replace(
+      /\/$/,
+      ""
+    );
+    return {
+      id: "openai",
+      model,
+      dimensions: dims,
+      embed: async (texts) => embedOpenAI(baseUrl, cfg.apiKey, model, dims, texts)
+    };
+  }
+  if (cfg.provider === "ollama") {
+    const model = cfg.model ?? "nomic-embed-text";
+    const baseUrl = (cfg.baseUrl ?? "http://localhost:11434").replace(
+      /\/$/,
+      ""
+    );
+    let dims = cfg.dimensions ?? 0;
+    if (!dims) {
+      const probe = await embedOllama(baseUrl, model, [" "]);
+      dims = probe[0]?.length ?? 0;
+    }
+    return {
+      id: "ollama",
+      model,
+      dimensions: dims,
+      embed: (texts) => embedOllama(baseUrl, model, texts)
+    };
+  }
+  return NULL_PROVIDER;
+}
+async function embedOpenAI(baseUrl, apiKey, model, dimensions, texts) {
+  const res = await fetch(`${baseUrl}/embeddings`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({ input: texts, model, dimensions })
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`OpenAI embeddings ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const json = await res.json();
+  return json.data.map((d) => d.embedding);
+}
+async function embedOllama(baseUrl, model, texts) {
+  const results = [];
+  for (const text of texts) {
+    const res = await fetch(`${baseUrl}/api/embeddings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, prompt: text })
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Ollama embeddings ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const json = await res.json();
+    results.push(json.embedding);
+  }
+  return results;
+}
+var NULL_PROVIDER = {
+  id: "none",
+  model: "none",
+  dimensions: 0,
+  embed: async () => []
+};
+
+// electron/integrations/mosaicbot/src/main/memory/sqlite-backend.ts
+var SNIPPET_MAX_CHARS = 700;
+var EMBED_BATCH_MAX_BYTES = 8e3 * 4;
+var RETRY_ATTEMPTS = 3;
+var RETRY_BASE_MS = 500;
+var SqliteMemoryManager = class _SqliteMemoryManager {
+  constructor(db, cfg, provider) {
+    this.vecAvailable = false;
+    this.ftsAvailable = false;
+    this.dirty = true;
+    this.closed = false;
+    this.watcher = null;
+    this.watchTimer = null;
+    this.syncPromise = null;
+    this.db = db;
+    this.cfg = cfg;
+    this.provider = provider;
+  }
+  // ── Factory ─────────────────────────────────────────────────────────────────
+  static async create(cfg) {
+    await import_promises2.default.mkdir(import_node_path2.default.dirname(cfg.dbPath), { recursive: true });
+    const db = new import_better_sqlite3.default(cfg.dbPath);
+    db.pragma("journal_mode = WAL");
+    db.pragma("synchronous = NORMAL");
+    let vecLoaded = false;
+    try {
+      const sqliteVec = require("sqlite-vec");
+      sqliteVec.load(db);
+      vecLoaded = true;
+    } catch {
+    }
+    db.exec(CREATE_TABLES_SQL);
+    let ftsAvailable = false;
+    try {
+      db.exec(CREATE_FTS_SQL);
+      ftsAvailable = true;
+    } catch {
+    }
+    const provider = await createEmbeddingProvider(cfg.embedding);
+    let vecAvailable = false;
+    if (vecLoaded && provider.dimensions > 0) {
+      try {
+        db.exec(createVecTableSQL(provider.dimensions));
+        vecAvailable = true;
+      } catch {
+      }
+    }
+    db.exec(SET_SCHEMA_VERSION_SQL);
+    const resolved = resolveConfig(cfg);
+    const mgr = new _SqliteMemoryManager(db, resolved, provider);
+    mgr.vecAvailable = vecAvailable;
+    mgr.ftsAvailable = ftsAvailable;
+    mgr.startWatcher();
+    return mgr;
+  }
+  // ── Search ─────────────────────────────────────────────────────────────────
+  async search(query, opts = {}) {
+    if (this.dirty) await this.sync({ reason: "search" });
+    const maxResults = opts.maxResults ?? this.cfg.search.maxResults;
+    const minScore = opts.minScore ?? this.cfg.search.minScore;
+    const { vectorWeight, textWeight } = this.cfg.search;
+    const [vectorRows, keywordRows] = await Promise.all([
+      this.vectorSearch(query, maxResults * 2),
+      this.keywordSearch(query, maxResults * 2)
+    ]);
+    let merged = mergeResults(vectorRows, keywordRows, {
+      vector: vectorWeight,
+      text: textWeight
+    });
+    if (this.cfg.search.temporalDecay.enabled) {
+      merged = applyTemporalDecay(
+        merged,
+        this.cfg.search.temporalDecay.halfLifeDays
+      );
+    }
+    if (this.cfg.search.mmr.enabled) {
+      merged = applyMMR(merged, this.cfg.search.mmr.lambda, maxResults);
+    } else {
+      merged = merged.slice(0, maxResults);
+    }
+    return merged.filter((r) => r.finalScore >= minScore).map((r) => ({
+      path: r.path,
+      startLine: r.startLine,
+      endLine: r.endLine,
+      score: r.finalScore,
+      snippet: r.text.slice(0, SNIPPET_MAX_CHARS),
+      source: r.source
+    }));
+  }
+  // Vector search using sqlite-vec (cosine distance), with JS fallback
+  async vectorSearch(query, limit) {
+    if (!this.vecAvailable || this.provider.dimensions === 0) return [];
+    let queryVecs;
+    try {
+      queryVecs = await this.embedWithRetry([query]);
+    } catch {
+      return [];
+    }
+    const queryVec = queryVecs[0];
+    if (!queryVec?.length) return [];
+    try {
+      const rows = this.db.prepare(
+        `
+        SELECT c.id, c.path, c.source, c.start_line, c.end_line, c.text,
+               vec_distance_cosine(v.embedding, ?) AS dist
+          FROM chunks_vec v
+          JOIN chunks c ON c.id = v.id
+         WHERE c.model = ?
+         ORDER BY dist ASC
+         LIMIT ?
+      `
+      ).all(JSON.stringify(queryVec), this.provider.model, limit);
+      return rows.map((r) => ({
+        id: r.id,
+        path: r.path,
+        source: r.source,
+        startLine: r.start_line,
+        endLine: r.end_line,
+        text: r.text,
+        score: Math.max(0, 1 - r.dist)
+      }));
+    } catch {
+      return this.vectorSearchFallback(queryVec, limit);
+    }
+  }
+  // In-memory cosine similarity fallback (slower but always works)
+  vectorSearchFallback(queryVec, limit) {
+    const rows = this.db.prepare(
+      "SELECT id, path, source, start_line, end_line, text, embedding FROM chunks WHERE model = ?"
+    ).all(this.provider.model);
+    return rows.map((r) => {
+      let emb;
+      try {
+        emb = JSON.parse(r.embedding);
+      } catch {
+        return null;
+      }
+      const score = cosineSimilarity(queryVec, emb);
+      return {
+        id: r.id,
+        path: r.path,
+        source: r.source,
+        startLine: r.start_line,
+        endLine: r.end_line,
+        text: r.text,
+        score
+      };
+    }).filter((r) => r !== null).sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+  // BM25 full-text search via FTS5
+  keywordSearch(query, limit) {
+    if (!this.ftsAvailable) return [];
+    const ftsQuery = buildFtsQuery(query);
+    if (!ftsQuery) return [];
+    try {
+      const rows = this.db.prepare(
+        `
+        SELECT id, path, source, start_line, end_line, text, bm25(chunks_fts) AS rank
+          FROM chunks_fts
+         WHERE chunks_fts MATCH ?
+         ORDER BY rank ASC
+         LIMIT ?
+      `
+      ).all(ftsQuery, limit);
+      return rows.map((r) => ({
+        id: r.id,
+        path: r.path,
+        source: r.source,
+        startLine: r.start_line,
+        endLine: r.end_line,
+        text: r.text,
+        score: 0,
+        rank: r.rank
+      }));
+    } catch {
+      return [];
+    }
+  }
+  // ── Sync ───────────────────────────────────────────────────────────────────
+  async sync(params = {}) {
+    if (!this.dirty && !params.force) return;
+    if (this.syncPromise) return this.syncPromise;
+    this.syncPromise = this.doSync(params).finally(() => {
+      this.syncPromise = null;
+    });
+    return this.syncPromise;
+  }
+  async doSync(params) {
+    this.dirty = false;
+    const files = await this.listMemoryFiles();
+    const activePaths = new Set(files.map((f) => f.relPath));
+    let completed = 0;
+    const batches = chunk(files, 4);
+    for (const batch of batches) {
+      await Promise.all(
+        batch.map(async (f) => {
+          await this.indexFileIfChanged(f.absPath, f.relPath, "memory");
+          params.progress?.({
+            completed: ++completed,
+            total: files.length,
+            label: f.relPath
+          });
+        })
+      );
+    }
+    this.deleteStale(activePaths, "memory");
+  }
+  async indexFileIfChanged(absPath, relPath, source) {
+    let stat;
+    try {
+      stat = await import_promises2.default.stat(absPath);
+    } catch {
+      return;
+    }
+    const content = await import_promises2.default.readFile(absPath, "utf-8");
+    const hash = sha256(content);
+    const existing = this.db.prepare("SELECT hash FROM files WHERE path = ? AND source = ?").get(relPath, source);
+    if (existing?.hash === hash) return;
+    const chunks = chunkText2(content, relPath, source, this.cfg.chunking);
+    await this.upsertChunks(chunks);
+    this.db.prepare(
+      "INSERT OR REPLACE INTO files (path, source, hash, mtime, size) VALUES (?, ?, ?, ?, ?)"
+    ).run(relPath, source, hash, stat.mtimeMs, stat.size);
+  }
+  async upsertChunks(chunks) {
+    if (chunks.length === 0) return;
+    const embeddings = this.provider.dimensions > 0 ? await this.batchEmbed(chunks.map((c) => c.text)) : chunks.map(() => []);
+    const now = Date.now();
+    const model = this.provider.model;
+    this.db.transaction(() => {
+      for (let i = 0; i < chunks.length; i++) {
+        const c = chunks[i];
+        const embJson = JSON.stringify(embeddings[i] ?? []);
+        this.db.prepare(
+          `
+          INSERT OR REPLACE INTO chunks
+            (id, path, source, start_line, end_line, hash, model, text, embedding, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+        ).run(
+          c.id,
+          c.path,
+          c.source,
+          c.startLine,
+          c.endLine,
+          c.hash,
+          model,
+          c.text,
+          embJson,
+          now
+        );
+        if (this.vecAvailable && embeddings[i]?.length) {
+          try {
+            this.db.prepare(
+              "INSERT OR REPLACE INTO chunks_vec (id, embedding) VALUES (?, ?)"
+            ).run(c.id, embJson);
+          } catch {
+          }
+        }
+        if (this.ftsAvailable) {
+          try {
+            this.db.prepare(
+              `
+              INSERT OR REPLACE INTO chunks_fts
+                (text, id, path, source, model, start_line, end_line)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `
+            ).run(
+              c.text,
+              c.id,
+              c.path,
+              c.source,
+              model,
+              c.startLine,
+              c.endLine
+            );
+          } catch {
+          }
+        }
+      }
+    })();
+  }
+  // Remove chunks whose source files have been deleted
+  deleteStale(activePaths, source) {
+    const indexed = this.db.prepare("SELECT DISTINCT path FROM files WHERE source = ?").all(source).map((r) => r.path);
+    for (const p of indexed) {
+      if (activePaths.has(p)) continue;
+      const ids = this.db.prepare("SELECT id FROM chunks WHERE path = ? AND source = ?").all(p, source).map((r) => r.id);
+      this.db.transaction(() => {
+        for (const id of ids) {
+          if (this.vecAvailable) {
+            try {
+              this.db.prepare("DELETE FROM chunks_vec WHERE id = ?").run(id);
+            } catch {
+            }
+          }
+          if (this.ftsAvailable) {
+            try {
+              this.db.prepare("DELETE FROM chunks_fts WHERE id = ?").run(id);
+            } catch {
+            }
+          }
+        }
+        this.db.prepare("DELETE FROM chunks WHERE path = ? AND source = ?").run(p, source);
+        this.db.prepare("DELETE FROM files WHERE path = ? AND source = ?").run(p, source);
+      })();
+    }
+  }
+  // ── File discovery ─────────────────────────────────────────────────────────
+  async listMemoryFiles() {
+    const results = [];
+    const seen = /* @__PURE__ */ new Set();
+    const ws = this.cfg.workspaceDir;
+    const add = (abs, rel) => {
+      if (!seen.has(abs)) {
+        seen.add(abs);
+        results.push({ absPath: abs, relPath: rel });
+      }
+    };
+    for (const name of ["MEMORY.md", "memory.md"]) {
+      const abs = import_node_path2.default.join(ws, name);
+      try {
+        await import_promises2.default.access(abs);
+        add(abs, name);
+      } catch {
+      }
+    }
+    await walkMd(import_node_path2.default.join(ws, "memory"), "memory", add);
+    for (const extra of this.cfg.extraPaths) {
+      const absExtra = import_node_path2.default.isAbsolute(extra) ? extra : import_node_path2.default.join(ws, extra);
+      await walkMd(absExtra, import_node_path2.default.relative(ws, absExtra), add);
+    }
+    return results;
+  }
+  // ── File watching ──────────────────────────────────────────────────────────
+  startWatcher() {
+    const ws = this.cfg.workspaceDir;
+    const patterns = [
+      import_node_path2.default.join(ws, "MEMORY.md"),
+      import_node_path2.default.join(ws, "memory.md"),
+      import_node_path2.default.join(ws, "memory", "**", "*.md"),
+      ...this.cfg.extraPaths.map(
+        (p) => import_node_path2.default.isAbsolute(p) ? import_node_path2.default.join(p, "**", "*.md") : import_node_path2.default.join(ws, p, "**", "*.md")
+      )
+    ];
+    this.watcher = import_chokidar.default.watch(patterns, {
+      ignoreInitial: true,
+      ignored: /(node_modules|\.git)/
+    });
+    const markDirty = () => {
+      if (this.watchTimer) clearTimeout(this.watchTimer);
+      this.watchTimer = setTimeout(() => {
+        this.dirty = true;
+      }, this.cfg.sync.watchDebounceMs);
+    };
+    this.watcher.on("add", markDirty).on("change", markDirty).on("unlink", markDirty);
+  }
+  // ── Embedding with batching and retry ──────────────────────────────────────
+  async batchEmbed(texts) {
+    const batches = [];
+    let current = [];
+    let acc = 0;
+    for (const t of texts) {
+      const bytes = Buffer.byteLength(t, "utf8");
+      if (acc + bytes > EMBED_BATCH_MAX_BYTES && current.length > 0) {
+        batches.push(current);
+        current = [];
+        acc = 0;
+      }
+      current.push(t);
+      acc += bytes;
+    }
+    if (current.length > 0) batches.push(current);
+    const results = [];
+    for (const batch of batches) {
+      const embs = await this.embedWithRetry(batch);
+      results.push(...embs);
+    }
+    return results;
+  }
+  // Exponential backoff retry for transient API failures
+  async embedWithRetry(texts) {
+    let delay = RETRY_BASE_MS;
+    for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
+      try {
+        return await this.provider.embed(texts);
+      } catch (err) {
+        if (attempt === RETRY_ATTEMPTS - 1) throw err;
+        await sleep(delay * (1 + Math.random() * 0.2));
+        delay = Math.min(delay * 2, 8e3);
+      }
+    }
+    throw new Error("unreachable");
+  }
+  // ── readFile ───────────────────────────────────────────────────────────────
+  async readFile(params) {
+    const rel = normalizePath(params.relPath);
+    if (!isMemoryPath(rel))
+      throw new Error(`Not a valid memory path: "${rel}"`);
+    const abs = import_node_path2.default.join(this.cfg.workspaceDir, rel);
+    const content = await import_promises2.default.readFile(abs, "utf-8");
+    if (params.from === void 0) return { text: content, path: rel };
+    const lines = content.split("\n");
+    const start = Math.max(0, params.from - 1);
+    const end = params.lines ? start + params.lines : lines.length;
+    return { text: lines.slice(start, end).join("\n"), path: rel };
+  }
+  // ── Status ─────────────────────────────────────────────────────────────────
+  status() {
+    const files = this.db.prepare("SELECT COUNT(*) AS n FROM files").get().n;
+    const chunks = this.db.prepare("SELECT COUNT(*) AS n FROM chunks").get().n;
+    return {
+      backend: "builtin",
+      provider: this.provider.id,
+      model: this.provider.model,
+      files,
+      chunks,
+      dirty: this.dirty,
+      workspaceDir: this.cfg.workspaceDir,
+      dbPath: this.cfg.dbPath,
+      sources: ["memory"],
+      vector: {
+        enabled: this.provider.dimensions > 0,
+        available: this.vecAvailable
+      }
+    };
+  }
+  // ── Close ──────────────────────────────────────────────────────────────────
+  async close() {
+    if (this.closed) return;
+    this.closed = true;
+    if (this.watchTimer) clearTimeout(this.watchTimer);
+    await this.watcher?.close();
+    await this.syncPromise?.catch(() => {
+    });
+    this.db.close();
+  }
+};
+function resolveConfig(cfg) {
+  return {
+    workspaceDir: cfg.workspaceDir,
+    dbPath: cfg.dbPath,
+    chunking: { tokens: 400, overlap: 80, ...cfg.chunking },
+    search: {
+      maxResults: 6,
+      minScore: 0,
+      vectorWeight: 0.7,
+      textWeight: 0.3,
+      mmr: { enabled: false, lambda: 0.7, ...cfg.search?.mmr },
+      temporalDecay: {
+        enabled: false,
+        halfLifeDays: 30,
+        ...cfg.search?.temporalDecay
+      },
+      ...cfg.search
+    },
+    sync: { watchDebounceMs: 1500, ...cfg.sync },
+    extraPaths: cfg.extraPaths ?? []
+  };
+}
+async function walkMd(dir, relPrefix, add) {
+  try {
+    for (const entry of await import_promises2.default.readdir(dir, { withFileTypes: true })) {
+      const rel = `${relPrefix}/${entry.name}`;
+      if (entry.isDirectory()) {
+        await walkMd(import_node_path2.default.join(dir, entry.name), rel, add);
+      } else if (entry.isFile() && entry.name.endsWith(".md")) {
+        add(import_node_path2.default.join(dir, entry.name), rel);
+      }
+    }
+  } catch {
+  }
+}
+function normalizePath(value) {
+  return value.trim().replace(/^[./]+/, "").replace(/\\/g, "/");
+}
+function isMemoryPath(rel) {
+  return rel === "MEMORY.md" || rel === "memory.md" || rel.startsWith("memory/");
+}
+function cosineSimilarity(a, b) {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 0 : dot / denom;
+}
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// electron/integrations/mosaicbot/src/main/memory/qmd-backend.ts
+var import_node_child_process2 = require("node:child_process");
+var import_node_path3 = __toESM(require("node:path"));
+var import_promises3 = __toESM(require("node:fs/promises"));
+var import_better_sqlite32 = __toESM(require("better-sqlite3"));
+var MAX_STDOUT_BYTES = 2e5;
+var QmdMemoryManager = class _QmdMemoryManager {
+  constructor(cfg, collections) {
+    // qmd's own SQLite index
+    this.db = null;
+    this.updateTimer = null;
+    this.pendingUpdate = null;
+    this.lastUpdateAt = null;
+    this.closed = false;
+    this.cfg = cfg;
+    this.collections = collections;
+    const agentQmdDir = import_node_path3.default.join(cfg.stateDir, "agents", cfg.agentId, "qmd");
+    this.xdgConfigHome = import_node_path3.default.join(agentQmdDir, "xdg-config");
+    this.xdgCacheHome = import_node_path3.default.join(agentQmdDir, "xdg-cache");
+    this.indexPath = import_node_path3.default.join(this.xdgCacheHome, "qmd", "index.sqlite");
+  }
+  // ── Factory ─────────────────────────────────────────────────────────────────
+  /**
+   * Returns null if the `qmd` binary is unavailable, so callers can fall back
+   * to the builtin SQLite backend without throwing.
+   */
+  static async create(cfg) {
+    const resolved = resolveQmdConfig(cfg);
+    const collections = [
+      // Default: index the whole workspace for *.md files
+      { path: cfg.workspaceDir, name: "memory-root", pattern: "**/*.md" },
+      ...resolved.paths.map((p, i) => ({
+        path: import_node_path3.default.isAbsolute(p.path) ? p.path : import_node_path3.default.join(cfg.workspaceDir, p.path),
+        name: p.name ?? `custom-${i}`,
+        pattern: p.pattern ?? "**/*.md"
+      }))
+    ];
+    const agentQmdDir = import_node_path3.default.join(
+      resolved.stateDir,
+      "agents",
+      resolved.agentId,
+      "qmd"
+    );
+    const xdgConfigHome = import_node_path3.default.join(agentQmdDir, "xdg-config");
+    const xdgCacheHome = import_node_path3.default.join(agentQmdDir, "xdg-cache");
+    try {
+      await runQmdCommand(resolved.command, ["--version"], {
+        xdgConfigHome,
+        xdgCacheHome,
+        workspaceDir: cfg.workspaceDir,
+        timeoutMs: 5e3
+      });
+    } catch {
+      return null;
+    }
+    const manager = new _QmdMemoryManager(resolved, collections);
+    await manager.initialize();
+    return manager;
+  }
+  async initialize() {
+    await import_promises3.default.mkdir(this.xdgConfigHome, { recursive: true });
+    await import_promises3.default.mkdir(import_node_path3.default.join(this.xdgCacheHome, "qmd"), { recursive: true });
+    await symlinkSharedModels(this.xdgCacheHome);
+    await this.ensureCollections();
+    if (this.cfg.update.onBoot) {
+      this.pendingUpdate = this.runUpdate("boot", true).finally(() => {
+        this.pendingUpdate = null;
+      });
+    }
+    if (this.cfg.update.intervalMs > 0) {
+      this.updateTimer = setInterval(() => {
+        if (!this.pendingUpdate) {
+          this.pendingUpdate = this.runUpdate("interval", false).finally(() => {
+            this.pendingUpdate = null;
+          });
+        }
+      }, this.cfg.update.intervalMs);
+      this.updateTimer.unref?.();
+    }
+  }
+  // ── Search ─────────────────────────────────────────────────────────────────
+  async search(query, opts = {}) {
+    if (this.pendingUpdate) {
+      await Promise.race([this.pendingUpdate, sleep2(500)]);
+    }
+    const maxResults = opts.maxResults ?? this.cfg.limits.maxResults;
+    const args = buildSearchArgs(
+      this.cfg.searchMode,
+      query,
+      maxResults,
+      this.collections.map((c) => c.name)
+    );
+    const { stdout } = await runQmdCommand(this.cfg.command, args, {
+      xdgConfigHome: this.xdgConfigHome,
+      xdgCacheHome: this.xdgCacheHome,
+      workspaceDir: this.cfg.workspaceDir,
+      timeoutMs: this.cfg.limits.timeoutMs
+    });
+    const raw = parseQmdJson(stdout);
+    return raw.slice(0, maxResults).map((r) => this.resolveResult(r)).filter((r) => r !== null);
+  }
+  resolveResult(r) {
+    const score = r.score ?? 0;
+    const { startLine, endLine } = extractLineNumbers(r.snippet ?? "");
+    const snippetText = extractSnippetText(r.snippet ?? r.body ?? "");
+    let docPath = r.file ?? "";
+    if (!docPath && r.docid) {
+      docPath = this.lookupDocPath(r.docid) ?? "";
+    }
+    if (!docPath) return null;
+    const relPath = import_node_path3.default.isAbsolute(docPath) ? import_node_path3.default.relative(this.cfg.workspaceDir, docPath) : docPath;
+    return {
+      path: relPath,
+      startLine,
+      endLine,
+      score,
+      snippet: snippetText.slice(0, this.cfg.limits.maxSnippetChars),
+      source: "memory"
+    };
+  }
+  // Read-only access to qmd's own index.sqlite to resolve document paths from hashes
+  lookupDocPath(docid) {
+    if (!this.db) {
+      try {
+        this.db = new import_better_sqlite32.default(this.indexPath, { readonly: true });
+        this.db.pragma("busy_timeout = 1");
+      } catch {
+        return null;
+      }
+    }
+    try {
+      const clean = docid.replace(/^#/, "");
+      const row = this.db.prepare(
+        "SELECT path FROM documents WHERE hash = ? AND active = 1 LIMIT 1"
+      ).get(clean);
+      return row?.path ?? null;
+    } catch {
+      return null;
+    }
+  }
+  // ── Sync ───────────────────────────────────────────────────────────────────
+  async sync(params = {}) {
+    this.pendingUpdate = this.runUpdate(
+      params.reason ?? "manual",
+      params.force ?? true
+    );
+    await this.pendingUpdate;
+    this.pendingUpdate = null;
+  }
+  async runUpdate(reason, embed) {
+    try {
+      await runQmdCommand(this.cfg.command, ["update"], {
+        xdgConfigHome: this.xdgConfigHome,
+        xdgCacheHome: this.xdgCacheHome,
+        workspaceDir: this.cfg.workspaceDir,
+        timeoutMs: this.cfg.update.updateTimeoutMs
+      });
+      if (embed) {
+        await runQmdCommand(this.cfg.command, ["embed"], {
+          xdgConfigHome: this.xdgConfigHome,
+          xdgCacheHome: this.xdgCacheHome,
+          workspaceDir: this.cfg.workspaceDir,
+          timeoutMs: this.cfg.update.embedTimeoutMs
+        });
+      }
+      this.lastUpdateAt = Date.now();
+    } catch (err) {
+      console.warn(`[QMD] update failed (${reason}):`, err);
+    }
+  }
+  // ── Collection management ──────────────────────────────────────────────────
+  async ensureCollections() {
+    let existing = [];
+    try {
+      const { stdout } = await runQmdCommand(
+        this.cfg.command,
+        ["collection", "list", "--json"],
+        {
+          xdgConfigHome: this.xdgConfigHome,
+          xdgCacheHome: this.xdgCacheHome,
+          workspaceDir: this.cfg.workspaceDir,
+          timeoutMs: 1e4
+        }
+      );
+      const parsed = JSON.parse(stdout || "[]");
+      existing = parsed.map((c) => c.name ?? "").filter(Boolean);
+    } catch {
+    }
+    const desired = new Set(this.collections.map((c) => c.name));
+    for (const name of existing) {
+      if (!desired.has(name)) {
+        await runQmdCommand(this.cfg.command, ["collection", "remove", name], {
+          xdgConfigHome: this.xdgConfigHome,
+          xdgCacheHome: this.xdgCacheHome,
+          workspaceDir: this.cfg.workspaceDir,
+          timeoutMs: 1e4
+        }).catch(() => {
+        });
+      }
+    }
+    for (const col of this.collections) {
+      if (!existing.includes(col.name)) {
+        await runQmdCommand(
+          this.cfg.command,
+          [
+            "collection",
+            "add",
+            col.path,
+            "--name",
+            col.name,
+            "--mask",
+            col.pattern
+          ],
+          {
+            xdgConfigHome: this.xdgConfigHome,
+            xdgCacheHome: this.xdgCacheHome,
+            workspaceDir: this.cfg.workspaceDir,
+            timeoutMs: 1e4
+          }
+        ).catch(() => {
+        });
+      }
+    }
+  }
+  // ── readFile ───────────────────────────────────────────────────────────────
+  async readFile(params) {
+    const rel = params.relPath.trim().replace(/^[./]+/, "").replace(/\\/g, "/");
+    const abs = import_node_path3.default.isAbsolute(rel) ? rel : import_node_path3.default.join(this.cfg.workspaceDir, rel);
+    const content = await import_promises3.default.readFile(abs, "utf-8");
+    if (params.from === void 0) return { text: content, path: rel };
+    const lines = content.split("\n");
+    const start = Math.max(0, params.from - 1);
+    const end = params.lines ? start + params.lines : lines.length;
+    return { text: lines.slice(start, end).join("\n"), path: rel };
+  }
+  // ── Status ─────────────────────────────────────────────────────────────────
+  status() {
+    let files = 0;
+    try {
+      if (!this.db) {
+        this.db = new import_better_sqlite32.default(this.indexPath, { readonly: true });
+        this.db.pragma("busy_timeout = 1");
+      }
+      const row = this.db.prepare("SELECT COUNT(*) AS n FROM documents WHERE active = 1").get();
+      files = row.n;
+    } catch {
+    }
+    return {
+      backend: "qmd",
+      provider: "qmd",
+      model: "qmd",
+      files,
+      chunks: files,
+      dirty: false,
+      workspaceDir: this.cfg.workspaceDir,
+      dbPath: this.indexPath,
+      sources: ["memory"],
+      vector: { enabled: true, available: true }
+    };
+  }
+  // ── Close ──────────────────────────────────────────────────────────────────
+  async close() {
+    if (this.closed) return;
+    this.closed = true;
+    if (this.updateTimer) clearInterval(this.updateTimer);
+    await this.pendingUpdate?.catch(() => {
+    });
+    this.db?.close();
+  }
+};
+function runQmdCommand(command, args, opts) {
+  return new Promise((resolve, reject) => {
+    const env = {
+      ...process.env,
+      XDG_CONFIG_HOME: opts.xdgConfigHome,
+      XDG_CACHE_HOME: opts.xdgCacheHome,
+      NO_COLOR: "1"
+    };
+    const proc = (0, import_node_child_process2.spawn)(command, args, { env, cwd: opts.workspaceDir });
+    const stdoutChunks = [];
+    const stderrChunks = [];
+    let stdoutBytes = 0;
+    proc.stdout.on("data", (chunk2) => {
+      stdoutBytes += chunk2.length;
+      if (stdoutBytes <= MAX_STDOUT_BYTES) stdoutChunks.push(chunk2);
+    });
+    proc.stderr.on("data", (chunk2) => stderrChunks.push(chunk2));
+    const timer2 = setTimeout(() => {
+      proc.kill("SIGKILL");
+      reject(new Error(`qmd timed out: ${command} ${args.join(" ")}`));
+    }, opts.timeoutMs);
+    proc.on("close", (code) => {
+      clearTimeout(timer2);
+      const stdout = Buffer.concat(stdoutChunks).toString("utf-8");
+      const stderr = Buffer.concat(stderrChunks).toString("utf-8");
+      if (code === 0) resolve({ stdout, stderr });
+      else reject(new Error(`qmd exited ${code}: ${stderr.slice(0, 500)}`));
+    });
+    proc.on("error", (err) => {
+      clearTimeout(timer2);
+      reject(err);
+    });
+  });
+}
+function buildSearchArgs(mode, query, limit, collections) {
+  const args = [mode, query, "--json", "-n", String(limit)];
+  for (const c of collections) args.push("-c", c);
+  return args;
+}
+function parseQmdJson(stdout) {
+  try {
+    const parsed = JSON.parse(stdout.trim());
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+function extractLineNumbers(snippet) {
+  const m = snippet.match(/@@ -(\d+),(\d+)/);
+  if (!m) return { startLine: 1, endLine: 1 };
+  const start = parseInt(m[1], 10);
+  const count = parseInt(m[2], 10);
+  return { startLine: start, endLine: start + count - 1 };
+}
+function extractSnippetText(snippet) {
+  return snippet.replace(/^@@[^\n]*\n/, "").trim();
+}
+async function symlinkSharedModels(xdgCacheHome) {
+  const sharedModels = import_node_path3.default.join(
+    process.env.HOME ?? process.env.USERPROFILE ?? "",
+    ".cache",
+    "qmd",
+    "models"
+  );
+  const agentModels = import_node_path3.default.join(xdgCacheHome, "qmd", "models");
+  try {
+    await import_promises3.default.access(agentModels);
+    return;
+  } catch {
+  }
+  try {
+    await import_promises3.default.mkdir(sharedModels, { recursive: true });
+    await import_promises3.default.symlink(sharedModels, agentModels, "dir");
+  } catch {
+  }
+}
+function resolveQmdConfig(cfg) {
+  return {
+    command: cfg.command ?? "qmd",
+    searchMode: cfg.searchMode ?? "search",
+    paths: cfg.paths ?? [],
+    sessions: { enabled: false, retentionDays: 30, ...cfg.sessions },
+    update: {
+      intervalMs: 5 * 6e4,
+      onBoot: true,
+      updateTimeoutMs: 12e4,
+      embedTimeoutMs: 12e4,
+      ...cfg.update
+    },
+    limits: {
+      maxResults: 6,
+      maxSnippetChars: 700,
+      timeoutMs: 4e3,
+      ...cfg.limits
+    },
+    workspaceDir: cfg.workspaceDir,
+    agentId: cfg.agentId,
+    stateDir: cfg.stateDir
+  };
+}
+function sleep2(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// electron/integrations/mosaicbot/src/main/memory/index.ts
+var cache = /* @__PURE__ */ new Map();
+async function getMemoryManager(cfg) {
+  const key = JSON.stringify(cfg);
+  const existing = cache.get(key);
+  if (existing) return existing;
+  let manager;
+  if (cfg.backend === "builtin") {
+    manager = await SqliteMemoryManager.create(cfg.config);
+  } else {
+    const qmd = await QmdMemoryManager.create(cfg.config);
+    if (qmd) {
+      const fallbackFactory = cfg.fallback ? () => SqliteMemoryManager.create(cfg.fallback) : void 0;
+      manager = fallbackFactory ? new FallbackMemoryManager(
+        qmd,
+        fallbackFactory,
+        () => cache.delete(key)
+      ) : qmd;
+    } else if (cfg.fallback) {
+      console.warn("[Memory] qmd unavailable \u2014 using builtin SQLite backend");
+      manager = await SqliteMemoryManager.create(cfg.fallback);
+    } else {
+      throw new Error("qmd unavailable and no fallback configured");
+    }
+  }
+  cache.set(key, manager);
+  return manager;
+}
+var FallbackMemoryManager = class {
+  constructor(primary, fallbackFactory, onEvict) {
+    this.primary = primary;
+    this.fallbackFactory = fallbackFactory;
+    this.onEvict = onEvict;
+    this.fallback = null;
+    this.primaryFailed = false;
+  }
+  async search(query, opts) {
+    return this.via((m) => m.search(query, opts));
+  }
+  async readFile(params) {
+    return this.via((m) => m.readFile(params));
+  }
+  async sync(params) {
+    return this.via((m) => m.sync(params));
+  }
+  status() {
+    const base = (this.primaryFailed ? this.fallback?.status() : null) ?? this.primary.status();
+    return this.primaryFailed ? {
+      ...base,
+      fallback: { from: "qmd", reason: this.lastError ?? "unknown" }
+    } : base;
+  }
+  async close() {
+    await this.primary.close().catch(() => {
+    });
+    await this.fallback?.close().catch(() => {
+    });
+  }
+  async via(fn) {
+    if (!this.primaryFailed) {
+      try {
+        return await fn(this.primary);
+      } catch (err) {
+        this.primaryFailed = true;
+        this.lastError = String(err);
+        console.warn(
+          `[Memory] qmd failed \u2014 switching to builtin: ${this.lastError}`
+        );
+        this.onEvict?.();
+        this.primary.close().catch(() => {
+        });
+      }
+    }
+    if (!this.fallback) this.fallback = await this.fallbackFactory();
+    return fn(this.fallback);
+  }
+};
+
+// electron/integrations/mosaicbot/src/main/index.ts
+var config = {
+  channels: {
+    ipc: { enabled: true }
+    // http: { webhookUrl: "https://your-endpoint/webhook", enabled: true },
+  }
+};
+async function initMosaicBot() {
+  const APP_DIR = import_node_path4.default.join(import_electron6.app.getPath("userData"), "mosaicbot");
+  const WORKSPACE_DIR = process.cwd();
+  registerChannel(ipcChannelPlugin);
+  registerChannel(httpChannelPlugin);
+  const skillEntries = await loadSkillEntries(defaultSkillSources(APP_DIR, WORKSPACE_DIR));
+  const eligibilityCtx = await buildEligibilityContext();
+  const skillSnapshot = buildSkillSnapshot(skillEntries, eligibilityCtx);
+  console.log(
+    `[MosaicBot] ${skillSnapshot.skills.length} skills loaded:`,
+    skillSnapshot.commandSpecs.map((s) => `/${s.name}`).join(", ")
+  );
+  const memory = await getMemoryManager({
+    backend: "builtin",
+    config: {
+      workspaceDir: WORKSPACE_DIR,
+      dbPath: import_node_path4.default.join(APP_DIR, "memory", "main.sqlite"),
+      // Uncomment to enable vector search:
+      // embedding: {
+      //   provider: "openai",
+      //   apiKey: process.env.OPENAI_API_KEY!,
+      // },
+      // Or with a local Ollama model:
+      // embedding: { provider: "ollama", model: "nomic-embed-text" },
+      embedding: { provider: "none" },
+      // FTS-only by default
+      search: {
+        vectorWeight: 0.7,
+        textWeight: 0.3,
+        temporalDecay: { enabled: true, halfLifeDays: 30 },
+        mmr: { enabled: true, lambda: 0.7 }
+      }
+    }
+  });
+  const heartbeat = startHeartbeatRunner({
+    agents: [
+      {
+        agentId: "main",
+        heartbeat: {
+          enabled: true,
+          intervalMs: 30 * 6e4,
+          channel: "ipc",
+          to: "renderer",
+          ackMaxChars: 300,
+          activeHours: { start: "09:00", end: "22:00" },
+          // Search memory before each heartbeat tick and prepend relevant context
+          memorySearch: {
+            query: "pending tasks actions reminders",
+            maxResults: 5,
+            maxInjectedChars: 2e3
+          }
+        }
+      }
+    ],
+    // Replace with your actual LLM call
+    onReply: async ({ agentId, now, prompt: _prompt }) => {
+      console.log(`[Heartbeat] ${agentId} @ ${now.toISOString()}`);
+      return "HEARTBEAT_OK";
+    },
+    onDeliver: async (_agentId, channel, to, text) => {
+      await deliverMessage({ cfg: config, channel, to, text });
+    },
+    onEvent: (evt) => {
+      console.log(`[Heartbeat] ${evt.agentId} \u2192 ${evt.status}`, evt.preview ?? "");
+    },
+    memory
+  });
+  import_electron6.ipcMain.handle("agent:send", async (_e, text) => {
+    const match = resolveSkillCommand(text, skillSnapshot.commandSpecs);
+    if (match) {
+      console.log(`[Skill] ${match.spec.skillName}`, match.args);
+      return { type: "skill", skill: match.spec.skillName, args: match.args };
+    }
+    return { type: "message", text };
+  });
+  import_electron6.ipcMain.handle("memory:search", async (_e, query, opts) => {
+    return memory.search(query, opts);
+  });
+  import_electron6.ipcMain.handle("memory:read", async (_e, relPath, from, lines) => {
+    return memory.readFile({ relPath, from, lines });
+  });
+  import_electron6.ipcMain.handle("memory:sync", async () => {
+    await memory.sync({ reason: "manual", force: true });
+    return memory.status();
+  });
+  import_electron6.ipcMain.handle("memory:status", () => memory.status());
+  import_electron6.ipcMain.handle("heartbeat:trigger", (_e, agentId) => {
+    requestHeartbeatNow({ agentId, reason: "action", priority: 3 });
+    return { ok: true };
+  });
+  import_electron6.ipcMain.handle(
+    "skills:list",
+    () => skillSnapshot.commandSpecs.map((s) => ({ name: s.name, description: s.description }))
+  );
+  return {
+    async stop() {
+      heartbeat.stop();
+      await memory.close();
+    }
+  };
+}
+
 // electron/main.ts
 var import_module = require("module");
 
 // electron/integrations/gmail/index.ts
 var import_googleapis = require("googleapis");
-var import_http = __toESM(require("http"));
+var import_http2 = __toESM(require("http"));
 var import_url = require("url");
 
 // node_modules/open/index.js
 var import_node_process7 = __toESM(require("node:process"), 1);
-var import_node_path = __toESM(require("node:path"), 1);
+var import_node_path5 = __toESM(require("node:path"), 1);
 var import_node_url = require("node:url");
-var import_node_child_process7 = __toESM(require("node:child_process"), 1);
-var import_promises2 = __toESM(require("node:fs/promises"), 1);
+var import_node_child_process9 = __toESM(require("node:child_process"), 1);
+var import_promises5 = __toESM(require("node:fs/promises"), 1);
 
 // node_modules/wsl-utils/index.js
-var import_node_util2 = require("node:util");
-var import_node_child_process2 = __toESM(require("node:child_process"), 1);
-var import_promises = __toESM(require("node:fs/promises"), 1);
+var import_node_util3 = require("node:util");
+var import_node_child_process4 = __toESM(require("node:child_process"), 1);
+var import_promises4 = __toESM(require("node:fs/promises"), 1);
 
 // node_modules/is-wsl/index.js
 var import_node_process = __toESM(require("node:process"), 1);
-var import_node_os = __toESM(require("node:os"), 1);
+var import_node_os2 = __toESM(require("node:os"), 1);
 var import_node_fs3 = __toESM(require("node:fs"), 1);
 
 // node_modules/is-inside-container/index.js
@@ -2960,7 +5536,7 @@ var isWsl = () => {
   if (import_node_process.default.platform !== "linux") {
     return false;
   }
-  if (import_node_os.default.release().toLowerCase().includes("microsoft")) {
+  if (import_node_os2.default.release().toLowerCase().includes("microsoft")) {
     if (isInsideContainer()) {
       return false;
     }
@@ -2977,9 +5553,9 @@ var is_wsl_default = import_node_process.default.env.__IS_WSL_TEST__ ? isWsl : i
 // node_modules/powershell-utils/index.js
 var import_node_process2 = __toESM(require("node:process"), 1);
 var import_node_buffer = require("node:buffer");
-var import_node_util = require("node:util");
-var import_node_child_process = __toESM(require("node:child_process"), 1);
-var execFile = (0, import_node_util.promisify)(import_node_child_process.default.execFile);
+var import_node_util2 = require("node:util");
+var import_node_child_process3 = __toESM(require("node:child_process"), 1);
+var execFile2 = (0, import_node_util2.promisify)(import_node_child_process3.default.execFile);
 var powerShellPath = () => `${import_node_process2.default.env.SYSTEMROOT || import_node_process2.default.env.windir || String.raw`C:\Windows`}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
 var executePowerShell = async (command, options = {}) => {
   const {
@@ -2987,7 +5563,7 @@ var executePowerShell = async (command, options = {}) => {
     ...execFileOptions
   } = options;
   const encodedCommand = executePowerShell.encodeCommand(command);
-  return execFile(
+  return execFile2(
     psPath ?? powerShellPath(),
     [
       ...executePowerShell.argumentsPrefix,
@@ -3024,7 +5600,7 @@ function parseMountPointFromConfig(content) {
 }
 
 // node_modules/wsl-utils/index.js
-var execFile2 = (0, import_node_util2.promisify)(import_node_child_process2.default.execFile);
+var execFile3 = (0, import_node_util3.promisify)(import_node_child_process4.default.execFile);
 var wslDrivesMountPoint = /* @__PURE__ */ (() => {
   const defaultMountPoint = "/mnt/";
   let mountPoint;
@@ -3035,14 +5611,14 @@ var wslDrivesMountPoint = /* @__PURE__ */ (() => {
     const configFilePath = "/etc/wsl.conf";
     let isConfigFileExists = false;
     try {
-      await import_promises.default.access(configFilePath, import_promises.constants.F_OK);
+      await import_promises4.default.access(configFilePath, import_promises4.constants.F_OK);
       isConfigFileExists = true;
     } catch {
     }
     if (!isConfigFileExists) {
       return defaultMountPoint;
     }
-    const configContent = await import_promises.default.readFile(configFilePath, { encoding: "utf8" });
+    const configContent = await import_promises4.default.readFile(configFilePath, { encoding: "utf8" });
     const parsedMountPoint = parseMountPointFromConfig(configContent);
     if (parsedMountPoint === void 0) {
       return defaultMountPoint;
@@ -3062,7 +5638,7 @@ var canAccessPowerShell = async () => {
   canAccessPowerShellPromise ??= (async () => {
     try {
       const psPath = await powerShellPath2();
-      await import_promises.default.access(psPath, import_promises.constants.X_OK);
+      await import_promises4.default.access(psPath, import_promises4.constants.X_OK);
       return true;
     } catch {
       return false;
@@ -3076,15 +5652,15 @@ var wslDefaultBrowser = async () => {
   const { stdout } = await executePowerShell(command, { powerShellPath: psPath });
   return stdout.trim();
 };
-var convertWslPathToWindows = async (path8) => {
-  if (/^[a-z]+:\/\//i.test(path8)) {
-    return path8;
+var convertWslPathToWindows = async (path12) => {
+  if (/^[a-z]+:\/\//i.test(path12)) {
+    return path12;
   }
   try {
-    const { stdout } = await execFile2("wslpath", ["-aw", path8], { encoding: "utf8" });
+    const { stdout } = await execFile3("wslpath", ["-aw", path12], { encoding: "utf8" });
     return stdout.trim();
   } catch {
-    return path8;
+    return path12;
   }
 };
 
@@ -3107,20 +5683,20 @@ function defineLazyProperty(object, propertyName, valueGetter) {
 }
 
 // node_modules/default-browser/index.js
-var import_node_util6 = require("node:util");
+var import_node_util7 = require("node:util");
 var import_node_process5 = __toESM(require("node:process"), 1);
-var import_node_child_process6 = require("node:child_process");
+var import_node_child_process8 = require("node:child_process");
 
 // node_modules/default-browser-id/index.js
-var import_node_util3 = require("node:util");
+var import_node_util4 = require("node:util");
 var import_node_process3 = __toESM(require("node:process"), 1);
-var import_node_child_process3 = require("node:child_process");
-var execFileAsync = (0, import_node_util3.promisify)(import_node_child_process3.execFile);
+var import_node_child_process5 = require("node:child_process");
+var execFileAsync2 = (0, import_node_util4.promisify)(import_node_child_process5.execFile);
 async function defaultBrowserId() {
   if (import_node_process3.default.platform !== "darwin") {
     throw new Error("macOS only");
   }
-  const { stdout } = await execFileAsync("defaults", ["read", "com.apple.LaunchServices/com.apple.launchservices.secure", "LSHandlers"]);
+  const { stdout } = await execFileAsync2("defaults", ["read", "com.apple.LaunchServices/com.apple.launchservices.secure", "LSHandlers"]);
   const match = /LSHandlerRoleAll = "(?!-)(?<id>[^"]+?)";\s+?LSHandlerURLScheme = (?:http|https);/.exec(stdout);
   const browserId = match?.groups.id ?? "com.apple.Safari";
   if (browserId === "com.apple.safari") {
@@ -3131,9 +5707,9 @@ async function defaultBrowserId() {
 
 // node_modules/run-applescript/index.js
 var import_node_process4 = __toESM(require("node:process"), 1);
-var import_node_util4 = require("node:util");
-var import_node_child_process4 = require("node:child_process");
-var execFileAsync2 = (0, import_node_util4.promisify)(import_node_child_process4.execFile);
+var import_node_util5 = require("node:util");
+var import_node_child_process6 = require("node:child_process");
+var execFileAsync3 = (0, import_node_util5.promisify)(import_node_child_process6.execFile);
 async function runAppleScript(script, { humanReadableOutput = true, signal } = {}) {
   if (import_node_process4.default.platform !== "darwin") {
     throw new Error("macOS only");
@@ -3143,7 +5719,7 @@ async function runAppleScript(script, { humanReadableOutput = true, signal } = {
   if (signal) {
     execOptions.signal = signal;
   }
-  const { stdout } = await execFileAsync2("osascript", ["-e", script, outputArguments], execOptions);
+  const { stdout } = await execFileAsync3("osascript", ["-e", script, outputArguments], execOptions);
   return stdout.trim();
 }
 
@@ -3154,9 +5730,9 @@ tell application "System Events" to get value of property list item "CFBundleNam
 }
 
 // node_modules/default-browser/windows.js
-var import_node_util5 = require("node:util");
-var import_node_child_process5 = require("node:child_process");
-var execFileAsync3 = (0, import_node_util5.promisify)(import_node_child_process5.execFile);
+var import_node_util6 = require("node:util");
+var import_node_child_process7 = require("node:child_process");
+var execFileAsync4 = (0, import_node_util6.promisify)(import_node_child_process7.execFile);
 var windowsBrowserProgIds = {
   MSEdgeHTM: { name: "Edge", id: "com.microsoft.edge" },
   // The missing `L` is correct.
@@ -3179,7 +5755,7 @@ var windowsBrowserProgIds = {
 var _windowsBrowserProgIdMap = new Map(Object.entries(windowsBrowserProgIds));
 var UnknownBrowserError = class extends Error {
 };
-async function defaultBrowser(_execFileAsync = execFileAsync3) {
+async function defaultBrowser(_execFileAsync = execFileAsync4) {
   const { stdout } = await _execFileAsync("reg", [
     "QUERY",
     " HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice",
@@ -3199,7 +5775,7 @@ async function defaultBrowser(_execFileAsync = execFileAsync3) {
 }
 
 // node_modules/default-browser/index.js
-var execFileAsync4 = (0, import_node_util6.promisify)(import_node_child_process6.execFile);
+var execFileAsync5 = (0, import_node_util7.promisify)(import_node_child_process8.execFile);
 var titleize = (string) => string.toLowerCase().replaceAll(/(?:^|\s|-)\S/g, (x) => x.toUpperCase());
 async function defaultBrowser2() {
   if (import_node_process5.default.platform === "darwin") {
@@ -3208,7 +5784,7 @@ async function defaultBrowser2() {
     return { name, id };
   }
   if (import_node_process5.default.platform === "linux") {
-    const { stdout } = await execFileAsync4("xdg-mime", ["query", "default", "x-scheme-handler/http"]);
+    const { stdout } = await execFileAsync5("xdg-mime", ["query", "default", "x-scheme-handler/http"]);
     const id = stdout.trim();
     const name = titleize(id.replace(/.desktop$/, "").replace("-", " "));
     return { name, id };
@@ -3227,17 +5803,17 @@ var is_in_ssh_default = isInSsh;
 // node_modules/open/index.js
 var import_meta = {};
 var fallbackAttemptSymbol = /* @__PURE__ */ Symbol("fallbackAttempt");
-var __dirname2 = import_meta.url ? import_node_path.default.dirname((0, import_node_url.fileURLToPath)(import_meta.url)) : "";
-var localXdgOpenPath = import_node_path.default.join(__dirname2, "xdg-open");
+var __dirname2 = import_meta.url ? import_node_path5.default.dirname((0, import_node_url.fileURLToPath)(import_meta.url)) : "";
+var localXdgOpenPath = import_node_path5.default.join(__dirname2, "xdg-open");
 var { platform, arch } = import_node_process7.default;
 var tryEachApp = async (apps2, opener) => {
   if (apps2.length === 0) {
     return;
   }
   const errors = [];
-  for (const app7 of apps2) {
+  for (const app8 of apps2) {
     try {
-      return await opener(app7);
+      return await opener(app8);
     } catch (error) {
       errors.push(error);
     }
@@ -3261,10 +5837,10 @@ var baseOpen = async (options) => {
       [fallbackAttemptSymbol]: true
     }));
   }
-  let { name: app7, arguments: appArguments = [] } = options.app ?? {};
+  let { name: app8, arguments: appArguments = [] } = options.app ?? {};
   appArguments = [...appArguments];
-  if (Array.isArray(app7)) {
-    return tryEachApp(app7, (appName) => baseOpen({
+  if (Array.isArray(app8)) {
+    return tryEachApp(app8, (appName) => baseOpen({
       ...options,
       app: {
         name: appName,
@@ -3273,7 +5849,7 @@ var baseOpen = async (options) => {
       [fallbackAttemptSymbol]: true
     }));
   }
-  if (app7 === "browser" || app7 === "browserPrivate") {
+  if (app8 === "browser" || app8 === "browserPrivate") {
     const ids = {
       "com.google.chrome": "chrome",
       "google-chrome.desktop": "chrome",
@@ -3303,7 +5879,7 @@ var baseOpen = async (options) => {
     }
     if (browser.id in ids) {
       const browserName = ids[browser.id.toLowerCase()];
-      if (app7 === "browserPrivate") {
+      if (app8 === "browserPrivate") {
         if (browserName === "safari") {
           throw new Error("Safari doesn't support opening in private mode via command line");
         }
@@ -3323,7 +5899,7 @@ var baseOpen = async (options) => {
   const cliArguments = [];
   const childProcessOptions = {};
   let shouldUseWindowsInWsl = false;
-  if (is_wsl_default && !isInsideContainer() && !is_in_ssh_default && !app7) {
+  if (is_wsl_default && !isInsideContainer() && !is_in_ssh_default && !app8) {
     shouldUseWindowsInWsl = await canAccessPowerShell();
   }
   if (platform === "darwin") {
@@ -3337,8 +5913,8 @@ var baseOpen = async (options) => {
     if (options.newInstance) {
       cliArguments.push("--new");
     }
-    if (app7) {
-      cliArguments.push("-a", app7);
+    if (app8) {
+      cliArguments.push("-a", app8);
     }
   } else if (platform === "win32" || shouldUseWindowsInWsl) {
     command = await powerShellPath2();
@@ -3353,8 +5929,8 @@ var baseOpen = async (options) => {
     if (options.wait) {
       encodedArguments.push("-Wait");
     }
-    if (app7) {
-      encodedArguments.push(executePowerShell.escapeArgument(app7));
+    if (app8) {
+      encodedArguments.push(executePowerShell.escapeArgument(app8));
       if (options.target) {
         appArguments.push(options.target);
       }
@@ -3370,13 +5946,13 @@ var baseOpen = async (options) => {
       childProcessOptions.stdio = "ignore";
     }
   } else {
-    if (app7) {
-      command = app7;
+    if (app8) {
+      command = app8;
     } else {
       const isBundled = !__dirname2 || __dirname2 === "/";
       let exeLocalXdgOpen = false;
       try {
-        await import_promises2.default.access(localXdgOpenPath, import_promises2.constants.X_OK);
+        await import_promises5.default.access(localXdgOpenPath, import_promises5.constants.X_OK);
         exeLocalXdgOpen = true;
       } catch {
       }
@@ -3397,7 +5973,7 @@ var baseOpen = async (options) => {
   if (options.target) {
     cliArguments.push(options.target);
   }
-  const subprocess = import_node_child_process7.default.spawn(command, cliArguments, childProcessOptions);
+  const subprocess = import_node_child_process9.default.spawn(command, cliArguments, childProcessOptions);
   if (options.wait) {
     return new Promise((resolve, reject) => {
       subprocess.once("error", reject);
@@ -3511,7 +6087,7 @@ var open_default = open;
 var import_server_destroy = __toESM(require_server_destroy());
 var import_fs4 = __toESM(require("fs"));
 var import_path4 = __toESM(require("path"));
-var import_electron5 = require("electron");
+var import_electron7 = require("electron");
 var SCOPES = ["https://www.googleapis.com/auth/gmail.modify"];
 var REDIRECT_URI = "http://127.0.0.1:3000/oauth2callback";
 var TOKEN_FILE = "gmail-tokens.json";
@@ -3529,7 +6105,7 @@ function loadCredentials() {
   return null;
 }
 function getTokenPath() {
-  return import_path4.default.join(import_electron5.app.getPath("userData"), TOKEN_FILE);
+  return import_path4.default.join(import_electron7.app.getPath("userData"), TOKEN_FILE);
 }
 function loadTokens() {
   try {
@@ -3604,7 +6180,7 @@ function isAuthenticated() {
 async function authenticate() {
   return new Promise((resolve, reject) => {
     const client = getOAuth2Client();
-    const server = import_http.default.createServer(async (req, res) => {
+    const server = import_http2.default.createServer(async (req, res) => {
       try {
         if (req.url.startsWith("/oauth2callback")) {
           const qs = new import_url.URL(req.url, "http://127.0.0.1:3000").searchParams;
@@ -3855,7 +6431,7 @@ async function markAsUnread(messageId) {
 
 // electron/main.ts
 var PROJECT_ROOT = import_path5.default.join(__dirname, "..");
-var isDev = !import_electron6.app.isPackaged;
+var isDev = !import_electron8.app.isPackaged;
 var sandboxState = {
   isFallback: process.env.MOSAIC_SANDBOX_FALLBACK === "1",
   isLinux: process.platform === "linux",
@@ -3876,12 +6452,13 @@ if (process.platform === "win32") {
   } catch (e) {
   }
 }
-var gotTheLock = import_electron6.app.requestSingleInstanceLock();
+var gotTheLock = import_electron8.app.requestSingleInstanceLock();
 if (!gotTheLock) {
-  import_electron6.app.quit();
+  import_electron8.app.quit();
 }
-var agentsHistoryPath2 = import_path5.default.join(import_electron6.app.getPath("userData"), "agents_history");
+var agentsHistoryPath2 = import_path5.default.join(import_electron8.app.getPath("userData"), "agents_history");
 var mainWindow2 = null;
+var mosaicBotStop = null;
 function getIconPath() {
   const iconPath = import_path5.default.join(PROJECT_ROOT, "assets", "icon.png");
   if (import_fs5.default.existsSync(iconPath)) {
@@ -3898,7 +6475,7 @@ function createWindow2(urlToLoad = null) {
   const titleBarStyle = getTitleBarStyle();
   const useFrame = titleBarStyle === "default";
   const electronTitleBarStyle = titleBarStyle === "default" ? "default" : "hidden";
-  const win = new import_electron6.BrowserWindow({
+  const win = new import_electron8.BrowserWindow({
     width: 1280,
     height: 800,
     icon: getIconPath(),
@@ -3933,7 +6510,7 @@ function createWindow2(urlToLoad = null) {
   mainWindow2 = win;
   return win;
 }
-import_electron6.app.on("second-instance", (_event, _commandLine, _workingDirectory) => {
+import_electron8.app.on("second-instance", (_event, _commandLine, _workingDirectory) => {
   if (mainWindow2) {
     if (mainWindow2.isMinimized()) mainWindow2.restore();
     mainWindow2.focus();
@@ -3948,19 +6525,20 @@ function recreateWindow() {
   newWin.setBounds(bounds);
   console.log("Window recreated with new titleBarStyle");
 }
-import_electron6.app.on("before-quit", () => {
+import_electron8.app.on("before-quit", () => {
   mcpClient.disconnectAll();
+  if (mosaicBotStop) mosaicBotStop().catch(console.error);
 });
-import_electron6.app.on("web-contents-created", (_event, contents) => {
+import_electron8.app.on("web-contents-created", (_event, contents) => {
   contents.on("did-fail-load", (event, errorCode) => {
     if (errorCode === -3) {
       event.preventDefault();
     }
   });
 });
-import_electron6.app.whenReady().then(() => {
-  console.log("App is packaged:", import_electron6.app.isPackaged);
-  console.log("User data path:", import_electron6.app.getPath("userData"));
+import_electron8.app.whenReady().then(() => {
+  console.log("App is packaged:", import_electron8.app.isPackaged);
+  console.log("User data path:", import_electron8.app.getPath("userData"));
   console.log("__dirname:", __dirname);
   console.log("PROJECT_ROOT:", PROJECT_ROOT);
   const agentsHistoryPathExist = getDirectoryStatus(agentsHistoryPath2);
@@ -3972,7 +6550,12 @@ import_electron6.app.whenReady().then(() => {
     }
   }
   createWindow2();
-  if (import_electron6.app.isPackaged) {
+  initMosaicBot().then((bot) => {
+    mosaicBotStop = bot.stop.bind(bot);
+  }).catch((e) => {
+    console.error("[MosaicBot] Init failed:", e);
+  });
+  if (import_electron8.app.isPackaged) {
     initUpdater();
     setTimeout(() => {
       console.log("Starting update check...");
@@ -3986,21 +6569,21 @@ import_electron6.app.whenReady().then(() => {
   } catch (e) {
   }
 });
-import_electron6.app.on("window-all-closed", () => {
+import_electron8.app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
-    import_electron6.app.quit();
+    import_electron8.app.quit();
   }
 });
-import_electron6.app.on("activate", () => {
-  if (import_electron6.BrowserWindow.getAllWindows().length === 0) {
+import_electron8.app.on("activate", () => {
+  if (import_electron8.BrowserWindow.getAllWindows().length === 0) {
     createWindow2();
   }
 });
-import_electron6.ipcMain.handle("restart-window", async () => {
+import_electron8.ipcMain.handle("restart-window", async () => {
   recreateWindow();
   return { success: true };
 });
-import_electron6.ipcMain.handle("show-title-bar-confirm", async () => {
+import_electron8.ipcMain.handle("show-title-bar-confirm", async () => {
   const { dialog: dialog2 } = await import("electron");
   const result = await dialog2.showMessageBox(mainWindow2, {
     type: "question",
@@ -4013,10 +6596,10 @@ import_electron6.ipcMain.handle("show-title-bar-confirm", async () => {
   });
   return { buttonIndex: result.response };
 });
-import_electron6.ipcMain.handle("window:minimize", () => {
+import_electron8.ipcMain.handle("window:minimize", () => {
   if (mainWindow2) mainWindow2.minimize();
 });
-import_electron6.ipcMain.handle("window:maximize", () => {
+import_electron8.ipcMain.handle("window:maximize", () => {
   if (mainWindow2) {
     if (mainWindow2.isMaximized()) {
       mainWindow2.unmaximize();
@@ -4025,17 +6608,17 @@ import_electron6.ipcMain.handle("window:maximize", () => {
     }
   }
 });
-import_electron6.ipcMain.handle("window:close", () => {
+import_electron8.ipcMain.handle("window:close", () => {
   if (mainWindow2) mainWindow2.close();
 });
-import_electron6.ipcMain.handle("window:is-maximized", () => {
+import_electron8.ipcMain.handle("window:is-maximized", () => {
   return mainWindow2 ? mainWindow2.isMaximized() : false;
 });
-var csvPath = import_path5.default.join(import_electron6.app.getPath("userData"), "input_history.csv");
+var csvPath = import_path5.default.join(import_electron8.app.getPath("userData"), "input_history.csv");
 if (!import_fs5.default.existsSync(csvPath)) {
   import_fs5.default.writeFileSync(csvPath, "timestamp,text\n", "utf8");
 }
-import_electron6.ipcMain.handle("log-input", async (_event, text) => {
+import_electron8.ipcMain.handle("log-input", async (_event, text) => {
   try {
     const timestamp = (/* @__PURE__ */ new Date()).toISOString();
     const escapedText = `"${text.replace(/"/g, '""').replace(/\n/g, "\\n")}"`;
@@ -4048,9 +6631,9 @@ import_electron6.ipcMain.handle("log-input", async (_event, text) => {
     return { success: false, path: csvPath };
   }
 });
-import_electron6.ipcMain.handle("get-csv-path", () => csvPath);
-import_electron6.ipcMain.handle("check-for-updates", async () => {
-  if (import_electron6.app.isPackaged) {
+import_electron8.ipcMain.handle("get-csv-path", () => csvPath);
+import_electron8.ipcMain.handle("check-for-updates", async () => {
+  if (import_electron8.app.isPackaged) {
     manualCheckForUpdates();
     return { triggered: true };
   }
@@ -4063,10 +6646,10 @@ import_electron6.ipcMain.handle("check-for-updates", async () => {
   });
   return { triggered: false, reason: "Updates disabled in development mode" };
 });
-import_electron6.ipcMain.handle("get-update-settings", async () => {
+import_electron8.ipcMain.handle("get-update-settings", async () => {
   return getUpdateSettings();
 });
-import_electron6.ipcMain.handle(
+import_electron8.ipcMain.handle(
   "set-update-settings",
   async (_event, newSettings) => {
     const result = setUpdateSettings(newSettings);
@@ -4076,44 +6659,44 @@ import_electron6.ipcMain.handle(
     return result;
   }
 );
-import_electron6.ipcMain.handle("get-update-log-path", async () => {
+import_electron8.ipcMain.handle("get-update-log-path", async () => {
   return getLogFilePath();
 });
-import_electron6.ipcMain.handle("get-update-logs", async () => {
+import_electron8.ipcMain.handle("get-update-logs", async () => {
   return readLogFile();
 });
 function broadcastNodesChanged(nodes) {
-  import_electron6.BrowserWindow.getAllWindows().forEach((win) => {
+  import_electron8.BrowserWindow.getAllWindows().forEach((win) => {
     win.webContents.send("nodes-changed", nodes);
   });
 }
-import_electron6.ipcMain.handle("nodes:get", async () => {
+import_electron8.ipcMain.handle("nodes:get", async () => {
   return getNodes();
 });
-import_electron6.ipcMain.handle("nodes:add", async (_event, node) => {
+import_electron8.ipcMain.handle("nodes:add", async (_event, node) => {
   const result = addNode(node);
   if (result.success && result.nodes) {
     broadcastNodesChanged(result.nodes);
   }
   return result;
 });
-import_electron6.ipcMain.handle("nodes:update", async (_event, id, updates) => {
+import_electron8.ipcMain.handle("nodes:update", async (_event, id, updates) => {
   const result = updateNode(id, updates);
   if (result.success && result.nodes) {
     broadcastNodesChanged(result.nodes);
   }
   return result;
 });
-import_electron6.ipcMain.handle("nodes:delete", async (_event, id) => {
+import_electron8.ipcMain.handle("nodes:delete", async (_event, id) => {
   const result = deleteNode(id);
   if (result.success && result.nodes) {
     broadcastNodesChanged(result.nodes);
   }
   return result;
 });
-import_electron6.ipcMain.handle("sandbox:get-state", async () => sandboxState);
-var aiAgentsPath = import_path5.default.join(import_electron6.app.getPath("userData"), "ai-agents.json");
-var themesPath = import_path5.default.join(import_electron6.app.getPath("userData"), "themes.json");
+import_electron8.ipcMain.handle("sandbox:get-state", async () => sandboxState);
+var aiAgentsPath = import_path5.default.join(import_electron8.app.getPath("userData"), "ai-agents.json");
+var themesPath = import_path5.default.join(import_electron8.app.getPath("userData"), "themes.json");
 function readAgents() {
   try {
     if (import_fs5.default.existsSync(aiAgentsPath)) {
@@ -4154,10 +6737,10 @@ function writeThemeSettings(settings2) {
     return false;
   }
 }
-import_electron6.ipcMain.handle("ai-agents:get", async () => {
+import_electron8.ipcMain.handle("ai-agents:get", async () => {
   return readAgents();
 });
-import_electron6.ipcMain.handle("ai-agents:set", async (_event, agents) => {
+import_electron8.ipcMain.handle("ai-agents:set", async (_event, agents) => {
   try {
     writeAgents(agents);
     return { success: true };
@@ -4165,7 +6748,7 @@ import_electron6.ipcMain.handle("ai-agents:set", async (_event, agents) => {
     return { success: false, error: getErrorMessage(error) };
   }
 });
-import_electron6.ipcMain.handle("ai-agents:add", async (_event, agent) => {
+import_electron8.ipcMain.handle("ai-agents:add", async (_event, agent) => {
   try {
     const agents = readAgents();
     agents.push(agent);
@@ -4177,7 +6760,7 @@ import_electron6.ipcMain.handle("ai-agents:add", async (_event, agent) => {
     return { success: false, error: getErrorMessage(error) };
   }
 });
-import_electron6.ipcMain.handle("ai-agents:update", async (_event, id, updates) => {
+import_electron8.ipcMain.handle("ai-agents:update", async (_event, id, updates) => {
   try {
     const agents = readAgents();
     const index = agents.findIndex((a) => a.id === id);
@@ -4191,7 +6774,7 @@ import_electron6.ipcMain.handle("ai-agents:update", async (_event, id, updates) 
     return { success: false, error: getErrorMessage(error) };
   }
 });
-import_electron6.ipcMain.handle("ai-agents:delete", async (_event, id) => {
+import_electron8.ipcMain.handle("ai-agents:delete", async (_event, id) => {
   try {
     const agents = readAgents();
     const filtered = agents.filter((a) => a.id !== id);
@@ -4201,7 +6784,7 @@ import_electron6.ipcMain.handle("ai-agents:delete", async (_event, id) => {
     return { success: false, error: getErrorMessage(error) };
   }
 });
-import_electron6.ipcMain.handle("ai-agents:clear", async () => {
+import_electron8.ipcMain.handle("ai-agents:clear", async () => {
   try {
     writeAgents([]);
     return { success: true };
@@ -4209,7 +6792,7 @@ import_electron6.ipcMain.handle("ai-agents:clear", async () => {
     return { success: false, error: getErrorMessage(error) };
   }
 });
-import_electron6.ipcMain.handle("gmail:sign-in", async () => {
+import_electron8.ipcMain.handle("gmail:sign-in", async () => {
   try {
     await authenticate();
     const profile = await getUserProfile();
@@ -4219,7 +6802,7 @@ import_electron6.ipcMain.handle("gmail:sign-in", async () => {
     return { success: false, error: error.message };
   }
 });
-import_electron6.ipcMain.handle("gmail:sign-out", async () => {
+import_electron8.ipcMain.handle("gmail:sign-out", async () => {
   try {
     signOut();
     return { success: true };
@@ -4227,7 +6810,7 @@ import_electron6.ipcMain.handle("gmail:sign-out", async () => {
     return { success: false, error: error.message };
   }
 });
-import_electron6.ipcMain.handle("gmail:get-status", async () => {
+import_electron8.ipcMain.handle("gmail:get-status", async () => {
   try {
     const authenticated = isAuthenticated();
     if (authenticated) {
@@ -4239,7 +6822,7 @@ import_electron6.ipcMain.handle("gmail:get-status", async () => {
     return { authenticated: false, error: error.message };
   }
 });
-import_electron6.ipcMain.handle("gmail:get-emails", async (_event, count = 10) => {
+import_electron8.ipcMain.handle("gmail:get-emails", async (_event, count = 10) => {
   try {
     const emails = await getRecentEmails(count);
     return { success: true, emails };
@@ -4248,7 +6831,7 @@ import_electron6.ipcMain.handle("gmail:get-emails", async (_event, count = 10) =
     return { success: false, error: error.message };
   }
 });
-import_electron6.ipcMain.handle("gmail:get-email-details", async (_event, messageId) => {
+import_electron8.ipcMain.handle("gmail:get-email-details", async (_event, messageId) => {
   try {
     const email = await getEmailDetails(messageId);
     return { success: true, email };
@@ -4256,7 +6839,7 @@ import_electron6.ipcMain.handle("gmail:get-email-details", async (_event, messag
     return { success: false, error: error.message };
   }
 });
-import_electron6.ipcMain.handle("gmail:search-emails", async (_event, query, count = 10) => {
+import_electron8.ipcMain.handle("gmail:search-emails", async (_event, query, count = 10) => {
   try {
     const emails = await searchEmails(query, count);
     return { success: true, emails };
@@ -4265,7 +6848,7 @@ import_electron6.ipcMain.handle("gmail:search-emails", async (_event, query, cou
     return { success: false, error: error.message };
   }
 });
-import_electron6.ipcMain.handle("gmail:mark-read", async (_event, messageId) => {
+import_electron8.ipcMain.handle("gmail:mark-read", async (_event, messageId) => {
   try {
     await markAsRead(messageId);
     return { success: true };
@@ -4274,7 +6857,7 @@ import_electron6.ipcMain.handle("gmail:mark-read", async (_event, messageId) => 
     return { success: false, error: error.message };
   }
 });
-import_electron6.ipcMain.handle("gmail:mark-unread", async (_event, messageId) => {
+import_electron8.ipcMain.handle("gmail:mark-unread", async (_event, messageId) => {
   try {
     await markAsUnread(messageId);
     return { success: true };
@@ -4283,28 +6866,28 @@ import_electron6.ipcMain.handle("gmail:mark-unread", async (_event, messageId) =
     return { success: false, error: error.message };
   }
 });
-import_electron6.ipcMain.handle("gmail:get-auto-mark-read", () => {
+import_electron8.ipcMain.handle("gmail:get-auto-mark-read", () => {
   return { enabled: getGmailAutoMarkRead() };
 });
-import_electron6.ipcMain.handle("gmail:set-auto-mark-read", (_event, enabled) => {
+import_electron8.ipcMain.handle("gmail:set-auto-mark-read", (_event, enabled) => {
   const result = setGmailAutoMarkRead(enabled);
   return { ...result, enabled: getGmailAutoMarkRead() };
 });
-import_electron6.ipcMain.handle("themes:get", async () => {
+import_electron8.ipcMain.handle("themes:get", async () => {
   return readThemeSettings();
 });
-import_electron6.ipcMain.handle("themes:set", async (_event, activeTheme) => {
+import_electron8.ipcMain.handle("themes:set", async (_event, activeTheme) => {
   const settings2 = { activeTheme };
   const success = writeThemeSettings(settings2);
   return { success };
 });
-import_electron6.ipcMain.handle("ai-agents-history:get-all", async (_event, agentId) => {
+import_electron8.ipcMain.handle("ai-agents-history:get-all", async (_event, agentId) => {
   return readAgentHistories(agentId);
 });
-import_electron6.ipcMain.handle("ai-agents-history:get", async (_event, agentId, sessionId) => {
+import_electron8.ipcMain.handle("ai-agents-history:get", async (_event, agentId, sessionId) => {
   return readAgentHistory(agentId, sessionId);
 });
-import_electron6.ipcMain.handle("ai-agents-history:save", async (_event, chatSession) => {
+import_electron8.ipcMain.handle("ai-agents-history:save", async (_event, chatSession) => {
   try {
     const success = writeAgentHistory(chatSession);
     return { success };
@@ -4312,7 +6895,7 @@ import_electron6.ipcMain.handle("ai-agents-history:save", async (_event, chatSes
     return { success: false, error: getErrorMessage(error) };
   }
 });
-import_electron6.ipcMain.handle("ai-agents-history:delete", async (_event, agentId, sessionId) => {
+import_electron8.ipcMain.handle("ai-agents-history:delete", async (_event, agentId, sessionId) => {
   try {
     const success = deleteAgentHistory(agentId, sessionId);
     return { success };
@@ -4320,7 +6903,7 @@ import_electron6.ipcMain.handle("ai-agents-history:delete", async (_event, agent
     return { success: false, error: getErrorMessage(error) };
   }
 });
-import_electron6.ipcMain.handle("ai-agents-history:delete-all", async (_event, agentId) => {
+import_electron8.ipcMain.handle("ai-agents-history:delete-all", async (_event, agentId) => {
   try {
     const success = deleteAllAgentHistories(agentId);
     return { success };

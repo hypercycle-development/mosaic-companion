@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Electron main process — wires heartbeat, channels, skills, and memory
+// Mosaic Bot — wires heartbeat, channels, skills, and memory into the Electron
+// main process. Call initMosaicBot() after app.whenReady().
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, ipcMain } from "electron";
 import path from "node:path";
-import os from "node:os";
 
 import { startHeartbeatRunner } from "./heartbeat/runner.js";
 import { requestHeartbeatNow } from "./heartbeat/wake.js";
@@ -17,9 +17,6 @@ import { buildEligibilityContext, buildSkillSnapshot, resolveSkillCommand } from
 import { getMemoryManager } from "./memory/index.js";
 
 // ── App config ────────────────────────────────────────────────────────────────
-
-const APP_DIR = path.join(os.homedir(), ".myapp");
-const WORKSPACE_DIR = process.cwd();
 
 type AppConfig = {
   channels: {
@@ -35,10 +32,17 @@ const config: AppConfig = {
   },
 };
 
-// ── Bootstrap ─────────────────────────────────────────────────────────────────
+// ── Handle ────────────────────────────────────────────────────────────────────
 
-async function bootstrap() {
-  await app.whenReady();
+export type MosaicBotHandle = {
+  stop(): Promise<void>;
+};
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+export async function initMosaicBot(): Promise<MosaicBotHandle> {
+  const APP_DIR = path.join(app.getPath("userData"), "mosaicbot");
+  const WORKSPACE_DIR = process.cwd();
 
   // 1. Channels
   registerChannel(ipcChannelPlugin);
@@ -49,7 +53,7 @@ async function bootstrap() {
   const eligibilityCtx = await buildEligibilityContext();
   const skillSnapshot = buildSkillSnapshot(skillEntries, eligibilityCtx);
   console.log(
-    `[Skills] ${skillSnapshot.skills.length} loaded:`,
+    `[MosaicBot] ${skillSnapshot.skills.length} skills loaded:`,
     skillSnapshot.commandSpecs.map((s) => `/${s.name}`).join(", "),
   );
 
@@ -118,12 +122,12 @@ async function bootstrap() {
     ],
 
     // Replace with your actual LLM call
-    onReply: async ({ agentId, prompt, now }) => {
+    onReply: async ({ agentId, now, prompt: _prompt }) => {
       console.log(`[Heartbeat] ${agentId} @ ${now.toISOString()}`);
       return "HEARTBEAT_OK";
     },
 
-    onDeliver: async (agentId, channel, to, text) => {
+    onDeliver: async (_agentId, channel, to, text) => {
       await deliverMessage({ cfg: config, channel, to, text });
     },
 
@@ -134,18 +138,7 @@ async function bootstrap() {
     memory,
   });
 
-  // 5. Window
-  const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    webPreferences: {
-      preload: path.join(__dirname, "../preload.js"),
-      contextIsolation: true,
-    },
-  });
-  await win.loadFile("index.html");
-
-  // 6. IPC handlers
+  // 5. IPC handlers
 
   // Renderer sends a user message
   ipcMain.handle("agent:send", async (_e, text: string) => {
@@ -187,13 +180,10 @@ async function bootstrap() {
     skillSnapshot.commandSpecs.map((s) => ({ name: s.name, description: s.description })),
   );
 
-  app.on("before-quit", async () => {
-    heartbeat.stop();
-    await memory.close();
-  });
+  return {
+    async stop() {
+      heartbeat.stop();
+      await memory.close();
+    },
+  };
 }
-
-bootstrap().catch((err) => {
-  console.error("Bootstrap failed:", err);
-  app.quit();
-});

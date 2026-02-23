@@ -1,6 +1,7 @@
 import { gmailAPI } from "./integrations/gmail/gmailAPI";
 import { mcpAPI } from "./integrations/mcp/MCPAPI";
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
+import "./integrations/mosaicbot/src/preload";
 
 // =============================================================================
 // Type Definitions
