@@ -18,10 +18,12 @@ import {
   MessageSquare,
   Server,
   RefreshCw,
+  BrainCircuit,
 } from "lucide-react";
 import {
   SidebarItem,
   INTERNAL_HOME_URL,
+  INTERNAL_MOSAICBOT_URL,
   INTERNAL_SETTINGS_URL,
   INTERNAL_CHAT_URL,
 } from "../types/types";
@@ -150,6 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems: SidebarItem[] = [
     { id: "home", label: "Home", icon: "Home", url: INTERNAL_HOME_URL },
     { id: "chat", label: "AI Chat", icon: "Bot", url: INTERNAL_CHAT_URL },
+    { id: "mosaicbot", label: "Mosaic Bot", icon: "BrainCircuit", url: INTERNAL_MOSAICBOT_URL },
     {
       id: "bookmarks",
       label: "Bookmarks",
@@ -201,6 +204,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <Clock className={className} />;
       case "Bot":
         return <Bot className={className} />;
+      case "BrainCircuit":
+        return <BrainCircuit className={className} />;
       default:
         return <LayoutGrid className={className} />;
     }

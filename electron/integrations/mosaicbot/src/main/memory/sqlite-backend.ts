@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // SQLite-backed memory index manager (builtin backend)
 // Mirrors src/memory/manager.ts + manager-search.ts + manager-embedding-ops.ts
-// + sync-index.ts + sync-memory-files.ts from OpenClaw
+// + sync-index.ts + sync-memory-files.ts from OpenMosaic
 //
 // Dependencies (add to package.json):
 //   "better-sqlite3": "^9.0.0"
@@ -70,7 +70,11 @@ export class SqliteMemoryManager implements MemorySearchManager {
   private watchTimer: ReturnType<typeof setTimeout> | null = null;
   private syncPromise: Promise<void> | null = null;
 
-  private constructor(db: BetterDatabase, cfg: ResolvedConfig, provider: EmbeddingProvider) {
+  private constructor(
+    db: BetterDatabase,
+    cfg: ResolvedConfig,
+    provider: EmbeddingProvider,
+  ) {
     this.db = db;
     this.cfg = cfg;
     this.provider = provider;
@@ -133,7 +137,10 @@ export class SqliteMemoryManager implements MemorySearchManager {
 
   // ── Search ─────────────────────────────────────────────────────────────────
 
-  async search(query: string, opts: SearchOpts = {}): Promise<MemorySearchResult[]> {
+  async search(
+    query: string,
+    opts: SearchOpts = {},
+  ): Promise<MemorySearchResult[]> {
     if (this.dirty) await this.sync({ reason: "search" });
 
     const maxResults = opts.maxResults ?? this.cfg.search.maxResults;
@@ -152,7 +159,10 @@ export class SqliteMemoryManager implements MemorySearchManager {
     });
 
     if (this.cfg.search.temporalDecay.enabled) {
-      merged = applyTemporalDecay(merged, this.cfg.search.temporalDecay.halfLifeDays);
+      merged = applyTemporalDecay(
+        merged,
+        this.cfg.search.temporalDecay.halfLifeDays,
+      );
     }
 
     if (this.cfg.search.mmr.enabled) {
@@ -174,7 +184,10 @@ export class SqliteMemoryManager implements MemorySearchManager {
   }
 
   // Vector search using sqlite-vec (cosine distance), with JS fallback
-  private async vectorSearch(query: string, limit: number): Promise<VectorRow[]> {
+  private async vectorSearch(
+    query: string,
+    limit: number,
+  ): Promise<VectorRow[]> {
     if (!this.vecAvailable || this.provider.dimensions === 0) return [];
 
     let queryVecs: number[][];
@@ -187,12 +200,19 @@ export class SqliteMemoryManager implements MemorySearchManager {
     if (!queryVec?.length) return [];
 
     type Row = {
-      id: string; path: string; source: string;
-      start_line: number; end_line: number; text: string; dist: number;
+      id: string;
+      path: string;
+      source: string;
+      start_line: number;
+      end_line: number;
+      text: string;
+      dist: number;
     };
 
     try {
-      const rows = this.db.prepare(`
+      const rows = this.db
+        .prepare(
+          `
         SELECT c.id, c.path, c.source, c.start_line, c.end_line, c.text,
                vec_distance_cosine(v.embedding, ?) AS dist
           FROM chunks_vec v
@@ -200,11 +220,17 @@ export class SqliteMemoryManager implements MemorySearchManager {
          WHERE c.model = ?
          ORDER BY dist ASC
          LIMIT ?
-      `).all(JSON.stringify(queryVec), this.provider.model, limit) as Row[];
+      `,
+        )
+        .all(JSON.stringify(queryVec), this.provider.model, limit) as Row[];
 
       return rows.map((r) => ({
-        id: r.id, path: r.path, source: r.source,
-        startLine: r.start_line, endLine: r.end_line, text: r.text,
+        id: r.id,
+        path: r.path,
+        source: r.source,
+        startLine: r.start_line,
+        endLine: r.end_line,
+        text: r.text,
         score: Math.max(0, 1 - r.dist),
       }));
     } catch {
@@ -216,22 +242,38 @@ export class SqliteMemoryManager implements MemorySearchManager {
   // In-memory cosine similarity fallback (slower but always works)
   private vectorSearchFallback(queryVec: number[], limit: number): VectorRow[] {
     type Row = {
-      id: string; path: string; source: string;
-      start_line: number; end_line: number; text: string; embedding: string;
+      id: string;
+      path: string;
+      source: string;
+      start_line: number;
+      end_line: number;
+      text: string;
+      embedding: string;
     };
 
-    const rows = this.db.prepare(
-      "SELECT id, path, source, start_line, end_line, text, embedding FROM chunks WHERE model = ?",
-    ).all(this.provider.model) as Row[];
+    const rows = this.db
+      .prepare(
+        "SELECT id, path, source, start_line, end_line, text, embedding FROM chunks WHERE model = ?",
+      )
+      .all(this.provider.model) as Row[];
 
     return rows
       .map((r) => {
         let emb: number[];
-        try { emb = JSON.parse(r.embedding); } catch { return null; }
+        try {
+          emb = JSON.parse(r.embedding);
+        } catch {
+          return null;
+        }
         const score = cosineSimilarity(queryVec, emb);
         return {
-          id: r.id, path: r.path, source: r.source,
-          startLine: r.start_line, endLine: r.end_line, text: r.text, score,
+          id: r.id,
+          path: r.path,
+          source: r.source,
+          startLine: r.start_line,
+          endLine: r.end_line,
+          text: r.text,
+          score,
         };
       })
       .filter((r): r is VectorRow => r !== null)
@@ -246,23 +288,37 @@ export class SqliteMemoryManager implements MemorySearchManager {
     if (!ftsQuery) return [];
 
     type Row = {
-      id: string; path: string; source: string;
-      start_line: number; end_line: number; text: string; rank: number;
+      id: string;
+      path: string;
+      source: string;
+      start_line: number;
+      end_line: number;
+      text: string;
+      rank: number;
     };
 
     try {
-      const rows = this.db.prepare(`
+      const rows = this.db
+        .prepare(
+          `
         SELECT id, path, source, start_line, end_line, text, bm25(chunks_fts) AS rank
           FROM chunks_fts
          WHERE chunks_fts MATCH ?
          ORDER BY rank ASC
          LIMIT ?
-      `).all(ftsQuery, limit) as Row[];
+      `,
+        )
+        .all(ftsQuery, limit) as Row[];
 
       return rows.map((r) => ({
-        id: r.id, path: r.path, source: r.source,
-        startLine: r.start_line, endLine: r.end_line, text: r.text,
-        score: 0, rank: r.rank,
+        id: r.id,
+        path: r.path,
+        source: r.source,
+        startLine: r.start_line,
+        endLine: r.end_line,
+        text: r.text,
+        score: 0,
+        rank: r.rank,
       }));
     } catch {
       return [];
@@ -295,7 +351,11 @@ export class SqliteMemoryManager implements MemorySearchManager {
       await Promise.all(
         batch.map(async (f) => {
           await this.indexFileIfChanged(f.absPath, f.relPath, "memory");
-          params.progress?.({ completed: ++completed, total: files.length, label: f.relPath });
+          params.progress?.({
+            completed: ++completed,
+            total: files.length,
+            label: f.relPath,
+          });
         }),
       );
     }
@@ -309,23 +369,29 @@ export class SqliteMemoryManager implements MemorySearchManager {
     source: MemorySource,
   ): Promise<void> {
     let stat: Awaited<ReturnType<typeof fs.stat>>;
-    try { stat = await fs.stat(absPath); } catch { return; }
+    try {
+      stat = await fs.stat(absPath);
+    } catch {
+      return;
+    }
 
     const content = await fs.readFile(absPath, "utf-8");
     const hash = sha256(content);
 
-    const existing = this.db.prepare(
-      "SELECT hash FROM files WHERE path = ? AND source = ?",
-    ).get(relPath, source) as { hash: string } | undefined;
+    const existing = this.db
+      .prepare("SELECT hash FROM files WHERE path = ? AND source = ?")
+      .get(relPath, source) as { hash: string } | undefined;
 
     if (existing?.hash === hash) return; // unchanged
 
     const chunks = chunkText(content, relPath, source, this.cfg.chunking);
     await this.upsertChunks(chunks);
 
-    this.db.prepare(
-      "INSERT OR REPLACE INTO files (path, source, hash, mtime, size) VALUES (?, ?, ?, ?, ?)",
-    ).run(relPath, source, hash, stat.mtimeMs, stat.size);
+    this.db
+      .prepare(
+        "INSERT OR REPLACE INTO files (path, source, hash, mtime, size) VALUES (?, ?, ?, ?, ?)",
+      )
+      .run(relPath, source, hash, stat.mtimeMs, stat.size);
   }
 
   private async upsertChunks(chunks: MemoryChunk[]): Promise<void> {
@@ -345,28 +411,61 @@ export class SqliteMemoryManager implements MemorySearchManager {
         const c = chunks[i];
         const embJson = JSON.stringify(embeddings[i] ?? []);
 
-        this.db.prepare(`
+        this.db
+          .prepare(
+            `
           INSERT OR REPLACE INTO chunks
             (id, path, source, start_line, end_line, hash, model, text, embedding, updated_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(c.id, c.path, c.source, c.startLine, c.endLine, c.hash, model, c.text, embJson, now);
+        `,
+          )
+          .run(
+            c.id,
+            c.path,
+            c.source,
+            c.startLine,
+            c.endLine,
+            c.hash,
+            model,
+            c.text,
+            embJson,
+            now,
+          );
 
         if (this.vecAvailable && embeddings[i]?.length) {
           try {
-            this.db.prepare(
-              "INSERT OR REPLACE INTO chunks_vec (id, embedding) VALUES (?, ?)",
-            ).run(c.id, embJson);
-          } catch { /* vec insert failed — continue */ }
+            this.db
+              .prepare(
+                "INSERT OR REPLACE INTO chunks_vec (id, embedding) VALUES (?, ?)",
+              )
+              .run(c.id, embJson);
+          } catch {
+            /* vec insert failed — continue */
+          }
         }
 
         if (this.ftsAvailable) {
           try {
-            this.db.prepare(`
+            this.db
+              .prepare(
+                `
               INSERT OR REPLACE INTO chunks_fts
                 (text, id, path, source, model, start_line, end_line)
               VALUES (?, ?, ?, ?, ?, ?, ?)
-            `).run(c.text, c.id, c.path, c.source, model, c.startLine, c.endLine);
-          } catch { /* fts insert failed — continue */ }
+            `,
+              )
+              .run(
+                c.text,
+                c.id,
+                c.path,
+                c.source,
+                model,
+                c.startLine,
+                c.endLine,
+              );
+          } catch {
+            /* fts insert failed — continue */
+          }
         }
       }
     })();
@@ -375,46 +474,72 @@ export class SqliteMemoryManager implements MemorySearchManager {
   // Remove chunks whose source files have been deleted
   private deleteStale(activePaths: Set<string>, source: MemorySource): void {
     const indexed = (
-      this.db.prepare("SELECT DISTINCT path FROM files WHERE source = ?").all(source) as Array<{ path: string }>
+      this.db
+        .prepare("SELECT DISTINCT path FROM files WHERE source = ?")
+        .all(source) as Array<{ path: string }>
     ).map((r) => r.path);
 
     for (const p of indexed) {
       if (activePaths.has(p)) continue;
 
       const ids = (
-        this.db.prepare("SELECT id FROM chunks WHERE path = ? AND source = ?").all(p, source) as Array<{ id: string }>
+        this.db
+          .prepare("SELECT id FROM chunks WHERE path = ? AND source = ?")
+          .all(p, source) as Array<{ id: string }>
       ).map((r) => r.id);
 
       this.db.transaction(() => {
         for (const id of ids) {
           if (this.vecAvailable) {
-            try { this.db.prepare("DELETE FROM chunks_vec WHERE id = ?").run(id); } catch { /* */ }
+            try {
+              this.db.prepare("DELETE FROM chunks_vec WHERE id = ?").run(id);
+            } catch {
+              /* */
+            }
           }
           if (this.ftsAvailable) {
-            try { this.db.prepare("DELETE FROM chunks_fts WHERE id = ?").run(id); } catch { /* */ }
+            try {
+              this.db.prepare("DELETE FROM chunks_fts WHERE id = ?").run(id);
+            } catch {
+              /* */
+            }
           }
         }
-        this.db.prepare("DELETE FROM chunks WHERE path = ? AND source = ?").run(p, source);
-        this.db.prepare("DELETE FROM files WHERE path = ? AND source = ?").run(p, source);
+        this.db
+          .prepare("DELETE FROM chunks WHERE path = ? AND source = ?")
+          .run(p, source);
+        this.db
+          .prepare("DELETE FROM files WHERE path = ? AND source = ?")
+          .run(p, source);
       })();
     }
   }
 
   // ── File discovery ─────────────────────────────────────────────────────────
 
-  private async listMemoryFiles(): Promise<Array<{ relPath: string; absPath: string }>> {
+  private async listMemoryFiles(): Promise<
+    Array<{ relPath: string; absPath: string }>
+  > {
     const results: Array<{ relPath: string; absPath: string }> = [];
     const seen = new Set<string>();
     const ws = this.cfg.workspaceDir;
 
     const add = (abs: string, rel: string) => {
-      if (!seen.has(abs)) { seen.add(abs); results.push({ absPath: abs, relPath: rel }); }
+      if (!seen.has(abs)) {
+        seen.add(abs);
+        results.push({ absPath: abs, relPath: rel });
+      }
     };
 
     // MEMORY.md / memory.md at workspace root
     for (const name of ["MEMORY.md", "memory.md"]) {
       const abs = path.join(ws, name);
-      try { await fs.access(abs); add(abs, name); } catch { /* not found */ }
+      try {
+        await fs.access(abs);
+        add(abs, name);
+      } catch {
+        /* not found */
+      }
     }
 
     // memory/ directory (all *.md recursively)
@@ -456,7 +581,10 @@ export class SqliteMemoryManager implements MemorySearchManager {
       }, this.cfg.sync.watchDebounceMs);
     };
 
-    this.watcher.on("add", markDirty).on("change", markDirty).on("unlink", markDirty);
+    this.watcher
+      .on("add", markDirty)
+      .on("change", markDirty)
+      .on("unlink", markDirty);
   }
 
   // ── Embedding with batching and retry ──────────────────────────────────────
@@ -503,9 +631,12 @@ export class SqliteMemoryManager implements MemorySearchManager {
 
   // ── readFile ───────────────────────────────────────────────────────────────
 
-  async readFile(params: ReadFileParams): Promise<{ text: string; path: string }> {
+  async readFile(
+    params: ReadFileParams,
+  ): Promise<{ text: string; path: string }> {
     const rel = normalizePath(params.relPath);
-    if (!isMemoryPath(rel)) throw new Error(`Not a valid memory path: "${rel}"`);
+    if (!isMemoryPath(rel))
+      throw new Error(`Not a valid memory path: "${rel}"`);
 
     const abs = path.join(this.cfg.workspaceDir, rel);
     const content = await fs.readFile(abs, "utf-8");
@@ -521,8 +652,12 @@ export class SqliteMemoryManager implements MemorySearchManager {
   // ── Status ─────────────────────────────────────────────────────────────────
 
   status(): MemoryProviderStatus {
-    const files = (this.db.prepare("SELECT COUNT(*) AS n FROM files").get() as { n: number }).n;
-    const chunks = (this.db.prepare("SELECT COUNT(*) AS n FROM chunks").get() as { n: number }).n;
+    const files = (
+      this.db.prepare("SELECT COUNT(*) AS n FROM files").get() as { n: number }
+    ).n;
+    const chunks = (
+      this.db.prepare("SELECT COUNT(*) AS n FROM chunks").get() as { n: number }
+    ).n;
     return {
       backend: "builtin",
       provider: this.provider.id,
@@ -533,7 +668,10 @@ export class SqliteMemoryManager implements MemorySearchManager {
       workspaceDir: this.cfg.workspaceDir,
       dbPath: this.cfg.dbPath,
       sources: ["memory"],
-      vector: { enabled: this.provider.dimensions > 0, available: this.vecAvailable },
+      vector: {
+        enabled: this.provider.dimensions > 0,
+        available: this.vecAvailable,
+      },
     };
   }
 
@@ -544,7 +682,9 @@ export class SqliteMemoryManager implements MemorySearchManager {
     this.closed = true;
     if (this.watchTimer) clearTimeout(this.watchTimer);
     await this.watcher?.close();
-    await this.syncPromise?.catch(() => { /* ignore */ });
+    await this.syncPromise?.catch(() => {
+      /* ignore */
+    });
     this.db.close();
   }
 }
@@ -573,13 +713,15 @@ function resolveConfig(cfg: BuiltinMemoryConfig): ResolvedConfig {
     dbPath: cfg.dbPath,
     chunking: { tokens: 400, overlap: 80, ...cfg.chunking },
     search: {
-      maxResults: 6,
-      minScore: 0.0,
-      vectorWeight: 0.7,
-      textWeight: 0.3,
-      mmr: { enabled: false, lambda: 0.7, ...cfg.search?.mmr },
-      temporalDecay: { enabled: false, halfLifeDays: 30, ...cfg.search?.temporalDecay },
-      ...cfg.search,
+      maxResults: cfg.search?.maxResults ?? 6,
+      minScore: cfg.search?.minScore ?? 0.0,
+      vectorWeight: cfg.search?.vectorWeight ?? 0.7,
+      textWeight: cfg.search?.textWeight ?? 0.3,
+      mmr: { enabled: cfg.search?.mmr?.enabled ?? false, lambda: cfg.search?.mmr?.lambda ?? 0.7 },
+      temporalDecay: {
+        enabled: cfg.search?.temporalDecay?.enabled ?? false,
+        halfLifeDays: cfg.search?.temporalDecay?.halfLifeDays ?? 30,
+      },
     },
     sync: { watchDebounceMs: 1_500, ...cfg.sync },
     extraPaths: cfg.extraPaths ?? [],
@@ -602,20 +744,29 @@ async function walkMd(
         add(path.join(dir, entry.name), rel);
       }
     }
-  } catch { /* dir not found */ }
+  } catch {
+    /* dir not found */
+  }
 }
 
 function normalizePath(value: string): string {
-  return value.trim().replace(/^[./]+/, "").replace(/\\/g, "/");
+  return value
+    .trim()
+    .replace(/^[./]+/, "")
+    .replace(/\\/g, "/");
 }
 
 function isMemoryPath(rel: string): boolean {
-  return rel === "MEMORY.md" || rel === "memory.md" || rel.startsWith("memory/");
+  return (
+    rel === "MEMORY.md" || rel === "memory.md" || rel.startsWith("memory/")
+  );
 }
 
 function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length || a.length === 0) return 0;
-  let dot = 0, normA = 0, normB = 0;
+  let dot = 0,
+    normA = 0,
+    normB = 0;
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i];
     normA += a[i] * a[i];

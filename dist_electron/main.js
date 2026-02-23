@@ -4845,17 +4845,15 @@ function resolveConfig(cfg) {
     dbPath: cfg.dbPath,
     chunking: { tokens: 400, overlap: 80, ...cfg.chunking },
     search: {
-      maxResults: 6,
-      minScore: 0,
-      vectorWeight: 0.7,
-      textWeight: 0.3,
-      mmr: { enabled: false, lambda: 0.7, ...cfg.search?.mmr },
+      maxResults: cfg.search?.maxResults ?? 6,
+      minScore: cfg.search?.minScore ?? 0,
+      vectorWeight: cfg.search?.vectorWeight ?? 0.7,
+      textWeight: cfg.search?.textWeight ?? 0.3,
+      mmr: { enabled: cfg.search?.mmr?.enabled ?? false, lambda: cfg.search?.mmr?.lambda ?? 0.7 },
       temporalDecay: {
-        enabled: false,
-        halfLifeDays: 30,
-        ...cfg.search?.temporalDecay
-      },
-      ...cfg.search
+        enabled: cfg.search?.temporalDecay?.enabled ?? false,
+        halfLifeDays: cfg.search?.temporalDecay?.halfLifeDays ?? 30
+      }
     },
     sync: { watchDebounceMs: 1500, ...cfg.sync },
     extraPaths: cfg.extraPaths ?? []
