@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Download and install Mosaic Companion for macOS, Linux, and Windows. Get started with the easiest installation guide."
+      content="Download and install MosAIc Core for macOS, Linux, and Windows. My Own Secure AI Companion."
     />
-    <title>Install Mosaic Companion</title>
+    <title>Install MosAIc Core</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -21,24 +21,21 @@
 
     <header>
       <div class="container">
-        <h1 class="logo">Mosaic Companion</h1>
+        <h1 class="logo"><span class="logo-icon">M</span> MosAIc Core</h1>
+        <p class="subtitle">My Own Secure AI Companion</p>
         <p class="tagline">
-          Your AI-powered companion for seamless computing. Choose your platform
-          below to get started.
+          MosAIc is an Open Platform For Developers That Aren't Necessarily
+          Coders But Are Necessarily Intelligent Beings Including Humans
         </p>
       </div>
     </header>
 
     <main class="container">
-        <!-- Experimental Releases -->
-        <div class="experimental-releases" id="experimental-section">
-          <select id="experimental-select" class="experimental-select">
-            <option value="" disabled selected>
-              Select experimental release...
-            </option>
-          </select>
-          <button id="go-btn" class="go-btn">GO</button>
-        </div>
+      <!-- Specialized Releases -->
+      <div class="specialized-releases" id="specialized-section">
+        <span class="specialized-label">Specialized releases:</span>
+        <span id="specialized-links" class="specialized-links"></span>
+      </div>
 
       <!-- Platform Tabs -->
       <div class="platform-tabs">
@@ -69,6 +66,7 @@
       </div>
 
       <!-- Install Sections -->
+      <h2 class="section-title">Install <span>Steps</span></h2>
       <div class="install-sections">
         <!-- macOS Section -->
         <section id="mac" class="install-section active">
@@ -77,7 +75,7 @@
             <p>Choose the correct version for your Mac's processor:</p>
             <div class="download-grid">
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/darwin/x64/mosaic-companion-{{VERSION}}-x64.dmg"
+                href="https://licenses.aimarkets.ai/releases/darwin/x64/mosaic-companion-{{VERSION}}-x64.dmg"
                 class="download-btn"
               >
                 <div class="icon">
@@ -91,41 +89,7 @@
                 </div>
               </a>
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/darwin/arm64/mosaic-companion-{{VERSION}}-arm64.dmg"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (Apple Silicon)</div>
-                  <div class="arch">For M1/M2/M3 Macs (arm64)</div>
-                </div>
-              </a>
-            </div>
-
-            <p style="margin-top: 24px; margin-bottom: 8px">
-              <strong>Portable ZIP (.zip):</strong>
-            </p>
-            <div class="download-grid">
-              <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/darwin/x64/mosaic-companion-darwin-x64-{{VERSION}}.zip"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (Intel)</div>
-                  <div class="arch">For Intel Macs (x64)</div>
-                </div>
-              </a>
-              <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/darwin/arm64/mosaic-companion-darwin-arm64-{{VERSION}}.zip"
+                href="https://licenses.aimarkets.ai/releases/darwin/arm64/mosaic-companion-{{VERSION}}-arm64.dmg"
                 class="download-btn"
               >
                 <div class="icon">
@@ -160,16 +124,6 @@
               </li>
               <li>Eject the disk image when done</li>
             </ul>
-            <p style="margin-top: 16px">
-              <strong>ZIP:</strong> Extract and run:
-            </p>
-            <div class="code-block">
-              <code
-                >unzip ~/Downloads/mosaic-companion-darwin*.zip -d ~/MosaicCompanion &&
-                open ~/MosaicCompanion/Mosaic\ Companion.app</code
-              >
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            </div>
           </div>
 
           <div class="card">
@@ -198,27 +152,61 @@
           </div>
 
           <div class="card">
-            <h3><span class="step-number">4</span> Troubleshooting (Temporary for macOS)</h3>
-            <p>Since Mosaic Companion is not yet code-signed, you may encounter additional security warnings. Here are temporary workarounds:</p>
+            <h3>
+              <span class="step-number">4</span> Troubleshooting (Temporary for
+              macOS)
+            </h3>
+            <p>
+              Since Mosaic Companion is not yet code-signed, you may encounter
+              additional security warnings. Here are temporary workarounds:
+            </p>
 
             <h4>Option 1: Terminal Command (Immediate Fix)</h4>
-            <p>If you trust the Mosaic's source, you can bypass this security check using the Terminal:</p>
+            <p>
+              If you trust the Mosaic's source, you can bypass this security
+              check using the Terminal:
+            </p>
             <ol class="steps-list">
-              <li>Open Terminal from Applications > Utilities or via Spotlight search.</li>
-              <li>Run the following command, replacing <code>~/MosaicCompanion/Mosaic\ Companion.app</code> with the actual path to your application (you can type the command and then drag the application icon into the Terminal window to auto-fill the path):</li>
+              <li>
+                Open Terminal from Applications > Utilities or via Spotlight
+                search.
+              </li>
+              <li>
+                Run the following command, replacing
+                <code>~/MosaicCompanion/Mosaic\ Companion.app</code> with the
+                actual path to your application (you can type the command and
+                then drag the application icon into the Terminal window to
+                auto-fill the path):
+              </li>
             </ol>
             <div class="code-block">
-              <code>xattr -cr ~/MosaicCompanion/Mosaic\ Companion.app</code>
+              <code>xattr -cr /Applications/mosaic-companion.app</code>
               <button class="copy-btn" onclick="copyCode(this)">Copy</button>
             </div>
-            <p>(Note: the -cr flags remove all extended attributes recursively).</p>
-            <p>Press Enter to execute the command. You may need to enter your administrator password.</p>
-            <p>Attempt to open the app again. It should now launch without the error.</p>
+            <p>
+              (Note: the -cr flags remove all extended attributes recursively).
+            </p>
+            <p>
+              Press Enter to execute the command. You may need to enter your
+              administrator password.
+            </p>
+            <p>
+              Attempt to open the app again. It should now launch without the
+              error.
+            </p>
 
             <h4>Option 2: Override Security Settings</h4>
-            <p>Go to System Settings > Privacy & Security, look for a message about Mosaic Companion (recently blocked) and click the "Open Anyway" button.</p>
+            <p>
+              Go to System Settings > Privacy & Security, look for a message
+              about Mosaic Companion (recently blocked) and click the "Open
+              Anyway" button.
+            </p>
 
-            <p><strong>Note:</strong> This is a temporary measure while we obtain proper code signing. These steps will not be needed in future releases.</p>
+            <p>
+              <strong>Note:</strong> This is a temporary measure while we obtain
+              proper code signing. These steps will not be needed in future
+              releases.
+            </p>
           </div>
         </section>
 
@@ -233,7 +221,7 @@
             </p>
             <div class="download-grid">
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/x64/mosaic-companion_{{VERSION}}_amd64.deb"
+                href="https://licenses.aimarkets.ai/releases/linux/x64/mosaic-companion_{{VERSION}}_amd64.deb"
                 class="download-btn"
               >
                 <div class="icon">
@@ -247,7 +235,7 @@
                 </div>
               </a>
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/arm64/mosaic-companion_{{VERSION}}_arm64.deb"
+                href="https://licenses.aimarkets.ai/releases/linux/arm64/mosaic-companion_{{VERSION}}_arm64.deb"
                 class="download-btn"
               >
                 <div class="icon">
@@ -267,7 +255,7 @@
             </p>
             <div class="download-grid">
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/x64/mosaic-companion-{{VERSION}}-x64.AppImage"
+                href="https://licenses.aimarkets.ai/releases/linux/x64/mosaic-companion-{{VERSION}}-x64.AppImage"
                 class="download-btn"
               >
                 <div class="icon">
@@ -281,7 +269,7 @@
                 </div>
               </a>
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/arm64/mosaic-companion-{{VERSION}}-arm64.AppImage"
+                href="https://licenses.aimarkets.ai/releases/linux/arm64/mosaic-companion-{{VERSION}}-arm64.AppImage"
                 class="download-btn"
               >
                 <div class="icon">
@@ -292,40 +280,6 @@
                 <div class="info">
                   <div>Mosaic Companion (ARM64)</div>
                   <div class="arch">For ARM 64-bit (aarch64)</div>
-                </div>
-              </a>
-            </div>
-
-            <p style="margin-top: 24px; margin-bottom: 8px">
-              <strong>Portable ZIP (.zip):</strong>
-            </p>
-            <div class="download-grid">
-              <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/x64/mosaic-companion-linux-x64-{{VERSION}}.zip"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (x64)</div>
-                  <div class="arch">For 64-bit Intel/AMD</div>
-                </div>
-              </a>
-              <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/linux/arm64/mosaic-companion-linux-arm64-{{VERSION}}.zip"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (ARM64)</div>
-                  <div class="arch">For ARM 64-bit</div>
                 </div>
               </a>
             </div>
@@ -348,16 +302,7 @@
               <code>sudo dpkg -i ~/Downloads/mosaic-companion*.deb</code>
               <button class="copy-btn" onclick="copyCode(this)">Copy</button>
             </div>
-            <p style="margin-top: 16px">
-              <strong>ZIP:</strong> Extract and run:
-            </p>
-            <div class="code-block">
-              <code
-                >unzip ~/Downloads/mosaic-companion-linux*.zip -d ~/MosaicCompanion &&
-                ~/MosaicCompanion/mosaic-companion</code
-              >
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            </div>
+
             <div class="notice">
               <span class="notice-icon">💡</span>
               <p>
@@ -389,7 +334,7 @@
             <p>Choose the correct version for your system:</p>
             <div class="download-grid">
               <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/x64/mosaic-companion-{{VERSION}}+Setup.exe"
+                href="https://licenses.aimarkets.ai/releases/win32/x64/mosaic-companion-{{VERSION}}%20Setup.exe"
                 class="download-btn"
               >
                 <div class="icon">
@@ -403,41 +348,7 @@
                 </div>
               </a>
               <!-- <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/arm64/mosaic-companion-{{VERSION}}+Setup.exe"
-                class="download-btn disabled"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (ARM64) - Not Available Yet</div>
-                  <div class="arch">For ARM Windows (Coming Soon)</div>
-                </div>
-              </a> -->
-            </div>
-
-            <p style="margin-top: 24px; margin-bottom: 8px">
-              <strong>Portable ZIP (.zip):</strong>
-            </p>
-            <div class="download-grid">
-              <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/x64/mosaic-companion-win32-x64-{{VERSION}}.zip"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (x64)</div>
-                  <div class="arch">For 64-bit Windows</div>
-                </div>
-              </a>
-              <!-- <a
-                href="https://mosaic-release.s3.us-east-2.amazonaws.com/releases/win32/arm64/mosaic-companion-win32-arm64-{{VERSION}}.zip"
+                href="https://licenses.aimarkets.ai/releases/win32/arm64/mosaic-companion-{{VERSION}}%20Setup.exe"
                 class="download-btn disabled"
               >
                 <div class="icon">
@@ -459,6 +370,18 @@
                 for newer Surface devices with Snapdragon chips.
               </p>
             </div> -->
+
+            <div class="notice">
+              <span class="notice-icon">💡</span>
+              <p>
+                <strong>Edge browser users:</strong> Edge may flag the download
+                as uncommon. Click the <strong>"···"</strong> (More actions)
+                icon next to the file → <strong>"Keep"</strong> →
+                then expand the <strong>"···"</strong> dropdown beside
+                "Delete" and select <strong>"Keep anyway"</strong>.
+                Chrome and Firefox download without issues.
+              </p>
+            </div>
           </div>
 
           <div class="card">
@@ -473,16 +396,7 @@
               <li>Then click <strong>"Run anyway"</strong></li>
               <li>The app will install and launch automatically</li>
             </ul>
-            <p style="margin-top: 16px">
-              <strong>ZIP:</strong> Extract and run:
-            </p>
-            <div class="code-block">
-              <code
-                >Expand-Archive -Path "$env:USERPROFILE\Downloads\mosaic-companion-win32*.zip" -DestinationPath "$env:USERPROFILE\MosaicCompanion" &&
-                Start-Process "$env:USERPROFILE\MosaicCompanion\Mosaic Companion.exe"</code
-              >
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            </div>
+
             <div class="notice warning">
               <span class="notice-icon">⚠️</span>
               <p>
@@ -508,10 +422,10 @@
       <div class="container">
         <p>
           Need help? Contact us at
-          <a href="mailto:hern@hypercycle.ai">hern@hypercycle.ai</a>
+          <a href="mailto:admin@aimarkets.ai">admin@aimarkets.ai</a>
         </p>
         <p style="margin-top: 8px; font-size: 0.9rem">
-          © 2026 Mosaic Companion. Built with ❤️ by HyperCycle.
+          © 2026 Mosaic Companion. Built with ❤️ by AIMarkets.
         </p>
       </div>
     </footer>
@@ -543,8 +457,8 @@
         });
       }
 
-      // Experimental releases logic
-      async function fetchExperimentalReleases() {
+      // Specialized releases logic
+      async function fetchSpecializedReleases() {
         // Only run on main index page (not in experimental subfolders)
         if (window.location.pathname.includes("/experimental/")) {
           return;
@@ -552,48 +466,46 @@
 
         try {
           const response = await fetch(
-            "https://mosaic-release.s3.us-east-2.amazonaws.com/?list-type=2&prefix=releases/experimental/&delimiter=/"
+            "https://mosaic-release.s3.us-east-2.amazonaws.com/?list-type=2&prefix=releases/experimental/&delimiter=/",
           );
           const text = await response.text();
           const parser = new DOMParser();
           const xml = parser.parseFromString(text, "text/xml");
           const prefixes = xml.querySelectorAll("CommonPrefixes Prefix");
-          const select = document.getElementById("experimental-select");
-          const section = document.getElementById("experimental-section");
+          const linksContainer = document.getElementById("specialized-links");
+          const section = document.getElementById("specialized-section");
 
-          let hasReleases = false;
+          const names = [];
           prefixes.forEach((prefixNode) => {
             const prefix = prefixNode.textContent;
             // Prefix is like "releases/experimental/screenpipe/"
             const parts = prefix.split("/");
             const name = parts[parts.length - 2];
             if (name && name !== "experimental") {
-              const option = document.createElement("option");
-              option.value = prefix;
-              option.textContent = name;
-              select.appendChild(option);
-              hasReleases = true;
+              names.push({ name, prefix });
             }
           });
 
-          if (hasReleases) {
+          if (names.length > 0) {
+            names.forEach((item, index) => {
+              const link = document.createElement("a");
+              link.href = `https://licenses.aimarkets.ai/${item.prefix}`;
+              link.textContent = item.name;
+              link.className = "specialized-link";
+              linksContainer.appendChild(link);
+              if (index < names.length - 1) {
+                const separator = document.createTextNode(", ");
+                linksContainer.appendChild(separator);
+              }
+            });
             section.style.display = "flex";
           }
         } catch (error) {
-          console.error("Error fetching experimental releases:", error);
+          console.error("Error fetching specialized releases:", error);
         }
       }
 
-      document.getElementById("go-btn").addEventListener("click", () => {
-        const select = document.getElementById("experimental-select");
-        const prefix = select.value;
-        if (prefix) {
-          // Redirect to the experimental index page
-          window.location.href = `https://mosaic-release.s3.us-east-2.amazonaws.com/${prefix}index.html`;
-        }
-      });
-
-      fetchExperimentalReleases();
+      fetchSpecializedReleases();
     </script>
   </body>
 </html>

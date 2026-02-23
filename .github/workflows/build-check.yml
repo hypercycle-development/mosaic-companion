@@ -39,6 +39,10 @@ jobs:
       - name: Install Linux build dependencies
         run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot
 
+      - name: Write mock Gmail credentials (build check only)
+        run: cp config/gmail-credentials.example.json config/gmail-credentials.json
+        # shell: bash
+
       - name: Build Electron (${{ matrix.platform }}/${{ matrix.arch }})
         run: npm run make -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
 
@@ -70,7 +74,6 @@ jobs:
           echo "=== Linux ${{ matrix.arch }} artifacts ==="
           find out/make -type f 2>/dev/null | head -20 || echo "No artifacts in out/make"
           ls out/make/deb/${{ matrix.arch }}/*.deb 2>/dev/null && echo "✓ DEB found" || echo "No DEB"
-          ls out/make/zip/linux/${{ matrix.arch }}/*.zip 2>/dev/null && echo "✓ ZIP found" || echo "No ZIP"
 
   # Full platform builds — only on push to main (expensive macOS/Windows runners)
   build-all-platforms:
@@ -106,6 +109,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Write mock Gmail credentials (build check only)
+        run: cp config/gmail-credentials.example.json config/gmail-credentials.json
+        shell: bash
+
       - name: Build Electron (${{ matrix.platform }}/${{ matrix.arch }})
         run: npm run make -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
 
@@ -119,7 +126,6 @@ jobs:
           if [ "${{ matrix.platform }}" == "darwin" ]; then
             echo "=== macOS ${{ matrix.arch }} artifacts ==="
             ls out/make/*.dmg 2>/dev/null && echo "✓ DMG found" || echo "No DMG"
-            ls out/make/zip/darwin/${{ matrix.arch }}/*.zip 2>/dev/null && echo "✓ ZIP found" || echo "No ZIP"
           elif [ "${{ matrix.platform }}" == "win32" ]; then
             echo "=== Windows ${{ matrix.arch }} artifacts ==="
             ls out/make/squirrel.windows/${{ matrix.arch }}/*.exe 2>/dev/null && echo "✓ EXE found" || echo "No EXE"
