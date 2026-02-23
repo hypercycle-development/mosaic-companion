@@ -31,6 +31,7 @@ import {
   getErrorMessage,
 } from "./utils/index";
 import { mcpClient } from "./integrations/mcp/index";
+import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
@@ -124,6 +125,7 @@ const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 // Window Management
 // =============================================================================
 let mainWindow: BrowserWindow | null = null;
+let mosaicBotStop: (() => Promise<void>) | null = null;
 
 function getIconPath(): string {
   // In packaged app, assets are at PROJECT_ROOT/assets
@@ -220,6 +222,7 @@ function recreateWindow(): void {
 // =============================================================================
 app.on("before-quit", () => {
   mcpClient.disconnectAll();
+  if (mosaicBotStop) mosaicBotStop().catch(console.error);
 });
 
 // Suppress ERR_ABORTED errors from webviews
@@ -248,6 +251,13 @@ app.whenReady().then(() => {
   }
 
   createWindow();
+
+  // Initialize MosaicBot agent subsystem
+  initMosaicBot().then((bot) => {
+    mosaicBotStop = bot.stop.bind(bot);
+  }).catch((e) => {
+    console.error("[MosaicBot] Init failed:", e);
+  });
 
   // Initialize updater (production only)
   if (app.isPackaged) {

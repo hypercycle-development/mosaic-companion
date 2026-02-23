@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Heartbeat runner — schedules periodic LLM calls per agent
-// Mirrors src/infra/heartbeat-runner.ts from OpenClaw
+// Mirrors src/infra/heartbeat-runner.ts from OpenMosaic
 //
 // Flow per tick:
 //   1. Check active hours → skip if outside window
@@ -29,7 +29,9 @@ export type HeartbeatContext = {
   now: Date;
 };
 
-export type HeartbeatReplyFn = (ctx: HeartbeatContext) => Promise<string | null>;
+export type HeartbeatReplyFn = (
+  ctx: HeartbeatContext,
+) => Promise<string | null>;
 export type HeartbeatDeliverFn = (
   agentId: string,
   channel: string,
@@ -59,7 +61,9 @@ type AgentState = {
   timer: ReturnType<typeof setTimeout> | null;
 };
 
-export function startHeartbeatRunner(opts: HeartbeatRunnerOptions): HeartbeatRunner {
+export function startHeartbeatRunner(
+  opts: HeartbeatRunnerOptions,
+): HeartbeatRunner {
   const states = new Map<string, AgentState>();
   let stopped = false;
 
@@ -77,15 +81,19 @@ export function startHeartbeatRunner(opts: HeartbeatRunnerOptions): HeartbeatRun
   }
 
   // Allow external events (exec complete, cron, hooks) to fire heartbeats immediately
-  const removeWake = setHeartbeatWakeHandler(async (requests: WakeRequest[]) => {
-    if (stopped) return;
-    const ids = new Set(requests.map((r) => r.agentId).filter(Boolean) as string[]);
-    const targets = ids.size > 0 ? ids : new Set(states.keys());
-    for (const id of targets) {
-      const state = states.get(id);
-      if (state) await runHeartbeat(state);
-    }
-  });
+  const removeWake = setHeartbeatWakeHandler(
+    async (requests: WakeRequest[]) => {
+      if (stopped) return;
+      const ids = new Set(
+        requests.map((r) => r.agentId).filter(Boolean) as string[],
+      );
+      const targets = ids.size > 0 ? ids : new Set(states.keys());
+      for (const id of targets) {
+        const state = states.get(id);
+        if (state) await runHeartbeat(state);
+      }
+    },
+  );
 
   function scheduleAgent(state: AgentState): void {
     if (stopped || state.timer) return;
@@ -106,7 +114,12 @@ export function startHeartbeatRunner(opts: HeartbeatRunnerOptions): HeartbeatRun
     const startedAt = Date.now();
 
     if (cfg.activeHours && !isWithinActiveHours(cfg.activeHours)) {
-      emit({ ts: startedAt, agentId, status: "skipped", reason: "quiet-hours" });
+      emit({
+        ts: startedAt,
+        agentId,
+        status: "skipped",
+        reason: "quiet-hours",
+      });
       return;
     }
 
@@ -118,9 +131,19 @@ export function startHeartbeatRunner(opts: HeartbeatRunnerOptions): HeartbeatRun
 
     let rawReply: string | null = null;
     try {
-      rawReply = await opts.onReply({ agentId, prompt, now: new Date(startedAt) });
+      rawReply = await opts.onReply({
+        agentId,
+        prompt,
+        now: new Date(startedAt),
+      });
     } catch (err) {
-      emit({ ts: startedAt, agentId, status: "failed", reason: String(err), durationMs: Date.now() - startedAt });
+      emit({
+        ts: startedAt,
+        agentId,
+        status: "failed",
+        reason: String(err),
+        durationMs: Date.now() - startedAt,
+      });
       return;
     }
 
@@ -141,9 +164,22 @@ export function startHeartbeatRunner(opts: HeartbeatRunnerOptions): HeartbeatRun
     const to = cfg.to ?? agentId;
     try {
       await opts.onDeliver(agentId, channel, to, alert);
-      emit({ ts: startedAt, agentId, status: "sent", channel, preview: alert.slice(0, 120), durationMs });
+      emit({
+        ts: startedAt,
+        agentId,
+        status: "sent",
+        channel,
+        preview: alert.slice(0, 120),
+        durationMs,
+      });
     } catch (err) {
-      emit({ ts: startedAt, agentId, status: "failed", reason: String(err), durationMs });
+      emit({
+        ts: startedAt,
+        agentId,
+        status: "failed",
+        reason: String(err),
+        durationMs,
+      });
     }
   }
 
@@ -194,7 +230,7 @@ async function buildPromptWithMemory(
   const lines: string[] = [];
   let chars = 0;
   for (const c of chunks) {
-    const block = `### ${c.source} (score ${c.score.toFixed(2)})\n${c.text}`;
+    const block = `### ${c.source} (score ${c.score.toFixed(2)})\n${c.snippet}`;
     if (chars + block.length > maxChars) break;
     lines.push(block);
     chars += block.length + 1;

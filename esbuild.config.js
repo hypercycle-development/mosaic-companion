@@ -35,6 +35,9 @@ await esbuild.build({
     // Native modules
     "onnxruntime-node",
     "sharp",
+    "better-sqlite3",
+    "sqlite-vec",
+    "chokidar",
   ],
 
 });
