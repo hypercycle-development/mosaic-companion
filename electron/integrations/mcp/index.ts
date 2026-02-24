@@ -1,564 +1,123 @@
 /**
- * Electron Main Process - MCP Client Integration
+ * Electron Main Process - MCP Integration
  *
- * This demonstrates how to integrate MCP (Model Context Protocol) into an Electron app.
- * The main process handles MCP server connections and exposes them to the renderer via IPC.
- *
- * Supports:
- * - STDIO transport (local MCP servers)
- * - Streamable HTTP transport (remote MCP servers like Open WebUI)
- * - Multiple concurrent server connections
+ * Thin wrapper that connects MCPClient and MCPPluginManager to Electron's IPC.
+ * All protocol logic lives in MCPClient.ts — this file only handles:
+ * - IPC handler registration
+ * - Plugin persistence (MCPPluginManager)
+ * - Forwarding MCPClient events to the renderer
  */
 
-import { app, BrowserWindow, ipcMain } from "electron";
-import { spawn, ChildProcess } from "child_process";
-import * as path from "path";
-import * as readline from "readline";
+import { BrowserWindow, ipcMain } from "electron";
+import { MCPClient } from "./MCPClient";
+import { MCPPluginManager } from "./plugin";
+import type { MCPServerConfig } from "./MCPClient";
 
 // =============================================================================
-// Type Definitions
+// Singletons
 // =============================================================================
 
-interface JsonRpcRequest {
-  jsonrpc: "2.0";
-  id: number;
-  method: string;
-  params?: Record<string, unknown>;
+const mcpClient = new MCPClient({ debug: true });
+const pluginManager = new MCPPluginManager();
+
+let mainWindow: BrowserWindow | null = null;
+
+/** Called from main.ts after the window is created */
+export function setMainWindow(win: BrowserWindow): void {
+  mainWindow = win;
 }
 
-interface JsonRpcResponse {
-  jsonrpc: "2.0";
-  id: number | null;
-  result?: unknown;
-  error?: {
-    code: number;
-    message: string;
-    data?: unknown;
-  };
-}
+// =============================================================================
+// Auto-connect plugins
+// =============================================================================
 
-interface JsonRpcNotification {
-  jsonrpc: "2.0";
-  method: string;
-  params?: Record<string, unknown>;
-}
-
-interface MCPTool {
-  name: string;
-  description?: string;
-  inputSchema?: Record<string, unknown>;
-}
-
-interface MCPResource {
-  uri: string;
-  name?: string;
-  description?: string;
-  mimeType?: string;
-}
-
-interface MCPPrompt {
-  name: string;
-  description?: string;
-  arguments?: Array<{
-    name: string;
-    description?: string;
-    required?: boolean;
-  }>;
-}
-
-interface MCPServerConfig {
-  name: string;
-  transport: "stdio" | "http";
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  url?: string;
-  apiKey?: string;
-}
-
-interface PendingRequest {
-  resolve: (value: unknown) => void;
-  reject: (error: Error) => void;
-}
-
-interface MCPServerConnection {
-  config: MCPServerConfig;
-  process?: ChildProcess;
-  requestId: number;
-  pendingRequests: Map<number, PendingRequest>;
-  tools: MCPTool[];
-  resources: MCPResource[];
-  prompts: MCPPrompt[];
-  initialized: boolean;
-}
-
-// ============ MCP CLIENT CLASS ============
-
-class MCPClient {
-  private connections: Map<string, MCPServerConnection> = new Map();
-  private mainWindow: BrowserWindow | null = null;
-
-  setMainWindow(window: BrowserWindow): void {
-    this.mainWindow = window;
-  }
-
-  // ============ STDIO TRANSPORT ============
-
-  async connectStdio(config: MCPServerConfig): Promise<void> {
-    if (!config.command) {
-      throw new Error("STDIO transport requires a command");
-    }
-
-    console.log(`[MCP] Connecting to ${config.name} via STDIO...`);
-
-    const connection: MCPServerConnection = {
-      config,
-      requestId: 0,
-      pendingRequests: new Map(),
-      tools: [],
-      resources: [],
-      prompts: [],
-      initialized: false,
-    };
-
-    // Spawn the MCP server process
-    const childProcess = spawn(config.command, config.args || [], {
-      env: { ...process.env, ...config.env },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    connection.process = childProcess;
-
-    // Handle stdout (JSON-RPC responses)
-    const rl = readline.createInterface({
-      input: childProcess.stdout!,
-      crlfDelay: Infinity,
-    });
-
-    rl.on("line", (line: string) => {
-      try {
-        const message = JSON.parse(line) as
-          | JsonRpcResponse
-          | JsonRpcNotification;
-        this.handleMessage(config.name, message);
-      } catch (error) {
-        console.error(
-          `[MCP] Failed to parse message from ${config.name}:`,
-          error,
-        );
-      }
-    });
-
-    // Handle stderr (logging)
-    childProcess.stderr?.on("data", (data: Buffer) => {
-      console.log(`[MCP] ${config.name} stderr:`, data.toString());
-    });
-
-    // Handle process exit
-    childProcess.on("exit", (code: number | null) => {
-      console.log(`[MCP] ${config.name} exited with code ${code}`);
-      this.connections.delete(config.name);
-      this.notifyRenderer("mcp:server-disconnected", {
-        name: config.name,
-        code,
-      });
-    });
-
-    childProcess.on("error", (error: Error) => {
-      console.error(`[MCP] ${config.name} error:`, error);
-      this.notifyRenderer("mcp:server-error", {
-        name: config.name,
-        error: error.message,
-      });
-    });
-
-    this.connections.set(config.name, connection);
-
-    // Initialize the connection
-    await this.initializeConnection(config.name);
-  }
-
-  // ============ HTTP TRANSPORT ============
-
-  async connectHttp(config: MCPServerConfig): Promise<void> {
-    if (!config.url) {
-      throw new Error("HTTP transport requires a URL");
-    }
-
-    console.log(
-      `[MCP] Connecting to ${config.name} via HTTP at ${config.url}...`,
-    );
-
-    const connection: MCPServerConnection = {
-      config,
-      requestId: 0,
-      pendingRequests: new Map(),
-      tools: [],
-      resources: [],
-      prompts: [],
-      initialized: false,
-    };
-
-    this.connections.set(config.name, connection);
-
-    // Initialize the connection
-    await this.initializeConnection(config.name);
-  }
-
-  // ============ CONNECTION MANAGEMENT ============
-
-  private async initializeConnection(serverName: string): Promise<void> {
-    const connection = this.connections.get(serverName);
-    if (!connection) throw new Error(`Server ${serverName} not found`);
-
-    // Send initialize request
-    const initResult = await this.sendRequest(serverName, "initialize", {
-      protocolVersion: "2024-11-05",
-      capabilities: {
-        roots: { listChanged: true },
-        sampling: {},
-      },
-      clientInfo: {
-        name: "electron-mcp-client",
-        version: "1.0.0",
-      },
-    });
-
-    console.log(`[MCP] ${serverName} initialized:`, initResult);
-
-    // Send initialized notification
-    await this.sendNotification(serverName, "notifications/initialized", {});
-
-    connection.initialized = true;
-
-    // Fetch capabilities
-    await this.refreshCapabilities(serverName);
-
-    this.notifyRenderer("mcp:server-connected", {
-      name: serverName,
-      tools: connection.tools,
-      resources: connection.resources,
-      prompts: connection.prompts,
-    });
-  }
-
-  async refreshCapabilities(serverName: string): Promise<void> {
-    const connection = this.connections.get(serverName);
-    if (!connection) throw new Error(`Server ${serverName} not found`);
-
-    // Fetch tools
+export async function initPlugins(): Promise<void> {
+  const plugins = pluginManager.list().filter((p) => p.autoConnect);
+  for (const plugin of plugins) {
     try {
-      const toolsResult = (await this.sendRequest(
-        serverName,
-        "tools/list",
-        {},
-      )) as { tools: MCPTool[] };
-      connection.tools = toolsResult.tools || [];
-      console.log(
-        `[MCP] ${serverName} tools:`,
-        connection.tools.map((t: MCPTool) => t.name),
-      );
-    } catch (error) {
-      console.log(`[MCP] ${serverName} does not support tools`);
-    }
-
-    // Fetch resources
-    try {
-      const resourcesResult = (await this.sendRequest(
-        serverName,
-        "resources/list",
-        {},
-      )) as { resources: MCPResource[] };
-      connection.resources = resourcesResult.resources || [];
-      console.log(
-        `[MCP] ${serverName} resources:`,
-        connection.resources.map((r: MCPResource) => r.uri),
-      );
-    } catch (error) {
-      console.log(`[MCP] ${serverName} does not support resources`);
-    }
-
-    // Fetch prompts
-    try {
-      const promptsResult = (await this.sendRequest(
-        serverName,
-        "prompts/list",
-        {},
-      )) as { prompts: MCPPrompt[] };
-      connection.prompts = promptsResult.prompts || [];
-      console.log(
-        `[MCP] ${serverName} prompts:`,
-        connection.prompts.map((p: MCPPrompt) => p.name),
-      );
-    } catch (error) {
-      console.log(`[MCP] ${serverName} does not support prompts`);
-    }
-  }
-
-  async disconnect(serverName: string): Promise<void> {
-    const connection = this.connections.get(serverName);
-    if (!connection) return;
-
-    if (connection.process) {
-      connection.process.kill();
-    }
-
-    this.connections.delete(serverName);
-    console.log(`[MCP] Disconnected from ${serverName}`);
-  }
-
-  async disconnectAll(): Promise<void> {
-    for (const name of this.connections.keys()) {
-      await this.disconnect(name);
-    }
-  }
-
-  // ============ MESSAGE HANDLING ============
-
-  private async sendRequest(
-    serverName: string,
-    method: string,
-    params: Record<string, unknown>,
-  ): Promise<unknown> {
-    const connection = this.connections.get(serverName);
-    if (!connection) throw new Error(`Server ${serverName} not found`);
-
-    const id = ++connection.requestId;
-    const request: JsonRpcRequest = {
-      jsonrpc: "2.0",
-      id,
-      method,
-      params,
-    };
-
-    return new Promise((resolve, reject) => {
-      connection.pendingRequests.set(id, { resolve, reject });
-
-      // Set timeout
-      const timeout = setTimeout(() => {
-        connection.pendingRequests.delete(id);
-        reject(new Error(`Request ${method} timed out`));
-      }, 30000);
-
-      // Send via appropriate transport
-      if (connection.config.transport === "stdio" && connection.process) {
-        connection.process.stdin?.write(JSON.stringify(request) + "\n");
-      } else if (connection.config.transport === "http") {
-        this.sendHttpRequest(connection, request)
-          .then(resolve)
-          .catch(reject)
-          .finally(() => {
-            clearTimeout(timeout);
-            connection.pendingRequests.delete(id);
-          });
-        return; // HTTP handles its own promise resolution
-      }
-
-      // For STDIO, the response comes via handleMessage
-      const originalResolve = connection.pendingRequests.get(id)!.resolve;
-      connection.pendingRequests.set(id, {
-        resolve: (value: unknown) => {
-          clearTimeout(timeout);
-          originalResolve(value);
-        },
-        reject: (error: Error) => {
-          clearTimeout(timeout);
-          reject(error);
-        },
+      await mcpClient.connect({
+        name: plugin.name,
+        transport: plugin.transport,
+        command: plugin.command,
+        args: plugin.args,
+        env: plugin.env,
+        url: plugin.url,
+        apiKey: plugin.apiKey,
       });
-    });
-  }
-
-  private async sendHttpRequest(
-    connection: MCPServerConnection,
-    request: JsonRpcRequest,
-  ): Promise<unknown> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
-    if (connection.config.apiKey) {
-      headers["Authorization"] = `Bearer ${connection.config.apiKey}`;
+    } catch (e) {
+      console.error(`[MCP] Auto-connect failed for plugin "${plugin.name}":`, e);
     }
-
-    const response = await fetch(connection.config.url!, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const result = (await response.json()) as JsonRpcResponse;
-
-    if (result.error) {
-      throw new Error(`MCP Error: ${result.error.message}`);
-    }
-
-    return result.result;
-  }
-
-  private async sendNotification(
-    serverName: string,
-    method: string,
-    params: Record<string, unknown>,
-  ): Promise<void> {
-    const connection = this.connections.get(serverName);
-    if (!connection) throw new Error(`Server ${serverName} not found`);
-
-    const notification: JsonRpcNotification = {
-      jsonrpc: "2.0",
-      method,
-      params,
-    };
-
-    if (connection.config.transport === "stdio" && connection.process) {
-      connection.process.stdin?.write(JSON.stringify(notification) + "\n");
-    } else if (connection.config.transport === "http") {
-      // HTTP notifications are fire-and-forget
-      fetch(connection.config.url!, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(connection.config.apiKey && {
-            Authorization: `Bearer ${connection.config.apiKey}`,
-          }),
-        },
-        body: JSON.stringify(notification),
-      }).catch(console.error);
-    }
-  }
-
-  private handleMessage(
-    serverName: string,
-    message: JsonRpcResponse | JsonRpcNotification,
-  ): void {
-    const connection = this.connections.get(serverName);
-    if (!connection) return;
-
-    // Check if it's a response (has id)
-    if ("id" in message && message.id !== null) {
-      const pending = connection.pendingRequests.get(message.id);
-      if (pending) {
-        connection.pendingRequests.delete(message.id);
-        if ((message as JsonRpcResponse).error) {
-          pending.reject(
-            new Error((message as JsonRpcResponse).error!.message),
-          );
-        } else {
-          pending.resolve((message as JsonRpcResponse).result);
-        }
-      }
-    } else {
-      // It's a notification
-      this.handleNotification(serverName, message as JsonRpcNotification);
-    }
-  }
-
-  private handleNotification(
-    serverName: string,
-    notification: JsonRpcNotification,
-  ): void {
-    console.log(`[MCP] ${serverName} notification:`, notification.method);
-
-    switch (notification.method) {
-      case "notifications/tools/list_changed":
-        this.refreshCapabilities(serverName);
-        break;
-      case "notifications/resources/list_changed":
-        this.refreshCapabilities(serverName);
-        break;
-      case "notifications/prompts/list_changed":
-        this.refreshCapabilities(serverName);
-        break;
-      default:
-        this.notifyRenderer("mcp:notification", {
-          server: serverName,
-          method: notification.method,
-          params: notification.params,
-        });
-    }
-  }
-
-  private notifyRenderer(channel: string, data: unknown): void {
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.webContents.send(channel, data);
-    }
-  }
-
-  // ============ PUBLIC API (exposed via IPC) ============
-
-  async callTool(
-    serverName: string,
-    toolName: string,
-    args: Record<string, unknown>,
-  ): Promise<unknown> {
-    console.log(`[MCP] Calling tool ${toolName} on ${serverName}`);
-    return this.sendRequest(serverName, "tools/call", {
-      name: toolName,
-      arguments: args,
-    });
-  }
-
-  async readResource(serverName: string, uri: string): Promise<unknown> {
-    console.log(`[MCP] Reading resource ${uri} from ${serverName}`);
-    return this.sendRequest(serverName, "resources/read", { uri });
-  }
-
-  async getPrompt(
-    serverName: string,
-    promptName: string,
-    args: Record<string, string>,
-  ): Promise<unknown> {
-    console.log(`[MCP] Getting prompt ${promptName} from ${serverName}`);
-    return this.sendRequest(serverName, "prompts/get", {
-      name: promptName,
-      arguments: args,
-    });
-  }
-
-  getServers(): Array<{
-    name: string;
-    transport: string;
-    initialized: boolean;
-    tools: MCPTool[];
-    resources: MCPResource[];
-    prompts: MCPPrompt[];
-  }> {
-    return Array.from(this.connections.entries()).map(([name, conn]) => ({
-      name,
-      transport: conn.config.transport,
-      initialized: conn.initialized,
-      tools: conn.tools,
-      resources: conn.resources,
-      prompts: conn.prompts,
-    }));
   }
 }
 
-// ============ MCP CLIENT INSTANCE ============
+// =============================================================================
+// Renderer Notification Helper
+// =============================================================================
 
-const mcpClient = new MCPClient();
+function notifyRenderer(channel: string, data: unknown): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, data);
+  }
+}
 
-// ============ IPC HANDLERS ============
+// =============================================================================
+// Forward MCPClient Events → Renderer
+// =============================================================================
 
-// Connect to MCP server
+mcpClient.on("connected", ({ server }) => {
+  const servers = mcpClient.getServers();
+  const serverInfo = servers.find((s) => s.name === server);
+  notifyRenderer("mcp:server-connected", {
+    name: server,
+    tools: serverInfo?.tools ?? [],
+    resources: serverInfo?.resources ?? [],
+    prompts: serverInfo?.prompts ?? [],
+  });
+});
+
+mcpClient.on("disconnected", ({ server, code }) => {
+  notifyRenderer("mcp:server-disconnected", { name: server, code });
+});
+
+mcpClient.on("error", ({ server, error }) => {
+  notifyRenderer("mcp:server-error", { name: server, error: error.message });
+});
+
+mcpClient.on("notification", ({ server, method, params }) => {
+  notifyRenderer("mcp:notification", { server, method, params });
+});
+
+mcpClient.on("tools-changed", ({ server }) => {
+  const servers = mcpClient.getServers();
+  const serverInfo = servers.find((s) => s.name === server);
+  notifyRenderer("mcp:tools-changed", {
+    name: server,
+    tools: serverInfo?.tools ?? [],
+  });
+});
+
+mcpClient.on("resources-changed", ({ server }) => {
+  const servers = mcpClient.getServers();
+  const serverInfo = servers.find((s) => s.name === server);
+  notifyRenderer("mcp:resources-changed", {
+    name: server,
+    resources: serverInfo?.resources ?? [],
+  });
+});
+
+// =============================================================================
+// IPC Handlers — Server Management
+// =============================================================================
+
 ipcMain.handle("mcp:connect", async (_event, config: MCPServerConfig) => {
   try {
-    if (config.transport === "stdio") {
-      await mcpClient.connectStdio(config);
-    } else {
-      await mcpClient.connectHttp(config);
-    }
+    await mcpClient.connect(config);
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
 });
 
-// Disconnect from MCP server
 ipcMain.handle("mcp:disconnect", async (_event, serverName: string) => {
   try {
     await mcpClient.disconnect(serverName);
@@ -568,12 +127,14 @@ ipcMain.handle("mcp:disconnect", async (_event, serverName: string) => {
   }
 });
 
-// List connected servers
 ipcMain.handle("mcp:list-servers", () => {
   return mcpClient.getServers();
 });
 
-// Call a tool
+// =============================================================================
+// IPC Handlers — Tool Operations
+// =============================================================================
+
 ipcMain.handle(
   "mcp:call-tool",
   async (
@@ -591,7 +152,19 @@ ipcMain.handle(
   },
 );
 
-// Read a resource
+ipcMain.handle("mcp:list-tools", async (_event, serverName: string) => {
+  try {
+    const tools = await mcpClient.listTools(serverName);
+    return { success: true, tools };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+});
+
+// =============================================================================
+// IPC Handlers — Resource Operations
+// =============================================================================
+
 ipcMain.handle(
   "mcp:read-resource",
   async (_event, serverName: string, uri: string) => {
@@ -604,7 +177,19 @@ ipcMain.handle(
   },
 );
 
-// Get a prompt
+ipcMain.handle("mcp:list-resources", async (_event, serverName: string) => {
+  try {
+    const resources = await mcpClient.listResources(serverName);
+    return { success: true, resources };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+});
+
+// =============================================================================
+// IPC Handlers — Prompt Operations
+// =============================================================================
+
 ipcMain.handle(
   "mcp:get-prompt",
   async (
@@ -622,16 +207,132 @@ ipcMain.handle(
   },
 );
 
-
-app.on("window-all-closed", () => {
-  mcpClient.disconnectAll();
-  if (process.platform !== "darwin") {
-    app.quit();
+ipcMain.handle("mcp:list-prompts", async (_event, serverName: string) => {
+  try {
+    const prompts = await mcpClient.listPrompts(serverName);
+    return { success: true, prompts };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
   }
 });
 
-app.on("before-quit", () => {
-  mcpClient.disconnectAll();
+// =============================================================================
+// IPC Handlers — Plugin Management
+// =============================================================================
+
+ipcMain.handle("mcp:list-plugins", () => {
+  return pluginManager.list();
 });
+
+ipcMain.handle(
+  "mcp:add-plugin",
+  (_event, plugin: Omit<import("./plugin").MCPPlugin, "id">) => {
+    return pluginManager.add(plugin);
+  },
+);
+
+ipcMain.handle(
+  "mcp:update-plugin",
+  (
+    _event,
+    id: string,
+    updates: Partial<Omit<import("./plugin").MCPPlugin, "id">>,
+  ) => {
+    return pluginManager.update(id, updates);
+  },
+);
+
+ipcMain.handle("mcp:remove-plugin", (_event, id: string) => {
+  return pluginManager.remove(id);
+});
+
+ipcMain.handle("mcp:connect-plugin", async (_event, id: string) => {
+  const plugin = pluginManager.get(id);
+  if (!plugin) return { success: false, error: `Plugin "${id}" not found` };
+  try {
+    await mcpClient.connect({
+      name: plugin.name,
+      transport: plugin.transport,
+      command: plugin.command,
+      args: plugin.args,
+      env: plugin.env,
+      url: plugin.url,
+      apiKey: plugin.apiKey,
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+});
+
+ipcMain.handle("mcp:disconnect-plugin", async (_event, id: string) => {
+  const plugin = pluginManager.get(id);
+  if (!plugin) return { success: false, error: `Plugin "${id}" not found` };
+  try {
+    await mcpClient.disconnect(plugin.name);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+});
+
+// =============================================================================
+// IPC Handlers — Role-based OS Access
+//
+// The "os" role designates one plugin as the system-level tool provider
+// (e.g. @modelcontextprotocol/server-filesystem).
+// These handlers are a stable interface that routes through whatever MCP
+// server currently holds the "os" role — swap the plugin, nothing else changes.
+// =============================================================================
+
+/** Resolve the connected OS plugin's server name, or throw */
+function requireOsServer(): string {
+  const plugin = pluginManager.byRole("os");
+  if (!plugin) throw new Error("No plugin has role 'os'. Assign it in the MCP Servers panel.");
+  if (!mcpClient.isConnected(plugin.name))
+    throw new Error(`OS plugin "${plugin.name}" is not connected. Connect it in the MCP Servers panel.`);
+  return plugin.name;
+}
+
+/** Status of the OS role: which plugin holds it and whether it's connected */
+ipcMain.handle("os:status", () => {
+  const plugin = pluginManager.byRole("os");
+  if (!plugin) return { configured: false, connected: false };
+  return {
+    configured: true,
+    connected: mcpClient.isConnected(plugin.name),
+    pluginName: plugin.name,
+    pluginId: plugin.id,
+  };
+});
+
+/** List all tools exposed by the OS plugin */
+ipcMain.handle("os:list-tools", async () => {
+  try {
+    const serverName = requireOsServer();
+    const tools = await mcpClient.listTools(serverName);
+    return { success: true, tools, serverName };
+  } catch (error) {
+    return { success: false, error: (error as Error).message, tools: [] };
+  }
+});
+
+/**
+ * Call any tool on the OS plugin.
+ * The renderer doesn't need to know which MCP server backs this —
+ * it just calls os:call with the tool name and args.
+ */
+ipcMain.handle(
+  "os:call",
+  async (_event, toolName: string, args: Record<string, unknown> = {}) => {
+    try {
+      const serverName = requireOsServer();
+      const result = await mcpClient.callTool(serverName, toolName, args);
+      return { success: true, result };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+);
 
 export { mcpClient };

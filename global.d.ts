@@ -213,6 +213,39 @@ declare global {
           readResource: (server: string, uri: string) => Promise<{ success: boolean; result?: any; error?: string }>;
       };
     };
+
+    // MosaicBot agent API
+    agent?: {
+      send: (text: string) => Promise<{ type: string; skill?: string; args?: string; text?: string }>;
+      triggerHeartbeat: (agentId?: string) => Promise<{ ok: boolean }>;
+      listSkills: () => Promise<Array<{ name: string; description: string }>>;
+      onMessage: (cb: (msg: { to: string; text: string; channel: string; messageId: string }) => void) => void;
+    };
+
+    // MosaicBot memory API
+    memory?: {
+      search: (query: string, opts?: { maxResults?: number; minScore?: number }) => Promise<Array<{
+        path: string;
+        startLine: number;
+        endLine: number;
+        score: number;
+        snippet: string;
+        source: string;
+      }>>;
+      read: (relPath: string, from?: number, lines?: number) => Promise<{ text: string; path: string }>;
+      sync: () => Promise<{
+        backend: string; provider: string; model: string;
+        files: number; chunks: number; dirty: boolean;
+        workspaceDir: string; dbPath: string;
+        vector: { enabled: boolean; available: boolean };
+      }>;
+      status: () => Promise<{
+        backend: string; provider: string; model: string;
+        files: number; chunks: number; dirty: boolean;
+        workspaceDir: string; dbPath: string;
+        vector: { enabled: boolean; available: boolean };
+      }>;
+    };
   }
 }
 
