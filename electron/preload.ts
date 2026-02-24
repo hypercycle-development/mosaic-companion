@@ -1,6 +1,7 @@
 import { gmailAPI } from "./integrations/gmail/gmailAPI";
-import { mcpAPI } from "./integrations/mcp/MCPAPI";
+import { mcpAPI, osAPI } from "./integrations/mcp/MCPAPI";
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
+import "./integrations/mosaicbot/src/preload";
 
 // =============================================================================
 // Type Definitions
@@ -92,7 +93,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("ai-agents-history:delete-all", agentId),
   },
   mcpAPI,
-  gmail: gmailAPI,  
+  osAPI,
+  gmail: gmailAPI,
   // Linux AppImage sandbox state (read-only)
   sandbox: {
     getState: () => ipcRenderer.invoke("sandbox:get-state"),
