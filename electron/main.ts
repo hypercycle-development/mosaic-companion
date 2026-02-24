@@ -278,6 +278,11 @@ app.whenReady().then(() => {
   } catch (e) {
     // Ignore
   }
+
+  // Start Trading Server (Web3)
+  setTimeout(() => {
+    setupTradingServer();
+  }, 1000);
 });
 
 app.on("window-all-closed", () => {
@@ -762,80 +767,14 @@ async function setupTradingServer() {
     console.log(`[Trading] Spawning MCP server from: ${serverPath}`);
 
     try {
-        await mcpClient.connectStdio({
-            name: "trading-agent",
-            transport: "stdio",
-            command: "node",
-            args: [serverPath],
+        await mcpClient.connectStdio(
+            "trading-agent",
+            "node",
+            [serverPath],
             env
-        });
+        );
         console.log("[Trading] MCP Server connected successfully");
     } catch (e) {
         console.error("[Trading] Failed to connect MCP server:", e);
     }
 }
-
-
-// =============================================================================
-// App Lifecycle
-// =============================================================================
-
-app.whenReady().then(async () => {
-  console.log("App is packaged:", app.isPackaged);
-  console.log("User data path:", app.getPath("userData"));
-  console.log("__dirname:", __dirname);
-  console.log("PROJECT_ROOT:", PROJECT_ROOT);
-
-  // Ensure agents history directory exists
-  const agentsHistoryPathExist = getDirectoryStatus(agentsHistoryPath);
-  if (!agentsHistoryPathExist.exists) {
-    try {
-      fs.mkdirSync(agentsHistoryPath, { recursive: true });
-    } catch (e) {
-      console.log(`Error when creating agents path: ${e}`);
-    }
-  }
-
-  // createWindow();
-
-  // Initialize updater (production only)
-  if (app.isPackaged) {
-    initUpdater();
-    setTimeout(() => {
-      console.log("Starting update check...");
-      checkForUpdates();
-    }, 2000);
-  }
-
-  // Pre-initialize Gmail OAuth
-  try {
-    if (isAuthenticated()) {
-      console.log("Gmail: Already authenticated, tokens loaded");
-    }
-  } catch (e) {
-    // Ignore
-  }
-
-  // Start Trading Server
-  setTimeout(() => {
-      setupTradingServer();
-  }, 1000);
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});
-
-// =============================================================================
-// IPC Handlers
-// =============================================================================
-
-// Window Controls
