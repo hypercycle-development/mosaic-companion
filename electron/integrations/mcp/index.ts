@@ -1,29 +1,54 @@
 /**
  * Electron Main Process - MCP Integration
  *
- * Thin wrapper that connects the standalone MCPClient to Electron's IPC.
+ * Thin wrapper that connects MCPClient and MCPPluginManager to Electron's IPC.
  * All protocol logic lives in MCPClient.ts — this file only handles:
- * - Electron app lifecycle
  * - IPC handler registration
+ * - Plugin persistence (MCPPluginManager)
  * - Forwarding MCPClient events to the renderer
- * - Running agent loops in the main process (where API keys live)
  */
 
-import { app, BrowserWindow, ipcMain } from "electron";
-import * as path from "path";
+import { BrowserWindow, ipcMain } from "electron";
 import { MCPClient } from "./MCPClient";
+import { MCPPluginManager } from "./plugin";
 import type { MCPServerConfig } from "./MCPClient";
-import { runAgentLoop } from "./recipes/agentLoop";
-import { OpenAIProvider } from "./providers/openai";
-import { AnthropicProvider } from "./providers/anthropic";
-import type { LLMProvider } from "./providers/types";
 
 // =============================================================================
-// MCP Client (single instance)
+// Singletons
 // =============================================================================
 
 const mcpClient = new MCPClient({ debug: true });
+const pluginManager = new MCPPluginManager();
+
 let mainWindow: BrowserWindow | null = null;
+
+/** Called from main.ts after the window is created */
+export function setMainWindow(win: BrowserWindow): void {
+  mainWindow = win;
+}
+
+// =============================================================================
+// Auto-connect plugins
+// =============================================================================
+
+export async function initPlugins(): Promise<void> {
+  const plugins = pluginManager.list().filter((p) => p.autoConnect);
+  for (const plugin of plugins) {
+    try {
+      await mcpClient.connect({
+        name: plugin.name,
+        transport: plugin.transport,
+        command: plugin.command,
+        args: plugin.args,
+        env: plugin.env,
+        url: plugin.url,
+        apiKey: plugin.apiKey,
+      });
+    } catch (e) {
+      console.error(`[MCP] Auto-connect failed for plugin "${plugin.name}":`, e);
+    }
+  }
+}
 
 // =============================================================================
 // Renderer Notification Helper
@@ -40,7 +65,6 @@ function notifyRenderer(channel: string, data: unknown): void {
 // =============================================================================
 
 mcpClient.on("connected", ({ server }) => {
-  // Send full server info so the renderer can update its UI
   const servers = mcpClient.getServers();
   const serverInfo = servers.find((s) => s.name === server);
   notifyRenderer("mcp:server-connected", {
@@ -56,10 +80,7 @@ mcpClient.on("disconnected", ({ server, code }) => {
 });
 
 mcpClient.on("error", ({ server, error }) => {
-  notifyRenderer("mcp:server-error", {
-    name: server,
-    error: error.message,
-  });
+  notifyRenderer("mcp:server-error", { name: server, error: error.message });
 });
 
 mcpClient.on("notification", ({ server, method, params }) => {
@@ -196,112 +217,63 @@ ipcMain.handle("mcp:list-prompts", async (_event, serverName: string) => {
 });
 
 // =============================================================================
-// IPC Handlers — Agent Loop (runs in main process where API keys live)
+// IPC Handlers — Plugin Management
 // =============================================================================
 
-interface AgentRequest {
-  query: string;
-  serverNames: string[];
-  provider: "openai" | "anthropic";
-  model?: string;
-  systemPrompt?: string;
-  maxIterations?: number;
-}
+ipcMain.handle("mcp:list-plugins", () => {
+  return pluginManager.list();
+});
 
-ipcMain.handle("mcp:run-agent", async (_event, request: AgentRequest) => {
+ipcMain.handle(
+  "mcp:add-plugin",
+  (_event, plugin: Omit<import("./plugin").MCPPlugin, "id">) => {
+    return pluginManager.add(plugin);
+  },
+);
+
+ipcMain.handle(
+  "mcp:update-plugin",
+  (
+    _event,
+    id: string,
+    updates: Partial<Omit<import("./plugin").MCPPlugin, "id">>,
+  ) => {
+    return pluginManager.update(id, updates);
+  },
+);
+
+ipcMain.handle("mcp:remove-plugin", (_event, id: string) => {
+  return pluginManager.remove(id);
+});
+
+ipcMain.handle("mcp:connect-plugin", async (_event, id: string) => {
+  const plugin = pluginManager.get(id);
+  if (!plugin) return { success: false, error: `Plugin "${id}" not found` };
   try {
-    const provider = createProvider(request.provider, request.model);
-
-    const result = await runAgentLoop(
-      mcpClient,
-      provider,
-      request.serverNames,
-      request.query,
-      {
-        maxIterations: request.maxIterations,
-        systemPrompt: request.systemPrompt,
-        onToolResult: (toolName, resultText, serverName) => {
-          // Stream tool results to the renderer for live UI updates
-          notifyRenderer("mcp:agent-tool-result", {
-            toolName,
-            result: resultText,
-            server: serverName,
-          });
-        },
-        onText: (text) => {
-          notifyRenderer("mcp:agent-text", { text });
-        },
-      },
-    );
-
-    return { success: true, ...result };
+    await mcpClient.connect({
+      name: plugin.name,
+      transport: plugin.transport,
+      command: plugin.command,
+      args: plugin.args,
+      env: plugin.env,
+      url: plugin.url,
+      apiKey: plugin.apiKey,
+    });
+    return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
 });
 
-function createProvider(
-  provider: "openai" | "anthropic",
-  model?: string,
-): LLMProvider {
-  if (provider === "openai") {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error("OPENAI_API_KEY environment variable not set");
-    return new OpenAIProvider(apiKey, model);
-  } else {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey)
-      throw new Error("ANTHROPIC_API_KEY environment variable not set");
-    return new AnthropicProvider(apiKey, model);
+ipcMain.handle("mcp:disconnect-plugin", async (_event, id: string) => {
+  const plugin = pluginManager.get(id);
+  if (!plugin) return { success: false, error: `Plugin "${id}" not found` };
+  try {
+    await mcpClient.disconnect(plugin.name);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
   }
-}
-
-// =============================================================================
-// Electron App Lifecycle
-// =============================================================================
-
-function createWindow(): void {
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
-
-  if (process.env.NODE_ENV === "development") {
-    mainWindow.loadURL("http://localhost:5173");
-    mainWindow.webContents.openDevTools();
-  } else {
-    mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
-  }
-
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-  });
-}
-
-app.whenReady().then(() => {
-  createWindow();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
-});
-
-app.on("window-all-closed", () => {
-  mcpClient.disconnectAll();
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-
-app.on("before-quit", () => {
-  mcpClient.disconnectAll();
 });
 
 export { mcpClient };

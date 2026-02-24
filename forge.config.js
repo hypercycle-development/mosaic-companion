@@ -68,7 +68,9 @@ export default {
             /\.env$/,
             /\.env\.local$/,
         ],
-        extraResource: [],
+        extraResource: [
+            'config/gmail-credentials.json'
+        ],
         protocols: [
             {
                 name: 'Mosaic Companion',
@@ -96,10 +98,6 @@ export default {
             }
         },
         {
-            name: '@electron-forge/maker-zip',
-            platforms: ['darwin']
-        },
-        {
             name: '@electron-forge/maker-dmg',
             platforms: ['darwin'],
             config: {
@@ -116,8 +114,6 @@ export default {
             name: '@electron-forge/maker-deb',
             platforms: ['linux'],
             config: {
-                name: 'mosaic-companion',
-                productName: 'Mosaic Companion',
                 options: {
                     maintainer: 'hern@hypercycle.ai',
                     homepage: 'https://hypercycle.ai',
@@ -141,10 +137,6 @@ export default {
                     categories: ['Utility']
                 }
             }
-        },
-        {
-            name: '@electron-forge/maker-zip',
-            platforms: ['linux', 'darwin', 'win32']
         }
     ],
 

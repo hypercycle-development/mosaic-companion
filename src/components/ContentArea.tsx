@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   INTERNAL_CHAT_URL,
   INTERNAL_HOME_URL,
+  INTERNAL_MCP_URL,
   INTERNAL_MOSAICBOT_URL,
   INTERNAL_SETTINGS_URL,
   Tab,
@@ -9,6 +10,7 @@ import {
 import { LandingPage } from "./LandingPage";
 import { SettingsPage } from "./SettingsPage";
 import { MosaicBotPanel } from "./MosaicBotPanel";
+import { MCPPage } from "./MCPPage";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
 
@@ -328,6 +330,18 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
           onCreateNewChatTab={onCreateNewChatTab}
           tabId={tabId}
         />
+      </div>
+    );
+  }
+
+  if (url === INTERNAL_MCP_URL) {
+    useEffect(() => {
+      onUpdateTab({ title: "MCP Servers", isLoading: false, favicon: undefined });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
+        <MCPPage />
       </div>
     );
   }

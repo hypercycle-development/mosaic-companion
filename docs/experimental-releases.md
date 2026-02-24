@@ -32,6 +32,7 @@ git checkout -b Feature-{your-experiment}
 ```
 
 **Examples:**
+
 - `Feature-screenpipe`
 - `Feature-gmail`
 
@@ -49,6 +50,7 @@ Change the `name` field to include your experiment name:
 ```
 
 **Example for screenpipe:**
+
 ```json
 {
   "name": "mosaic-companion-screenpipe",
@@ -75,6 +77,7 @@ export default {
 ```
 
 **Example for screenpipe:**
+
 ```javascript
 packagerConfig: {
     appId: 'com.mosaic.companion',
@@ -93,6 +96,7 @@ Use the experimental release script:
 ```
 
 **Examples:**
+
 ```bash
 # Linux x64 build
 ./scripts/upload-experimental-release.sh screenpipe patch linux x64
@@ -105,6 +109,7 @@ Use the experimental release script:
 ```
 
 **Arguments:**
+
 - `{your-experiment}`: Your experiment name (required)
 - `patch|minor|major`: Version bump type (default: patch)
 - `platform`: Target platform - `linux`, `darwin`, or `win32` (default: current)
@@ -119,6 +124,7 @@ aws s3 ls s3://mosaic-release/releases/experimental/{your-experiment}/ --recursi
 ```
 
 You should see:
+
 ```
 releases/experimental/{your-experiment}/latest.json
 releases/experimental/{your-experiment}/linux/x64/mosaic-companion-{your-experiment}-0.0.41-x64.AppImage
@@ -145,34 +151,29 @@ s3://mosaic-release/
             ├── linux/
             │   ├── x64/
             │   │   ├── mosaic-companion-{experiment}-{version}-x64.AppImage
-            │   │   ├── mosaic-companion-{experiment}_{version}_amd64.deb
-            │   │   └── mosaic-companion-{experiment}-linux-x64-{version}.zip
+            │   │   └── mosaic-companion-{experiment}_{version}_amd64.deb
             │   └── arm64/
             │       ├── mosaic-companion-{experiment}-{version}-arm64.AppImage
-            │       ├── mosaic-companion-{experiment}_{version}_arm64.deb
-            │       └── mosaic-companion-{experiment}-linux-arm64-{version}.zip
+            │       └── mosaic-companion-{experiment}_{version}_arm64.deb
             ├── win32/
             │   └── x64/
-            │       ├── mosaic-companion-{experiment}-{version}-Setup.exe
-            │       └── mosaic-companion-{experiment}-win32-x64-{version}.zip
+            │       └── mosaic-companion-{experiment}-{version}-Setup.exe
             └── darwin/
                 ├── x64/
-                │   ├── mosaic-companion-{experiment}-{version}-x64.dmg
-                │   └── mosaic-companion-{experiment}-darwin-x64-{version}.zip
+                │   └── mosaic-companion-{experiment}-{version}-x64.dmg
                 └── arm64/
-                    ├── mosaic-companion-{experiment}-{version}-arm64.dmg
-                    └── mosaic-companion-{experiment}-darwin-arm64-{version}.zip
+                    └── mosaic-companion-{experiment}-{version}-arm64.dmg
 ```
 
 ## Automatic Update Checking
 
 The update checker in `updater.js` automatically detects which `latest.json` to check based on the app name:
 
-| App Name | Update Check URL |
-|----------|------------------|
-| `mosaic-companion` | `https://mosaic-release.s3.us-east-2.amazonaws.com/releases/latest.json` |
+| App Name                      | Update Check URL                                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------------------ |
+| `mosaic-companion`            | `https://mosaic-release.s3.us-east-2.amazonaws.com/releases/latest.json`                         |
 | `mosaic-companion-screenpipe` | `https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/screenpipe/latest.json` |
-| `mosaic-companion-gmail` | `https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/gmail/latest.json` |
+| `mosaic-companion-gmail`      | `https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/gmail/latest.json`      |
 
 **You don't need to configure anything** - it works automatically based on your `package.json` name!
 
@@ -196,6 +197,7 @@ cp static/install-page/style.css static/experimental/{your-experiment}/style.css
 ### 3. Customize Your Page
 
 Edit `static/experimental/{your-experiment}/index.html` to:
+
 - Highlight your experimental features
 - Show only the platforms you've built
 - Add screenshots or demos
@@ -214,6 +216,7 @@ When prompted, confirm the upload of your custom install page.
 ### 5. Access Your Install Page
 
 Your custom page will be available at:
+
 ```
 https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/{your-experiment}/index.html
 ```
@@ -235,8 +238,7 @@ Each experimental release has its own `latest.json` file that contains version m
     "linux": {
       "x64": {
         "appimage": "https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/screenpipe/linux/x64/mosaic-companion-screenpipe-0.0.41-x64.AppImage",
-        "deb": "https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/screenpipe/linux/x64/mosaic-companion-screenpipe_0.0.41_amd64.deb",
-        "zip": "https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/screenpipe/linux/x64/mosaic-companion-screenpipe-linux-x64-0.0.41.zip"
+        "deb": "https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/screenpipe/linux/x64/mosaic-companion-screenpipe_0.0.41_amd64.deb"
       },
       "arm64": { ... }
     },
@@ -287,6 +289,7 @@ You can build for different platforms from the same branch:
 ### App Name Mismatch Warning
 
 If you see this warning:
+
 ```
 ⚠️  Warning: package.json name is 'mosaic-companion'
    For experiment 'screenpipe', expected name: 'mosaic-companion-screenpipe'
@@ -297,11 +300,13 @@ If you see this warning:
 ### AWS Credentials Not Found
 
 If you see:
+
 ```
 Warning: AWS credentials not found in .env.local or environment.
 ```
 
 **Solution:** Create a `.env.local` file with your AWS credentials:
+
 ```bash
 AWS_ACCESS_KEY_ID=your_access_key_here
 AWS_SECRET_ACCESS_KEY=your_secret_key_here
@@ -319,6 +324,7 @@ npm run deploy:x64
 ### Update Checker Not Finding New Version
 
 **Checklist:**
+
 1. ✅ Is `latest.json` uploaded to the correct path?
 2. ✅ Does the app name in `package.json` match the experiment name?
 3. ✅ Is the version in `latest.json` higher than the current app version?
@@ -327,30 +333,38 @@ npm run deploy:x64
 ## Best Practices
 
 ### 1. Use Descriptive Experiment Names
+
 - ✅ Good: `screenpipe`, `gmail-integration`, `ai-assistant`
 - ❌ Bad: `test`, `feature1`, `new-stuff`
 
 ### 2. Keep Your Branch Updated
+
 Regularly merge from main to get infrastructure updates:
+
 ```bash
 git checkout Feature-screenpipe
 git merge main
 ```
 
 ### 3. Version Bumping
+
 - Use `patch` for bug fixes and minor changes
 - Use `minor` for new features
 - Use `major` for breaking changes
 
 ### 4. Test Before Uploading
+
 Always test your build locally before uploading:
+
 ```bash
 npm run make:linux:x64
 # Test the build in out/make/
 ```
 
 ### 5. Document Your Features
+
 If you create a custom install page, clearly document:
+
 - What your experiment does
 - Which platforms are supported
 - Any special installation requirements
@@ -361,12 +375,15 @@ If you create a custom install page, clearly document:
 When your experimental feature is ready to merge into the main release:
 
 ### 1. Revert Naming Changes
+
 Change `package.json` and `forge.config.js` back to:
+
 ```json
 "name": "mosaic-companion"
 ```
 
 ### 2. Create a Pull Request
+
 ```bash
 git checkout Feature-screenpipe
 git push origin Feature-screenpipe
@@ -374,7 +391,9 @@ git push origin Feature-screenpipe
 ```
 
 ### 3. Clean Up Experimental Artifacts (Optional)
+
 After merging, you can optionally remove your experimental S3 folder:
+
 ```bash
 aws s3 rm s3://mosaic-release/releases/experimental/screenpipe/ --recursive
 ```
@@ -392,6 +411,7 @@ A: On Linux, users will be notified of updates and directed to the download page
 
 **Q: How do I share my experimental release with testers?**
 A: Share the install page URL:
+
 ```
 https://mosaic-release.s3.us-east-2.amazonaws.com/releases/experimental/{your-experiment}/index.html
 ```
@@ -400,6 +420,7 @@ Or share direct download links from the `latest.json` file.
 
 **Q: Can I delete an old experimental release?**
 A: Yes, use the AWS CLI:
+
 ```bash
 aws s3 rm s3://mosaic-release/releases/experimental/{experiment}/ --recursive
 ```
