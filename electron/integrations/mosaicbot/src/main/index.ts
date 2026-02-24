@@ -151,7 +151,11 @@ export async function initMosaicBot(): Promise<MosaicBotHandle> {
       console.log(`[Skill] ${match.spec.skillName}`, match.args);
       return { type: "skill", skill: match.spec.skillName, args: match.args };
     }
-    return { type: "message", text };
+    const reply = await callActiveLLM(text);
+    if (reply === null) {
+      return { type: "error", text: "No active AI agent configured. Open Settings → AI Agents." };
+    }
+    return { type: "reply", text: reply };
   });
 
   // Memory search — called by renderer or agent pipeline
