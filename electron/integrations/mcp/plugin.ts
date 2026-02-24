@@ -14,6 +14,14 @@ import crypto from "crypto";
 // Types
 // =============================================================================
 
+/**
+ * Well-known plugin roles.
+ * A role designates a plugin as the canonical provider for a capability.
+ * Only one plugin per role is active at a time; the generic IPC handlers
+ * (e.g. os:call) route through whichever plugin holds the role.
+ */
+export type MCPPluginRole = "os" | string;
+
 export interface MCPPlugin {
   id: string;
   name: string;
@@ -25,6 +33,8 @@ export interface MCPPlugin {
   url?: string;
   apiKey?: string;
   autoConnect?: boolean;
+  /** Optional role that grants this plugin elevated routing priority */
+  role?: MCPPluginRole;
 }
 
 // =============================================================================
@@ -81,6 +91,11 @@ export class MCPPluginManager {
     Object.assign(plugin, updates);
     this._save();
     return { ...plugin };
+  }
+
+  /** Return the first plugin that has the given role, or undefined */
+  byRole(role: MCPPluginRole): MCPPlugin | undefined {
+    return this.plugins.find((p) => p.role === role);
   }
 
   remove(id: string): boolean {

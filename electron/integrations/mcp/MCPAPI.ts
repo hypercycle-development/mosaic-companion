@@ -55,6 +55,8 @@ export interface MCPPlugin {
   url?: string;
   apiKey?: string;
   autoConnect?: boolean;
+  /** Optional role — "os" routes through os:call IPC handlers */
+  role?: string;
 }
 
 export interface MCPServer {
@@ -297,4 +299,42 @@ export const mcpAPI = {
     ipcRenderer.on("mcp:agent-text", listener);
     return () => ipcRenderer.removeListener("mcp:agent-text", listener);
   },
+};
+
+// =============================================================================
+// OS API
+//
+// A stable renderer interface for OS operations routed through the plugin
+// that holds role "os" (e.g. @modelcontextprotocol/server-filesystem).
+// Swap the plugin config → behavior changes, no renderer code changes needed.
+// =============================================================================
+
+export interface OsStatus {
+  configured: boolean;
+  connected: boolean;
+  pluginName?: string;
+  pluginId?: string;
+}
+
+export const osAPI = {
+  /** Whether an OS-role plugin is configured and connected */
+  status: (): Promise<OsStatus> => ipcRenderer.invoke("os:status"),
+
+  /** List all tools exposed by the OS plugin */
+  listTools: (): Promise<MCPResult<{ tools: MCPTool[]; serverName: string }>> =>
+    ipcRenderer.invoke("os:list-tools"),
+
+  /**
+   * Call any tool on the OS plugin by name.
+   *
+   * Example (filesystem server):
+   *   osAPI.call("read_file", { path: "/home/user/notes.txt" })
+   *   osAPI.call("list_directory", { path: "/home/user" })
+   *   osAPI.call("write_file", { path: "/tmp/out.txt", content: "hello" })
+   */
+  call: (
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<MCPResult<MCPToolResult>> =>
+    ipcRenderer.invoke("os:call", toolName, args),
 };

@@ -5,8 +5,6 @@ import {
   Play,
   Square,
   RefreshCw,
-  ChevronDown,
-  ChevronRight,
   Wrench,
   Database,
   MessageSquare,
@@ -15,11 +13,19 @@ import {
   XCircle,
   Terminal,
   Globe,
+  HardDrive,
+  ShieldAlert,
 } from "lucide-react";
 
 // =============================================================================
 // Types (mirror MCPAPI.ts for renderer use)
 // =============================================================================
+
+interface OsStatus {
+  configured: boolean;
+  connected: boolean;
+  pluginName?: string;
+}
 
 interface MCPPlugin {
   id: string;
@@ -28,6 +34,7 @@ interface MCPPlugin {
   transport: "stdio" | "http";
   command?: string;
   args?: string[];
+  role?: string;
   env?: Record<string, string>;
   url?: string;
   apiKey?: string;
@@ -84,6 +91,7 @@ const defaultPlugin: Omit<MCPPlugin, "id"> = {
   args: [],
   description: "",
   autoConnect: false,
+  role: undefined,
 };
 
 const AddPluginForm: React.FC<{
@@ -102,6 +110,7 @@ const AddPluginForm: React.FC<{
       description: form.description?.trim() || undefined,
       transport: form.transport,
       autoConnect: form.autoConnect,
+      role: (form as any).role || undefined,
       ...(form.transport === "stdio"
         ? {
             command: form.command?.trim() || "",
@@ -162,6 +171,19 @@ const AddPluginForm: React.FC<{
           <Globe size={12} className="inline mr-1" />
           http
         </button>
+      </div>
+
+      {/* Role selector */}
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">Role (optional)</label>
+        <select
+          value={(form as any).role || ""}
+          onChange={(e) => set("role", e.target.value || undefined)}
+          className="w-full px-2 py-1.5 text-sm bg-gray-800 border border-gray-700 rounded text-gray-200 focus:outline-none focus:border-indigo-500"
+        >
+          <option value="">None</option>
+          <option value="os">OS Access — routes os:call through this server</option>
+        </select>
       </div>
 
       {form.transport === "stdio" ? (
@@ -402,8 +424,18 @@ export const MCPPage: React.FC = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [connecting, setConnecting] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
+  const [osStatus, setOsStatus] = useState<OsStatus>({ configured: false, connected: false });
 
   const api = (window as any).electronAPI?.mcpAPI;
+  const osApi = (window as any).electronAPI?.osAPI;
+
+  const loadOsStatus = useCallback(async () => {
+    if (!osApi) return;
+    try {
+      const status = await osApi.status();
+      setOsStatus(status);
+    } catch {/* ignore */}
+  }, [osApi]);
 
   const loadPlugins = useCallback(async () => {
     if (!api) return;
@@ -428,17 +460,18 @@ export const MCPPage: React.FC = () => {
   useEffect(() => {
     loadPlugins();
     loadServers();
+    loadOsStatus();
 
     if (!api) return;
 
-    const offConnected = api.onServerConnected(() => loadServers());
-    const offDisconnected = api.onServerDisconnected(() => loadServers());
+    const offConnected = api.onServerConnected(() => { loadServers(); loadOsStatus(); });
+    const offDisconnected = api.onServerDisconnected(() => { loadServers(); loadOsStatus(); });
 
     return () => {
       offConnected();
       offDisconnected();
     };
-  }, [loadPlugins, loadServers]);
+  }, [loadPlugins, loadServers, loadOsStatus]);
 
   const handleAddPlugin = async (plugin: Omit<MCPPlugin, "id">) => {
     if (!api) return;
@@ -522,6 +555,26 @@ export const MCPPage: React.FC = () => {
           </div>
         </div>
 
+        {/* OS Access status banner */}
+        <div
+          className={`flex items-center gap-2 px-3 py-2 text-xs border-b ${
+            osStatus.connected
+              ? "bg-green-950/40 border-green-900/50 text-green-400"
+              : osStatus.configured
+              ? "bg-yellow-950/40 border-yellow-900/50 text-yellow-500"
+              : "bg-gray-900 border-gray-800 text-gray-600"
+          }`}
+        >
+          <HardDrive size={12} />
+          {osStatus.connected ? (
+            <span>OS: <strong className="font-semibold">{osStatus.pluginName}</strong> connected</span>
+          ) : osStatus.configured ? (
+            <span>OS: <strong className="font-semibold">{osStatus.pluginName}</strong> not connected</span>
+          ) : (
+            <span>No OS plugin configured — set role to "OS Access"</span>
+          )}
+        </div>
+
         {showAddForm && (
           <AddPluginForm
             onAdd={handleAddPlugin}
@@ -578,15 +631,22 @@ export const MCPPage: React.FC = () => {
                 >
                   <StatusDot connected={connected} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-200 truncate">
-                      {plugin.name}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm text-gray-200 truncate">
+                        {plugin.name}
+                      </p>
+                      {plugin.role === "os" && (
+                        <span className="flex-shrink-0 flex items-center gap-0.5 px-1 py-0.5 text-xs bg-amber-900/40 text-amber-400 border border-amber-800/50 rounded">
+                          <HardDrive size={9} /> OS
+                        </span>
+                      )}
+                    </div>
                     {plugin.description && (
                       <p className="text-xs text-gray-600 truncate">
                         {plugin.description}
                       </p>
                     )}
-                    <p className="text-xs text-gray-700">
+                    <p className="text-xs text-gray-700 truncate">
                       {plugin.transport === "stdio"
                         ? plugin.command
                         : plugin.url}

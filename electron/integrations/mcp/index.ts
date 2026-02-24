@@ -276,4 +276,63 @@ ipcMain.handle("mcp:disconnect-plugin", async (_event, id: string) => {
   }
 });
 
+// =============================================================================
+// IPC Handlers — Role-based OS Access
+//
+// The "os" role designates one plugin as the system-level tool provider
+// (e.g. @modelcontextprotocol/server-filesystem).
+// These handlers are a stable interface that routes through whatever MCP
+// server currently holds the "os" role — swap the plugin, nothing else changes.
+// =============================================================================
+
+/** Resolve the connected OS plugin's server name, or throw */
+function requireOsServer(): string {
+  const plugin = pluginManager.byRole("os");
+  if (!plugin) throw new Error("No plugin has role 'os'. Assign it in the MCP Servers panel.");
+  if (!mcpClient.isConnected(plugin.name))
+    throw new Error(`OS plugin "${plugin.name}" is not connected. Connect it in the MCP Servers panel.`);
+  return plugin.name;
+}
+
+/** Status of the OS role: which plugin holds it and whether it's connected */
+ipcMain.handle("os:status", () => {
+  const plugin = pluginManager.byRole("os");
+  if (!plugin) return { configured: false, connected: false };
+  return {
+    configured: true,
+    connected: mcpClient.isConnected(plugin.name),
+    pluginName: plugin.name,
+    pluginId: plugin.id,
+  };
+});
+
+/** List all tools exposed by the OS plugin */
+ipcMain.handle("os:list-tools", async () => {
+  try {
+    const serverName = requireOsServer();
+    const tools = await mcpClient.listTools(serverName);
+    return { success: true, tools, serverName };
+  } catch (error) {
+    return { success: false, error: (error as Error).message, tools: [] };
+  }
+});
+
+/**
+ * Call any tool on the OS plugin.
+ * The renderer doesn't need to know which MCP server backs this —
+ * it just calls os:call with the tool name and args.
+ */
+ipcMain.handle(
+  "os:call",
+  async (_event, toolName: string, args: Record<string, unknown> = {}) => {
+    try {
+      const serverName = requireOsServer();
+      const result = await mcpClient.callTool(serverName, toolName, args);
+      return { success: true, result };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+);
+
 export { mcpClient };
