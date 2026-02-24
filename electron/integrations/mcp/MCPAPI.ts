@@ -2,9 +2,7 @@
  * MCP API — Renderer Bridge
  *
  * Exposes MCP operations to the renderer process via Electron IPC.
- * This file is used in the preload script (contextBridge.exposeInMainWorld).
- *
- * All methods return promises and match the IPC handlers in index.ts.
+ * Used in the preload script (contextBridge.exposeInMainWorld).
  */
 
 import { ipcRenderer, IpcRendererEvent } from "electron";
@@ -44,6 +42,19 @@ export interface MCPServerConfig {
   env?: Record<string, string>;
   url?: string;
   apiKey?: string;
+}
+
+export interface MCPPlugin {
+  id: string;
+  name: string;
+  description?: string;
+  transport: "stdio" | "http";
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  apiKey?: string;
+  autoConnect?: boolean;
 }
 
 export interface MCPServer {
@@ -111,9 +122,7 @@ export const mcpAPI = {
     return ipcRenderer.invoke("mcp:call-tool", serverName, toolName, args);
   },
 
-  listTools: (
-    serverName: string,
-  ): Promise<MCPResult<{ tools: MCPTool[] }>> => {
+  listTools: (serverName: string): Promise<MCPResult<{ tools: MCPTool[] }>> => {
     return ipcRenderer.invoke("mcp:list-tools", serverName);
   },
 
@@ -147,6 +156,37 @@ export const mcpAPI = {
     serverName: string,
   ): Promise<MCPResult<{ prompts: MCPPrompt[] }>> => {
     return ipcRenderer.invoke("mcp:list-prompts", serverName);
+  },
+
+  // ===========================================================================
+  // Plugin Management
+  // ===========================================================================
+
+  listPlugins: (): Promise<MCPPlugin[]> => {
+    return ipcRenderer.invoke("mcp:list-plugins");
+  },
+
+  addPlugin: (plugin: Omit<MCPPlugin, "id">): Promise<MCPPlugin> => {
+    return ipcRenderer.invoke("mcp:add-plugin", plugin);
+  },
+
+  updatePlugin: (
+    id: string,
+    updates: Partial<Omit<MCPPlugin, "id">>,
+  ): Promise<MCPPlugin | null> => {
+    return ipcRenderer.invoke("mcp:update-plugin", id, updates);
+  },
+
+  removePlugin: (id: string): Promise<boolean> => {
+    return ipcRenderer.invoke("mcp:remove-plugin", id);
+  },
+
+  connectPlugin: (id: string): Promise<MCPResult> => {
+    return ipcRenderer.invoke("mcp:connect-plugin", id);
+  },
+
+  disconnectPlugin: (id: string): Promise<MCPResult> => {
+    return ipcRenderer.invoke("mcp:disconnect-plugin", id);
   },
 
   // ===========================================================================
@@ -195,8 +235,7 @@ export const mcpAPI = {
     const listener = (_event: IpcRendererEvent, data: unknown) =>
       callback(data as { name: string; code: number });
     ipcRenderer.on("mcp:server-disconnected", listener);
-    return () =>
-      ipcRenderer.removeListener("mcp:server-disconnected", listener);
+    return () => ipcRenderer.removeListener("mcp:server-disconnected", listener);
   },
 
   onServerError: (
@@ -236,11 +275,9 @@ export const mcpAPI = {
     const listener = (_event: IpcRendererEvent, data: unknown) =>
       callback(data as { name: string; resources: MCPResource[] });
     ipcRenderer.on("mcp:resources-changed", listener);
-    return () =>
-      ipcRenderer.removeListener("mcp:resources-changed", listener);
+    return () => ipcRenderer.removeListener("mcp:resources-changed", listener);
   },
 
-  /** Live tool result events from the agent loop */
   onAgentToolResult: (
     callback: (data: {
       toolName: string;
@@ -249,15 +286,11 @@ export const mcpAPI = {
     }) => void,
   ) => {
     const listener = (_event: IpcRendererEvent, data: unknown) =>
-      callback(
-        data as { toolName: string; result: string; server: string },
-      );
+      callback(data as { toolName: string; result: string; server: string });
     ipcRenderer.on("mcp:agent-tool-result", listener);
-    return () =>
-      ipcRenderer.removeListener("mcp:agent-tool-result", listener);
+    return () => ipcRenderer.removeListener("mcp:agent-tool-result", listener);
   },
 
-  /** Live text events from the agent loop */
   onAgentText: (callback: (data: { text: string }) => void) => {
     const listener = (_event: IpcRendererEvent, data: unknown) =>
       callback(data as { text: string });

@@ -134,8 +134,12 @@ if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
         echo "Updating static installation page..."
         mkdir -p tmp_static
         sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
-        aws s3 cp tmp_static/index.html "s3://${BUCKET}/index.html" --content-type "text/html"
-        aws s3 cp static/install-page/style.css "s3://${BUCKET}/style.css" --content-type "text/css"
+        aws s3 cp tmp_static/index.html "s3://${BUCKET}/index.html" \
+            --cache-control "no-cache, must-revalidate" \
+            --content-type "text/html"
+        aws s3 cp static/install-page/style.css "s3://${BUCKET}/style.css" \
+            --cache-control "no-cache, must-revalidate" \
+            --content-type "text/css"
         rm -rf tmp_static
         echo "✓ Static page uploaded"
         echo ""
@@ -148,7 +152,9 @@ if confirm "Build and upload artifacts to S3 using Electron Forge?"; then
             mkdir -p tmp_static
             RELEASE_DATE=$(date -u +%Y-%m-%d)
             sed -e "s/{{VERSION}}/${VERSION}/g" -e "s/{{RELEASE_DATE}}/${RELEASE_DATE}/g" static/install-page/latest.template.json > tmp_static/latest.json
-            aws s3 cp tmp_static/latest.json "s3://${BUCKET}/releases/latest.json" --content-type "application/json"
+            aws s3 cp tmp_static/latest.json "s3://${BUCKET}/releases/latest.json" \
+                --cache-control "no-cache, must-revalidate" \
+                --content-type "application/json"
             rm -rf tmp_static
             echo "✓ latest.json uploaded"
         fi
@@ -172,16 +178,11 @@ if confirm "Is this the final platform build? (Will create git tag)"; then
 Download links:
 - Linux x64 (AppImage): ${BUCKET_URL}/linux/x64/mosaic-companion-${VERSION}-x64.AppImage
 - Linux x64 (deb): ${BUCKET_URL}/linux/x64/mosaic-companion_${VERSION}_amd64.deb
-- Linux x64 (zip): ${BUCKET_URL}/linux/x64/mosaic-companion-linux-x64-${VERSION}.zip
 - Linux arm64 (AppImage): ${BUCKET_URL}/linux/arm64/mosaic-companion-${VERSION}-arm64.AppImage
 - Linux arm64 (deb): ${BUCKET_URL}/linux/arm64/mosaic-companion_${VERSION}_arm64.deb
-- Linux arm64 (zip): ${BUCKET_URL}/linux/arm64/mosaic-companion-linux-arm64-${VERSION}.zip
 - Windows x64 (Setup): ${BUCKET_URL}/win32/x64/mosaic-companion-${VERSION}-Setup.exe
-- Windows x64 (zip): ${BUCKET_URL}/win32/x64/mosaic-companion-win32-x64-${VERSION}.zip
 - macOS x64 (dmg): ${BUCKET_URL}/darwin/x64/mosaic-companion-${VERSION}-x64.dmg
-- macOS x64 (zip): ${BUCKET_URL}/darwin/x64/mosaic-companion-darwin-x64-${VERSION}.zip
-- macOS arm64 (dmg): ${BUCKET_URL}/darwin/arm64/mosaic-companion-${VERSION}-arm64.dmg
-- macOS arm64 (zip): ${BUCKET_URL}/darwin/arm64/mosaic-companion-darwin-arm64-${VERSION}.zip"
+- macOS arm64 (dmg): ${BUCKET_URL}/darwin/arm64/mosaic-companion-${VERSION}-arm64.dmg"
 
     echo "Message:"
     echo "$TAG_MESSAGE"
