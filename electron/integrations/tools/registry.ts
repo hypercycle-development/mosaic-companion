@@ -130,21 +130,54 @@ export class ToolRegistry {
 
   /**
    * Get combined system prompt for all available modules.
-   * Only includes modules where isAvailable() returns true.
+   * Includes both the module's own context AND structured tool invocation
+   * instructions using the same <use_tool> format as MCP servers.
+   * This ensures the AI can call built-in tools the same way it calls MCP tools.
    */
   async getSystemPrompt(): Promise<string> {
-    const prompts: string[] = [];
+    const sections: string[] = [];
+
     for (const mod of this.modules.values()) {
       try {
         const available = (await mod.isAvailable?.()) ?? true;
-        if (available) {
-          prompts.push(mod.getSystemPrompt());
-        }
+        if (!available) continue;
+
+        // Module context (descriptions, saved contacts, wallet status, etc.)
+        const contextPrompt = mod.getSystemPrompt();
+
+        // Structured tool listing with invocation syntax
+        const toolLines = mod.tools.map((t) => {
+          const schemaStr = t.inputSchema
+            ? `\n  Input Schema: ${JSON.stringify(t.inputSchema)}`
+            : "";
+          return (
+            `- Tool: ${t.name}\n` +
+            `  Description: ${t.description}${schemaStr}\n` +
+            `  Usage: <use_tool server="${mod.name}" tool="${t.name}">${t.inputSchema ? "JSON_ARGS" : "{}"}</use_tool>`
+          );
+        });
+
+        sections.push(
+          `${contextPrompt}\n\n` +
+            `Available tools for ${mod.displayName} (server: "${mod.name}"):\n` +
+            toolLines.join("\n\n"),
+        );
       } catch {
         // Skip modules that error on availability check
       }
     }
-    return prompts.join("\n\n");
+
+    if (sections.length === 0) return "";
+
+    return (
+      `You have access to the following built-in tools. To use a tool, output its XML tag exactly as shown.\n\n` +
+      `CRITICAL RULES:\n` +
+      `1. When you want to use a tool, output ONLY a short intro sentence, then the <use_tool> XML tag.\n` +
+      `2. You MUST stop writing IMMEDIATELY after the closing </use_tool> tag. Do NOT continue with any text, answers, or guesses.\n` +
+      `3. NEVER guess or hallucinate tool results. Wait for the actual tool output before responding.\n` +
+      `4. After you receive the [Tool Output], use that data to write your final response to the user.\n\n` +
+      sections.join("\n\n---\n\n")
+    );
   }
 
   /** Get all action patterns from all modules (for the ActionParser) */
