@@ -12,6 +12,7 @@
 
 import { ToolRegistry } from "./registry";
 import { GmailModule } from "./modules/gmail";
+import { Web3Module } from "./modules/web3";
 
 // =============================================================================
 // Registry Singleton
@@ -25,7 +26,7 @@ const registry = new ToolRegistry();
 
 // Layer 1: Built-in modules
 registry.register(new GmailModule());
-// registry.register(new Web3Module());         // Phase 4 (if built-in)
+registry.register(new Web3Module());
 
 // =============================================================================
 // Lifecycle
