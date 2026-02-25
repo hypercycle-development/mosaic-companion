@@ -28,6 +28,7 @@ import {
   INTERNAL_MOSAICBOT_URL,
   INTERNAL_SETTINGS_URL,
   INTERNAL_CHAT_URL,
+  INTERNAL_WEB3_URL,
 } from "../types/types";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
 
@@ -156,6 +157,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "chat", label: "AI Chat", icon: "Bot", url: INTERNAL_CHAT_URL },
     { id: "mosaicbot", label: "Mosaic Bot", icon: "BrainCircuit", url: INTERNAL_MOSAICBOT_URL },
     { id: "mcp", label: "MCP Servers", icon: "Plug", url: INTERNAL_MCP_URL },
+    { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL },
     {
       id: "bookmarks",
       label: "Bookmarks",
@@ -211,6 +213,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <BrainCircuit className={className} />;
       case "Plug":
         return <Plug className={className} />;
+      case "Eth":
+        return (
+          <svg width="20" height="20" viewBox="0 0 256 417" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M127.961 0L125.166 9.5V285.168L127.961 287.958L255.923 212.32L127.961 0Z" opacity="0.8" />
+            <path d="M127.962 0L0 212.32L127.962 287.959V154.158V0Z" />
+            <path d="M127.961 312.187L126.386 314.107V412.306L127.961 416.905L255.999 236.587L127.961 312.187Z" opacity="0.8" />
+            <path d="M127.962 416.905V312.187L0 236.587L127.962 416.905Z" />
+          </svg>
+        );
       default:
         return <LayoutGrid className={className} />;
     }
