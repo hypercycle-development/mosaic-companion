@@ -113,9 +113,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
     close: () => ipcRenderer.invoke("window:close"),
     isMaximized: () => ipcRenderer.invoke("window:is-maximized"),
   },
+  web3: {
+    // Role-based API (MCP server tools: crypto prices, balances, swaps)
+    status: () => ipcRenderer.invoke("web3:status"),
+    listTools: () => ipcRenderer.invoke("web3:list-tools"),
+    call: (toolName: string, args: Record<string, unknown>) =>
+      ipcRenderer.invoke("web3:call", toolName, args),
+  },
+  // Backward compat: SettingsPage still uses `trading.*`
   trading: {
-    saveWallet: (key: string) => ipcRenderer.invoke("trading:save-wallet", key),
-    deleteWallet: () => ipcRenderer.invoke("trading:delete-wallet"),
-    walletExists: () => ipcRenderer.invoke("trading:wallet-exists"),
+    saveWallet: (key: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:save-wallet", { privateKey: key }),
+    deleteWallet: () =>
+      ipcRenderer.invoke("tools:execute", "web3:delete-wallet", {}),
+    walletExists: () =>
+      ipcRenderer.invoke("tools:execute", "web3:wallet-exists", {}),
   },
 });
