@@ -284,10 +284,6 @@ app.whenReady().then(() => {
     // Ignore
   }
 
-  // Start Trading Server (Web3)
-  setTimeout(() => {
-    setupTradingServer();
-  }, 1000);
 });
 
 app.on("window-all-closed", () => {
@@ -694,92 +690,3 @@ ipcMain.handle("ai-agents-history:delete-all", async (_event: IpcMainInvokeEvent
     return { success: false, error: getErrorMessage(error) };
   }
 });
-
-// =============================================================================
-// Secure Wallet Storage & Trading Server
-// =============================================================================
-import { safeStorage } from "electron";
-
-const WALLET_KEY_NAME = "mosaic_trading_wallet_key";
-const walletConfigPath = path.join(app.getPath("userData"), "wallet_config.json");
-
-function saveWalletKey(privateKey: string): boolean {
-  if (!safeStorage.isEncryptionAvailable()) {
-    console.error("SafeStorage is not available on this system.");
-    return false;
-  }
-  try {
-    const buffer = safeStorage.encryptString(privateKey);
-    fs.writeFileSync(walletConfigPath, JSON.stringify({ encryptedKey: buffer.toString('base64') }));
-    return true;
-  } catch (error) {
-    console.error("Failed to save wallet key:", error);
-    return false;
-  }
-}
-
-function getWalletKey(): string | null {
-  if (!safeStorage.isEncryptionAvailable()) return null;
-  try {
-    if (!fs.existsSync(walletConfigPath)) return null;
-    const data = JSON.parse(fs.readFileSync(walletConfigPath, 'utf8'));
-    if (!data.encryptedKey) return null;
-    
-    const buffer = Buffer.from(data.encryptedKey, 'base64');
-    return safeStorage.decryptString(buffer);
-  } catch (error) {
-    console.error("Failed to retrieve wallet key:", error);
-    return null;
-  }
-}
-
-function deleteWalletKey(): boolean {
-  try {
-    if (fs.existsSync(walletConfigPath)) {
-      fs.unlinkSync(walletConfigPath);
-    }
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-
-ipcMain.handle("trading:save-wallet", async (_event, privateKey: string) => {
-  return { success: saveWalletKey(privateKey) };
-});
-
-ipcMain.handle("trading:delete-wallet", async () => {
-    return { success: deleteWalletKey() };
-});
-
-ipcMain.handle("trading:wallet-exists", async () => {
-    return { exists: !!getWalletKey() };
-});
-
-
-async function setupTradingServer() {
-    const privateKey = getWalletKey();
-    const env: Record<string, string> = {};
-    
-    if (privateKey) {
-        env.MOSAIC_WALLET_PRIVATE_KEY = privateKey;
-    }
-
-    // Determine path to MCP server script
-    // In dev: PROJECT_ROOT/electron/mcp-servers/trading/dist/index.js
-    const serverPath = path.join(PROJECT_ROOT, "electron", "mcp-servers", "trading", "dist", "index.js");
-    
-    console.log(`[Trading] Spawning MCP server from: ${serverPath}`);
-
-    try {
-        await mcpClient.connectStdio(
-            "trading-agent",
-            "node",
-            [serverPath],
-            env
-        );
-        console.log("[Trading] MCP Server connected successfully");
-    } catch (e) {
-        console.error("[Trading] Failed to connect MCP server:", e);
-    }
-}
