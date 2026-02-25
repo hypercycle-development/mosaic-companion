@@ -3,9 +3,17 @@
  *
  * These types are used in the renderer to get proper IntelliSense
  * when calling tool functions through the Electron IPC bridge.
- * They mirror the types from electron/integrations/tools/types.ts
- * but are importable from the renderer side.
+ *
+ * Each module exports its own ToolArgs interface. This file imports
+ * and unions them so the renderer gets typed execute() calls.
  */
+
+// Import per-module arg types — each module is the source of truth for its own args
+import type { GmailToolArgs } from "../../electron/integrations/tools/modules/gmail";
+import type { Web3ToolArgs } from "../../electron/integrations/web3";
+
+// Re-export for convenience
+export type { GmailToolArgs, Web3ToolArgs };
 
 // =============================================================================
 // Core Tool Types
@@ -35,12 +43,22 @@ export interface SerializedActionPattern {
 }
 
 // =============================================================================
+// Combined Tool Arg Map
+// =============================================================================
+
+/** Union of all known tool arg maps — add new modules here */
+export type ToolArgMap = GmailToolArgs & Web3ToolArgs;
+
+// =============================================================================
 // Tools API (exposed via window.electronAPI.tools)
 // =============================================================================
 
 export interface ToolsAPI {
-  /** Execute a tool: "moduleName:toolName" — generic, untyped */
-  execute: (fullName: string, args: Record<string, unknown>) => Promise<ToolResult>;
+  /** Execute a known tool — typed args and autocomplete */
+  execute<K extends keyof ToolArgMap>(fullName: K, args: ToolArgMap[K]): Promise<ToolResult>;
+  /** Execute a dynamic/unknown tool — untyped fallback */
+  execute(fullName: string, args: Record<string, unknown>): Promise<ToolResult>;
+
   /** List all registered modules and their tools */
   listModules: () => Promise<ModuleInfo[]>;
   /** Get combined system prompt for all available modules */

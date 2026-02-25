@@ -10,6 +10,22 @@
 
 import type { ToolModule, ToolDefinition, ActionPattern } from "../types";
 import { authenticate, isAuthenticated, signOut } from "../../gmail/index";
+
+// =============================================================================
+// Renderer-Side Arg Types (exported for src/types/tools.ts)
+// =============================================================================
+
+/** Typed argument maps for each Gmail tool — used by the renderer for autocomplete */
+export interface GmailToolArgs {
+  "gmail:signIn": Record<string, never>;
+  "gmail:signOut": Record<string, never>;
+  "gmail:getStatus": Record<string, never>;
+  "gmail:getRecentEmails": { count?: number };
+  "gmail:getEmailDetails": { messageId: string };
+  "gmail:searchEmails": { query: string; count?: number };
+  "gmail:markAsRead": { messageId: string };
+  "gmail:markAsUnread": { messageId: string };
+}
 import {
   getUserProfile,
   getRecentEmails,
