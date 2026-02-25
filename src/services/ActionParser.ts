@@ -282,7 +282,12 @@ export function parseAction(response: string): ParsedAction {
 }
 
 /**
- * Execute an MCP action
+ * Execute an MCP or built-in tool action.
+ *
+ * Routes to the built-in tool registry first (via tools:execute).
+ * If that fails because the module isn't found, falls back to MCP servers.
+ * This means both built-in tools (Web3, etc.) and MCP-connected servers
+ * use the same <use_tool> invocation format from the AI.
  */
 export async function executeMCPAction(action: ParsedAction): Promise<string> {
    if (action.type !== "MCP_TOOL_CALL" || !action.params) {
@@ -291,6 +296,29 @@ export async function executeMCPAction(action: ParsedAction): Promise<string> {
    
    const { server, tool, args } = action.params as { server: string; tool: string; args: any };
    
+   // 1. Try built-in tool registry first (handles web3, gmail-module, future modules)
+   try {
+       const fullToolName = `${server}:${tool}`;
+       const registryResult = await (window as any).electronAPI?.tools?.execute?.(fullToolName, args || {});
+       if (registryResult && registryResult.success !== undefined) {
+           // If the tool was found and executed (even if it returned an error), use this result
+           if (registryResult.success) {
+               const data = registryResult.data;
+               return typeof data === "string" ? data : JSON.stringify(data, null, 2);
+           }
+           // Check if the error is "module not found" — that means we should try MCP
+           if (registryResult.error?.includes("not found")) {
+               // Fall through to MCP
+           } else {
+               // Tool was found but returned an error (e.g. "no wallet configured")
+               return `Error: ${registryResult.error}`;
+           }
+       }
+   } catch (e) {
+       console.warn(`[ActionParser] Built-in tool ${server}:${tool} failed, trying MCP:`, e);
+   }
+
+   // 2. Fall back to MCP server
    try {
        const result = await window.electronAPI.mcpAPI.callTool(server, tool, args);
        if (result.success) {
@@ -310,6 +338,11 @@ export function getMCPSystemPrompt(servers: any[]): string {
     if (!servers || servers.length === 0) return "";
     
     let prompt = "You have access to the following tools. To use a tool, output its XML tag.\n\n";
+    prompt += "CRITICAL RULES:\n";
+    prompt += "1. When you want to use a tool, output ONLY a short intro sentence, then the <use_tool> XML tag.\n";
+    prompt += "2. You MUST stop writing IMMEDIATELY after the closing </use_tool> tag. Do NOT continue with any text, answers, or guesses.\n";
+    prompt += "3. NEVER guess or hallucinate tool results. Wait for the actual tool output before responding.\n";
+    prompt += "4. After you receive the [Tool Output], use that data to write your final response to the user.\n\n";
     
     servers.forEach(server => {
         if (!server.tools || server.tools.length === 0) return;

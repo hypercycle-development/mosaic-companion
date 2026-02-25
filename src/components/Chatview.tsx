@@ -547,6 +547,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
             systemPrompts.push(mcpPrompt);
         }
 
+        // 3. Web3 / Built-in tools context — always inject so the AI can
+        //    intelligently decide when to use Web3 tools (balance, transfers, etc.)
+        try {
+            const toolsPrompt = await window.electronAPI?.tools?.getSystemPrompt?.();
+            if (toolsPrompt) {
+                systemPrompts.push(toolsPrompt);
+            }
+        } catch (e) {
+            console.error("Failed to get tools system prompt:", e);
+        }
+
         if (systemPrompts.length > 0) {
             const systemMessage: ChatMessage = {
                 id: `system-${Date.now()}-${idCounter++}`,
