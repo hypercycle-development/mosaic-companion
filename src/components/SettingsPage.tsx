@@ -20,8 +20,6 @@ import {
   Server,
   Thermometer,
   Zap,
-  Shield,
-  Wallet,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -45,114 +43,6 @@ interface SettingsPageProps {
   setAiAgents?: (agents: AIAgentConfig[]) => void;
   scrollSection?: string;
 }
-
-const TradingWalletManager: React.FC = () => {
-    const [hasWallet, setHasWallet] = useState(false);
-    const [privateKey, setPrivateKey] = useState("");
-    const [showKey, setShowKey] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-
-    useEffect(() => {
-        checkWallet();
-    }, []);
-
-    const checkWallet = async () => {
-        if (window.electronAPI?.trading?.walletExists) {
-            const result = await window.electronAPI.trading.walletExists();
-            setHasWallet(result.exists);
-        }
-    };
-
-    const handleSave = async () => {
-        if (!privateKey) return;
-        setIsSaving(true);
-        if (window.electronAPI?.trading?.saveWallet) {
-            const result = await window.electronAPI.trading.saveWallet(privateKey);
-            if (result.success) {
-                toast.success("Wallet saved. Please restart the app.");
-                setPrivateKey("");
-                setHasWallet(true);
-            } else {
-                toast.error("Failed to save wallet.");
-            }
-        }
-        setIsSaving(false);
-    };
-
-    const handleDelete = async () => {
-        if (window.confirm("Are you sure you want to delete the trading wallet?")) {
-            if (window.electronAPI?.trading?.deleteWallet) {
-                const result = await window.electronAPI.trading.deleteWallet();
-                if (result.success) {
-                    toast.success("Wallet deleted.");
-                    setHasWallet(false);
-                } else {
-                    toast.error("Failed to delete wallet.");
-                }
-            }
-        }
-    };
-
-    return (
-        <div className="space-y-4">
-            <p className="text-sm text-gray-500">
-                Securely store an Ethereum private key for the autonomous trading agent. 
-                The key is encrypted using system keychain.
-                <br/>
-                <span className="text-yellow-500 font-medium">Warning: Only use a dedicated wallet with limited funds.</span>
-            </p>
-
-            {hasWallet ? (
-                <div className="flex items-center justify-between p-4 bg-emerald-900/20 border border-emerald-900/50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                        <Wallet className="text-emerald-500" size={24} />
-                        <div>
-                            <p className="text-emerald-400 font-medium">Wallet Configured</p>
-                            <p className="text-xs text-emerald-600">The private key is securely stored.</p>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={handleDelete}
-                        className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
-                        title="Delete Wallet"
-                    >
-                        <Trash2 size={18} />
-                    </button>
-                </div>
-            ) : (
-                <div className="space-y-3">
-                     <label className="block">
-                        <span className="text-sm text-gray-400 mb-1 block">Private Key (0x...)</span>
-                        <div className="relative">
-                            <input
-                                type={showKey ? "text" : "password"}
-                                value={privateKey}
-                                onChange={(e) => setPrivateKey(e.target.value)}
-                                className="w-full px-4 py-2 pr-10 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-gray-100 font-mono text-sm"
-                                placeholder="0x..."
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowKey(!showKey)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
-                            >
-                                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                            </button>
-                        </div>
-                    </label>
-                    <button
-                        onClick={handleSave}
-                        disabled={!privateKey || isSaving}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                    >
-                        {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                        Save Wallet
-                    </button>
-                </div>
-            )}
-        </div>
-    );
-};
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
   homeUrl,
@@ -1360,16 +1250,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           </div>
         </section>
 
-        {/* Trading Wallet Section */}
-        <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
-            <h2 className="text-xl font-semibold mb-4 text-emerald-400 flex items-center gap-2">
-                <Shield size={20} />
-                Trading Agent Wallet
-            </h2>
-            <div className="space-y-4">
-                <TradingWalletManager />
-            </div>
-        </section>
 
         <section>
           <GmailClient />
