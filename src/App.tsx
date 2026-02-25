@@ -493,14 +493,14 @@ function App() {
         </div>
 
         {/* Bottom AI Input Bar - hide when on AI Chat page (ChatView has its own input) */}
-        {!isDemoActive && activeTab.history.present !== INTERNAL_CHAT_URL && (
+        {/* {!isDemoActive && activeTab.history.present !== INTERNAL_CHAT_URL && (
           <BottomBar
             onSubmit={handleBottomBarSubmit}
             mode={inputMode}
             onModeChange={setInputMode}
             hasAgents={hasAgents}
           />
-        )}
+        )} */}
       </main>
     </div>
   );
