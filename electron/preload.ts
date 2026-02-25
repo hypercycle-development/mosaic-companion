@@ -95,6 +95,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   mcpAPI,
   osAPI,
   gmail: gmailAPI,
+  tools: {
+    execute: (fullName: string, args: Record<string, unknown>) =>
+      ipcRenderer.invoke("tools:execute", fullName, args),
+    listModules: () => ipcRenderer.invoke("tools:list-modules"),
+    getSystemPrompt: () => ipcRenderer.invoke("tools:get-system-prompt"),
+    getActionPatterns: () => ipcRenderer.invoke("tools:get-action-patterns"),
+  },
   // Linux AppImage sandbox state (read-only)
   sandbox: {
     getState: () => ipcRenderer.invoke("sandbox:get-state"),
