@@ -113,7 +113,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     close: () => ipcRenderer.invoke("window:close"),
     isMaximized: () => ipcRenderer.invoke("window:is-maximized"),
   },
-  // Backward compat: SettingsPage still uses `trading.*`
+  // Web3 wallet & address book bridge
   trading: {
     saveWallet: (key: string) =>
       ipcRenderer.invoke("tools:execute", "web3:save-wallet", { privateKey: key }),
@@ -121,5 +121,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("tools:execute", "web3:delete-wallet", {}),
     walletExists: () =>
       ipcRenderer.invoke("tools:execute", "web3:wallet-exists", {}),
+    getAddress: () =>
+      ipcRenderer.invoke("tools:execute", "web3:get_wallet_address", {}),
+  },
+  web3: {
+    getAddress: () =>
+      ipcRenderer.invoke("tools:execute", "web3:get_wallet_address", {}),
+    getBalance: (address?: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:get_wallet_balance", { address }),
+    getContacts: () =>
+      ipcRenderer.invoke("tools:execute", "web3:list_saved_wallets", {}),
+    saveContact: (name: string, address: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:save_wallet_contact", { name, address }),
+    deleteContact: (id: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:delete_wallet_contact", { id }),
+    lookupContact: (name: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:lookup_saved_wallet", { name }),
   },
 });

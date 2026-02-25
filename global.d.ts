@@ -197,11 +197,30 @@ declare global {
         isMaximized: () => Promise<boolean>;
       };
 
-      // Trading Agent
+      // Trading Agent (backward compat)
       trading: {
           saveWallet: (key: string) => Promise<{ success: boolean }>;
           deleteWallet: () => Promise<{ success: boolean }>;
           walletExists: () => Promise<{ exists: boolean }>;
+          getAddress: () => Promise<{ success: boolean; data?: { address: string }; error?: string }>;
+      };
+
+      // Web3 bridge
+      web3: {
+          getAddress: () => Promise<{ success: boolean; data?: { address: string }; error?: string }>;
+          getBalance: (address?: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+          getContacts: () => Promise<{ success: boolean; data?: string; error?: string }>;
+          saveContact: (name: string, address: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+          deleteContact: (id: string) => Promise<{ success: boolean; error?: string }>;
+          lookupContact: (name: string) => Promise<{ success: boolean; data?: { name: string; address: string }; error?: string }>;
+      };
+
+      // Tools registry bridge
+      tools: {
+          execute: (fullName: string, args: Record<string, unknown>) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+          listModules: () => Promise<Array<{ name: string; displayName: string; toolCount: number; tools: Array<{ name: string; description: string }> }>>;
+          getSystemPrompt: () => Promise<string>;
+          getActionPatterns: () => Promise<Array<{ moduleName: string; toolName: string; pattern: string; flags: string }>>;
       };
 
       // MCP API
