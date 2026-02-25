@@ -36,6 +36,22 @@ import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
+import {
+  loadConfig,
+  saveConfig,
+  setActiveNetwork,
+  setCustomRpc,
+  addToken,
+  updateToken,
+  deleteToken,
+  setTransferLimit,
+  removeTransferLimit,
+  addBannedAddress,
+  removeBannedAddress,
+  updateSafetySettings,
+  type Web3Config,
+  type NetworkId,
+} from "./integrations/web3/config";
 
 // =============================================================================
 // ESM Path Setup
@@ -642,6 +658,26 @@ ipcMain.handle("gmail:get-auto-mark-read", () => {
 ipcMain.handle("gmail:set-auto-mark-read", (_event, enabled) => {
   const result = setGmailAutoMarkRead(enabled);
   return { ...result, enabled: getGmailAutoMarkRead() };
+});
+
+// Web3 Config Handlers (direct access for UI)
+ipcMain.handle("web3:get-config", async () => {
+  return loadConfig();
+});
+
+ipcMain.handle("web3:update-config", async (_event, updates: Partial<Web3Config>) => {
+  try {
+    const config = loadConfig();
+    // Apply granular updates
+    if (updates.activeNetwork) setActiveNetwork(updates.activeNetwork);
+    if (updates.safety) updateSafetySettings(updates.safety);
+    // For full config replacement (tokens, limits, bans updated via their own tools/IPC)
+    const merged = { ...config, ...updates, safety: { ...config.safety, ...(updates.safety || {}) } };
+    saveConfig(merged);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 });
 
 // Theme Handlers

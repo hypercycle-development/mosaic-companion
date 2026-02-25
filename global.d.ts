@@ -213,6 +213,11 @@ declare global {
           saveContact: (name: string, address: string) => Promise<{ success: boolean; data?: string; error?: string }>;
           deleteContact: (id: string) => Promise<{ success: boolean; error?: string }>;
           lookupContact: (name: string) => Promise<{ success: boolean; data?: { name: string; address: string }; error?: string }>;
+          getNetworkInfo: () => Promise<{ success: boolean; data?: string; error?: string }>;
+          switchNetwork: (network: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+          lookupToken: (contractAddress: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+          getConfig: () => Promise<any>;
+          updateConfig: (updates: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
       };
 
       // Tools registry bridge

@@ -125,10 +125,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("tools:execute", "web3:get_wallet_address", {}),
   },
   web3: {
+    // Wallet
     getAddress: () =>
       ipcRenderer.invoke("tools:execute", "web3:get_wallet_address", {}),
     getBalance: (address?: string) =>
       ipcRenderer.invoke("tools:execute", "web3:get_wallet_balance", { address }),
+    // Address book
     getContacts: () =>
       ipcRenderer.invoke("tools:execute", "web3:list_saved_wallets", {}),
     saveContact: (name: string, address: string) =>
@@ -137,5 +139,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("tools:execute", "web3:delete_wallet_contact", { id }),
     lookupContact: (name: string) =>
       ipcRenderer.invoke("tools:execute", "web3:lookup_saved_wallet", { name }),
+    // Network
+    getNetworkInfo: () =>
+      ipcRenderer.invoke("tools:execute", "web3:get_network_info", {}),
+    switchNetwork: (network: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:switch_network", { network }),
+    // Token on-chain lookup
+    lookupToken: (contractAddress: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:lookup_token_onchain", { contractAddress }),
+    // Config (direct IPC — not through tool registry, needs dedicated handler)
+    getConfig: () => ipcRenderer.invoke("web3:get-config"),
+    updateConfig: (updates: Record<string, unknown>) => ipcRenderer.invoke("web3:update-config", updates),
   },
 });
