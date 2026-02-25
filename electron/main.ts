@@ -31,6 +31,7 @@ import {
   getErrorMessage,
 } from "./utils/index";
 import { mcpClient, setMainWindow as mcpSetMainWindow, initPlugins } from "./integrations/mcp/index";
+import { initializeTools, cleanupTools } from "./integrations/tools";
 import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
@@ -222,6 +223,7 @@ function recreateWindow(): void {
 // =============================================================================
 app.on("before-quit", () => {
   mcpClient.disconnectAll();
+  cleanupTools().catch(console.error);
   if (mosaicBotStop) mosaicBotStop().catch(console.error);
 });
 
@@ -253,6 +255,9 @@ app.whenReady().then(() => {
   const win = createWindow();
   mcpSetMainWindow(win);
   initPlugins().catch((e) => console.error("[MCP] Plugin init failed:", e));
+
+  // Initialize tool registry
+  initializeTools().catch((e) => console.error("[Tools] Init failed:", e));
 
   // Initialize MosaicBot agent subsystem
   initMosaicBot().then((bot) => {
