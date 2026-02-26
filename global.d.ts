@@ -196,6 +196,79 @@ declare global {
         close: () => Promise<void>;
         isMaximized: () => Promise<boolean>;
       };
+
+      // Trading Agent (backward compat)
+      trading: {
+          saveWallet: (key: string) => Promise<{ success: boolean }>;
+          deleteWallet: () => Promise<{ success: boolean }>;
+          walletExists: () => Promise<{ exists: boolean }>;
+          getAddress: () => Promise<{ success: boolean; data?: { address: string }; error?: string }>;
+      };
+
+      // Web3 bridge
+      web3: {
+          getAddress: () => Promise<{ success: boolean; data?: { address: string }; error?: string }>;
+          getBalance: (address?: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+          getContacts: () => Promise<{ success: boolean; data?: string; error?: string }>;
+          saveContact: (name: string, address: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+          deleteContact: (id: string) => Promise<{ success: boolean; error?: string }>;
+          lookupContact: (name: string) => Promise<{ success: boolean; data?: { name: string; address: string }; error?: string }>;
+          getNetworkInfo: () => Promise<{ success: boolean; data?: string; error?: string }>;
+          switchNetwork: (network: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+          lookupToken: (contractAddress: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+          getConfig: () => Promise<any>;
+          updateConfig: (updates: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
+      };
+
+      // Tools registry bridge
+      tools: {
+          execute: (fullName: string, args: Record<string, unknown>) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+          listModules: () => Promise<Array<{ name: string; displayName: string; toolCount: number; tools: Array<{ name: string; description: string }> }>>;
+          getSystemPrompt: () => Promise<string>;
+          getActionPatterns: () => Promise<Array<{ moduleName: string; toolName: string; pattern: string; flags: string }>>;
+      };
+
+      // MCP API
+      mcpAPI: {
+          listServers: () => Promise<any[]>;
+          callTool: (server: string, tool: string, args: any) => Promise<{ success: boolean; result?: any; error?: string }>;
+          connect: (config: any) => Promise<{ success: boolean; error?: string }>;
+          disconnect: (server: string) => Promise<{ success: boolean }>;
+          readResource: (server: string, uri: string) => Promise<{ success: boolean; result?: any; error?: string }>;
+      };
+    };
+
+    // MosaicBot agent API
+    agent?: {
+      send: (text: string) => Promise<{ type: string; skill?: string; args?: string; text?: string }>;
+      triggerHeartbeat: (agentId?: string) => Promise<{ ok: boolean }>;
+      listSkills: () => Promise<Array<{ name: string; description: string }>>;
+      onMessage: (cb: (msg: { to: string; text: string; channel: string; messageId: string }) => void) => void;
+    };
+
+    // MosaicBot memory API
+    memory?: {
+      search: (query: string, opts?: { maxResults?: number; minScore?: number }) => Promise<Array<{
+        path: string;
+        startLine: number;
+        endLine: number;
+        score: number;
+        snippet: string;
+        source: string;
+      }>>;
+      read: (relPath: string, from?: number, lines?: number) => Promise<{ text: string; path: string }>;
+      sync: () => Promise<{
+        backend: string; provider: string; model: string;
+        files: number; chunks: number; dirty: boolean;
+        workspaceDir: string; dbPath: string;
+        vector: { enabled: boolean; available: boolean };
+      }>;
+      status: () => Promise<{
+        backend: string; provider: string; model: string;
+        files: number; chunks: number; dirty: boolean;
+        workspaceDir: string; dbPath: string;
+        vector: { enabled: boolean; available: boolean };
+      }>;
     };
   }
 }

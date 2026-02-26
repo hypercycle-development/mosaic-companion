@@ -1,6 +1,7 @@
 import { gmailAPI } from "./integrations/gmail/gmailAPI";
-import { mcpAPI } from "./integrations/mcp/MCPAPI";
+import { mcpAPI, osAPI } from "./integrations/mcp/MCPAPI";
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
+import "./integrations/mosaicbot/src/preload";
 
 // =============================================================================
 // Type Definitions
@@ -92,7 +93,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("ai-agents-history:delete-all", agentId),
   },
   mcpAPI,
-  gmail: gmailAPI,  
+  osAPI,
+  gmail: gmailAPI,
+  tools: {
+    execute: (fullName: string, args: Record<string, unknown>) =>
+      ipcRenderer.invoke("tools:execute", fullName, args),
+    listModules: () => ipcRenderer.invoke("tools:list-modules"),
+    getSystemPrompt: () => ipcRenderer.invoke("tools:get-system-prompt"),
+    getActionPatterns: () => ipcRenderer.invoke("tools:get-action-patterns"),
+  },
   // Linux AppImage sandbox state (read-only)
   sandbox: {
     getState: () => ipcRenderer.invoke("sandbox:get-state"),
@@ -103,5 +112,43 @@ contextBridge.exposeInMainWorld("electronAPI", {
     maximize: () => ipcRenderer.invoke("window:maximize"),
     close: () => ipcRenderer.invoke("window:close"),
     isMaximized: () => ipcRenderer.invoke("window:is-maximized"),
+  },
+  // Web3 wallet & address book bridge
+  trading: {
+    saveWallet: (key: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:save-wallet", { privateKey: key }),
+    deleteWallet: () =>
+      ipcRenderer.invoke("tools:execute", "web3:delete-wallet", {}),
+    walletExists: () =>
+      ipcRenderer.invoke("tools:execute", "web3:wallet-exists", {}),
+    getAddress: () =>
+      ipcRenderer.invoke("tools:execute", "web3:get_wallet_address", {}),
+  },
+  web3: {
+    // Wallet
+    getAddress: () =>
+      ipcRenderer.invoke("tools:execute", "web3:get_wallet_address", {}),
+    getBalance: (address?: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:get_wallet_balance", { address }),
+    // Address book
+    getContacts: () =>
+      ipcRenderer.invoke("tools:execute", "web3:list_saved_wallets", {}),
+    saveContact: (name: string, address: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:save_wallet_contact", { name, address }),
+    deleteContact: (id: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:delete_wallet_contact", { id }),
+    lookupContact: (name: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:lookup_saved_wallet", { name }),
+    // Network
+    getNetworkInfo: () =>
+      ipcRenderer.invoke("tools:execute", "web3:get_network_info", {}),
+    switchNetwork: (network: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:switch_network", { network }),
+    // Token on-chain lookup
+    lookupToken: (contractAddress: string) =>
+      ipcRenderer.invoke("tools:execute", "web3:lookup_token_onchain", { contractAddress }),
+    // Config (direct IPC — not through tool registry, needs dedicated handler)
+    getConfig: () => ipcRenderer.invoke("web3:get-config"),
+    updateConfig: (updates: Record<string, unknown>) => ipcRenderer.invoke("web3:update-config", updates),
   },
 });

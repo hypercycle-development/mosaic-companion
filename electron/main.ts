@@ -30,10 +30,28 @@ import {
   deleteAllAgentHistories,
   getErrorMessage,
 } from "./utils/index";
-import { mcpClient } from "./integrations/mcp/index";
+import { mcpClient, setMainWindow as mcpSetMainWindow, initPlugins } from "./integrations/mcp/index";
+import { initializeTools, cleanupTools } from "./integrations/tools";
+import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
+import {
+  loadConfig,
+  saveConfig,
+  setActiveNetwork,
+  setCustomRpc,
+  addToken,
+  updateToken,
+  deleteToken,
+  setTransferLimit,
+  removeTransferLimit,
+  addBannedAddress,
+  removeBannedAddress,
+  updateSafetySettings,
+  type Web3Config,
+  type NetworkId,
+} from "./integrations/web3/config";
 
 // =============================================================================
 // ESM Path Setup
@@ -124,6 +142,7 @@ const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 // Window Management
 // =============================================================================
 let mainWindow: BrowserWindow | null = null;
+let mosaicBotStop: (() => Promise<void>) | null = null;
 
 function getIconPath(): string {
   // In packaged app, assets are at PROJECT_ROOT/assets
@@ -228,6 +247,8 @@ function recreateWindow(): void {
 // =============================================================================
 app.on("before-quit", () => {
   mcpClient.disconnectAll();
+  cleanupTools().catch(console.error);
+  if (mosaicBotStop) mosaicBotStop().catch(console.error);
 });
 
 // Suppress ERR_ABORTED errors from webviews
@@ -255,7 +276,19 @@ app.whenReady().then(() => {
     }
   }
 
-  createWindow();
+  const win = createWindow();
+  mcpSetMainWindow(win);
+  initPlugins().catch((e) => console.error("[MCP] Plugin init failed:", e));
+
+  // Initialize tool registry
+  initializeTools().catch((e) => console.error("[Tools] Init failed:", e));
+
+  // Initialize MosaicBot agent subsystem
+  initMosaicBot().then((bot) => {
+    mosaicBotStop = bot.stop.bind(bot);
+  }).catch((e) => {
+    console.error("[MosaicBot] Init failed:", e);
+  });
 
   // Initialize updater (production only)
   if (app.isPackaged) {
@@ -274,6 +307,7 @@ app.whenReady().then(() => {
   } catch (e) {
     // Ignore
   }
+
 });
 
 app.on("window-all-closed", () => {
@@ -632,6 +666,26 @@ ipcMain.handle("gmail:get-auto-mark-read", () => {
 ipcMain.handle("gmail:set-auto-mark-read", (_event, enabled) => {
   const result = setGmailAutoMarkRead(enabled);
   return { ...result, enabled: getGmailAutoMarkRead() };
+});
+
+// Web3 Config Handlers (direct access for UI)
+ipcMain.handle("web3:get-config", async () => {
+  return loadConfig();
+});
+
+ipcMain.handle("web3:update-config", async (_event, updates: Partial<Web3Config>) => {
+  try {
+    const config = loadConfig();
+    // Apply granular updates
+    if (updates.activeNetwork) setActiveNetwork(updates.activeNetwork);
+    if (updates.safety) updateSafetySettings(updates.safety);
+    // For full config replacement (tokens, limits, bans updated via their own tools/IPC)
+    const merged = { ...config, ...updates, safety: { ...config.safety, ...(updates.safety || {}) } };
+    saveConfig(merged);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 });
 
 // Theme Handlers

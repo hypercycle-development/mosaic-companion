@@ -49,3 +49,5 @@ config/gmail-credentials.json
 # agent files
 .github/copilot-instructions.md
 .github/skills/
+
+*.resolved.md
