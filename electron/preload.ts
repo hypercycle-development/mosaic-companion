@@ -151,4 +151,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getConfig: () => ipcRenderer.invoke("web3:get-config"),
     updateConfig: (updates: Record<string, unknown>) => ipcRenderer.invoke("web3:update-config", updates),
   },
+  // Vault (named boxes & agent access)
+  vault: {
+    getBoxes: () => ipcRenderer.invoke("vault:get-boxes"),
+    getBox: (id: string) => ipcRenderer.invoke("vault:get-box", id),
+    addBox: (input: { name: string; description?: string; sourceType?: string }) =>
+      ipcRenderer.invoke("vault:add-box", input),
+    updateBox: (id: string, updates: { name?: string; description?: string; sourceType?: string }) =>
+      ipcRenderer.invoke("vault:update-box", id, updates),
+    deleteBox: (id: string) => ipcRenderer.invoke("vault:delete-box", id),
+    getAgentBoxes: (agentId: string) => ipcRenderer.invoke("vault:get-agent-boxes", agentId),
+  },
 });
+
