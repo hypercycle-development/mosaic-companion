@@ -13,6 +13,14 @@ declare global {
     updatedAt: number;
   }
 
+  interface VaultEntry {
+    id: string;
+    label?: string;
+    content: string;
+    createdAt: number;
+    updatedAt: number;
+  }
+
   // Update settings configuration
   interface UpdateSettings {
     autoDownload: boolean;
@@ -256,6 +264,19 @@ declare global {
         }>;
         deleteBox: (id: string) => Promise<{ success: boolean; error?: string }>;
         getAgentBoxes: (agentId: string) => Promise<VaultBox[]>;
+        // Content
+        getBoxContent: (boxId: string) => Promise<VaultEntry[]>;
+        addEntry: (boxId: string, input: { content: string; label?: string }) => Promise<{
+          success: boolean;
+          entry?: VaultEntry;
+          error?: string;
+        }>;
+        updateEntry: (boxId: string, entryId: string, updates: { content?: string; label?: string }) => Promise<{
+          success: boolean;
+          entry?: VaultEntry;
+          error?: string;
+        }>;
+        deleteEntry: (boxId: string, entryId: string) => Promise<{ success: boolean; error?: string }>;
       };
 
       // MCP API
