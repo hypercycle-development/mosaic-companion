@@ -161,6 +161,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("vault:update-box", id, updates),
     deleteBox: (id: string) => ipcRenderer.invoke("vault:delete-box", id),
     getAgentBoxes: (agentId: string) => ipcRenderer.invoke("vault:get-agent-boxes", agentId),
+    // Content
+    getBoxContent: (boxId: string) => ipcRenderer.invoke("vault:get-box-content", boxId),
+    addEntry: (boxId: string, input: { content: string; label?: string }) =>
+      ipcRenderer.invoke("vault:add-entry", boxId, input),
+    updateEntry: (boxId: string, entryId: string, updates: { content?: string; label?: string }) =>
+      ipcRenderer.invoke("vault:update-entry", boxId, entryId, updates),
+    deleteEntry: (boxId: string, entryId: string) =>
+      ipcRenderer.invoke("vault:delete-entry", boxId, entryId),
   },
 });
 
