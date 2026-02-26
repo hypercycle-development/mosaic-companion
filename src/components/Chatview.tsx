@@ -1,4 +1,3 @@
-// components/ChatView.tsx
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Bot,
@@ -16,6 +15,8 @@ import {
   History,
   AlertCircle,
   Mail,
+  Wrench,
+  ChevronRight,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -47,6 +48,79 @@ interface ChatViewProps {
   onCreateNewChatTab?: () => void;
   tabId?: string;
 }
+
+// =============================================================================
+// Tool Message Helpers
+// =============================================================================
+
+/** Collapsible chip for tool calls and tool outputs */
+const ToolChip: React.FC<{ label: string; detail: string }> = ({ label, detail }) => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="my-1.5">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-800/60 hover:bg-gray-700/60 border border-gray-700/50 rounded-lg text-[11px] text-gray-400 hover:text-gray-300 transition-all"
+      >
+        <Wrench size={11} className="shrink-0" />
+        <span className="font-medium">{label}</span>
+        <ChevronRight
+          size={10}
+          className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+        />
+      </button>
+      {expanded && (
+        <pre className="mt-1.5 px-3 py-2 bg-gray-950/80 border border-gray-800 rounded-lg text-[10px] text-gray-500 overflow-x-auto max-h-40 whitespace-pre-wrap break-words">
+          {detail}
+        </pre>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Renders message content with smart detection of tool artifacts.
+ * - Assistant messages: strips <use_tool> XML, shows clean text + collapsed chip
+ * - User messages: collapses [Tool Output for ...] into a chip
+ */
+const RenderMessageContent: React.FC<{ content: string; role: "assistant" | "user" }> = ({
+  content,
+  role,
+}) => {
+  if (role === "assistant") {
+    // Check for <use_tool server="..." tool="...">...</use_tool>
+    const toolMatch = content.match(
+      /<use_tool\s+server="([^"]+)"\s+tool="([^"]+)">([\s\S]*?)<\/use_tool>/
+    );
+    if (toolMatch) {
+      const cleanText = content.replace(/<use_tool[\s\S]*?<\/use_tool>/, "").trim();
+      const toolLabel = `${toolMatch[1]}:${toolMatch[2]}`;
+      const toolArgs = toolMatch[3].trim();
+      return (
+        <>
+          {cleanText && <ReactMarkdown>{cleanText}</ReactMarkdown>}
+          <ToolChip label={`Called ${toolLabel}`} detail={toolArgs || "{}"} />
+        </>
+      );
+    }
+    return <ReactMarkdown>{content}</ReactMarkdown>;
+  }
+
+  // User messages — check for [Tool Output for ...]
+  const toolOutputMatch = content.match(/^\[Tool Output for ([^\]]+)\]\n?([\s\S]*)$/);
+  if (toolOutputMatch) {
+    const toolName = toolOutputMatch[1];
+    const outputBody = toolOutputMatch[2].trim();
+    return <ToolChip label={`Output from ${toolName}`} detail={outputBody || "(empty)"} />;
+  }
+
+  // Also check for [System Context] injections
+  if (content.startsWith("[System Context]")) {
+    return <ToolChip label="System context" detail={content.replace("[System Context]\n", "")} />;
+  }
+
+  return <span className="whitespace-pre-wrap">{content}</span>;
+};
 
 export const ChatView: React.FC<ChatViewProps> = ({
   onNavigate,
@@ -857,11 +931,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       >
                         <div className="break-words text-[15px] leading-loose prose prose-invert prose-sm max-w-none prose-p:my-3 prose-headings:my-4 prose-ul:my-3 prose-li:my-2 prose-hr:my-4">
                           {message.role === "assistant" ? (
-                            <ReactMarkdown>{message.content}</ReactMarkdown>
+                            <RenderMessageContent content={message.content} role="assistant" />
                           ) : (
-                            <span className="whitespace-pre-wrap">
-                              {message.content}
-                            </span>
+                            <RenderMessageContent content={message.content} role="user" />
                           )}
                         </div>
                       </div>
