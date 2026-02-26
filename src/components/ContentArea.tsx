@@ -76,7 +76,7 @@ const BrowserView: React.FC<BrowserViewProps> = ({
         if (loadProgressRef.current < 90) {
           loadProgressRef.current = Math.min(
             90,
-            loadProgressRef.current + Math.random() * 15
+            loadProgressRef.current + Math.random() * 15,
           );
           onUpdateTab({
             isLoading: true,
@@ -165,10 +165,7 @@ const BrowserView: React.FC<BrowserViewProps> = ({
     webview.addEventListener("did-navigate-in-page", handleNavigate);
     webview.addEventListener("new-window", handleNewWindow);
     webview.addEventListener("page-title-updated", handlePageTitleUpdated);
-    webview.addEventListener(
-      "page-favicon-updated",
-      handlePageFaviconUpdated
-    );
+    webview.addEventListener("page-favicon-updated", handlePageFaviconUpdated);
 
     return () => {
       // Clean up timeouts/intervals
@@ -182,28 +179,19 @@ const BrowserView: React.FC<BrowserViewProps> = ({
       }
 
       if (webview) {
-        webview.removeEventListener(
-          "did-start-loading",
-          handleStartLoading
-        );
-        webview.removeEventListener(
-          "did-stop-loading",
-          handleStopLoading
-        );
+        webview.removeEventListener("did-start-loading", handleStartLoading);
+        webview.removeEventListener("did-stop-loading", handleStopLoading);
         webview.removeEventListener("did-fail-load", handleFailLoad);
         webview.removeEventListener("did-navigate", handleNavigate);
-        webview.removeEventListener(
-          "did-navigate-in-page",
-          handleNavigate
-        );
+        webview.removeEventListener("did-navigate-in-page", handleNavigate);
         webview.removeEventListener("new-window", handleNewWindow);
         webview.removeEventListener(
           "page-title-updated",
-          handlePageTitleUpdated
+          handlePageTitleUpdated,
         );
         webview.removeEventListener(
           "page-favicon-updated",
-          handlePageFaviconUpdated
+          handlePageFaviconUpdated,
         );
       }
     };

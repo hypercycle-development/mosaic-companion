@@ -525,7 +525,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Footer */}
       <div className="p-4 border-t border-gray-900 shrink-0 bg-black min-w-[18rem]">
         <button
-          onClick={() => onNavigate(INTERNAL_SETTINGS_URL)}
+          onClick={() => onNavigate(INTERNAL_SETTINGS_URL + "#agents")}
           className="flex items-center justify-center w-full bg-indigo-900/20 hover:bg-indigo-900/40 text-gray-100 border border-indigo-500/20 rounded-lg p-3 transition-all hover:scale-[1.02]"
         >
           <Plus size={16} />

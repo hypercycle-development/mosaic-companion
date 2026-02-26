@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent, powerMonitor } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -207,6 +207,14 @@ function createWindow(urlToLoad: string | null = null): BrowserWindow {
   win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
     console.error(`Failed to load ${validatedURL}: ${errorCode} (${errorDescription})`);
   });
+
+  // Handle loss of CSS syles after hibernation (Mac)
+  powerMonitor.on('resume', () => {
+    if (win) {
+      // Force reload to re-apply CSS
+      win.reload()
+    }
+  })
 
   mainWindow = win;
   return win;
