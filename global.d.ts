@@ -242,7 +242,7 @@ declare global {
 
       // Tools registry bridge
       tools: {
-          execute: (fullName: string, args: Record<string, unknown>) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+          execute: (fullName: string, args: Record<string, unknown>, context?: { agentId?: string }) => Promise<{ success: boolean; data?: unknown; error?: string }>;
           listModules: () => Promise<Array<{ name: string; displayName: string; toolCount: number; tools: Array<{ name: string; description: string }> }>>;
           getSystemPrompt: () => Promise<string>;
           getActionPatterns: () => Promise<Array<{ moduleName: string; toolName: string; pattern: string; flags: string }>>;
