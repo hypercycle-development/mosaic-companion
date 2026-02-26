@@ -1337,6 +1337,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           </div>
         </section>
 
+
         <section>
           <GmailClient />
         </section>
