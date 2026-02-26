@@ -857,23 +857,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   <RefreshCw size={18} />
                 </button>
               )}
-              {onCreateNewChatTab ? (
-                <button
-                  onClick={onCreateNewChatTab}
-                  className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  <MessageSquare size={16} />
-                  <span className="text-sm">New Chat</span>
-                </button>
-              ) : (
-                <button
-                  onClick={createNewSession}
-                  className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  <MessageSquare size={16} />
-                  <span className="text-sm">New Chat</span>
-                </button>
-              )}
+              <button
+                onClick={createNewSession}
+                className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <MessageSquare size={16} />
+                <span className="text-sm">New Chat</span>
+              </button>
               <button
                 onClick={() => setShowHistorySidebar(!showHistorySidebar)}
                 className={`p-2 rounded-lg transition-colors ${
