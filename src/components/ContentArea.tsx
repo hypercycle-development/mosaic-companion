@@ -6,6 +6,7 @@ import {
   INTERNAL_MOSAICBOT_URL,
   INTERNAL_SETTINGS_URL,
   INTERNAL_WEB3_URL,
+  INTERNAL_VAULT_URL,
   Tab,
 } from "../types/types";
 import { LandingPage } from "./LandingPage";
@@ -13,6 +14,7 @@ import { SettingsPage } from "./SettingsPage";
 import { MosaicBotPanel } from "./MosaicBotPanel";
 import { MCPPage } from "./MCPPage";
 import { Web3Page } from "./Web3Page";
+import { VaultPage } from "./VaultPage";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
 
@@ -356,6 +358,18 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     return (
       <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
         <Web3Page />
+      </div>
+    );
+  }
+
+  if (url === INTERNAL_VAULT_URL) {
+    useEffect(() => {
+      onUpdateTab({ title: "Vault", isLoading: false, favicon: undefined });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
+        <VaultPage />
       </div>
     );
   }
