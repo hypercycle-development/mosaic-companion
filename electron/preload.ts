@@ -96,8 +96,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   osAPI,
   gmail: gmailAPI,
   tools: {
-    execute: (fullName: string, args: Record<string, unknown>) =>
-      ipcRenderer.invoke("tools:execute", fullName, args),
+    execute: (fullName: string, args: Record<string, unknown>, context?: { agentId?: string }) =>
+      ipcRenderer.invoke("tools:execute", fullName, args, context),
     listModules: () => ipcRenderer.invoke("tools:list-modules"),
     getSystemPrompt: () => ipcRenderer.invoke("tools:get-system-prompt"),
     getActionPatterns: () => ipcRenderer.invoke("tools:get-action-patterns"),
