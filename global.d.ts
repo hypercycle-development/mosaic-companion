@@ -1,6 +1,18 @@
 import { AIAgentConfig, ChatSession } from "./types/ai";
 
 declare global {
+  // Vault types
+  type BoxSourceType = "manual" | "import" | "connector";
+
+  interface VaultBox {
+    id: string;
+    name: string;
+    description?: string;
+    sourceType: BoxSourceType;
+    createdAt: number;
+    updatedAt: number;
+  }
+
   // Update settings configuration
   interface UpdateSettings {
     autoDownload: boolean;
@@ -226,6 +238,24 @@ declare global {
           listModules: () => Promise<Array<{ name: string; displayName: string; toolCount: number; tools: Array<{ name: string; description: string }> }>>;
           getSystemPrompt: () => Promise<string>;
           getActionPatterns: () => Promise<Array<{ moduleName: string; toolName: string; pattern: string; flags: string }>>;
+      };
+
+      // Vault (named boxes & agent access)
+      vault: {
+        getBoxes: () => Promise<VaultBox[]>;
+        getBox: (id: string) => Promise<VaultBox | null>;
+        addBox: (input: { name: string; description?: string; sourceType?: BoxSourceType }) => Promise<{
+          success: boolean;
+          box?: VaultBox;
+          error?: string;
+        }>;
+        updateBox: (id: string, updates: { name?: string; description?: string; sourceType?: BoxSourceType }) => Promise<{
+          success: boolean;
+          box?: VaultBox;
+          error?: string;
+        }>;
+        deleteBox: (id: string) => Promise<{ success: boolean; error?: string }>;
+        getAgentBoxes: (agentId: string) => Promise<VaultBox[]>;
       };
 
       // MCP API

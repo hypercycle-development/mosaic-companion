@@ -52,6 +52,15 @@ import {
   type Web3Config,
   type NetworkId,
 } from "./integrations/web3/config";
+import {
+  getBoxes,
+  getBox,
+  addBox,
+  updateBox,
+  deleteBox,
+  getAgentBoxes,
+} from "./integrations/vault";
+import type { VaultBox } from "./integrations/vault/types";
 
 // =============================================================================
 // ESM Path Setup
@@ -733,4 +742,38 @@ ipcMain.handle("ai-agents-history:delete-all", async (_event: IpcMainInvokeEvent
   } catch (error) {
     return { success: false, error: getErrorMessage(error) };
   }
+});
+
+// =============================================================================
+// Vault Handlers
+// =============================================================================
+
+ipcMain.handle("vault:get-boxes", async () => {
+  return getBoxes();
+});
+
+ipcMain.handle("vault:get-box", async (_event: IpcMainInvokeEvent, id: string) => {
+  return getBox(id);
+});
+
+ipcMain.handle(
+  "vault:add-box",
+  async (_event: IpcMainInvokeEvent, input: Partial<Omit<VaultBox, "id" | "createdAt" | "updatedAt">>) => {
+    return addBox(input);
+  },
+);
+
+ipcMain.handle(
+  "vault:update-box",
+  async (_event: IpcMainInvokeEvent, id: string, updates: Partial<Omit<VaultBox, "id" | "createdAt">>) => {
+    return updateBox(id, updates);
+  },
+);
+
+ipcMain.handle("vault:delete-box", async (_event: IpcMainInvokeEvent, id: string) => {
+  return deleteBox(id);
+});
+
+ipcMain.handle("vault:get-agent-boxes", async (_event: IpcMainInvokeEvent, agentId: string) => {
+  return getAgentBoxes(agentId);
 });
