@@ -6,30 +6,20 @@ import {
   Sparkles,
   StopCircle,
   Bot,
-  Globe,
-  ChevronDown,
 } from "lucide-react";
-
-export type InputMode = "agent" | "normal";
 
 interface BottomBarProps {
   onSubmit: (text: string) => void;
-  mode: InputMode;
-  onModeChange: (mode: InputMode) => void;
   hasAgents: boolean;
 }
 
 export const BottomBar: React.FC<BottomBarProps> = ({
   onSubmit,
-  mode,
-  onModeChange,
   hasAgents,
 }) => {
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
-  const [showModeDropdown, setShowModeDropdown] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -40,19 +30,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
     }
   }, [input]);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setShowModeDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+
 
   const handleSubmit = async () => {
     if (!input.trim()) return;
@@ -101,63 +79,9 @@ export const BottomBar: React.FC<BottomBarProps> = ({
   return (
     <div className="w-full bg-gray-950 border-t border-gray-800 p-4 shrink-0 z-20">
       <div className="max-w-4xl mx-auto flex items-end gap-3">
-        {/* Mode Selector Dropdown */}
-        <div className="relative" ref={dropdownRef}>
-          <button
-            onClick={() => setShowModeDropdown(!showModeDropdown)}
-            className={`p-3 rounded-full transition-colors flex items-center gap-1 ${
-              mode === "agent"
-                ? "bg-indigo-600/20 text-indigo-400 border border-indigo-500/30"
-                : "bg-gray-800 text-gray-400 border border-gray-700 hover:text-gray-300"
-            }`}
-            title={mode === "agent" ? "AI Agent Mode" : "Normal Mode"}
-          >
-            {mode === "agent" ? <Bot size={20} /> : <Globe size={20} />}
-            <ChevronDown size={14} />
-          </button>
-
-          {showModeDropdown && (
-            <div className="absolute bottom-full left-0 mb-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden min-w-[160px]">
-              <button
-                onClick={() => {
-                  if (hasAgents) {
-                    onModeChange("agent");
-                  }
-                  setShowModeDropdown(false);
-                }}
-                className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${
-                  mode === "agent"
-                    ? "bg-indigo-600/20 text-indigo-400"
-                    : "text-gray-300 hover:bg-gray-800"
-                } ${!hasAgents ? "opacity-50 cursor-not-allowed" : ""}`}
-                disabled={!hasAgents}
-              >
-                <Bot size={18} />
-                <div className="text-left">
-                  <div className="text-sm font-medium">Mosaic</div>
-                  {!hasAgents && (
-                    <div className="text-xs text-gray-500">
-                      No agents configured
-                    </div>
-                  )}
-                </div>
-              </button>
-              <button
-                onClick={() => {
-                  onModeChange("normal");
-                  setShowModeDropdown(false);
-                }}
-                className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${
-                  mode === "normal"
-                    ? "bg-gray-700 text-white"
-                    : "text-gray-300 hover:bg-gray-800"
-                }`}
-              >
-                <Globe size={18} />
-                <div className="text-sm font-medium">Browser</div>
-              </button>
-            </div>
-          )}
+        {/* Main AI Indicator */}
+        <div className="p-3 rounded-full bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
+          <Bot size={20} />
         </div>
 
         {/* Main Input Container */}
@@ -167,9 +91,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={
-              mode === "agent" ? "Ask AI Agent..." : "Ask Mosaic anything..."
-            }
+            placeholder="Ask MosAIc anything..."
             className="w-full bg-transparent border-none text-gray-100 placeholder-gray-500 resize-none max-h-32 min-h-[24px] p-2 focus:ring-0 outline-none font-sans"
             rows={1}
           />
