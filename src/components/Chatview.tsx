@@ -387,7 +387,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           if (action.type === "MCP_TOOL_CALL") {
              setStreamingContent("🛠️ Executing " + action.params?.tool + "...");
              
-             const result = await executeMCPAction(action);
+             const result = await executeMCPAction(action, selectedAgent!.id);
              
              // Create User Message (Tool Output)
              const toolMsg: ChatMessage = {
@@ -556,6 +556,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
             }
         } catch (e) {
             console.error("Failed to get tools system prompt:", e);
+        }
+
+        // 4. Vault context — tell the agent which boxes it can access
+        try {
+            const agentBoxes = await window.electronAPI?.vault?.getAgentBoxes(selectedAgent!.id);
+            if (agentBoxes && agentBoxes.length > 0) {
+                const boxList = agentBoxes
+                  .map((b: any) => `- "${b.name}" (ID: ${b.id})${b.description ? ` — ${b.description}` : ""}`)
+                  .join("\n");
+                systemPrompts.push(
+                  `You have access to the following Vault boxes:\n${boxList}\n\n` +
+                  `Use the vault tools (vault:list_boxes, vault:read_box) to retrieve data from these boxes when relevant to the user's query.`
+                );
+            }
+        } catch (e) {
+            console.error("Failed to get vault context:", e);
         }
 
         if (systemPrompts.length > 0) {
