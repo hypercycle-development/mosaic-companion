@@ -887,7 +887,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
               </div>
             ) : (
               <div className="space-y-6">
-                {activeSession?.messages.map((message) => (
+                {activeSession?.messages.map((message) => {
+                  // Detect tool-related messages (output or system context)
+                  const isToolOutput =
+                    message.role === "user" &&
+                    (message.content.startsWith("[Tool Output for ") ||
+                     message.content.startsWith("[System Context]"));
+
+                  // Tool output → centered system row (no avatar, no bubble)
+                  if (isToolOutput) {
+                    return (
+                      <div key={message.id} className="flex justify-center">
+                        <div className="max-w-[60%]">
+                          <RenderMessageContent content={message.content} role="user" />
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Normal user/assistant message
+                  return (
                   <div
                     key={message.id}
                     className={`flex gap-4 ${
@@ -963,7 +982,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
 
                 {/* Streaming Response */}
                 {streamingContent && (
