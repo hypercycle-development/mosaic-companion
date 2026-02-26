@@ -46,3 +46,30 @@ export interface VaultBox {
 export interface VaultConfig {
   boxes: VaultBox[];
 }
+
+// =============================================================================
+// Box Content (persisted per-box to disk)
+// =============================================================================
+
+/** A single piece of text content inside a box */
+export interface VaultEntry {
+  /** Unique identifier (e.g. "entry-1740528000000") */
+  id: string;
+  /** Optional short label / title for this entry */
+  label?: string;
+  /** The actual text content */
+  content: string;
+  /** Unix timestamp — when the entry was created */
+  createdAt: number;
+  /** Unix timestamp — last modification */
+  updatedAt: number;
+}
+
+/**
+ * The content file for a single box.
+ * Stored at ~/.config/mosaic-companion/vault-content/<boxId>.json
+ */
+export interface BoxContent {
+  boxId: string;
+  entries: VaultEntry[];
+}
