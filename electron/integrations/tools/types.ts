@@ -7,6 +7,19 @@
  */
 
 // =============================================================================
+// Execution Context
+// =============================================================================
+
+/**
+ * Context about who is executing a tool.
+ * Threaded through the ToolRegistry so handlers can enforce access control.
+ */
+export interface ExecutionContext {
+  /** The agent ID making the call (undefined for user-initiated calls) */
+  agentId?: string;
+}
+
+// =============================================================================
 // Tool Definition
 // =============================================================================
 
@@ -15,7 +28,7 @@ export interface ToolDefinition {
   name: string;
   description: string;
   inputSchema?: Record<string, unknown>;
-  handler: (args: Record<string, unknown>) => Promise<ToolResult>;
+  handler: (args: Record<string, unknown>, context?: ExecutionContext) => Promise<ToolResult>;
 }
 
 /** Result returned by any tool handler */
