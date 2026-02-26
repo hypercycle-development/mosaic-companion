@@ -16,6 +16,7 @@ import type {
   ActionPattern,
   ModuleInfo,
   SerializedActionPattern,
+  ExecutionContext,
 } from "./types";
 
 export class ToolRegistry {
@@ -92,6 +93,7 @@ export class ToolRegistry {
   async executeTool(
     fullName: string,
     args: Record<string, unknown>,
+    context?: ExecutionContext,
   ): Promise<ToolResult> {
     const colonIdx = fullName.indexOf(":");
     if (colonIdx === -1) {
@@ -115,7 +117,7 @@ export class ToolRegistry {
     }
 
     try {
-      return await tool.handler(args);
+      return await tool.handler(args, context);
     } catch (err) {
       return {
         success: false,
@@ -211,8 +213,8 @@ export class ToolRegistry {
   private registerIPCHandlers(): void {
     ipcMain.handle(
       "tools:execute",
-      async (_e, fullName: string, args: Record<string, unknown>) => {
-        return this.executeTool(fullName, args);
+      async (_e, fullName: string, args: Record<string, unknown>, context?: ExecutionContext) => {
+        return this.executeTool(fullName, args, context);
       },
     );
 
