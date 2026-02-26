@@ -10,13 +10,26 @@
 import { app } from "electron";
 import fs from "fs";
 import path from "path";
-import type { VaultBox, VaultConfig } from "./types";
+import type { VaultBox, VaultConfig, VaultEntry, BoxContent } from "./types";
 
 // =============================================================================
-// File Path & Defaults
+// File Paths & Defaults
 // =============================================================================
 
 const vaultPath = path.join(app.getPath("userData"), "vault.json");
+const vaultContentDir = path.join(app.getPath("userData"), "vault-content");
+
+/** Ensure the vault-content directory exists. */
+function ensureContentDir(): void {
+  if (!fs.existsSync(vaultContentDir)) {
+    fs.mkdirSync(vaultContentDir, { recursive: true });
+  }
+}
+
+/** Path for a box's content file. */
+function boxContentPath(boxId: string): string {
+  return path.join(vaultContentDir, `${boxId}.json`);
+}
 
 const DEFAULT_VAULT: VaultConfig = {
   boxes: [],
@@ -148,7 +161,20 @@ export function deleteBox(id: string): { success: boolean; error?: string } {
   }
 
   vault.boxes.splice(index, 1);
-  return saveVault(vault);
+  const result = saveVault(vault);
+
+  // Clean up associated content file if it exists
+  try {
+    const contentFile = boxContentPath(id);
+    if (fs.existsSync(contentFile)) {
+      fs.unlinkSync(contentFile);
+      console.log("[Vault] Content file deleted for box:", id);
+    }
+  } catch (err) {
+    console.warn("[Vault] Could not delete content file for box:", id, err);
+  }
+
+  return result;
 }
 
 // =============================================================================
@@ -188,4 +214,113 @@ export function getAgentBoxes(agentId: string): VaultBox[] {
 export function canAgentAccessBox(agentId: string, boxId: string): boolean {
   const agentBoxes = getAgentBoxes(agentId);
   return agentBoxes.some((b) => b.id === boxId);
+}
+
+// =============================================================================
+// Box Content CRUD
+// =============================================================================
+
+/** Load a box's content from disk. Returns empty content if not found. */
+function loadBoxContent(boxId: string): BoxContent {
+  ensureContentDir();
+  const filePath = boxContentPath(boxId);
+  try {
+    if (fs.existsSync(filePath)) {
+      const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      return {
+        boxId,
+        entries: Array.isArray(parsed.entries) ? parsed.entries : [],
+      };
+    }
+  } catch (err) {
+    console.error("[Vault] Failed to load content for box:", boxId, err);
+  }
+  return { boxId, entries: [] };
+}
+
+/** Save a box's content to disk. */
+function saveBoxContent(
+  content: BoxContent,
+): { success: boolean; error?: string } {
+  ensureContentDir();
+  try {
+    fs.writeFileSync(
+      boxContentPath(content.boxId),
+      JSON.stringify(content, null, 2),
+      "utf8",
+    );
+    return { success: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[Vault] Failed to save content for box:", content.boxId, msg);
+    return { success: false, error: msg };
+  }
+}
+
+/** Get all entries in a box. */
+export function getBoxContent(boxId: string): VaultEntry[] {
+  return loadBoxContent(boxId).entries;
+}
+
+/** Add a new entry to a box. */
+export function addEntry(
+  boxId: string,
+  input: { content: string; label?: string },
+): { success: boolean; entry?: VaultEntry; error?: string } {
+  if (!input.content || input.content.trim().length === 0) {
+    return { success: false, error: "Entry content cannot be empty" };
+  }
+
+  const boxContent = loadBoxContent(boxId);
+  const now = Date.now();
+  const entry: VaultEntry = {
+    id: `entry-${now}`,
+    label: input.label?.trim() || undefined,
+    content: input.content.trim(),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  boxContent.entries.push(entry);
+  const result = saveBoxContent(boxContent);
+  return { ...result, entry };
+}
+
+/** Update an existing entry (partial). */
+export function updateEntry(
+  boxId: string,
+  entryId: string,
+  updates: { content?: string; label?: string },
+): { success: boolean; entry?: VaultEntry; error?: string } {
+  const boxContent = loadBoxContent(boxId);
+  const index = boxContent.entries.findIndex((e) => e.id === entryId);
+
+  if (index === -1) {
+    return { success: false, error: "Entry not found" };
+  }
+
+  boxContent.entries[index] = {
+    ...boxContent.entries[index],
+    ...updates,
+    updatedAt: Date.now(),
+  };
+
+  const result = saveBoxContent(boxContent);
+  return { ...result, entry: boxContent.entries[index] };
+}
+
+/** Delete an entry from a box. */
+export function deleteEntry(
+  boxId: string,
+  entryId: string,
+): { success: boolean; error?: string } {
+  const boxContent = loadBoxContent(boxId);
+  const index = boxContent.entries.findIndex((e) => e.id === entryId);
+
+  if (index === -1) {
+    return { success: false, error: "Entry not found" };
+  }
+
+  boxContent.entries.splice(index, 1);
+  return saveBoxContent(boxContent);
 }
