@@ -12,6 +12,8 @@ import {
   ChevronDown,
   ChevronRight,
   Shield,
+  FileText,
+  AlignLeft,
 } from "lucide-react";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
 
@@ -26,6 +28,14 @@ interface VaultBox {
   name: string;
   description?: string;
   sourceType: BoxSourceType;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface VaultEntry {
+  id: string;
+  label?: string;
+  content: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -208,6 +218,162 @@ const AgentAccessPanel: React.FC<{
 };
 
 // =============================================================================
+// Box Content Panel
+// =============================================================================
+
+const BoxContentPanel: React.FC<{ box: VaultBox; onEntryCountChange: (count: number) => void }> = ({
+  box,
+  onEntryCountChange,
+}) => {
+  const [entries, setEntries] = useState<VaultEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [label, setLabel] = useState("");
+  const [content, setContent] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadEntries = useCallback(async () => {
+    setIsLoading(true);
+    const loaded = await window.electronAPI?.vault?.getBoxContent(box.id) ?? [];
+    setEntries(loaded);
+    onEntryCountChange(loaded.length);
+    setIsLoading(false);
+  }, [box.id, onEntryCountChange]);
+
+  useEffect(() => {
+    loadEntries();
+  }, [loadEntries]);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!content.trim()) return;
+    setIsSaving(true);
+    setError(null);
+    const result = await window.electronAPI?.vault?.addEntry(box.id, {
+      content: content.trim(),
+      label: label.trim() || undefined,
+    });
+    if (result?.success) {
+      setContent("");
+      setLabel("");
+      setShowForm(false);
+      loadEntries();
+    } else {
+      setError(result?.error ?? "Failed to add entry");
+    }
+    setIsSaving(false);
+  };
+
+  const handleDelete = async (entryId: string) => {
+    const result = await window.electronAPI?.vault?.deleteEntry(box.id, entryId);
+    if (result?.success) loadEntries();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="py-4 flex justify-center">
+        <Loader2 size={18} className="animate-spin text-gray-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-3 pb-3 space-y-2">
+      {/* Error */}
+      {error && (
+        <div className="px-3 py-2 bg-red-900/20 border border-red-900/40 rounded-lg flex items-center gap-2">
+          <X size={12} className="text-red-400 cursor-pointer" onClick={() => setError(null)} />
+          <span className="text-xs text-red-300">{error}</span>
+        </div>
+      )}
+
+      {/* Entry list */}
+      {entries.length === 0 && !showForm ? (
+        <div className="text-center py-6 text-gray-600">
+          <AlignLeft size={24} className="mx-auto mb-2 opacity-30" />
+          <p className="text-xs">No entries yet</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {entries.map((entry) => (
+            <div
+              key={entry.id}
+              className="group p-3 bg-gray-950/60 border border-gray-800 rounded-lg relative"
+            >
+              {entry.label && (
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                  {entry.label}
+                </p>
+              )}
+              <p className="text-xs text-gray-300 whitespace-pre-wrap break-words leading-relaxed">
+                {entry.content}
+              </p>
+              <p className="text-[9px] text-gray-600 mt-1.5">
+                {new Date(entry.createdAt).toLocaleString()}
+              </p>
+              <button
+                onClick={() => handleDelete(entry.id)}
+                className="absolute top-2 right-2 p-1 text-gray-700 hover:text-red-400 hover:bg-red-500/10 rounded opacity-0 group-hover:opacity-100 transition-all"
+                title="Delete entry"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add entry form */}
+      {showForm ? (
+        <form onSubmit={handleAdd} className="space-y-2 p-3 bg-gray-900/50 border border-gray-700 rounded-lg">
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            className="w-full px-2.5 py-1.5 bg-gray-950 border border-gray-700 rounded-md text-gray-100 text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder="Label (optional)"
+          />
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            className="w-full px-2.5 py-1.5 bg-gray-950 border border-gray-700 rounded-md text-gray-100 text-xs outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+            placeholder="Enter content..."
+            rows={4}
+            autoFocus
+          />
+          <div className="flex items-center gap-2 justify-end">
+            <button
+              type="button"
+              onClick={() => { setShowForm(false); setLabel(""); setContent(""); setError(null); }}
+              className="px-2.5 py-1 text-gray-400 hover:text-gray-200 rounded text-xs transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!content.trim() || isSaving}
+              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded text-xs font-medium flex items-center gap-1"
+            >
+              {isSaving ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+              Add
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button
+          onClick={() => setShowForm(true)}
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-gray-500 hover:text-gray-200 hover:bg-gray-800/50 border border-dashed border-gray-800 rounded-lg text-xs transition-all"
+        >
+          <Plus size={12} />
+          Add Entry
+        </button>
+      )}
+    </div>
+  );
+};
+
+// =============================================================================
 // Single Box Card
 // =============================================================================
 
@@ -223,6 +389,8 @@ const BoxCard: React.FC<{
 }> = ({ box, agents, onDelete, onUpdate, onToggleAgentAccess }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState<"content" | "access">("content");
+  const [entryCount, setEntryCount] = useState(0);
 
   const sourceInfo = SOURCE_LABELS[box.sourceType];
   const accessCount = agents.filter(
@@ -278,6 +446,15 @@ const BoxCard: React.FC<{
                 </span>
               </>
             )}
+            {entryCount > 0 && (
+              <>
+                <span className="text-[10px] text-gray-600">·</span>
+                <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+                  <FileText size={10} />
+                  {entryCount} entr{entryCount !== 1 ? "ies" : "y"}
+                </span>
+              </>
+            )}
           </div>
           {box.description && (
             <p className="text-xs text-gray-500 mt-1 truncate">
@@ -316,20 +493,47 @@ const BoxCard: React.FC<{
         </div>
       </div>
 
-      {/* Expandable agent access section */}
+      {/* Expandable panel */}
       {isExpanded && (
         <div className="border-t border-gray-800">
-          <div className="px-4 py-2 flex items-center gap-1.5 text-[10px] font-bold text-gray-600 uppercase tracking-widest">
-            <Shield size={10} />
-            Agent Access
+          {/* Tab bar */}
+          <div className="flex border-b border-gray-800">
+            <button
+              onClick={() => setActiveTab("content")}
+              className={`flex items-center gap-1.5 px-4 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                activeTab === "content"
+                  ? "text-indigo-400 border-b-2 border-indigo-500"
+                  : "text-gray-600 hover:text-gray-400"
+              }`}
+            >
+              <FileText size={10} />
+              Content
+            </button>
+            <button
+              onClick={() => setActiveTab("access")}
+              className={`flex items-center gap-1.5 px-4 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                activeTab === "access"
+                  ? "text-indigo-400 border-b-2 border-indigo-500"
+                  : "text-gray-600 hover:text-gray-400"
+              }`}
+            >
+              <Shield size={10} />
+              Agent Access
+            </button>
           </div>
-          <AgentAccessPanel
-            box={box}
-            agents={agents}
-            onToggleAccess={(agentId, hasAccess) =>
-              onToggleAgentAccess(agentId, box.id, hasAccess)
-            }
-          />
+
+          {/* Tab content */}
+          {activeTab === "content" ? (
+            <BoxContentPanel box={box} onEntryCountChange={setEntryCount} />
+          ) : (
+            <AgentAccessPanel
+              box={box}
+              agents={agents}
+              onToggleAccess={(agentId, hasAccess) =>
+                onToggleAgentAccess(agentId, box.id, hasAccess)
+              }
+            />
+          )}
         </div>
       )}
     </div>
