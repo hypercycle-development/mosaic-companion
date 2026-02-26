@@ -3,7 +3,7 @@ import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { ContentArea } from "./components/ContentArea";
 import { TabStrip } from "./components/TabStrip";
-import { BottomBar, InputMode } from "./components/BottomBar";
+import { BottomBar } from "./components/BottomBar";
 import { DemoOverlay } from "./components/DemoOverlay";
 import { CommandPalette } from "./components/CommandPalette";
 import { SandboxWarningBanner } from "./components/SandboxWarningBanner";
@@ -32,9 +32,6 @@ function App() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [hasAgents, setHasAgents] = useState(false);
   const [titleBarStyle, setTitleBarStyle] = useState<string>("hidden");
-
-  // Input mode state (agent or normal)
-  const [inputMode, setInputMode] = useState<InputMode>("normal");
 
   // Check for configured agents on mount
   useEffect(() => {
@@ -90,13 +87,6 @@ function App() {
 
   // Helper to get active tab
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
-
-  // Auto-switch to agent mode when on AI Chat page
-  useEffect(() => {
-    if (activeTab.history.present === INTERNAL_CHAT_URL && hasAgents) {
-      setInputMode("agent");
-    }
-  }, [activeTab.history.present, hasAgents]);
 
   // Persist preferences
   useEffect(() => {
@@ -265,20 +255,9 @@ function App() {
       return;
     }
 
-    // If in agent mode, navigate to AI Chat and send message
-    if (inputMode === "agent" && hasAgents) {
-      // Store the message to be picked up by ChatView
-      sessionStorage.setItem("pendingChatMessage", text);
-      navigateTo(INTERNAL_CHAT_URL);
-      return;
-    }
-
-    // Normal mode: URL or search
-    if (text.startsWith("http")) {
-      navigateTo(text);
-    } else {
-      navigateTo(`https://www.google.com/search?q=${encodeURIComponent(text)}`);
-    }
+    // Always navigate to AI Chat and send message
+    sessionStorage.setItem("pendingChatMessage", text);
+    navigateTo(INTERNAL_CHAT_URL);
   };
 
   // Keyboard shortcut for command palette only
@@ -493,14 +472,12 @@ function App() {
         </div>
 
         {/* Bottom AI Input Bar - hide when on AI Chat page (ChatView has its own input) */}
-        {/* {!isDemoActive && activeTab.history.present !== INTERNAL_CHAT_URL && (
+        {!isDemoActive && activeTab.history.present !== INTERNAL_CHAT_URL && (
           <BottomBar
             onSubmit={handleBottomBarSubmit}
-            mode={inputMode}
-            onModeChange={setInputMode}
             hasAgents={hasAgents}
           />
-        )} */}
+        )}
       </main>
     </div>
   );
