@@ -51,3 +51,4 @@ config/gmail-credentials.json
 .github/skills/
 
 *.resolved.md
+*.plan.md

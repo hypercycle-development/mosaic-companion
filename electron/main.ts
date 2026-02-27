@@ -52,6 +52,19 @@ import {
   type Web3Config,
   type NetworkId,
 } from "./integrations/web3/config";
+import {
+  getBoxes,
+  getBox,
+  addBox,
+  updateBox,
+  deleteBox,
+  getAgentBoxes,
+  getBoxContent,
+  addEntry,
+  updateEntry,
+  deleteEntry,
+} from "./integrations/vault";
+import type { VaultBox } from "./integrations/vault/types";
 
 // =============================================================================
 // ESM Path Setup
@@ -734,3 +747,62 @@ ipcMain.handle("ai-agents-history:delete-all", async (_event: IpcMainInvokeEvent
     return { success: false, error: getErrorMessage(error) };
   }
 });
+
+// =============================================================================
+// Vault Handlers
+// =============================================================================
+
+ipcMain.handle("vault:get-boxes", async () => {
+  return getBoxes();
+});
+
+ipcMain.handle("vault:get-box", async (_event: IpcMainInvokeEvent, id: string) => {
+  return getBox(id);
+});
+
+ipcMain.handle(
+  "vault:add-box",
+  async (_event: IpcMainInvokeEvent, input: Partial<Omit<VaultBox, "id" | "createdAt" | "updatedAt">>) => {
+    return addBox(input);
+  },
+);
+
+ipcMain.handle(
+  "vault:update-box",
+  async (_event: IpcMainInvokeEvent, id: string, updates: Partial<Omit<VaultBox, "id" | "createdAt">>) => {
+    return updateBox(id, updates);
+  },
+);
+
+ipcMain.handle("vault:delete-box", async (_event: IpcMainInvokeEvent, id: string) => {
+  return deleteBox(id);
+});
+
+ipcMain.handle("vault:get-agent-boxes", async (_event: IpcMainInvokeEvent, agentId: string) => {
+  return getAgentBoxes(agentId);
+});
+
+ipcMain.handle("vault:get-box-content", async (_event: IpcMainInvokeEvent, boxId: string) => {
+  return getBoxContent(boxId);
+});
+
+ipcMain.handle(
+  "vault:add-entry",
+  async (_event: IpcMainInvokeEvent, boxId: string, input: { content: string; label?: string }) => {
+    return addEntry(boxId, input);
+  },
+);
+
+ipcMain.handle(
+  "vault:update-entry",
+  async (_event: IpcMainInvokeEvent, boxId: string, entryId: string, updates: { content?: string; label?: string }) => {
+    return updateEntry(boxId, entryId, updates);
+  },
+);
+
+ipcMain.handle(
+  "vault:delete-entry",
+  async (_event: IpcMainInvokeEvent, boxId: string, entryId: string) => {
+    return deleteEntry(boxId, entryId);
+  },
+);
