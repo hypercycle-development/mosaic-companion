@@ -96,8 +96,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   osAPI,
   gmail: gmailAPI,
   tools: {
-    execute: (fullName: string, args: Record<string, unknown>) =>
-      ipcRenderer.invoke("tools:execute", fullName, args),
+    execute: (fullName: string, args: Record<string, unknown>, context?: { agentId?: string }) =>
+      ipcRenderer.invoke("tools:execute", fullName, args, context),
     listModules: () => ipcRenderer.invoke("tools:list-modules"),
     getSystemPrompt: () => ipcRenderer.invoke("tools:get-system-prompt"),
     getActionPatterns: () => ipcRenderer.invoke("tools:get-action-patterns"),
@@ -151,4 +151,24 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getConfig: () => ipcRenderer.invoke("web3:get-config"),
     updateConfig: (updates: Record<string, unknown>) => ipcRenderer.invoke("web3:update-config", updates),
   },
+  // Vault (named boxes & agent access)
+  vault: {
+    getBoxes: () => ipcRenderer.invoke("vault:get-boxes"),
+    getBox: (id: string) => ipcRenderer.invoke("vault:get-box", id),
+    addBox: (input: { name: string; description?: string; sourceType?: string }) =>
+      ipcRenderer.invoke("vault:add-box", input),
+    updateBox: (id: string, updates: { name?: string; description?: string; sourceType?: string }) =>
+      ipcRenderer.invoke("vault:update-box", id, updates),
+    deleteBox: (id: string) => ipcRenderer.invoke("vault:delete-box", id),
+    getAgentBoxes: (agentId: string) => ipcRenderer.invoke("vault:get-agent-boxes", agentId),
+    // Content
+    getBoxContent: (boxId: string) => ipcRenderer.invoke("vault:get-box-content", boxId),
+    addEntry: (boxId: string, input: { content: string; label?: string }) =>
+      ipcRenderer.invoke("vault:add-entry", boxId, input),
+    updateEntry: (boxId: string, entryId: string, updates: { content?: string; label?: string }) =>
+      ipcRenderer.invoke("vault:update-entry", boxId, entryId, updates),
+    deleteEntry: (boxId: string, entryId: string) =>
+      ipcRenderer.invoke("vault:delete-entry", boxId, entryId),
+  },
 });
+

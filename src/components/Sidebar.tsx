@@ -20,6 +20,7 @@ import {
   RefreshCw,
   BrainCircuit,
   Plug,
+  Lock,
 } from "lucide-react";
 import {
   SidebarItem,
@@ -29,6 +30,7 @@ import {
   INTERNAL_SETTINGS_URL,
   INTERNAL_CHAT_URL,
   INTERNAL_WEB3_URL,
+  INTERNAL_VAULT_URL,
 } from "../types/types";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
 
@@ -158,6 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "mosaicbot", label: "Mosaic Bot", icon: "BrainCircuit", url: INTERNAL_MOSAICBOT_URL },
     { id: "mcp", label: "MCP Servers", icon: "Plug", url: INTERNAL_MCP_URL },
     { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL },
+    { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL },
     {
       id: "bookmarks",
       label: "Bookmarks",
@@ -222,6 +225,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <path d="M127.962 416.905V312.187L0 236.587L127.962 416.905Z" />
           </svg>
         );
+      case "Lock":
+        return <Lock className={className} />;
       default:
         return <LayoutGrid className={className} />;
     }

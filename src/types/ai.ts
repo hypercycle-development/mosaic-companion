@@ -13,6 +13,7 @@ export interface AIAgentConfig {
   temperature?: number;
   isActive: boolean;
   createdAt: number;
+  boxAccess?: string[]; // IDs of vault boxes this agent can access
 }
 
 export interface ChatMessage {

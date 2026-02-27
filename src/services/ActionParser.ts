@@ -288,18 +288,21 @@ export function parseAction(response: string): ParsedAction {
  * If that fails because the module isn't found, falls back to MCP servers.
  * This means both built-in tools (Web3, etc.) and MCP-connected servers
  * use the same <use_tool> invocation format from the AI.
+ *
+ * @param agentId - Optional agent ID for access control enforcement (passed as ExecutionContext)
  */
-export async function executeMCPAction(action: ParsedAction): Promise<string> {
+export async function executeMCPAction(action: ParsedAction, agentId?: string): Promise<string> {
    if (action.type !== "MCP_TOOL_CALL" || !action.params) {
        return "Invalid MCP action";
    }
    
    const { server, tool, args } = action.params as { server: string; tool: string; args: any };
+   const context = agentId ? { agentId } : undefined;
    
-   // 1. Try built-in tool registry first (handles web3, gmail-module, future modules)
+   // 1. Try built-in tool registry first (handles web3, gmail-module, vault, future modules)
    try {
        const fullToolName = `${server}:${tool}`;
-       const registryResult = await (window as any).electronAPI?.tools?.execute?.(fullToolName, args || {});
+       const registryResult = await (window as any).electronAPI?.tools?.execute?.(fullToolName, args || {}, context);
        if (registryResult && registryResult.success !== undefined) {
            // If the tool was found and executed (even if it returned an error), use this result
            if (registryResult.success) {

@@ -13,6 +13,7 @@
 import { ToolRegistry } from "./registry";
 import { GmailModule } from "./modules/gmail";
 import { Web3Module } from "./modules/web3";
+import { VaultToolModule } from "./modules/vault-tools";
 
 // =============================================================================
 // Registry Singleton
@@ -27,6 +28,7 @@ const registry = new ToolRegistry();
 // Layer 1: Built-in modules
 registry.register(new GmailModule());
 registry.register(new Web3Module());
+registry.register(new VaultToolModule());
 
 // =============================================================================
 // Lifecycle
@@ -52,4 +54,5 @@ async function cleanupTools(): Promise<void> {
 export { registry, initializeTools, cleanupTools };
 
 // Re-export types for convenience
-export type { ToolModule, ToolDefinition, ToolResult, ActionPattern } from "./types";
+export type { ToolModule, ToolDefinition, ToolResult, ActionPattern, ExecutionContext } from "./types";
+
