@@ -7,7 +7,7 @@
 ## Documents
 
 | File                                                       | Contents                                                                   |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------- | --- |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------- |
 | [overview.md](./overview.md)                               | Core vs Sandbox architecture, trust model, tools vs agents, wallet model   |
 | [glossary.md](./glossary.md)                               | All architectural terms and concepts                                       |
 | [execution-plan.md](./execution-plan.md)                   | Ordered Phase 1 implementation sequence with deliverables                  |
@@ -17,7 +17,7 @@
 | [data-model.md](./data-model.md)                           | Chronicle (append-only output), Vault, wallet, reference vs dereference    |
 | [permissions.md](./permissions.md)                         | Permission model, profiles, no-runtime-escalation, future-compatible seams |
 | [implementation-status.md](./implementation-status.md)     | What's built vs planned, Linear tickets, open questions                    |
-| [victors-tickets.md](./victors-tickets.md)                 | Victor's guide for assigned Linear tickets (HYP-652/660/664/663)           |     |
+| [victors-tickets.md](./victors-tickets.md)                 | Victor's guide for assigned Linear tickets (HYP-652/660/664/663)           |
 
 ## Key Decisions (as of 2026-03-05)
 
