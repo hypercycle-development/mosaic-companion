@@ -125,21 +125,88 @@ The architecture does not mandate a specific topology:
 
 **Requirement:** Core mediation + policy + logging semantics must hold **regardless of topology.** The security model is not tied to Docker or any specific runtime.
 
-## Docker Stance
+## Docker Dependency — What "Not a Hard Requirement" Actually Means
 
-| Statement                                          | Status                                      |
-| -------------------------------------------------- | ------------------------------------------- |
-| Docker is fine for Phase 1                         | ✅ Accepted                                 |
-| Docker must NOT become a hard requirement          | ✅ Firm requirement                         |
-| Policy/logging/gatekeeper must work without Docker | ✅ Must be runtime-agnostic                 |
-| Use OCI-standard images                            | ✅ Any OCI runtime could replace Docker     |
-| Docker-in-Docker                                   | ❌ Excluded                                 |
-| Docker socket mounting (permissive in v1)          | ⚠️ Accepted with hardening path             |
-| MosAIc can install Docker on the host              | ✅ Accepted (team has experience with this) |
+> ⚠️ **Be honest about this:** Docker IS a hard runtime dependency for v1. Users must have Docker installed. There is no way around it right now.
+
+**What the team means by "Docker must not become a hard requirement"** is about **code architecture**, not the current reality:
+
+> Don't write code that ONLY works with Docker. Keep Docker-specific logic in one place (the Launcher), so everything else — manifest parsing, permission checks, logging, Chronicle, UI — doesn't know Docker exists.
+
+### What depends on Docker (v1)
+
+| Concept                | Docker provides it                              | Could WASM replace it?                                 |
+| ---------------------- | ----------------------------------------------- | ------------------------------------------------------ |
+| Tool isolation         | Docker container (Linux namespaces, cgroups)    | WASM sandbox (no system calls by default)              |
+| Network isolation      | Docker `--internal` network (no internet route) | WASM has no network access at all                      |
+| Gatekeeper enforcement | HTTP proxy as only exit on Docker network       | Host functions — tool calls YOUR code to make requests |
+| Filesystem isolation   | `--read-only`, no host mounts                   | WASM has no filesystem access                          |
+| Resource limits        | `--cpus`, `--memory`                            | WASM fuel/memory limits                                |
+| Cross-platform         | Docker Desktop runs a Linux VM on macOS/Windows | WASM runs natively in Node.js, zero dependencies       |
+
+### What does NOT depend on Docker (keep it that way)
+
+- Manifest format and parsing
+- Permission model and user approval flow
+- Chronicle (append-only logging)
+- Vault / Data Bridge
+- Tool Registry and ToolModule interface
+- Gatekeeper **policy logic** (which domains are allowed, PII rules)
+- Logging format and storage
+- UI components (tool cards, permission modal, Chronicle viewer)
+
+### The Launcher abstraction — this is the key
+
+All Docker-specific code lives behind ONE interface:
+
+```typescript
+interface ToolLauncher {
+  launch(manifest: ToolManifest): Promise<RunningTool>;
+  stop(toolId: string): Promise<void>;
+  isAvailable(): Promise<boolean>;
+}
+
+// v1: uses Docker
+class DockerLauncher implements ToolLauncher { ... }
+
+// future: uses WASM (Extism), no Docker needed
+class WasmLauncher implements ToolLauncher { ... }
+```
+
+**Everything else in Core calls `launcher.launch()` — it never calls Docker directly.** When WASM is ready, you swap `DockerLauncher` for `WasmLauncher` and nothing else changes.
+
+### How the Gatekeeper changes between Docker and WASM
+
+**Docker (v1):** The Gatekeeper is a **network-level proxy**. Tool containers sit on an isolated Docker network with no internet. The proxy is the only exit. Domain filtering happens at the proxy.
+
+**WASM (future):** The Gatekeeper is a **code-level function**. WASM modules have ZERO network access by default. To make an HTTP request, the tool must call a host function YOU provide:
+
+```typescript
+// This IS the gatekeeper — no proxy, no network, just code
+function httpRequest(domain: string, path: string, body: string) {
+  if (!manifest.allowed_domains.includes(domain)) {
+    log({ tool: toolId, domain, action: "DENY" });
+    throw new Error("Domain not allowed");
+  }
+  log({ tool: toolId, domain, action: "ALLOW" });
+  return await fetch(`https://${domain}${path}`, { body });
+}
+```
+
+The gatekeeper CONCEPT stays the same. The implementation changes completely.
+
+### Summary
+
+| Question                                       | Answer                                                                   |
+| ---------------------------------------------- | ------------------------------------------------------------------------ |
+| Is Docker required for v1?                     | **Yes.** Users must install Docker.                                      |
+| Can we ship without Docker?                    | **No.** Not in Phase 1.                                                  |
+| Is that okay?                                  | **Yes.** Team agreed. Ship fast, iterate.                                |
+| What does "not a hard requirement" mean?       | Keep Docker code in the Launcher, not everywhere.                        |
+| When we move to WASM, do we still need Docker? | **No.** WASM runs in Node.js natively.                                   |
+| How much work to swap?                         | New `WasmLauncher` + new Gatekeeper implementation. Rest stays the same. |
 
 > **Why Docker for now?** "The entire team is really familiar with it. That will enable us to move forward more quickly." — Robert (Mar 03)
-
-If later MosAIc uses microVMs, WASM, or another sandbox technology, the Core concepts (policy, logging, gatekeeper) must still work unchanged. The Container Launcher is an abstraction layer that enables this swap.
 
 ## Wallet Model
 

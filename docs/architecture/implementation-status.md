@@ -73,14 +73,14 @@ Multi-agent chat with tool use.
 
 ### HYP-660: Implement Gatekeeper 🔲
 
-| Component                    | Status         | Priority | Notes                                    |
-| ---------------------------- | -------------- | -------- | ---------------------------------------- |
-| Gatekeeper module            | 🔲 Not started | High     | Main filtering logic                     |
-| Domain allowlist filter      | 🔲 Not started | High     | Manifest-declared domains                |
-| DNS proxy or HTTP proxy      | 🔲 Research    | High     | Barry's DNS + IP filtering approach      |
-| PII baseline filter          | 🔲 Not started | Medium   | Regex (emails, phones, SSNs) + basic NER |
-| Docker network configuration | 🔲 Not started | Medium   | `mosaic-internal` vs `mosaic-tools`      |
-| Request logging (JSONL)      | 🔲 Not started | Medium   | All gatekeeper decisions logged          |
+| Component                    | Status         | Priority | Notes                            |
+| ---------------------------- | -------------- | -------- | -------------------------------- |
+| Gatekeeper module            | 🔲 Not started | High     | Proxy-as-only-exit pattern       |
+| Domain allowlist filter      | 🔲 Not started | High     | Manifest-declared domains        |
+| HTTP/HTTPS proxy             | 🔲 Research    | High     | CONNECT method for HTTPS domains |
+| PII baseline filter          | 🔲 Not started | Medium   | Regex (emails, phones, SSNs)     |
+| Docker network configuration | 🔲 Not started | Medium   | `mosaic-internal` (no internet)  |
+| Request logging (JSONL)      | 🔲 Not started | Medium   | All gatekeeper decisions logged  |
 
 ### HYP-664: Debug Output / Chronicle 🔲
 
@@ -103,12 +103,14 @@ Multi-agent chat with tool use.
 
 ### Other In-Progress Work (Team)
 
-| Component                      | Owner   | Status         | Notes                                |
-| ------------------------------ | ------- | -------------- | ------------------------------------ |
-| Wallet component (create only) | Joaquin | 🔲 In progress | No import, MosAIc-created wallets    |
-| Multi-user chat                | David   | 🔲 In progress | AWS deployment pending               |
-| Container isolation research   | David   | 🔲 Assigned    | Investigate WASM, TEEs, alternatives |
-| Data/referencing proposal      | Robert  | 🔲 In progress | Sharing with Dan + Barry             |
+| Component                      | Owner    | Status         | Notes                                        |
+| ------------------------------ | -------- | -------------- | -------------------------------------------- |
+| Wallet component (create only) | Joaquin  | ⏳ Almost done | Isolated payment component ready today       |
+| Multi-user chat                | David    | 🔲 In progress | AWS deployment pending (David driving today) |
+| Gatekeeper proof of concepts   | Jhonatan | 🔲 In progress | Building PoCs for networking approach        |
+| Data organization proposal     | Robert   | ⏳ Almost done | Initial proposal nearly finished             |
+| WhatsApp agent integration     | Nasir    | 🔲 In progress | Flow mapping, demo expected tomorrow         |
+| CB&O versioning                | Team     | ✅ Decided     | Let them build separately, integrate later   |
 
 ---
 
@@ -154,9 +156,10 @@ See [execution-plan.md](./execution-plan.md) for the full ordered plan. Summary:
 
 ### Gatekeeper
 
-4. **HTTPS interception** — DNS proxy + IP filtering is the leading approach. Needs prototyping.
-5. **HTTP_PROXY support** — How well do popular libraries (requests, axios, fetch) work with container-level proxy config?
+4. **Proxy library choice** — Which Node.js proxy library? `http-proxy`, `node-http-proxy`, custom?
+5. **HTTP_PROXY support** — How well do popular libraries (requests, axios, fetch) work with container-level proxy config? (Needs testing)
 6. **PII baseline rules** — What patterns to include in v1? Need a concrete list.
+7. **WebSocket support** — Can the proxy handle WebSocket connections?
 
 ### Data Model
 
@@ -172,6 +175,17 @@ See [execution-plan.md](./execution-plan.md) for the full ordered plan. Summary:
 
 ---
 
-## Marketing / Demo Needs (from Mar 04 daily)
+## Marketing / Demo Needs
 
 Dan requested 3-4 short Mosaic demo videos (1-5 min each) showing different features. Team agreed to produce these. Drop in the marketing-engineering channel.
+
+Nasir's WhatsApp agent integration is a strong demo candidate (Mar 05 daily). Lucas also has 2 demo videos — Robert sharing in engineering chat.
+
+## Team Updates (Mar 05 daily)
+
+- ✅ **Everyone got paid** — funding resolved (Barry facilitated)
+- Jhonatan building Gatekeeper proof of concepts — Barry will review security-sensitive code
+- Joaquin: isolated payment component ready today
+- Robert: initial data organization proposal nearly finished → will share with Dan + Barry
+- Barry + Robert + Victor: CB&O team should build separately, we integrate later when plugin API is defined
+- Victor (HyperInsight precedent): Lucas's work was added as separate part with different release
