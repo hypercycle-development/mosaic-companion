@@ -6,15 +6,19 @@ Canonical definitions of all architectural terms used across MosAIc documentatio
 
 ### Core (Trusted)
 
-The trusted part of MosAIc. Owns the UI shell and all high-trust responsibilities: policy decisions, user approvals, secrets handling, logging/audit, and storage coordination. Core mediates all boundary crossings. In the Electron app, this is the **main process**.
+The trusted part of MosAIc. Owns the UI shell and all high-trust responsibilities: policy decisions, user approvals, secrets handling, logging/audit, storage coordination, and wallet management. Core mediates all boundary crossings. In the Electron app, this is the **main process**.
 
 ### Sandbox (Untrusted)
 
-The untrusted execution environment where tools, agents, and dynamically evolving code run. In Phase 1 this may be implemented as Docker containers. Sandbox code must not have implicit access to Core resources.
+The untrusted execution environment where tools, agents, and dynamically evolving code run. In Phase 1 this is implemented as Docker containers. Sandbox code must not have implicit access to Core resources. Even code that MosAIc manages is untrusted in the Sandbox.
 
 ### Tool Container
 
-A container (Docker, WASM, or other runtime) used to run a specific tool in the Sandbox zone. Treated as **untrusted by default**. "Tool container" is an implementation choice; the security requirements apply regardless of runtime technology.
+A container (Docker, WASM, or other OCI-compatible runtime) used to run a specific tool in the Sandbox zone. Treated as **untrusted by default**. "Tool container" is an implementation choice; the security requirements apply regardless of runtime technology.
+
+### Container Launcher
+
+The Core abstraction layer that manages container lifecycle (launch, stop, list). In v1 this wraps Docker (`DockerLauncher`); in the future it could wrap WASM or microVMs (`WasmLauncher`). Designed so the runtime can be swapped without changing the rest of the architecture.
 
 ### Boundary Crossing
 
@@ -26,7 +30,7 @@ The user-controlled permission boundary enforced by Core. A Policy Gate defines 
 
 ### Gatekeeper (Outbound Boundary)
 
-The Core-controlled enforcement point for all outbound traffic from the Sandbox. Applies allow/deny rules, filtering checks (destination URLs, content/MIME types, PII detection), and produces logs/audit records. See [gatekeeper.md](./gatekeeper.md).
+The Core-controlled enforcement point for all outbound traffic from the Sandbox. Applies allow/deny rules, filtering checks (destination URLs, content/MIME types, PII detection), and produces logs/audit records. Docker network controls are supplementary — the Gatekeeper is the policy layer. See [gatekeeper.md](./gatekeeper.md).
 
 ### Outbound Filter Chain
 
@@ -34,7 +38,7 @@ The sequence of checks/filters applied at the Gatekeeper. Can include allow/deny
 
 ### Profile (Outbound / Tool Launch Profile)
 
-A configuration set selected when a tool is launched that determines its default outbound filtering and permission settings (e.g., deny-by-default, domain allowlist, content checks). A tool may recommend a profile; the user may select or override it.
+A configuration set selected when a tool is launched that determines its default outbound filtering and permission settings (e.g., deny-by-default, domain allowlist, content checks). A tool may recommend a profile; the user may select or override it. Profiles include: **strict** (deny-by-default), **limited** (allowlist only), **relaxed** (broader access).
 
 ### Data Bridge
 
@@ -51,15 +55,24 @@ Long-term, dereference control is intended to be Core policy-mediated. In Phase 
 
 ### Materialization / Pre-materialization
 
-A pattern where Core copies or prepares selected content for a tool in advance (e.g., placing allowed vault entries into a tool-accessible area) instead of allowing the tool to dereference arbitrary references on demand. Simpler v1 approach.
+A pattern where Core copies or prepares selected content for a tool in advance (e.g., placing allowed vault entries into a container's `/inputs` directory) instead of allowing the tool to dereference arbitrary references on demand. This is the simpler v1 approach. For containers, data is copied into the container at launch time, mounted as read-only.
 
 ### Chronicle (Tool Chronicle)
 
-An **append-only** record of tool activity and outputs. Key requirement: tool writes go **only** to an append-only Chronicle (unless a future use case forces an exception). Chronicles support debugging and security audits.
+An **append-only** record of tool activity and outputs. Key requirement: tool writes go **only** to an append-only Chronicle (unless a future use case forces an exception). Chronicles support:
+
+- Security auditing
+- Debugging and issue reproduction
+- Data mining (extracting useful patterns)
+- State reconstruction (future — kill container and recreate from last good state)
 
 ### Append-Only
 
-A write constraint: new records can be added, but previously written records cannot be modified or deleted. In v1, enforcement may be "good enough" and hardened over time; the intent is to preserve a reliable history.
+A write constraint: new records can be added, but previously written records cannot be modified or deleted. In v1, enforcement is "structural" (no update/delete API exists). Hardening over time via content-addressed hashing.
+
+### Access Key
+
+A random UUID generated by Core when a container is launched. Passed to the tool via `/init?key=<uuid>`. The tool must include this key in all subsequent API calls. Prevents unauthorized access to the tool's HTTP server from other processes or network machines.
 
 ### Vault
 
@@ -75,7 +88,7 @@ Security principle: each tool or component has only the minimum permissions need
 
 ### Room (Exploratory)
 
-A potential future unit of access control and interaction: tools/bots could be added to a "room" (chat/context space) and receive data access based on the room's policy; they can be removed to revoke access. **Not yet finalized** — direction being explored.
+A potential future unit of access control and interaction: tools/bots could be added to a "room" (chat/context space) and receive data access based on the room's policy; they can be removed to revoke access. From the Mar 03 daily: agents in rooms could auto-create Vault boxes with context about users they interact with. **Not yet finalized.**
 
 ### ExecutionContext
 
@@ -84,3 +97,15 @@ The runtime identity passed through the MosAIc tool execution pipeline. Contains
 ### MCP (Model Context Protocol)
 
 An open standard for connecting AI systems to external tools and data sources. MosAIc supports MCP servers as a tool integration layer. MCP servers currently run as child processes (semi-trusted).
+
+### OCI (Open Container Initiative)
+
+An open standard for container image formats and runtimes. Docker uses OCI images. By using OCI-standard images, MosAIc can later swap Docker for any other OCI-compatible runtime (Podman, containerd, etc.).
+
+### Wallet (MosAIc Wallet)
+
+A crypto wallet created by MosAIc (no importing of external wallets). Users should only fund it with what they're willing to lose. Supports USDC on Base and TODA TDN. In the future, agents can have their own wallets inside containers, funded by user transfers from the MosAIc wallet.
+
+### Sentinel
+
+A monitoring or logging component. Used to track tool activity, boundary crossings, and security events. In the context of the Phase 1 execution plan, the Chronicle partially fulfills this role.

@@ -2,7 +2,7 @@
 
 What's built today, what's planned for Phase 1, and what's still open.
 
-> Last updated: 2026-03-04
+> Last updated: 2026-03-05
 
 ---
 
@@ -48,63 +48,97 @@ Multi-agent chat with tool use.
 | Tool use loop       | ✅ Done | Recursive tool execution with agent context      |
 | Provider support    | ✅ Done | Claude, OpenAI, Gemini, Ollama, custom endpoints |
 
+### Multi-user Chat (In Progress — David)
+
+| Component        | Status             | Details                                  |
+| ---------------- | ------------------ | ---------------------------------------- |
+| Chat server      | ✅ Working locally | Tested locally, needs AWS deployment     |
+| Multi-user rooms | 🔲 In progress     | Multiple people + AI agents in same chat |
+
 ---
 
-## Phase 1 — Planned (Not Yet Implemented)
+## Phase 1 — Linear Tickets
 
-### Tool Containerization 🔲
+### HYP-652: Initial Sandbox / Vault Architecture 🔲
 
-| Component                    | Status         | Priority | Notes                                                  |
-| ---------------------------- | -------------- | -------- | ------------------------------------------------------ |
-| Docker container launcher    | 🔲 Not started | High     | Launch/stop/remove tool containers                     |
-| Container hardening          | 🔲 Not started | High     | --cap-drop ALL, --read-only, non-root, resource limits |
-| Tool manifest parser         | 🔲 Not started | High     | Parse and validate manifest.json                       |
-| Permission approval UI       | 🔲 Not started | High     | Show permissions, require user approval                |
-| Private registry integration | 🔲 Not started | Medium   | Authenticated image pulls                              |
-| docker.sock management       | 🔲 Not started | Medium   | Mount and manage host Docker daemon                    |
+| Component                      | Status         | Priority  | Notes                                     |
+| ------------------------------ | -------------- | --------- | ----------------------------------------- |
+| Trust boundary definition      | 🔲 Not started | **First** | Docs + code structure                     |
+| Container Launcher abstraction | 🔲 Not started | High      | `launcher.ts` → `DockerLauncher`          |
+| Docker runtime implementation  | 🔲 Not started | High      | Uses `dockerode` npm package              |
+| `/init?key=<key>` protocol     | 🔲 Not started | High      | Access key per container                  |
+| Container security hardening   | 🔲 Not started | High      | `--cap-drop ALL`, `--read-only`, non-root |
+| Container → ToolModule adapter | 🔲 Not started | High      | Containerized tools appear as ToolModules |
+| Docker availability detection  | 🔲 Not started | Medium    | Detect + warn if Docker missing           |
 
-### Outbound Gatekeeper 🔲
+### HYP-660: Implement Gatekeeper 🔲
 
-| Component                    | Status         | Priority | Notes                                  |
-| ---------------------------- | -------------- | -------- | -------------------------------------- |
-| DNS proxy/resolver           | 🔲 Research    | High     | Filter domains at DNS level            |
-| IP filtering                 | 🔲 Research    | High     | Resolve allowed domains → filter by IP |
-| Domain allowlist enforcement | 🔲 Not started | High     | Manifest-declared domains only         |
-| PII baseline filter          | 🔲 Not started | Medium   | Regex + basic NER                      |
-| Request logging              | 🔲 Not started | Medium   | All outbound requests logged           |
-| HTTP proxy (optional)        | 🔲 Research    | Low      | For content-level filtering on HTTP    |
+| Component                    | Status         | Priority | Notes                                    |
+| ---------------------------- | -------------- | -------- | ---------------------------------------- |
+| Gatekeeper module            | 🔲 Not started | High     | Main filtering logic                     |
+| Domain allowlist filter      | 🔲 Not started | High     | Manifest-declared domains                |
+| DNS proxy or HTTP proxy      | 🔲 Research    | High     | Barry's DNS + IP filtering approach      |
+| PII baseline filter          | 🔲 Not started | Medium   | Regex (emails, phones, SSNs) + basic NER |
+| Docker network configuration | 🔲 Not started | Medium   | `mosaic-internal` vs `mosaic-tools`      |
+| Request logging (JSONL)      | 🔲 Not started | Medium   | All gatekeeper decisions logged          |
 
-**Docs:** [gatekeeper.md](./gatekeeper.md)
+### HYP-664: Debug Output / Chronicle 🔲
 
-### Chronicle 🔲
+| Component                          | Status         | Priority | Notes                        |
+| ---------------------------------- | -------------- | -------- | ---------------------------- |
+| Chronicle module                   | 🔲 Not started | High     | Append-only JSONL per tool   |
+| Chronicle HTTP API                 | 🔲 Not started | High     | `/chronicle/append` endpoint |
+| Gatekeeper → Chronicle integration | 🔲 Not started | Medium   | Audit entries auto-written   |
+| Chronicle viewer UI                | 🔲 Not started | Low      | Browse tool activity history |
 
-| Component              | Status         | Priority | Notes                              |
-| ---------------------- | -------------- | -------- | ---------------------------------- |
-| Append-only log format | 🔲 Not started | High     | JSONL per tool                     |
-| Chronicle storage      | 🔲 Not started | High     | Core-managed, per-tool directories |
-| Artifact storage       | 🔲 Not started | Medium   | Blobs with provenance labels       |
-| Chronicle viewer UI    | 🔲 Not started | Low      | Browse tool activity history       |
+### HYP-663: Tool Download UI 🔲
 
-### Payments (Deferred) 🔲
+| Component                  | Status         | Priority | Notes                           |
+| -------------------------- | -------------- | -------- | ------------------------------- |
+| Tool Registry page         | 🔲 Not started | High     | Browse available tools          |
+| Permission approval modal  | 🔲 Not started | High     | Review + approve before install |
+| Image pull with progress   | 🔲 Not started | Medium   | Show download progress          |
+| Installed tools management | 🔲 Not started | Medium   | Start/stop/uninstall            |
+| Debug log file             | 🔲 Not started | Medium   | All install actions logged      |
 
-| Component                | Status            | Priority | Notes                       |
-| ------------------------ | ----------------- | -------- | --------------------------- |
-| Wallet integration       | 🔲 Separate track | —        | USDC on Base, TODA TDN      |
-| HyperCycle node services | 🔲 Separate track | —        | Purchase remote AI services |
-| Paid tool registry       | 🔲 Deferred       | —        | Not Phase 1 priority        |
+### Other In-Progress Work (Team)
+
+| Component                      | Owner   | Status         | Notes                                |
+| ------------------------------ | ------- | -------------- | ------------------------------------ |
+| Wallet component (create only) | Joaquin | 🔲 In progress | No import, MosAIc-created wallets    |
+| Multi-user chat                | David   | 🔲 In progress | AWS deployment pending               |
+| Container isolation research   | David   | 🔲 Assigned    | Investigate WASM, TEEs, alternatives |
+| Data/referencing proposal      | Robert  | 🔲 In progress | Sharing with Dan + Barry             |
+
+---
+
+## Execution Sequence
+
+See [execution-plan.md](./execution-plan.md) for the full ordered plan. Summary:
+
+```
+1. Trust boundary (HYP-652)
+2. Tool execution contract (HYP-652)
+3. Container launch layer (HYP-652)
+4. Outbound gatekeeper (HYP-660)
+5. Outbound profiles (HYP-660)
+6. Append-only Chronicle (HYP-664)
+7. Data bridge (deferred to v2)
+8. Logging model (spans multiple tickets)
+9. Tool download UI (HYP-663)
+```
 
 ---
 
 ## Vault Next Steps 🔲
 
-| Feature                 | Status       | Notes                                   |
-| ----------------------- | ------------ | --------------------------------------- |
-| Entry editing UI        | 🔲 Quick win | Backend exists, needs edit button in UI |
-| File import (.txt, .md) | 🔲 Next      | Drag-and-drop into boxes                |
-| Search & filtering      | 🔲 Planned   | Client-side entry filtering             |
-| Entry size limits       | 🔲 Quick win | Validate content length                 |
-| Access logging          | 🔲 Planned   | Log when agents read vault data         |
-| Connectors (IMAP, RSS)  | 🔲 Future    | Auto-ingest from external sources       |
+| Feature                 | Status       | Notes                             |
+| ----------------------- | ------------ | --------------------------------- |
+| Entry editing UI        | 🔲 Quick win | Backend exists, needs edit button |
+| File import (.txt, .md) | 🔲 Next      | Drag-and-drop into boxes          |
+| Search & filtering      | 🔲 Planned   | Client-side entry filtering       |
+| Access logging          | 🔲 Planned   | Log when agents read vault data   |
+| Connectors (IMAP, RSS)  | 🔲 Future    | Auto-ingest from external sources |
 
 **Docs:** [vault-next.plan.md](../../vault-next.plan.md)
 
@@ -114,36 +148,30 @@ Multi-agent chat with tool use.
 
 ### Architecture
 
-1. **Runtime technology decision** — Docker for Phase 1, but what's the migration path? WASM (Extism), Deno, or hardened child processes?
-2. **Mosaic inside Docker?** — The original proposal puts MosAIc itself in Docker. This conflicts with Electron's native GUI. Clarify: only tools in containers, not MosAIc itself?
-3. **Cross-platform Docker** — Docker Desktop required on macOS/Windows. What's the user installation experience? Is this acceptable friction?
+1. **Cross-platform Docker** — Docker Desktop required on macOS/Windows. Can MosAIc auto-install it? Team has experience with installing dependencies (Nasir).
+2. **Container communication** — HTTP + access key is the plan. Need to verify this works cleanly with Docker bridge networking.
+3. **OCI compatibility** — Ensure images work with other OCI runtimes (Podman, containerd) for future Docker replacement.
 
 ### Gatekeeper
 
-4. **HTTPS interception** — How to filter HTTPS traffic? DNS proxy + IP filtering is the leading approach, but can't inspect content.
-5. **Proxy vs DNS vs both** — What combination works best in practice? Needs prototyping.
+4. **HTTPS interception** — DNS proxy + IP filtering is the leading approach. Needs prototyping.
+5. **HTTP_PROXY support** — How well do popular libraries (requests, axios, fetch) work with container-level proxy config?
 6. **PII baseline rules** — What patterns to include in v1? Need a concrete list.
 
 ### Data Model
 
-7. **Chronicle format** — JSONL, SQLite, or content-addressed store?
+7. **Chronicle format** — JSONL chosen for v1. Is SQLite better for querying?
 8. **Chronicle ↔ Vault boundary** — When does a tool output become a vault entry?
-9. **Pre-materialization vs on-demand** — When to copy data into tool's area vs letting it request on demand?
+9. **Pre-materialization UX** — How does the user select which files to copy into a container?
 
-### Permissions
+### Security
 
-10. **Room-based access** — How does this map to the current agent model? Rooms ≈ chat sessions?
-11. **Per-agent tool access** — Should agents declare which tools they can use?
-12. **Runtime permission prompting** — Can a tool request permissions mid-execution?
+10. **Docker CVE monitoring** — How to stay on top of Docker vulnerabilities?
+11. **Ironclaw / Gramine** — Robert mentioned these as hardening options. Worth researching?
+12. **WASM migration timeline** — When to start building the `WasmLauncher`?
 
 ---
 
-## Cross-Platform Considerations
+## Marketing / Demo Needs (from Mar 04 daily)
 
-| Platform | Docker Support    | Notes                                                                       |
-| -------- | ----------------- | --------------------------------------------------------------------------- |
-| Linux    | ✅ Native Docker  | Best experience, native performance                                         |
-| macOS    | ⚠️ Docker Desktop | Runs Linux VM under the hood, ~1GB install, license fees for commercial use |
-| Windows  | ⚠️ Docker Desktop | Same as macOS — requires WSL2 backend                                       |
-
-**Risk:** Requiring Docker Desktop on macOS/Windows is significant user friction. The architecture must leave a path to non-Docker runtimes (WASM, child processes).
+Dan requested 3-4 short Mosaic demo videos (1-5 min each) showing different features. Team agreed to produce these. Drop in the marketing-engineering channel.

@@ -21,14 +21,15 @@ A tool is a self-contained unit of functionality that runs in the Sandbox. Tool 
   "image": "registry.mosaic.ai/python-data-analyzer:1.0.0",
   "permissions": {
     "internet": false,
-    "allowed_domains": [],
-    "filesystem_read": false,
-    "filesystem_write": false
+    "allowed_domains": []
   },
   "resources": {
     "cpu": "1",
-    "memory": "512m"
+    "memory": "512m",
+    "disk": "1g",
+    "vram": "0"
   },
+  "recommended_profile": "limited",
   "description": "Advanced data analysis tool.",
   "tools": {
     "analyze": {
@@ -44,10 +45,13 @@ Key manifest fields:
 - `id` — Unique identifier, globally unique within the registry
 - `manifest-version` — Version of the manifest format itself
 - `version` — Version of the tool (semver)
-- `image` — Docker image reference (Phase 1) or `.wasm` file (future)
+- `image` — OCI-compatible image reference (Docker for Phase 1, could be WASM in future)
 - `permissions` — What the tool is allowed to do (see [permissions.md](./permissions.md))
-- `resources` — CPU and memory limits
+- `resources` — CPU, memory, disk, and VRAM limits
+- `recommended_profile` — Suggested outbound profile (user can override)
 - `tools` — Functions exposed to agents (integrated into MosAIc's ToolRegistry)
+
+> **Note:** Filesystem permissions (`filesystem_read`/`filesystem_write`) are excluded from v1. Tools have NO host filesystem access. Data is pre-materialized into `/inputs:ro` by Core.
 
 ### Building for Docker (Phase 1)
 
@@ -72,7 +76,9 @@ ENTRYPOINT ["python", "main.py"]
 - Must use a non-root user (`USER 1001`)
 - Must work with read-only root filesystem (`--read-only`)
 - Must not assume host-specific directory layouts
+- Must expose an HTTP server and accept the `/init?key=<key>` protocol (see [container-communication.md](./container-communication.md))
 - All tool containers run as Linux containers (Docker Desktop abstracts this on macOS/Windows)
+- Images should be OCI-compatible (works with Docker, Podman, containerd)
 
 ### Building for WASM (Future)
 
@@ -155,24 +161,30 @@ When a tool is invoked (by an agent via `<use_tool>` or by the user), MosAIc:
    --cap-drop ALL          # Drop all Linux capabilities
    --read-only             # Read-only root filesystem
    --cpus=1 --memory=512m  # Resource limits from manifest
-   --network=<bridge>      # No host networking
+   --network=mosaic-tools  # Docker bridge (no host networking)
+   -p <dynamic>:<tool_port> # Expose tool's HTTP server
    ```
 
-2. Mounts only the tool's isolated directory:
+2. Mounts only the tool's isolated directories:
 
    ```
-   /mosaic_data/tools/<tool_id>/  →  container:/data  (:ro or :rw)
+   /mosaic_data/tools/<tool_id>/inputs/  →  /inputs:ro     # Pre-materialized data
+   /mosaic_data/tools/<tool_id>/tmp/     →  /tmp:rw        # Ephemeral scratch
    ```
 
-3. If internet is allowed, routes through the Gatekeeper (see [gatekeeper.md](./gatekeeper.md))
+3. Calls `/init?key=<random_uuid>` to initialize the tool with an access key
 
-4. Passes input data as JSON via stdin or a mounted file
+4. If internet is allowed, routes outbound traffic through the Gatekeeper (see [gatekeeper.md](./gatekeeper.md))
 
-5. Captures output → appends to the tool's **Chronicle** (append-only)
+5. Sends tool calls via HTTP POST to the container's port (with access key header)
 
-6. Returns result to the agent/user via the ToolRegistry
+6. Captures output → appends to the tool's **Chronicle** (append-only)
 
-7. Container is stopped and removed
+7. Returns result to the agent/user via the ToolRegistry
+
+8. Container is stopped and removed after use (or timeout)
+
+See [container-communication.md](./container-communication.md) for the full protocol.
 
 ### Container Security Hardening
 
