@@ -25,8 +25,8 @@
 
 - **Core (trusted) vs Sandbox (untrusted)** — fundamental split
 - **Containers are NOT the security boundary** — Core enforcement is
-- **Docker for Phase 1**, but must NOT become a hard requirement (use OCI standard)
-- **Container Launcher abstraction** — enables swapping Docker for WASM/microVMs later
+- **Docker IS required for v1** — users must install it. "Not a hard requirement" means keep Docker code in the Launcher abstraction so it's swappable later
+- **Container Launcher abstraction** — all Docker-specific code behind one interface. Swap to WASM/microVMs by implementing a new Launcher
 
 ### Communication
 
