@@ -194,6 +194,67 @@ Tool may recommend a profile; user may override.
 
 ---
 
+## Data Ingestion Side (Future — Not v1)
+
+Robert raised (Mar 03 meeting): content filtering may be needed at **two** boundaries:
+
+1. **Outbound Gatekeeper** (this doc) — filters what tools/agents send OUT
+2. **Data Ingestion** — filters what data is loaded INTO MosAIc/chats from external sources
+
+Example: Email data → loaded into chat → sent to OpenAI → PII leaks.
+
+Possible approach:
+
+- Data sources (email, files) get scrubbed before entering chats
+- Per-source policies define what needs filtering
+- Medical/financial data requires specialized services with proper security guarantees
+- Use NLP/NER at the ingestion boundary as well
+
+> Not Phase 1 priority. Focus on the outbound Gatekeeper first.
+
+---
+
+## Design History
+
+### Initial Socket Idea (Rejected)
+
+Jhonatan initially proposed: cut off internet entirely, provide a TCP socket from the container to MosAIc, and have MosAIc proxy all external calls.
+
+**Why rejected** (Barry, Mar 04): "If you make it a socket, it would be difficult to actually use it. Tools use libraries/SDKs that expect to talk to URLs directly. It should be as easy as doing `curl` at that URL."
+
+### Firewall Analogy (Robert)
+
+Robert compared the Gatekeeper to an advanced firewall doing packet inspection and modification. Jhonatan pushed back: "Instead of modifying, just restricting. If we modify things on the fly, they can lose meaning and become hard to debug."
+
+**Decision:** Gatekeeper blocks or allows. It does NOT rewrite requests in v1. PII redaction is a consideration for v2.
+
+### NLP for Gatekeeper (Scoped Down)
+
+Robert proposed NLP (Named Entity Recognition, part-of-speech tagging) + possibly a small local LLM (via Ollama) for intelligent content filtering.
+
+Barry's response: "NLP/MIME checks are easy to bypass. For tools, I would prefer hard security checks — specific domain allowlists. NLP guardrails are fine for agents."
+
+**Decision:** NLP-based filtering is for agent guardrails. Tools get hard domain allowlists.
+
+### Vector Database for PII (David's Suggestion)
+
+David suggested using a vector database for semantic understanding of when data is sensitive (beyond just keywords). Robert: "Yeah, maybe."
+
+Not prioritized for v1 — interesting for future exploration.
+
+---
+
+## Research Tasks
+
+- [ ] Research HTTP/HTTPS proxy options (mitmproxy, squid, custom Node.js proxy)
+- [ ] Test `HTTP_PROXY` env var compatibility with popular libraries (Python requests, Node.js axios/fetch)
+- [ ] Prototype DNS resolver in Node.js
+- [ ] Test IP filtering via iptables inside Docker bridge networks
+- [ ] Research NLP libraries for PII detection (spaCy NER, compromise.js)
+- [ ] Look into whether a small Ollama model could run as a gatekeeper assistant
+
+---
+
 ## Open Questions
 
 1. Exact PII rule set for v1 baseline — what patterns to include?
@@ -201,3 +262,5 @@ Tool may recommend a profile; user may override.
 3. Whether HTTPS MITM with injected CA is acceptable for some tools
 4. Performance impact of proxy on high-throughput tools
 5. How to handle WebSocket connections (persistent, bidirectional)
+6. Should the Gatekeeper log request bodies (for HTTP) or only metadata?
+7. How to handle tools that need to upload files to allowed APIs?
