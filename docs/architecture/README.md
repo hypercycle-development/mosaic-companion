@@ -69,16 +69,3 @@
 | Mar 03 Daily standup                         | Mar 03   | Team updates, wallet decisions     |
 | Mar 03 Architecture sync (Jhonatan + Robert) | Mar 03   | Deep technical discussion          |
 | Mar 04 Daily standup                         | Mar 04   | Barry's proxy/DNS recommendation   |
-
-## Team
-
-| Person   | Role in this effort                                                 |
-| -------- | ------------------------------------------------------------------- |
-| Jhonatan | Lead — containerization, gatekeeper, execution plan                 |
-| Robert   | Architecture — requirements alignment, data model, Chronicle vision |
-| Barry    | Security advisor — proxy/DNS approach, networking hardening         |
-| David    | Multi-user chat, container isolation research                       |
-| Joaquin  | Wallet component                                                    |
-| Victor   | Vault system (already implemented)                                  |
-| Nasir    | Tool development, tutorials, dependency installation                |
-| Dann     | Management — pushing for Mosaic releases, marketing                 |
