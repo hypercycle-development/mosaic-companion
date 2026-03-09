@@ -8,11 +8,12 @@ export type GmailActionType =
   | "GMAIL_READ"
   | "GMAIL_MARK_READ"
   | "GMAIL_MARK_UNREAD"
+  | "MCP_TOOL_CALL"
   | "NONE";
 
 export interface ParsedAction {
   type: GmailActionType;
-  params?: Record<string, string | number>;
+  params?: Record<string, any>;
   cleanResponse: string; // Response with action tags removed
   rawTag?: string; // The original tag found
 }
@@ -251,11 +252,112 @@ export function parseAction(response: string): ParsedAction {
     };
   }
 
+  // Check for MCP Tool Call (XML-style)
+  // <use_tool server="name" tool="name">{"arg":"val"}</use_tool>
+  const mcpMatch = response.match(/<use_tool\s+server="([^"]+)"\s+tool="([^"]+)">([\s\S]*?)<\/use_tool>/);
+  if (mcpMatch) {
+    const serverName = mcpMatch[1];
+    const toolName = mcpMatch[2];
+    const argsString = mcpMatch[3];
+    let args = {};
+    try {
+      args = JSON.parse(argsString);
+    } catch (e) {
+      console.error("Failed to parse MCP tool args:", e);
+    }
+
+    return {
+      type: "MCP_TOOL_CALL",
+      params: { server: serverName, tool: toolName, args },
+      cleanResponse: response.replace(/<use_tool[\s\S]*?<\/use_tool>/, "").trim(),
+      rawTag: mcpMatch[0],
+    };
+  }
+
   // No action found
   return {
     type: "NONE",
     cleanResponse: response,
   };
+}
+
+/**
+ * Execute an MCP or built-in tool action.
+ *
+ * Routes to the built-in tool registry first (via tools:execute).
+ * If that fails because the module isn't found, falls back to MCP servers.
+ * This means both built-in tools (Web3, etc.) and MCP-connected servers
+ * use the same <use_tool> invocation format from the AI.
+ *
+ * @param agentId - Optional agent ID for access control enforcement (passed as ExecutionContext)
+ */
+export async function executeMCPAction(action: ParsedAction, agentId?: string): Promise<string> {
+   if (action.type !== "MCP_TOOL_CALL" || !action.params) {
+       return "Invalid MCP action";
+   }
+   
+   const { server, tool, args } = action.params as { server: string; tool: string; args: any };
+   const context = agentId ? { agentId } : undefined;
+   
+   // 1. Try built-in tool registry first (handles web3, gmail-module, vault, future modules)
+   try {
+       const fullToolName = `${server}:${tool}`;
+       const registryResult = await (window as any).electronAPI?.tools?.execute?.(fullToolName, args || {}, context);
+       if (registryResult && registryResult.success !== undefined) {
+           // If the tool was found and executed (even if it returned an error), use this result
+           if (registryResult.success) {
+               const data = registryResult.data;
+               return typeof data === "string" ? data : JSON.stringify(data, null, 2);
+           }
+           // Check if the error is "module not found" — that means we should try MCP
+           if (registryResult.error?.includes("not found")) {
+               // Fall through to MCP
+           } else {
+               // Tool was found but returned an error (e.g. "no wallet configured")
+               return `Error: ${registryResult.error}`;
+           }
+       }
+   } catch (e) {
+       console.warn(`[ActionParser] Built-in tool ${server}:${tool} failed, trying MCP:`, e);
+   }
+
+   // 2. Fall back to MCP server
+   try {
+       const result = await window.electronAPI.mcpAPI.callTool(server, tool, args);
+       if (result.success) {
+           return JSON.stringify(result.result, null, 2);
+       } else {
+           return `Error calling tool ${tool}: ${result.error}`;
+       }
+   } catch (e) {
+       return `Error calling tool ${tool}: ${(e as Error).message}`;
+   }
+}
+
+/**
+ * Generate system prompt for MCP tools
+ */
+export function getMCPSystemPrompt(servers: any[]): string {
+    if (!servers || servers.length === 0) return "";
+    
+    let prompt = "You have access to the following tools. To use a tool, output its XML tag.\n\n";
+    prompt += "CRITICAL RULES:\n";
+    prompt += "1. When you want to use a tool, output ONLY a short intro sentence, then the <use_tool> XML tag.\n";
+    prompt += "2. You MUST stop writing IMMEDIATELY after the closing </use_tool> tag. Do NOT continue with any text, answers, or guesses.\n";
+    prompt += "3. NEVER guess or hallucinate tool results. Wait for the actual tool output before responding.\n";
+    prompt += "4. After you receive the [Tool Output], use that data to write your final response to the user.\n\n";
+    
+    servers.forEach(server => {
+        if (!server.tools || server.tools.length === 0) return;
+        
+        prompt += `Server: ${server.name}\n`;
+        server.tools.forEach((tool: any) => {
+            prompt += `- Tool: ${tool.name}\n  Description: ${tool.description || "No description"}\n  Input Schema: ${JSON.stringify(tool.inputSchema)}\n`;
+            prompt += `  Usage: <use_tool server="${server.name}" tool="${tool.name}">JSON_ARGS</use_tool>\n\n`;
+        });
+    });
+    
+    return prompt;
 }
 
 /**

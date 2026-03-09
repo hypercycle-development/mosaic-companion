@@ -2,6 +2,26 @@ import { AIAgentConfig, ChatSession } from "./types/ai";
 import type { ChatSettings, ConnectionStatus, Room, StoredMessage, Member } from "./types/chat";
 
 declare global {
+  // Vault types
+  type BoxSourceType = "manual" | "import" | "connector";
+
+  interface VaultBox {
+    id: string;
+    name: string;
+    description?: string;
+    sourceType: BoxSourceType;
+    createdAt: number;
+    updatedAt: number;
+  }
+
+  interface VaultEntry {
+    id: string;
+    label?: string;
+    content: string;
+    createdAt: number;
+    updatedAt: number;
+  }
+
   // Update settings configuration
   interface UpdateSettings {
     autoDownload: boolean;
@@ -196,6 +216,77 @@ declare global {
         maximize: () => Promise<void>;
         close: () => Promise<void>;
         isMaximized: () => Promise<boolean>;
+      };
+
+      // Trading Agent (backward compat)
+      trading: {
+          saveWallet: (key: string) => Promise<{ success: boolean }>;
+          deleteWallet: () => Promise<{ success: boolean }>;
+          walletExists: () => Promise<{ exists: boolean }>;
+          getAddress: () => Promise<{ success: boolean; data?: { address: string }; error?: string }>;
+      };
+
+      // Web3 bridge
+      web3: {
+          getAddress: () => Promise<{ success: boolean; data?: { address: string }; error?: string }>;
+          getBalance: (address?: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+          getContacts: () => Promise<{ success: boolean; data?: string; error?: string }>;
+          saveContact: (name: string, address: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+          deleteContact: (id: string) => Promise<{ success: boolean; error?: string }>;
+          lookupContact: (name: string) => Promise<{ success: boolean; data?: { name: string; address: string }; error?: string }>;
+          getNetworkInfo: () => Promise<{ success: boolean; data?: string; error?: string }>;
+          switchNetwork: (network: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+          lookupToken: (contractAddress: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+          getConfig: () => Promise<any>;
+          updateConfig: (updates: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
+      };
+
+      // Tools registry bridge
+      tools: {
+          execute: (fullName: string, args: Record<string, unknown>, context?: { agentId?: string }) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+          listModules: () => Promise<Array<{ name: string; displayName: string; toolCount: number; tools: Array<{ name: string; description: string }> }>>;
+          getSystemPrompt: () => Promise<string>;
+          getActionPatterns: () => Promise<Array<{ moduleName: string; toolName: string; pattern: string; flags: string }>>;
+      };
+
+      // Vault (named boxes & agent access)
+      vault: {
+        getBoxes: () => Promise<VaultBox[]>;
+        getBox: (id: string) => Promise<VaultBox | null>;
+        addBox: (input: { name: string; description?: string; sourceType?: BoxSourceType }) => Promise<{
+          success: boolean;
+          box?: VaultBox;
+          error?: string;
+        }>;
+        updateBox: (id: string, updates: { name?: string; description?: string; sourceType?: BoxSourceType }) => Promise<{
+          success: boolean;
+          box?: VaultBox;
+          error?: string;
+        }>;
+        deleteBox: (id: string) => Promise<{ success: boolean; error?: string }>;
+        getAgentBoxes: (agentId: string) => Promise<VaultBox[]>;
+        // Content
+        getBoxContent: (boxId: string) => Promise<VaultEntry[]>;
+        addEntry: (boxId: string, input: { content: string; label?: string }) => Promise<{
+          success: boolean;
+          entry?: VaultEntry;
+          error?: string;
+        }>;
+        updateEntry: (boxId: string, entryId: string, updates: { content?: string; label?: string }) => Promise<{
+          success: boolean;
+          entry?: VaultEntry;
+          error?: string;
+        }>;
+        deleteEntry: (boxId: string, entryId: string) => Promise<{ success: boolean; error?: string }>;
+      };
+
+      // MCP API
+      mcpAPI: {
+          listServers: () => Promise<any[]>;
+          callTool: (server: string, tool: string, args: any) => Promise<{ success: boolean; result?: any; error?: string }>;
+          connect: (config: any) => Promise<{ success: boolean; error?: string }>;
+          disconnect: (server: string) => Promise<{ success: boolean }>;
+          readResource: (server: string, uri: string) => Promise<{ success: boolean; result?: any; error?: string }>;
       };
     };
 

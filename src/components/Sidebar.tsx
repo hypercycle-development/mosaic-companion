@@ -20,6 +20,7 @@ import {
   RefreshCw,
   BrainCircuit,
   Plug,
+  Lock,
 } from "lucide-react";
 import {
   SidebarItem,
@@ -29,6 +30,8 @@ import {
   INTERNAL_MULTI_CHAT_URL,
   INTERNAL_SETTINGS_URL,
   INTERNAL_CHAT_URL,
+  INTERNAL_WEB3_URL,
+  INTERNAL_VAULT_URL,
 } from "../types/types";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
 
@@ -155,9 +158,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems: SidebarItem[] = [
     { id: "home", label: "Home", icon: "Home", url: INTERNAL_HOME_URL },
     { id: "chat", label: "AI Chat", icon: "Bot", url: INTERNAL_CHAT_URL },
-    { id: "mosaicbot", label: "Mosaic Bot", icon: "BrainCircuit", url: INTERNAL_MOSAICBOT_URL },
+    {
+      id: "mosaicbot",
+      label: "Mosaic Bot",
+      icon: "BrainCircuit",
+      url: INTERNAL_MOSAICBOT_URL,
+    },
     { id: "mcp", label: "MCP Servers", icon: "Plug", url: INTERNAL_MCP_URL },
-    { id: "multi-chat", label: "Chat Rooms", icon: "MessageSquare", url: INTERNAL_MULTI_CHAT_URL },
+    {
+      id: "multi-chat",
+      label: "Chat Rooms",
+      icon: "MessageSquare",
+      url: INTERNAL_MULTI_CHAT_URL,
+    },
+    { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL },
+    { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL },
     {
       id: "bookmarks",
       label: "Bookmarks",
@@ -215,6 +230,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <Plug className={className} />;
       case "MessageSquare":
         return <MessageSquare className={className} />;
+      case "Eth":
+        return (
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 256 417"
+            className={className}
+            fill="currentColor"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M127.961 0L125.166 9.5V285.168L127.961 287.958L255.923 212.32L127.961 0Z"
+              opacity="0.8"
+            />
+            <path d="M127.962 0L0 212.32L127.962 287.959V154.158V0Z" />
+            <path
+              d="M127.961 312.187L126.386 314.107V412.306L127.961 416.905L255.999 236.587L127.961 312.187Z"
+              opacity="0.8"
+            />
+            <path d="M127.962 416.905V312.187L0 236.587L127.962 416.905Z" />
+          </svg>
+        );
+      case "Lock":
+        return <Lock className={className} />;
       default:
         return <LayoutGrid className={className} />;
     }
@@ -518,7 +557,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Footer */}
       <div className="p-4 border-t border-gray-900 shrink-0 bg-black min-w-[18rem]">
         <button
-          onClick={() => onNavigate(INTERNAL_SETTINGS_URL)}
+          onClick={() => onNavigate(INTERNAL_SETTINGS_URL + "#agents")}
           className="flex items-center justify-center w-full bg-indigo-900/20 hover:bg-indigo-900/40 text-gray-100 border border-indigo-500/20 rounded-lg p-3 transition-all hover:scale-[1.02]"
         >
           <Plus size={16} />
