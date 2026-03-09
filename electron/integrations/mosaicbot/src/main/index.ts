@@ -15,6 +15,7 @@ import { httpChannelPlugin } from "./channels/adapters/http.js";
 import { loadSkillEntries, defaultSkillSources } from "./skills/loader.js";
 import { buildEligibilityContext, buildSkillSnapshot, resolveSkillCommand } from "./skills/registry.js";
 import { getMemoryManager } from "./memory/index.js";
+import { callActiveLLM } from "./llm.js";
 
 // ── App config ────────────────────────────────────────────────────────────────
 
@@ -121,10 +122,13 @@ export async function initMosaicBot(): Promise<MosaicBotHandle> {
       },
     ],
 
-    // Replace with your actual LLM call
-    onReply: async ({ agentId, now, prompt: _prompt }) => {
+    onReply: async ({ agentId, now, prompt }) => {
       console.log(`[Heartbeat] ${agentId} @ ${now.toISOString()}`);
-      return "HEARTBEAT_OK";
+      const reply = await callActiveLLM(
+        prompt,
+        "You are a proactive assistant. If nothing requires urgent attention, reply with exactly: HEARTBEAT_OK",
+      );
+      return reply ?? "HEARTBEAT_OK";
     },
 
     onDeliver: async (_agentId, channel, to, text) => {
@@ -147,7 +151,11 @@ export async function initMosaicBot(): Promise<MosaicBotHandle> {
       console.log(`[Skill] ${match.spec.skillName}`, match.args);
       return { type: "skill", skill: match.spec.skillName, args: match.args };
     }
-    return { type: "message", text };
+    const reply = await callActiveLLM(text);
+    if (reply === null) {
+      return { type: "error", text: "No active AI agent configured. Open Settings → AI Agents." };
+    }
+    return { type: "reply", text: reply };
   });
 
   // Memory search — called by renderer or agent pipeline

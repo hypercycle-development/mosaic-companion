@@ -4,6 +4,7 @@ import {
   INTERNAL_HOME_URL,
   INTERNAL_MCP_URL,
   INTERNAL_MOSAICBOT_URL,
+  INTERNAL_MULTI_CHAT_URL,
   INTERNAL_SETTINGS_URL,
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
@@ -13,6 +14,7 @@ import { LandingPage } from "./LandingPage";
 import { SettingsPage } from "./SettingsPage";
 import { MosaicBotPanel } from "./MosaicBotPanel";
 import { MCPPage } from "./MCPPage";
+import { ChatPage } from "./ChatPage";
 import { Web3Page } from "./Web3Page";
 import { VaultPage } from "./VaultPage";
 import { AlertTriangle, Loader2 } from "lucide-react";
@@ -328,7 +330,11 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
 
   if (url === INTERNAL_MCP_URL) {
     useEffect(() => {
-      onUpdateTab({ title: "MCP Servers", isLoading: false, favicon: undefined });
+      onUpdateTab({
+        title: "MCP Servers",
+        isLoading: false,
+        favicon: undefined,
+      });
     }, [url]);
 
     return (
@@ -340,7 +346,11 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
 
   if (url === INTERNAL_MOSAICBOT_URL) {
     useEffect(() => {
-      onUpdateTab({ title: "Mosaic Bot", isLoading: false, favicon: undefined });
+      onUpdateTab({
+        title: "Mosaic Bot",
+        isLoading: false,
+        favicon: undefined,
+      });
     }, [url]);
 
     return (
@@ -350,6 +360,20 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     );
   }
 
+  if (url === INTERNAL_MULTI_CHAT_URL) {
+    useEffect(() => {
+      onUpdateTab({
+        title: "Chat Rooms",
+        isLoading: false,
+        favicon: undefined,
+      });
+    }, [url]);
+    return (
+      <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
+        <ChatPage />{" "}
+      </div>
+    );
+  }
   if (url === INTERNAL_WEB3_URL) {
     useEffect(() => {
       onUpdateTab({ title: "Web3", isLoading: false, favicon: undefined });
