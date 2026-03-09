@@ -24,7 +24,16 @@ export function startAgentInRoom(
 
   // Join room after auth
   client.on("auth-ok", () => {
+    console.log(`[AgentRunner] ${agentName} authenticated, joining room ${roomId}`);
     client.send({ type: "join-room", roomId });
+  });
+
+  client.on("error", (err: Error) => {
+    console.error(`[AgentRunner] ${agentName} connection error:`, err?.message);
+  });
+
+  client.on("disconnected", () => {
+    console.warn(`[AgentRunner] ${agentName} disconnected, will reconnect`);
   });
 
   // Respond to @mentions
@@ -33,15 +42,16 @@ export function startAgentInRoom(
     const m = msg.message;
     if (m.isAgent) return; // ignore messages from other agents
 
-    const mention = `@${agentName}`;
-    if (!m.text.includes(mention)) return;
+    const mentionRegex = new RegExp(`@${escapeRegex(agentName)}`, "gi");
+    if (!mentionRegex.test(m.text)) return;
 
-    const prompt = m.text.replace(new RegExp(`@${escapeRegex(agentName)}`, "g"), "").trim();
+    const prompt = m.text.replace(mentionRegex, "").trim();
 
     try {
       const reply = await callActiveLLM(
         prompt || "Hello!",
         `You are ${agentName}, an AI assistant in a multi-user chat room. Be helpful and concise.`,
+        agentId,
       );
       if (reply) {
         client.send({ type: "send-message", roomId, text: reply });

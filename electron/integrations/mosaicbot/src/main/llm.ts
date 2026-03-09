@@ -32,16 +32,23 @@ type Message = { role: string; content: string };
 
 // ── Agent resolution ──────────────────────────────────────────────────────────
 
-function readActiveAgent(): AgentConfig | null {
+function readAgents(): AgentConfig[] {
   try {
     const agentsPath = path.join(app.getPath("userData"), "ai-agents.json");
-    if (!fs.existsSync(agentsPath)) return null;
-    const agents = JSON.parse(fs.readFileSync(agentsPath, "utf-8")) as AgentConfig[];
-    return agents.find((a) => a.isActive) ?? null;
+    if (!fs.existsSync(agentsPath)) return [];
+    return JSON.parse(fs.readFileSync(agentsPath, "utf-8")) as AgentConfig[];
   } catch (e) {
     console.error("[MosaicBot/LLM] Failed to read ai-agents.json:", e);
-    return null;
+    return [];
   }
+}
+
+function readActiveAgent(): AgentConfig | null {
+  return readAgents().find((a) => a.isActive) ?? null;
+}
+
+function readAgentById(id: string): AgentConfig | null {
+  return readAgents().find((a) => a.id === id) ?? null;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -54,12 +61,14 @@ function readActiveAgent(): AgentConfig | null {
 export async function callActiveLLM(
   prompt: string,
   systemPrompt?: string,
+  agentId?: string,
 ): Promise<string | null> {
-  const agent = readActiveAgent();
+  const agent = agentId ? readAgentById(agentId) : readActiveAgent();
   if (!agent) {
     console.warn(
-      "[MosaicBot/LLM] No active AI agent configured. " +
-        "Open Settings → AI Agents and set one as active.",
+      agentId
+        ? `[MosaicBot/LLM] Agent "${agentId}" not found in ai-agents.json.`
+        : "[MosaicBot/LLM] No active AI agent configured. Open Settings → AI Agents and set one as active.",
     );
     return null;
   }
