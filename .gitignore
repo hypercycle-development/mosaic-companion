@@ -49,6 +49,7 @@ config/gmail-credentials.json
 # agent files
 .github/copilot-instructions.md
 .github/skills/
+project_dump.txt
 
 *.resolved.md
 *.plan.md

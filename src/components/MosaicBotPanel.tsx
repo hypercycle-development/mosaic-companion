@@ -108,18 +108,30 @@ export const MosaicBotPanel: React.FC = () => {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sendText.trim()) return;
+    const userText = sendText.trim();
     setSending(true);
     setLastSendResult(null);
+    setSendText("");
     try {
-      const result = await window.agent?.send(sendText.trim());
+      const result = await window.agent?.send(userText);
       if (result) {
-        const label =
-          result.type === "skill"
-            ? `Matched skill: /${result.skill}${result.args ? ` (${result.args})` : ""}`
-            : "Message routed to agent";
-        setLastSendResult(label);
+        if (result.type === "skill") {
+          setLastSendResult(`Matched skill: /${result.skill}${result.args ? ` (${result.args})` : ""}`);
+        } else if (result.type === "reply") {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `${Date.now()}-${Math.random()}`,
+              to: "renderer",
+              text: result.text ?? "",
+              channel: "ipc",
+              receivedAt: new Date(),
+            },
+          ]);
+        } else if (result.type === "error") {
+          setLastSendResult(result.text ?? "Error");
+        }
       }
-      setSendText("");
     } catch (e) {
       setLastSendResult("Error sending message");
     } finally {
