@@ -1,5 +1,6 @@
 import { gmailAPI } from "./integrations/gmail/gmailAPI";
 import { mcpAPI, osAPI } from "./integrations/mcp/MCPAPI";
+import { chatAPI } from "./integrations/chat/CHATAPI";
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
 import "./integrations/mosaicbot/src/preload";
 
@@ -96,8 +97,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   osAPI,
   gmail: gmailAPI,
   tools: {
-    execute: (fullName: string, args: Record<string, unknown>, context?: { agentId?: string }) =>
-      ipcRenderer.invoke("tools:execute", fullName, args, context),
+    execute: (
+      fullName: string,
+      args: Record<string, unknown>,
+      context?: { agentId?: string },
+    ) => ipcRenderer.invoke("tools:execute", fullName, args, context),
     listModules: () => ipcRenderer.invoke("tools:list-modules"),
     getSystemPrompt: () => ipcRenderer.invoke("tools:get-system-prompt"),
     getActionPatterns: () => ipcRenderer.invoke("tools:get-action-patterns"),
@@ -116,7 +120,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Web3 wallet & address book bridge
   trading: {
     saveWallet: (key: string) =>
-      ipcRenderer.invoke("tools:execute", "web3:save-wallet", { privateKey: key }),
+      ipcRenderer.invoke("tools:execute", "web3:save-wallet", {
+        privateKey: key,
+      }),
     deleteWallet: () =>
       ipcRenderer.invoke("tools:execute", "web3:delete-wallet", {}),
     walletExists: () =>
@@ -129,12 +135,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getAddress: () =>
       ipcRenderer.invoke("tools:execute", "web3:get_wallet_address", {}),
     getBalance: (address?: string) =>
-      ipcRenderer.invoke("tools:execute", "web3:get_wallet_balance", { address }),
+      ipcRenderer.invoke("tools:execute", "web3:get_wallet_balance", {
+        address,
+      }),
     // Address book
     getContacts: () =>
       ipcRenderer.invoke("tools:execute", "web3:list_saved_wallets", {}),
     saveContact: (name: string, address: string) =>
-      ipcRenderer.invoke("tools:execute", "web3:save_wallet_contact", { name, address }),
+      ipcRenderer.invoke("tools:execute", "web3:save_wallet_contact", {
+        name,
+        address,
+      }),
     deleteContact: (id: string) =>
       ipcRenderer.invoke("tools:execute", "web3:delete_wallet_contact", { id }),
     lookupContact: (name: string) =>
@@ -146,29 +157,43 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("tools:execute", "web3:switch_network", { network }),
     // Token on-chain lookup
     lookupToken: (contractAddress: string) =>
-      ipcRenderer.invoke("tools:execute", "web3:lookup_token_onchain", { contractAddress }),
+      ipcRenderer.invoke("tools:execute", "web3:lookup_token_onchain", {
+        contractAddress,
+      }),
     // Config (direct IPC — not through tool registry, needs dedicated handler)
     getConfig: () => ipcRenderer.invoke("web3:get-config"),
-    updateConfig: (updates: Record<string, unknown>) => ipcRenderer.invoke("web3:update-config", updates),
+    updateConfig: (updates: Record<string, unknown>) =>
+      ipcRenderer.invoke("web3:update-config", updates),
   },
   // Vault (named boxes & agent access)
   vault: {
     getBoxes: () => ipcRenderer.invoke("vault:get-boxes"),
     getBox: (id: string) => ipcRenderer.invoke("vault:get-box", id),
-    addBox: (input: { name: string; description?: string; sourceType?: string }) =>
-      ipcRenderer.invoke("vault:add-box", input),
-    updateBox: (id: string, updates: { name?: string; description?: string; sourceType?: string }) =>
-      ipcRenderer.invoke("vault:update-box", id, updates),
+    addBox: (input: {
+      name: string;
+      description?: string;
+      sourceType?: string;
+    }) => ipcRenderer.invoke("vault:add-box", input),
+    updateBox: (
+      id: string,
+      updates: { name?: string; description?: string; sourceType?: string },
+    ) => ipcRenderer.invoke("vault:update-box", id, updates),
     deleteBox: (id: string) => ipcRenderer.invoke("vault:delete-box", id),
-    getAgentBoxes: (agentId: string) => ipcRenderer.invoke("vault:get-agent-boxes", agentId),
+    getAgentBoxes: (agentId: string) =>
+      ipcRenderer.invoke("vault:get-agent-boxes", agentId),
     // Content
-    getBoxContent: (boxId: string) => ipcRenderer.invoke("vault:get-box-content", boxId),
+    getBoxContent: (boxId: string) =>
+      ipcRenderer.invoke("vault:get-box-content", boxId),
     addEntry: (boxId: string, input: { content: string; label?: string }) =>
       ipcRenderer.invoke("vault:add-entry", boxId, input),
-    updateEntry: (boxId: string, entryId: string, updates: { content?: string; label?: string }) =>
-      ipcRenderer.invoke("vault:update-entry", boxId, entryId, updates),
+    updateEntry: (
+      boxId: string,
+      entryId: string,
+      updates: { content?: string; label?: string },
+    ) => ipcRenderer.invoke("vault:update-entry", boxId, entryId, updates),
     deleteEntry: (boxId: string, entryId: string) =>
       ipcRenderer.invoke("vault:delete-entry", boxId, entryId),
   },
 });
 
+contextBridge.exposeInMainWorld("chatAPI", chatAPI);
