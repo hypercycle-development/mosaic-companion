@@ -6,15 +6,24 @@ import {
   INTERNAL_MOSAICBOT_URL,
   INTERNAL_MULTI_CHAT_URL,
   INTERNAL_SETTINGS_URL,
+  INTERNAL_WEB3_URL,
+  INTERNAL_VAULT_URL,
   Tab,
 } from "../types/types";
 import { LandingPage } from "./LandingPage";
 import { SettingsPage } from "./SettingsPage";
 import { MosaicBotPanel } from "./MosaicBotPanel";
 import { MCPPage } from "./MCPPage";
+<<<<<<< HEAD
 import { ChatPage } from "./ChatPage";
+=======
+import { Web3Page } from "./Web3Page";
+import { VaultPage } from "./VaultPage";
+>>>>>>> main
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
+import { VaultPage } from "./VaultPage";
+import { Web3Page } from "./Web3Page";
 
 interface ContentAreaProps {
   url: string;
@@ -76,7 +85,7 @@ const BrowserView: React.FC<BrowserViewProps> = ({
         if (loadProgressRef.current < 90) {
           loadProgressRef.current = Math.min(
             90,
-            loadProgressRef.current + Math.random() * 15
+            loadProgressRef.current + Math.random() * 15,
           );
           onUpdateTab({
             isLoading: true,
@@ -165,10 +174,7 @@ const BrowserView: React.FC<BrowserViewProps> = ({
     webview.addEventListener("did-navigate-in-page", handleNavigate);
     webview.addEventListener("new-window", handleNewWindow);
     webview.addEventListener("page-title-updated", handlePageTitleUpdated);
-    webview.addEventListener(
-      "page-favicon-updated",
-      handlePageFaviconUpdated
-    );
+    webview.addEventListener("page-favicon-updated", handlePageFaviconUpdated);
 
     return () => {
       // Clean up timeouts/intervals
@@ -182,28 +188,19 @@ const BrowserView: React.FC<BrowserViewProps> = ({
       }
 
       if (webview) {
-        webview.removeEventListener(
-          "did-start-loading",
-          handleStartLoading
-        );
-        webview.removeEventListener(
-          "did-stop-loading",
-          handleStopLoading
-        );
+        webview.removeEventListener("did-start-loading", handleStartLoading);
+        webview.removeEventListener("did-stop-loading", handleStopLoading);
         webview.removeEventListener("did-fail-load", handleFailLoad);
         webview.removeEventListener("did-navigate", handleNavigate);
-        webview.removeEventListener(
-          "did-navigate-in-page",
-          handleNavigate
-        );
+        webview.removeEventListener("did-navigate-in-page", handleNavigate);
         webview.removeEventListener("new-window", handleNewWindow);
         webview.removeEventListener(
           "page-title-updated",
-          handlePageTitleUpdated
+          handlePageTitleUpdated,
         );
         webview.removeEventListener(
           "page-favicon-updated",
-          handlePageFaviconUpdated
+          handlePageFaviconUpdated,
         );
       }
     };
@@ -364,10 +361,31 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     useEffect(() => {
       onUpdateTab({ title: "Chat Rooms", isLoading: false, favicon: undefined });
     }, [url]);
-
     return (
       <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
-        <ChatPage />
+        <ChatPage /> </div>
+      )
+ }   
+  if (url === INTERNAL_WEB3_URL) {
+    useEffect(() => {
+      onUpdateTab({ title: "Web3", isLoading: false, favicon: undefined });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
+        <Web3Page />
+      </div>
+    );
+  }
+
+  if (url === INTERNAL_VAULT_URL) {
+    useEffect(() => {
+      onUpdateTab({ title: "Vault", isLoading: false, favicon: undefined });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
+        <VaultPage />
       </div>
     );
   }

@@ -61,7 +61,8 @@
     "recharts": "^3.7.0",
     "semver": "^7.7.3",
     "server-destroy": "^1.0.1",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "viem": "^2.46.3"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.11.1",

@@ -50,3 +50,6 @@ config/gmail-credentials.json
 .github/copilot-instructions.md
 .github/skills/
 project_dump.txt
+
+*.resolved.md
+*.plan.md

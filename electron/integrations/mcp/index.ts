@@ -335,4 +335,4 @@ ipcMain.handle(
   },
 );
 
-export { mcpClient };
+export { mcpClient, pluginManager };
