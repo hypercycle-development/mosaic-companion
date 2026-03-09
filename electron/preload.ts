@@ -1,5 +1,6 @@
 import { gmailAPI } from "./integrations/gmail/gmailAPI";
 import { mcpAPI, osAPI } from "./integrations/mcp/MCPAPI";
+import { chatAPI } from "./integrations/chat/CHATAPI";
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
 import "./integrations/mosaicbot/src/preload";
 
@@ -107,3 +108,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
     isMaximized: () => ipcRenderer.invoke("window:is-maximized"),
   },
 });
+
+contextBridge.exposeInMainWorld("chatAPI", chatAPI);
