@@ -32,6 +32,7 @@ import {
 } from "./utils/index";
 import { mcpClient, setMainWindow as mcpSetMainWindow, initPlugins } from "./integrations/mcp/index";
 import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
+import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integrations/chat/index";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
@@ -223,6 +224,7 @@ function recreateWindow(): void {
 app.on("before-quit", () => {
   mcpClient.disconnectAll();
   if (mosaicBotStop) mosaicBotStop().catch(console.error);
+  stopChat();
 });
 
 // Suppress ERR_ABORTED errors from webviews
@@ -252,7 +254,9 @@ app.whenReady().then(() => {
 
   const win = createWindow();
   mcpSetMainWindow(win);
+  setChatMainWindow(win);
   initPlugins().catch((e) => console.error("[MCP] Plugin init failed:", e));
+  initChat();
 
   // Initialize MosaicBot agent subsystem
   initMosaicBot().then((bot) => {

@@ -1,4 +1,5 @@
 import { AIAgentConfig, ChatSession } from "./types/ai";
+import type { ChatSettings, ConnectionStatus, Room, StoredMessage, Member } from "./types/chat";
 
 declare global {
   // Update settings configuration
@@ -196,6 +197,31 @@ declare global {
         close: () => Promise<void>;
         isMaximized: () => Promise<boolean>;
       };
+    };
+
+    chatAPI: {
+      getSettings: () => Promise<ChatSettings>;
+      saveSettings: (s: ChatSettings) => Promise<{ success: boolean; error?: string }>;
+      connect: () => Promise<{ success: boolean; error?: string }>;
+      disconnect: () => Promise<{ success: boolean }>;
+      status: () => Promise<{ status: string }>;
+      listRooms: () => Promise<{ success: boolean; error?: string }>;
+      createRoom: (name: string) => Promise<{ success: boolean; error?: string }>;
+      joinRoom: (roomId: string) => Promise<{ success: boolean; error?: string }>;
+      leaveRoom: (roomId: string) => Promise<{ success: boolean; error?: string }>;
+      sendMessage: (roomId: string, text: string) => Promise<{ success: boolean; error?: string }>;
+      assignAgent: (roomId: string, agentId: string, agentName: string) => Promise<{ success: boolean }>;
+      removeAgent: (roomId: string, agentId: string) => Promise<{ success: boolean }>;
+      listAssignedAgents: (roomId: string) => Promise<string[]>;
+      onConnectionChanged: (cb: (data: { status: string }) => void) => () => void;
+      onRoomsUpdated: (cb: (rooms: Room[]) => void) => () => void;
+      onRoomCreated: (cb: (room: Room) => void) => () => void;
+      onJoined: (cb: (data: { room: Room; history: StoredMessage[] }) => void) => () => void;
+      onLeft: (cb: (data: { roomId: string }) => void) => () => void;
+      onMessage: (cb: (message: StoredMessage) => void) => () => void;
+      onMemberJoined: (cb: (data: { roomId: string; member: Member }) => void) => () => void;
+      onMemberLeft: (cb: (data: { roomId: string; memberId: string; username: string }) => void) => () => void;
+      onError: (cb: (data: { message: string }) => void) => () => void;
     };
 
     // MosaicBot agent API

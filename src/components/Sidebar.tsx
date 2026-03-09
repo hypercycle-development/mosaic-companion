@@ -26,6 +26,7 @@ import {
   INTERNAL_HOME_URL,
   INTERNAL_MCP_URL,
   INTERNAL_MOSAICBOT_URL,
+  INTERNAL_MULTI_CHAT_URL,
   INTERNAL_SETTINGS_URL,
   INTERNAL_CHAT_URL,
 } from "../types/types";
@@ -156,6 +157,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "chat", label: "AI Chat", icon: "Bot", url: INTERNAL_CHAT_URL },
     { id: "mosaicbot", label: "Mosaic Bot", icon: "BrainCircuit", url: INTERNAL_MOSAICBOT_URL },
     { id: "mcp", label: "MCP Servers", icon: "Plug", url: INTERNAL_MCP_URL },
+    { id: "multi-chat", label: "Chat Rooms", icon: "MessageSquare", url: INTERNAL_MULTI_CHAT_URL },
     {
       id: "bookmarks",
       label: "Bookmarks",
@@ -211,6 +213,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <BrainCircuit className={className} />;
       case "Plug":
         return <Plug className={className} />;
+      case "MessageSquare":
+        return <MessageSquare className={className} />;
       default:
         return <LayoutGrid className={className} />;
     }
