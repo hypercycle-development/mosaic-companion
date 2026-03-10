@@ -95,7 +95,9 @@ export class ToolRegistry {
     args: Record<string, unknown>,
     context?: ExecutionContext,
   ): Promise<ToolResult> {
-    const colonIdx = fullName.indexOf(":");
+    // Split on the LAST colon to support namespaced modules like "ext:hello-world:greet"
+    // → moduleName = "ext:hello-world", toolName = "greet"
+    const colonIdx = fullName.lastIndexOf(":");
     if (colonIdx === -1) {
       return { success: false, error: `Invalid tool name "${fullName}". Expected "module:tool" format.` };
     }
@@ -105,6 +107,7 @@ export class ToolRegistry {
 
     const mod = this.modules.get(moduleName);
     if (!mod) {
+      console.log(`[ToolRegistry] Module "${moduleName}" not found. Available: [${Array.from(this.modules.keys()).join(", ")}]`);
       return { success: false, error: `Module "${moduleName}" not found` };
     }
 

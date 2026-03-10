@@ -70,6 +70,9 @@ export class ToolManager {
     // Load persisted installed tools
     this.loadInstalled();
 
+    // Auto-launch tools that were enabled when the app last closed
+    await this.autoLaunchEnabled();
+
     // Register IPC handlers
     this.registerIPC();
 
@@ -303,6 +306,24 @@ export class ToolManager {
   // ---------------------------------------------------------------------------
   // Persistence
   // ---------------------------------------------------------------------------
+
+  private async autoLaunchEnabled(): Promise<void> {
+    const enabled = Array.from(this.installed.values()).filter((t) => t.enabled);
+    if (enabled.length === 0) return;
+
+    console.log(`[ToolManager] Auto-launching ${enabled.length} enabled tool(s)...`);
+
+    await Promise.allSettled(
+      enabled.map(async (tool) => {
+        try {
+          await this.launchTool(tool.manifest.id);
+          console.log(`[ToolManager] Auto-launched: ${tool.manifest.id}`);
+        } catch (err) {
+          console.error(`[ToolManager] Failed to auto-launch "${tool.manifest.id}":`, err);
+        }
+      }),
+    );
+  }
 
   private loadInstalled(): void {
     if (!existsSync(this.persistPath)) return;
