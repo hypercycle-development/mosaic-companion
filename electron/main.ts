@@ -532,12 +532,88 @@ function writeThemeSettings(settings: ThemeSettings): boolean {
   }
 }
 
+// ── Vault-secured agent key helpers ──────────────────────────────────────────
+
+/**
+ * Move an agent's API key into a vault box.
+ * Creates the box if needed, upserts the "api-key" entry, grants boxAccess,
+ * and strips the key from the agent config.
+ */
+function vaultStoreAgentKey(agent: AIAgent): void {
+  const apiKey = (agent.apiKey as string) ?? "";
+  if (!apiKey) return; // nothing to store
+
+  const agentName = (agent.name as string) || agent.id.toString();
+  const boxName = `Keys: ${agentName}`;
+
+  // Find or create a box for this agent
+  let box = getBoxes().find((b) => b.name === boxName);
+  if (!box) {
+    const result = addBox({
+      name: boxName,
+      description: `API credentials for ${agentName}`,
+      sourceType: "manual",
+    });
+    if (!result.success || !result.box) return;
+    box = result.box;
+  }
+
+  // Upsert the api-key entry
+  const entries = getBoxContent(box.id);
+  const existing = entries.find(
+    (e) => e.label && e.label.toLowerCase() === "api-key",
+  );
+  if (existing) {
+    updateEntry(box.id, existing.id, { content: apiKey });
+  } else {
+    addEntry(box.id, { label: "api-key", content: apiKey });
+  }
+
+  // Grant agent access to the box
+  const boxAccess = (agent.boxAccess as string[]) ?? [];
+  if (!boxAccess.includes(box.id)) {
+    boxAccess.push(box.id);
+  }
+  agent.boxAccess = boxAccess;
+
+  // Strip the raw key from the agent config
+  agent.apiKey = "";
+}
+
+/**
+ * Resolve an agent's API key from its vault boxes.
+ * Returns the key content or null.
+ */
+function resolveAgentVaultKey(agentId: string): string | null {
+  const boxes = getAgentBoxes(agentId.toString());
+  for (const box of boxes) {
+    const entries = getBoxContent(box.id);
+    const keyEntry = entries.find(
+      (e) => e.label && e.label.toLowerCase() === "api-key",
+    );
+    if (keyEntry && keyEntry.content.trim()) {
+      return keyEntry.content.trim();
+    }
+  }
+  return null;
+}
+
+// ── AI Agent CRUD ───────────────────────────────────────────────────────────
+
 ipcMain.handle("ai-agents:get", async () => {
   return readAgents();
 });
 
+ipcMain.handle("ai-agents:resolve-key", async (_event: IpcMainInvokeEvent, agentId: string) => {
+  const key = resolveAgentVaultKey(agentId);
+  return { key };
+});
+
 ipcMain.handle("ai-agents:set", async (_event: IpcMainInvokeEvent, agents: AIAgent[]) => {
   try {
+    for (const agent of agents) {
+      vaultStoreAgentKey(agent);
+    }
     writeAgents(agents);
     return { success: true };
   } catch (error) {
@@ -547,6 +623,7 @@ ipcMain.handle("ai-agents:set", async (_event: IpcMainInvokeEvent, agents: AIAge
 
 ipcMain.handle("ai-agents:add", async (_event: IpcMainInvokeEvent, agent: AIAgent) => {
   try {
+    vaultStoreAgentKey(agent);
     const agents = readAgents();
     agents.push(agent);
     writeAgents(agents);
@@ -565,7 +642,17 @@ ipcMain.handle("ai-agents:update", async (_event: IpcMainInvokeEvent, id: string
     if (index === -1) {
       return { success: false, error: "Agent not found" };
     }
-    agents[index] = { ...agents[index], ...updates };
+
+    // If API key is being updated, vault-store it
+    if (updates.apiKey && (updates.apiKey as string).trim()) {
+      const merged = { ...agents[index], ...updates };
+      vaultStoreAgentKey(merged);
+      // Apply the vault-modified state (apiKey stripped, boxAccess updated)
+      agents[index] = merged;
+    } else {
+      agents[index] = { ...agents[index], ...updates };
+    }
+
     writeAgents(agents);
     return { success: true };
   } catch (error) {

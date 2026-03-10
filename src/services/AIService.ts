@@ -9,6 +9,17 @@ interface StreamCallbacks {
 }
 
 export class AIService {
+  // Resolve API key from vault if not present on config
+  static async resolveConfig(config: AIAgentConfig): Promise<AIAgentConfig> {
+    if (config.apiKey) return config;
+    if (config.provider === "ollama") return config; // Ollama doesn't need API keys
+    try {
+      const result = await window.electronAPI.aiAgents.resolveKey(config.id);
+      if (result?.key) return { ...config, apiKey: result.key };
+    } catch {}
+    return config;
+  }
+
   // Send message to Claude API
   static async sendToClaude(
     config: AIAgentConfig,
@@ -274,6 +285,7 @@ export class AIService {
     messages: ChatMessage[],
     callbacks?: StreamCallbacks
   ): Promise<string> {
+    config = await this.resolveConfig(config);
     switch (config.provider) {
       case "claude":
         return this.sendToClaude(config, messages, callbacks);
@@ -296,6 +308,7 @@ export class AIService {
     config: AIAgentConfig
   ): Promise<{ success: boolean; message: string }> {
     try {
+      config = await this.resolveConfig(config);
       const testMessages: ChatMessage[] = [
         {
           id: "test",

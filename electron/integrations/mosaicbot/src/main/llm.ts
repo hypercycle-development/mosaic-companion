@@ -14,6 +14,7 @@
 import { app } from "electron";
 import fs from "fs";
 import path from "path";
+import { getAgentBoxes, getBoxContent } from "../../../vault/index";
 
 // Mirrors AIAgentConfig from src/types/ai.ts
 interface AgentConfig {
@@ -51,6 +52,20 @@ function readAgentById(id: string): AgentConfig | null {
   return readAgents().find((a) => a.id === id) ?? null;
 }
 
+function resolveVaultKey(agentId: string): string | null {
+  try {
+    const boxes = getAgentBoxes(agentId);
+    for (const box of boxes) {
+      const entries = getBoxContent(box.id);
+      const keyEntry = entries.find(
+        (e: { label?: string }) => e.label && e.label.toLowerCase() === "api-key",
+      );
+      if (keyEntry && keyEntry.content.trim()) return keyEntry.content.trim();
+    }
+  } catch {}
+  return null;
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -74,9 +89,12 @@ export async function callActiveLLM(
     return null;
   }
 
-  const effectiveAgent = apiKeyOverride
-    ? { ...agent, apiKey: apiKeyOverride }
-    : agent;
+  // Resolve API key: explicit override > vault > agent config
+  let resolvedKey = apiKeyOverride ?? agent.apiKey;
+  if (!resolvedKey) {
+    resolvedKey = resolveVaultKey(agent.id) ?? "";
+  }
+  const effectiveAgent = { ...agent, apiKey: resolvedKey };
 
   console.log(`[MosaicBot/LLM] Using agent "${agent.name}" (${agent.provider}/${agent.model})${apiKeyOverride ? " [vault key]" : ""}`);
 

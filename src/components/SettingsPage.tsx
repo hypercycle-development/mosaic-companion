@@ -20,6 +20,7 @@ import {
   Server,
   Thermometer,
   Zap,
+  ShieldCheck,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -91,6 +92,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     >
   >({});
   const [nameErrors, setNameErrors] = useState<Record<string, string>>({});
+  const [vaultKeys, setVaultKeys] = useState<Record<string, boolean>>({});
 
   const { themes, themeKey, setThemeKey } = useTheme();
 
@@ -440,6 +442,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       const result = await window.electronAPI.aiAgents.get();
       if (result) {
         setAiAgents(result);
+        // Check which agents have vault-stored keys
+        const vk: Record<string, boolean> = {};
+        for (const agent of result) {
+          if (!agent.apiKey) {
+            try {
+              const res = await window.electronAPI.aiAgents.resolveKey(agent.id);
+              vk[agent.id] = !!res?.key;
+            } catch { vk[agent.id] = false; }
+          }
+        }
+        setVaultKeys(vk);
       } else {
         console.log("No ai agents found");
       }
@@ -802,6 +815,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                           <span className="text-sm text-gray-400 mb-1 block flex items-center gap-1">
                             <Key size={12} />
                             API Key
+                            {!agent.apiKey && vaultKeys[agent.id] && (
+                              <span className="ml-1 flex items-center gap-1 text-emerald-400 text-xs">
+                                <ShieldCheck size={12} />
+                                Vault-protected
+                              </span>
+                            )}
                           </span>
                           <div className="relative">
                             <input
@@ -813,7 +832,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                                 })
                               }
                               className="w-full px-3 py-2 pr-10 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100 font-mono text-sm"
-                              placeholder="sk-... or API key"
+                              placeholder={!agent.apiKey && vaultKeys[agent.id] ? "Key stored in vault — enter new key to replace" : "sk-... or API key"}
                             />
                             <button
                               type="button"
@@ -967,7 +986,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                           <button
                             onClick={() => testConnection(agent)}
                             disabled={
-                              !agent.apiKey || testResult.status === "testing"
+                              (!agent.apiKey && !vaultKeys[agent.id]) || testResult.status === "testing"
                             }
                             className={`
                               flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium

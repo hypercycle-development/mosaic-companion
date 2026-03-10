@@ -177,6 +177,7 @@ declare global {
         ) => Promise<{ success: boolean; error?: string }>;
         delete: (id: string) => Promise<{ success: boolean; error?: string }>;
         clear: () => Promise<{ success: boolean; error?: string }>;
+        resolveKey: (agentId: string) => Promise<{ key: string | null }>;
       };
       themes: {
         get: () => Promise<{ activeTheme: string }>;
