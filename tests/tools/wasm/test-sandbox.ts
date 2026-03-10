@@ -30,6 +30,7 @@ import { join } from "path";
 import createPlugin from "@extism/extism";
 import { ManifestGatekeeperPolicy } from "../../../electron/integrations/sandbox/gatekeeper";
 import { Chronicle, setChronicleInstance } from "../../../electron/integrations/sandbox/chronicle";
+import { WasmLauncher } from "../../../electron/integrations/sandbox/wasm-launcher";
 import type { ToolManifest } from "../../../electron/integrations/sandbox/types";
 
 // =============================================================================
@@ -37,22 +38,115 @@ import type { ToolManifest } from "../../../electron/integrations/sandbox/types"
 // =============================================================================
 
 async function testWasmDirect() {
-  console.log("\n=== Test 1: Direct WASM load via Extism ===\n");
+  console.log("\n=== Test 1: Direct WASM load via Extism (tool.wasm) ===\n");
 
-  const wasmPath = resolve(__dirname, "count_vowels.wasm");
+  const wasmPath = resolve(__dirname, "tool.wasm");
   console.log(`Loading WASM from: ${wasmPath}`);
 
-  const plugin = await createPlugin(wasmPath, { useWasi: true });
+  // Use Extism manifest format to avoid "Expected 'wasm' key" error
+  const data = new Uint8Array(require("fs").readFileSync(wasmPath));
+  const plugin = await createPlugin(
+    { wasm: [{ data }] },
+    {
+      useWasi: true,
+      runInWorker: true,
+      functions: {
+        "extism:host/user": {
+          mosaic_log() {},
+          mosaic_write_output() {},
+          mosaic_read_input(): bigint { return 0n; },
+          async mosaic_http_request(): Promise<bigint> { return 0n; },
+        },
+      },
+    },
+  );
   console.log("✅ Plugin loaded successfully");
 
-  const result = await plugin.call("count_vowels", "Hello World from MosAIc!");
-  const output = result?.json();
-  console.log(`Input:  "Hello World from MosAIc!"`);
-  console.log(`Output: ${JSON.stringify(output)}`);
-  console.log(`✅ count_vowels returned: ${output.count} vowels`);
+  // Call mosaic_manifest to verify the embedded manifest
+  const manifestResult = await plugin.call("mosaic_manifest");
+  const manifestJson = manifestResult?.text();
+  console.log(`mosaic_manifest() output: ${manifestJson}`);
+  const manifest = JSON.parse(manifestJson!);
+  console.log(`✅ Manifest: ${manifest.displayName} (${manifest.id} v${manifest.version})`);
+  console.log(`   Functions: ${Object.keys(manifest.tools).join(", ")}`);
 
   await plugin.close();
   console.log("✅ Plugin closed");
+}
+
+// =============================================================================
+// Test WasmLauncher end-to-end with a real MosAIc-compatible .wasm tool
+// =============================================================================
+
+async function testWasmLauncher(wasmPath: string) {
+  console.log(`\n=== Test: WasmLauncher end-to-end (${wasmPath}) ===\n`);
+
+  // Use a temp chronicle dir so this test is self-contained
+  const tmpDir = mkdtempSync(join(tmpdir(), "mosaic-launcher-test-"));
+  const chronicle = new Chronicle(tmpDir);
+  setChronicleInstance(chronicle);
+
+  const launcher = new WasmLauncher();
+
+  try {
+    // 1. Extract manifest
+    console.log("1. Extracting manifest...");
+    const manifest = await launcher.extractManifest(wasmPath);
+    console.log(`✅ Manifest: ${manifest.displayName} (${manifest.id} v${manifest.version})`);
+    console.log(`   Description: ${manifest.description}`);
+    console.log(`   Functions: ${Object.keys(manifest.tools).join(", ")}`);
+    console.log(`   Permissions: internet=${manifest.permissions.internet}, files=${manifest.permissions.files.length}, services=${manifest.permissions.services.length}`);
+
+    // 2. Launch
+    console.log("\n2. Launching tool...");
+    const running = await launcher.launch(manifest);
+    console.log(`✅ Status: ${running.status}`);
+
+    // 3. Call each declared function with empty/minimal args
+    console.log("\n3. Calling tool functions...");
+    for (const [fnName, fnDef] of Object.entries(manifest.tools)) {
+      // Build minimal args from inputSchema required fields
+      const args: Record<string, unknown> = {};
+      const schema = fnDef.inputSchema as { properties?: Record<string, { type: string }>; required?: string[] } | undefined;
+      if (schema?.required && schema?.properties) {
+        for (const req of schema.required) {
+          const propType = schema.properties[req]?.type;
+          if (propType === "string") args[req] = "hello";
+          else if (propType === "number") args[req] = 42;
+          else if (propType === "boolean") args[req] = true;
+          else args[req] = null;
+        }
+      }
+      console.log(`   Calling ${fnName}(${JSON.stringify(args)})...`);
+      const result = await launcher.callFunction(manifest.id, fnName, args);
+      if (result.success) {
+        console.log(`   ✅ ${fnName} → ${JSON.stringify(result.data)}`);
+      } else {
+        console.log(`   ❌ ${fnName} failed: ${result.error}`);
+      }
+    }
+
+    // 4. Check Chronicle wrote lifecycle/log entries
+    console.log("\n4. Checking Chronicle...");
+    const entries = chronicle.read(manifest.id);
+    console.log(`   ${entries.length} entries recorded`);
+    if (entries.length > 0) {
+      for (const e of entries) {
+        console.log(`   [${e.type}/${e.source}] ${JSON.stringify(e.data)}`);
+      }
+    }
+    console.log(`✅ Chronicle working`);
+
+    // 5. Stop
+    console.log("\n5. Stopping tool...");
+    await launcher.stop(manifest.id);
+    console.log(`✅ Tool stopped`);
+
+    console.log(`\n✅ WasmLauncher end-to-end test passed!`);
+  } finally {
+    await launcher.stopAll();
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
 }
 
 // =============================================================================
@@ -305,10 +399,21 @@ async function main() {
   console.log("🚀 MosAIc WASM Sandbox — Pipeline Test\n");
   console.log("=========================================");
 
+  // If a .wasm path is passed as CLI arg, run the launcher test against it
+  const customWasm = process.argv[2];
+
   try {
-    await testWasmDirect();
-    testGatekeeper();
-    testChronicle();
+    if (customWasm) {
+      // Targeted test: just run the end-to-end launcher test on the given .wasm
+      await testWasmLauncher(resolve(customWasm));
+    } else {
+      // Full suite — runs against tool.wasm in the same directory
+      const defaultWasm = resolve(__dirname, "tool.wasm");
+      await testWasmDirect();
+      testGatekeeper();
+      testChronicle();
+      await testWasmLauncher(defaultWasm);
+    }
 
     console.log("\n=========================================");
     console.log("✅ All tests passed! Pipeline is working.");
