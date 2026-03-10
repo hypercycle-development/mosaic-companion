@@ -27,18 +27,9 @@ import {
 import { AIService } from "../services/AIService";
 import {
   parseAction,
-  executeGmailAction,
-  executeMCPAction,
+  executeToolCall,
   getMCPSystemPrompt,
-  buildEmailAnalysisPrompt,
-  buildSingleEmailAnalysisPrompt,
-  isGmailAuthenticated,
 } from "../services/ActionParser";
-import {
-  getGmailSystemPrompt,
-  mightBeEmailRelated,
-  detectEmailReadRequest,
-} from "../prompts/gmail-tools";
 import ReactMarkdown from "react-markdown";
 import { INTERNAL_SETTINGS_URL } from "../types/types";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
@@ -136,7 +127,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [streamingContent, setStreamingContent] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showAgentSelector, setShowAgentSelector] = useState(false);
-  const [gmailConnected, setGmailConnected] = useState(false);
   const [showHistorySidebar, setShowHistorySidebar] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
@@ -222,10 +212,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   // Track if we've processed the pending message to avoid duplicate sends
   const pendingMessageProcessedRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    // Check Gmail connection status
-    isGmailAuthenticated().then(setGmailConnected);
-  }, []);
+
 
   // Reset processed flag when tabId changes
   useEffect(() => {
@@ -240,10 +227,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
     };
     getAgents();
     pendingMessageProcessedRef.current = null;
-
-    // TODO: Verify this is needed
-    // Check Gmail connection status
-    // isGmailAuthenticated().then(setGmailConnected);
   }, [tabId]);
 
   // Close agent selector on outside click
@@ -458,16 +441,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
           // 2. Check for Actions
           const action = parseAction(response);
 
-          if (action.type === "MCP_TOOL_CALL") {
+          if (action.type === "TOOL_CALL") {
              setStreamingContent("🛠️ Executing " + action.params?.tool + "...");
              
-             const result = await executeMCPAction(action, selectedAgent!.id);
+             const result = await executeToolCall(action, selectedAgent!.id);
              
              // Create User Message (Tool Output)
              const toolMsg: ChatMessage = {
                  id: `msg-${Date.now() + 1}`,
                  role: "user",
-                 content: `[Tool Output for ${action.params?.tool}]\n${result}`,
+                 content: `[Tool Output for ${action.params?.server}:${action.params?.tool}]\n${result}`,
                  timestamp: Date.now(),
                  agentId: selectedAgent!.id,
              };
@@ -483,34 +466,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
              await saveSession(nextSession);
              
              // Recurse
-             await processAIResponse(nextSession, nextMessages, depth + 1);
-             return;
-          } 
-          
-          if (action.type !== "NONE") {
-             // Handle Gmail Actions (Legacy Logic adapted)
-             setStreamingContent(action.cleanResponse + "\n\n📧 Fetching emails...");
-             const emailData = await executeGmailAction(action);
-             
-             const analysisPrompt = action.type === "GMAIL_READ"
-                ? buildSingleEmailAnalysisPrompt("Summarize this email", emailData) // Context might be lost? Use "Summarize"
-                : buildEmailAnalysisPrompt("Analyze these emails", emailData);
-
-             const dataMessage: ChatMessage = {
-                 id: `msg-${Date.now() + 1}`,
-                 role: "user",
-                 content: analysisPrompt,
-                 timestamp: Date.now(),
-                 agentId: selectedAgent!.id,
-             };
-             
-             const nextMessages = [...messagesWithAssistant, dataMessage];
-             const nextSession = { ...sessionWithAssistant, messages: nextMessages, updatedAt: Date.now() };
-             
-             setSessions(prev => prev.map(s => s.id === currentSession.id ? nextSession : s));
-             await saveSession(nextSession);
-             
-             // Recurse for final analysis
              await processAIResponse(nextSession, nextMessages, depth + 1);
              return;
           }
@@ -604,25 +559,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
         let idCounter = 0;
         const systemPrompts: string[] = [];
 
-        // 1. Gmail Context
-        const isEmailRelated = mightBeEmailRelated(messageContent);
-        let isGmailReady = gmailConnected;
-        if (!isGmailReady && isEmailRelated) {
-             isGmailReady = await isGmailAuthenticated();
-             if (isGmailReady) setGmailConnected(true);
-        }
-        if (isGmailReady && isEmailRelated) {
-            systemPrompts.push(getGmailSystemPrompt(true));
-        }
-
-        // 2. MCP Context
+        // 1. MCP Context
         const mcpPrompt = getMCPSystemPrompt(mcpServers);
         if (mcpPrompt) {
             systemPrompts.push(mcpPrompt);
         }
 
-        // 3. Web3 / Built-in tools context — always inject so the AI can
-        //    intelligently decide when to use Web3 tools (balance, transfers, etc.)
+        // 2. Built-in tools context (Gmail, Web3, Vault, WASM) — the ToolRegistry
+        //    aggregates system prompts from all available modules.
         try {
             const toolsPrompt = await window.electronAPI?.tools?.getSystemPrompt?.();
             if (toolsPrompt) {
@@ -632,7 +576,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             console.error("Failed to get tools system prompt:", e);
         }
 
-        // 4. Vault context — tell the agent which boxes it can access
+        // 3. Vault context — tell the agent which boxes it can access
         try {
             const agentBoxes = await window.electronAPI?.vault?.getAgentBoxes(selectedAgent!.id);
             if (agentBoxes && agentBoxes.length > 0) {
