@@ -110,6 +110,23 @@ contextBridge.exposeInMainWorld("electronAPI", {
   sandbox: {
     getState: () => ipcRenderer.invoke("sandbox:get-state"),
   },
+  // Tool sandbox management (WASM tools)
+  toolSandbox: {
+    install: (manifest: Record<string, unknown>, wasmPath: string) =>
+      ipcRenderer.invoke("toolSandbox:install", manifest, wasmPath),
+    uninstall: (toolId: string) =>
+      ipcRenderer.invoke("toolSandbox:uninstall", toolId),
+    launch: (toolId: string) =>
+      ipcRenderer.invoke("toolSandbox:launch", toolId),
+    stop: (toolId: string) =>
+      ipcRenderer.invoke("toolSandbox:stop", toolId),
+    listInstalled: () =>
+      ipcRenderer.invoke("toolSandbox:listInstalled"),
+    listRunning: () =>
+      ipcRenderer.invoke("toolSandbox:listRunning"),
+    isAvailable: () =>
+      ipcRenderer.invoke("toolSandbox:isAvailable"),
+  },
   // Window controls (for custom title bar)
   window: {
     minimize: () => ipcRenderer.invoke("window:minimize"),
