@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { Wallet as EthersWallet} from "ethers";
 import {
   Save,
   Trash2,
@@ -307,11 +308,20 @@ const PrivateKeyManager: React.FC<{ onWalletChanged: () => void }> = ({
     }
   };
 
+  const generateRandomPrivateKey = () => {
+    const wallet = EthersWallet.createRandom();
+    return wallet.privateKey;
+  };
+
   const handleSave = async () => {
-    if (!privateKey) return;
+    let keyToSave = privateKey;
+    if (!privateKey) {
+      keyToSave = generateRandomPrivateKey();
+      toast.info("No private key entered. Generated a new random key.");
+    }
     setIsSaving(true);
     if (window.electronAPI?.trading?.saveWallet) {
-      const result = await window.electronAPI.trading.saveWallet(privateKey);
+      const result = await window.electronAPI.trading.saveWallet(keyToSave);
       if (result.success) {
         toast.success("Private key saved securely.");
         setPrivateKey("");
@@ -386,10 +396,13 @@ const PrivateKeyManager: React.FC<{ onWalletChanged: () => void }> = ({
                 {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
+            <span className="block text-xs text-gray-500 mt-2">
+              Leave empty to generate a new random private key automatically.
+            </span>
           </label>
           <button
             onClick={handleSave}
-            disabled={!privateKey || isSaving}
+            disabled={isSaving}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center gap-2"
           >
             {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
