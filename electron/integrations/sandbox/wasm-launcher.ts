@@ -32,6 +32,32 @@ const DEFAULT_MEMORY_MB = 64;
 /** Default timeout if not specified in manifest (30 seconds) */
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+/**
+ * No-op host functions used during manifest extraction.
+ * The WASM module declares imports for all host functions at load time —
+ * the runtime refuses to instantiate the module if any import is missing,
+ * even when we only intend to call mosaic_manifest().
+ * These stubs satisfy the import requirements without doing anything.
+ */
+const STUB_HOST_FUNCTIONS = {
+  "extism:host/user": {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    mosaic_log(_cp: CallContext, _msgOffs: bigint) {},
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    mosaic_write_output(_cp: CallContext, _dataOffs: bigint) {},
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    mosaic_read_input(_cp: CallContext, _keyOffs: bigint): bigint { return 0n; },
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async mosaic_http_request(
+      _cp: CallContext,
+      _urlOffs: bigint,
+      _methodOffs: bigint,
+      _headersOffs: bigint,
+      _bodyOffs: bigint,
+    ): Promise<bigint> { return 0n; },
+  },
+} as const;
+
 // =============================================================================
 // Internal state for a loaded WASM tool
 // =============================================================================
@@ -60,11 +86,18 @@ export class WasmLauncher implements ToolLauncher {
   async extractManifest(wasmPath: string): Promise<ToolManifest> {
     console.log(`[WasmLauncher] Extracting manifest from: ${wasmPath}`);
 
-    const wasmSource = this.resolveWasmSourceFromPath(wasmPath);
+    const wasmData = this.resolveWasmSourceFromPath(wasmPath);
 
-    // Load the plugin temporarily with no host functions — just to read the manifest
-    const plugin = await createPlugin(wasmSource, { useWasi: true });
-
+    // Load the plugin temporarily with stub host functions — just to read the manifest.
+    // Must wrap in Extism manifest format; passing raw Uint8Array causes
+    // "Expected 'wasm' key in manifest" if Extism attempts JSON parsing.
+    // Stubs are required because the WASM module declares imports for all host
+    // functions (mosaic_log etc.) and the runtime refuses to load if any import
+    // is unresolved, even when we only intend to call mosaic_manifest().
+    const plugin = await createPlugin(
+      { wasm: [{ data: wasmData }] },
+      { useWasi: true, runInWorker: true, functions: STUB_HOST_FUNCTIONS },
+    );
     try {
       const result = await plugin.call("mosaic_manifest");
       if (!result) {
@@ -113,16 +146,16 @@ export class WasmLauncher implements ToolLauncher {
     const hostFns = createHostFunctions(manifest, gatekeeperPolicy, inputData);
 
     // Load the WASM module
-    const wasmSource = this.resolveWasmSource(manifest);
+    const wasmData = this.resolveWasmSource(manifest);
     const timeoutMs = this.parseTimeout(manifest.resources.timeout);
 
     // Build Extism host functions in the format Extism expects
     const extismFunctions = this.buildExtismFunctions(manifest.id, hostFns);
 
-    const plugin = await createPlugin(wasmSource, {
-      useWasi: true,
-      functions: extismFunctions,
-    });
+    const plugin = await createPlugin(
+      { wasm: [{ data: wasmData }] },
+      { useWasi: true, runInWorker: true, functions: extismFunctions },
+    );
 
     const runningTool: RunningTool = {
       toolId: manifest.id,
