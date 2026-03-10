@@ -385,6 +385,17 @@ ipcMain.handle("window:is-maximized", () => {
   return mainWindow ? mainWindow.isMaximized() : false;
 });
 
+// File dialog for sandbox tool installation
+ipcMain.handle("dialog:open-file", async (_event, options?: { filters?: Array<{ name: string; extensions: string[] }> }) => {
+  const { dialog } = await import("electron");
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ["openFile"],
+    filters: options?.filters ?? [{ name: "WebAssembly", extensions: ["wasm"] }],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
 // CSV Logging
 const csvPath = path.join(app.getPath("userData"), "input_history.csv");
 

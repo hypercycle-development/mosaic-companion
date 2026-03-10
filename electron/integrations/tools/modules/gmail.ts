@@ -8,7 +8,7 @@
  * ToolModule interface on top.
  */
 
-import type { ToolModule, ToolDefinition, ActionPattern } from "../types";
+import type { ToolModule, ToolDefinition } from "../types";
 import { authenticate, isAuthenticated, signOut } from "../../gmail/index";
 
 // =============================================================================
@@ -34,10 +34,28 @@ import {
   markAsRead,
   markAsUnread,
 } from "../../gmail/gmailClient";
-import {
-  GMAIL_SYSTEM_PROMPT,
-  GMAIL_NOT_CONNECTED_PROMPT,
-} from "../../../../src/prompts/gmail-tools";
+// Gmail system prompt — context only. The ToolRegistry auto-generates
+// <use_tool> invocation instructions for each tool listed below.
+
+const GMAIL_CONTEXT_PROMPT = `You have access to the user's Gmail inbox.
+
+When listing emails, format them clearly with:
+- Unread indicator (📩 = unread, ✅ = read)
+- Email number, subject, sender, and relative date
+- 📎 for attachments
+
+When showing a full email, provide:
+- TL;DR summary
+- From, Date, Subject
+- Key points and action items
+
+IMPORTANT:
+- Use the messageId from email data when calling getEmailDetails, markAsRead, or markAsUnread.
+- Do NOT guess email content — always call the tool first and wait for the result.
+- After receiving tool output, format it nicely for the user.
+`;
+
+const GMAIL_NOT_CONNECTED_PROMPT = `Note: The user has Gmail integration available but is not currently signed in. If they ask about emails, let them know they can connect their Gmail account in Settings.`;
 
 // =============================================================================
 // System Prompt
@@ -45,7 +63,7 @@ import {
 
 function getSystemPrompt(): string {
   try {
-    return isAuthenticated() ? GMAIL_SYSTEM_PROMPT : GMAIL_NOT_CONNECTED_PROMPT;
+    return isAuthenticated() ? GMAIL_CONTEXT_PROMPT : GMAIL_NOT_CONNECTED_PROMPT;
   } catch {
     return GMAIL_NOT_CONNECTED_PROMPT;
   }
@@ -199,51 +217,7 @@ const gmailTools: ToolDefinition[] = [
   },
 ];
 
-// =============================================================================
-// Action Patterns (for parsing LLM text responses)
-// =============================================================================
 
-const gmailActionPatterns: ActionPattern[] = [
-  {
-    pattern: /\[GMAIL_RECENT(?::(\d+))?\]/gi,
-    toolName: "getRecentEmails",
-    extractArgs: (m) => ({ count: m[1] ? parseInt(m[1]) : 10 }),
-  },
-  {
-    pattern: /\[GMAIL_SEARCH:([^\]]+)\]/gi,
-    toolName: "searchEmails",
-    extractArgs: (m) => {
-      // Support optional count at end: [GMAIL_SEARCH:from:john:15]
-      const parts = m[1].split(":");
-      const lastPart = parts[parts.length - 1];
-      const hasCount = /^\d+$/.test(lastPart) && parts.length > 1;
-      return {
-        query: hasCount ? parts.slice(0, -1).join(":") : m[1],
-        count: hasCount ? parseInt(lastPart) : 10,
-      };
-    },
-  },
-  {
-    pattern: /\[GMAIL_READ:(\d+)\]/gi,
-    toolName: "getEmailDetails",
-    extractArgs: (m) => ({ emailIndex: parseInt(m[1]) }),
-  },
-  {
-    pattern: /\[GMAIL_MARK_READ:(\d+)\]/gi,
-    toolName: "markAsRead",
-    extractArgs: (m) => ({ emailIndex: parseInt(m[1]) }),
-  },
-  {
-    pattern: /\[GMAIL_MARK_UNREAD:(\d+)\]/gi,
-    toolName: "markAsUnread",
-    extractArgs: (m) => ({ emailIndex: parseInt(m[1]) }),
-  },
-  {
-    pattern: /\[GMAIL_UNREAD(?::(\d+))?\]/gi,
-    toolName: "getRecentEmails",
-    extractArgs: (m) => ({ count: m[1] ? parseInt(m[1]) : 10 }),
-  },
-];
 
 // =============================================================================
 // Module Export
@@ -253,7 +227,7 @@ export class GmailModule implements ToolModule {
   name = "gmail";
   displayName = "Gmail";
   tools = gmailTools;
-  actionPatterns = gmailActionPatterns;
+  actionPatterns = [];
 
   getSystemPrompt = getSystemPrompt;
 

@@ -32,6 +32,7 @@ import {
   INTERNAL_CHAT_URL,
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
+  INTERNAL_SANDBOX_URL,
 } from "../types/types";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
 
@@ -173,6 +174,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL },
     { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL },
+    { id: "sandbox", label: "Tool Sandbox", icon: "Cpu", url: INTERNAL_SANDBOX_URL },
     {
       id: "bookmarks",
       label: "Bookmarks",
@@ -254,6 +256,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         );
       case "Lock":
         return <Lock className={className} />;
+      case "Cpu":
+        return <Cpu className={className} />;
       default:
         return <LayoutGrid className={className} />;
     }

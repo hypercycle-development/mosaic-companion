@@ -14,6 +14,7 @@ import { ToolRegistry } from "./registry";
 import { GmailModule } from "./modules/gmail";
 import { Web3Module } from "./modules/web3";
 import { VaultToolModule } from "./modules/vault-tools";
+import { toolManager } from "../sandbox";
 
 // =============================================================================
 // Registry Singleton
@@ -30,6 +31,8 @@ registry.register(new GmailModule());
 registry.register(new Web3Module());
 registry.register(new VaultToolModule());
 
+// Layer 2: Sandbox tools (WASM) — dynamically registered via ToolManager
+
 // =============================================================================
 // Lifecycle
 // =============================================================================
@@ -38,12 +41,24 @@ registry.register(new VaultToolModule());
 async function initializeTools(): Promise<void> {
   console.log("[Tools] Initializing tool registry...");
   await registry.initializeAll();
+
+  // Initialize sandbox tool manager with registry callbacks
+  await toolManager.initialize(
+    (module) => registry.register(module),
+    (name) => registry.unregister(name),
+  );
+
   console.log("[Tools] Registry ready");
 }
 
 /** Cleanup all modules. Call from app before-quit */
 async function cleanupTools(): Promise<void> {
   console.log("[Tools] Cleaning up...");
+
+  // Stop sandbox tools first
+  await toolManager.cleanup();
+
+  // Then clean up built-in modules
   await registry.cleanupAll();
 }
 

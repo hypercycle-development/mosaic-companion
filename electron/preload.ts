@@ -110,6 +110,35 @@ contextBridge.exposeInMainWorld("electronAPI", {
   sandbox: {
     getState: () => ipcRenderer.invoke("sandbox:get-state"),
   },
+  // Tool sandbox management (WASM tools)
+  toolSandbox: {
+    install: (wasmPath: string) =>
+      ipcRenderer.invoke("toolSandbox:install", wasmPath),
+    uninstall: (toolId: string) =>
+      ipcRenderer.invoke("toolSandbox:uninstall", toolId),
+    launch: (toolId: string) =>
+      ipcRenderer.invoke("toolSandbox:launch", toolId),
+    stop: (toolId: string) =>
+      ipcRenderer.invoke("toolSandbox:stop", toolId),
+    listInstalled: () =>
+      ipcRenderer.invoke("toolSandbox:listInstalled"),
+    listRunning: () =>
+      ipcRenderer.invoke("toolSandbox:listRunning"),
+    isAvailable: () =>
+      ipcRenderer.invoke("toolSandbox:isAvailable"),
+  },
+  // Chronicle (tool activity log)
+  chronicle: {
+    read: (toolId: string, query?: Record<string, unknown>) =>
+      ipcRenderer.invoke("chronicle:read", toolId, query),
+    hasEntries: (toolId: string) =>
+      ipcRenderer.invoke("chronicle:hasEntries", toolId),
+  },
+  // File dialog
+  dialog: {
+    openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) =>
+      ipcRenderer.invoke("dialog:open-file", options),
+  },
   // Window controls (for custom title bar)
   window: {
     minimize: () => ipcRenderer.invoke("window:minimize"),
