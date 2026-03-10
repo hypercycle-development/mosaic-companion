@@ -1,5 +1,5 @@
 {
-  "exclude": ["chat-server", "node_modules", "dist"],
+  "exclude": ["chat-server", "node_modules", "dist", "tests"],
   "compilerOptions": {
     "target": "ES2022",
     "experimentalDecorators": true,

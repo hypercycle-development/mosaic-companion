@@ -1,0 +1,42 @@
+{
+  "manifestVersion": "1.0.0",
+  "id": "count-vowels",
+  "version": "1.0.0",
+  "displayName": "Vowel Counter",
+  "description": "Counts the number of vowels in a given text string. A simple test tool for the WASM sandbox pipeline.",
+  "author": "MosAIc Team (test)",
+  "license": "MIT",
+
+  "runtime": {
+    "type": "wasm",
+    "entry": "count_vowels.wasm"
+  },
+
+  "permissions": {
+    "internet": false,
+    "allowed_domains": [],
+    "files": [],
+    "services": []
+  },
+
+  "resources": {
+    "memory": "16m",
+    "timeout": "10s"
+  },
+
+  "tools": {
+    "count_vowels": {
+      "description": "Count the number of vowels (a,e,i,o,u) in a text string.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The text to count vowels in"
+          }
+        },
+        "required": ["text"]
+      }
+    }
+  }
+}

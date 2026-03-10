@@ -1,9 +1,18 @@
-import { AIAgentConfig, ChatSession } from "./types/ai";
-import type { ChatSettings, ConnectionStatus, Room, StoredMessage, Member } from "./types/chat";
+import type { AIAgentConfig, ChatSession } from './types/ai';
+import type { ChatSettings, Room, StoredMessage, Member } from './types/chat';
+import type { ToolManifest, InstalledTool, ChronicleSource, ChronicleEntryType, ChronicleEntry, ChronicleQuery } from './electron/integrations/sandbox/types';
 
 declare global {
   // Vault types
   type BoxSourceType = "manual" | "import" | "connector";
+
+  // IPC-adapted variant of RunningTool: Date → string, ToolStatus → string (JSON transport)
+  interface RunningToolInfo {
+    toolId: string;
+    status: string;
+    startedAt: string;
+    manifest: ToolManifest;
+  }
 
   interface VaultBox {
     id: string;
@@ -287,6 +296,28 @@ declare global {
           connect: (config: any) => Promise<{ success: boolean; error?: string }>;
           disconnect: (server: string) => Promise<{ success: boolean }>;
           readResource: (server: string, uri: string) => Promise<{ success: boolean; result?: any; error?: string }>;
+      };
+
+      // Tool Sandbox (WASM tools)
+      toolSandbox: {
+        install: (wasmPath: string) => Promise<{ success: boolean; data?: { manifest: ToolManifest; installedAt: string; enabled: boolean; entryPath: string }; error?: string }>;
+        uninstall: (toolId: string) => Promise<{ success: boolean; error?: string }>;
+        launch: (toolId: string) => Promise<{ success: boolean; error?: string }>;
+        stop: (toolId: string) => Promise<{ success: boolean; error?: string }>;
+        listInstalled: () => Promise<{ success: boolean; data?: InstalledTool[] }>;
+        listRunning: () => Promise<{ success: boolean; data?: RunningToolInfo[] }>;
+        isAvailable: () => Promise<{ success: boolean; data?: boolean }>;
+      };
+
+      // Chronicle (tool activity log)
+      chronicle: {
+        read: (toolId: string, query?: ChronicleQuery) => Promise<{ success: boolean; data?: ChronicleEntry[]; error?: string }>;
+        hasEntries: (toolId: string) => Promise<{ success: boolean; data?: boolean }>;
+      };
+
+      // File dialog
+      dialog: {
+        openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string | null>;
       };
     };
 

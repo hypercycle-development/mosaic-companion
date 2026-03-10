@@ -35,6 +35,7 @@ export const INTERNAL_MCP_URL = "browser://mcp";
 export const INTERNAL_MULTI_CHAT_URL = "browser://multi-chat";
 export const INTERNAL_WEB3_URL = "browser://web3";
 export const INTERNAL_VAULT_URL = "browser://vault";
+export const INTERNAL_SANDBOX_URL = "browser://sandbox";
 export interface AppSettings {
   homeUrl: string;
   customGreeting: string;

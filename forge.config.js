@@ -56,6 +56,7 @@ export default {
             /^\/scripts$/,
             /^\/release$/,
             /^\/out$/,
+            /^\/tests$/,              // Test files and test tools
             // Config and dev files
             /\.md$/,
             /\.sh$/,
