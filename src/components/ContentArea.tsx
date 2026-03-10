@@ -8,6 +8,7 @@ import {
   INTERNAL_SETTINGS_URL,
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
+  INTERNAL_SANDBOX_URL,
   Tab,
 } from "../types/types";
 import { LandingPage } from "./LandingPage";
@@ -17,6 +18,7 @@ import { MCPPage } from "./MCPPage";
 import { ChatPage } from "./ChatPage";
 import { Web3Page } from "./Web3Page";
 import { VaultPage } from "./VaultPage";
+import { SandboxPage } from "./SandboxPage";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
 
@@ -394,6 +396,18 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     return (
       <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
         <VaultPage />
+      </div>
+    );
+  }
+
+  if (url === INTERNAL_SANDBOX_URL) {
+    useEffect(() => {
+      onUpdateTab({ title: "Tool Sandbox", isLoading: false, favicon: undefined });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
+        <SandboxPage />
       </div>
     );
   }
