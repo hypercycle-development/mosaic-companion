@@ -16,6 +16,7 @@ import type {
   AuditEntry,
   ToolManifest,
 } from "./types";
+import { chronicle } from "./chronicle";
 
 // =============================================================================
 // Manifest-Based Gatekeeper Policy
@@ -139,6 +140,15 @@ export class ManifestGatekeeperPolicy implements GatekeeperPolicy {
     console.log(
       `[Gatekeeper] ${icon} ${entry.action} ${entry.type}:${entry.resource} for tool "${entry.toolId}"` +
         (entry.reason ? ` — ${entry.reason}` : ""),
+    );
+
+    // Persist to Chronicle
+    chronicle.logAudit(
+      entry.toolId,
+      entry.resource,
+      entry.action,
+      entry.type,
+      entry.reason,
     );
   }
 
@@ -294,15 +304,20 @@ export function createHostFunctions(
       return data;
     },
 
-    // ─── LOGGING: append-only output ───
+    // ─── LOGGING: append-only output → Chronicle ───
     log(_ctx: HostFunctionContext, message: string): void {
       console.log(`[Tool:${toolId}] ${message}`);
-      // Future: append to Chronicle
+      chronicle.logTool(toolId, message);
     },
 
     write_output(_ctx: HostFunctionContext, data: string): void {
       console.log(`[Tool:${toolId}:output] ${data}`);
-      // Future: append to Chronicle
+      try {
+        const parsed = JSON.parse(data);
+        chronicle.writeOutput(toolId, parsed);
+      } catch {
+        chronicle.writeOutput(toolId, { raw: data });
+      }
     },
   };
 }
