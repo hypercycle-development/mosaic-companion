@@ -102,15 +102,6 @@ Agent identity flows through the tool execution pipeline. Used by tools like Vau
 
 All main↔renderer communication goes through `preload.ts` via `ipcRenderer.invoke()`.
 
-## Phase 1 Tickets (Linear)
-
-| Ticket  | Status             | Description                          |
-| ------- | ------------------ | ------------------------------------ |
-| HYP-652 | ✅ Implemented     | Sandbox architecture + WASM launcher |
-| HYP-660 | ✅ Merged into 652 | Gatekeeper (host functions for WASM) |
-| HYP-664 | 🔲 Next            | Chronicle (append-only tool logging) |
-| HYP-663 | 🔲 Planned         | Tool Download UI                     |
-
 ## Don'ts
 
 - **Don't** add Extism/WASM calls outside of `sandbox/wasm-launcher.ts`
