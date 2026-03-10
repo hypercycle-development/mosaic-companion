@@ -11,8 +11,12 @@
  */
 
 import { resolve } from "path";
+import { mkdtempSync, rmSync, readFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import createPlugin from "@extism/extism";
 import { ManifestGatekeeperPolicy } from "../../../electron/integrations/sandbox/gatekeeper";
+import { Chronicle, setChronicleInstance } from "../../../electron/integrations/sandbox/chronicle";
 import type { ToolManifest } from "../../../electron/integrations/sandbox/types";
 
 // =============================================================================
@@ -152,6 +156,135 @@ function testGatekeeper() {
 }
 
 // =============================================================================
+// Test the Chronicle module
+// =============================================================================
+
+function testChronicle() {
+  console.log("\n=== Test 3: Chronicle — append-only JSONL log ===\n");
+
+  // Use a temp directory so the test is self-contained
+  const tmpDir = mkdtempSync(join(tmpdir(), "mosaic-chronicle-test-"));
+  const c = new Chronicle(tmpDir);
+
+  // Inject as singleton so gatekeeper host functions write here too
+  setChronicleInstance(c);
+
+  try {
+    const toolId = "test-chronicle-tool";
+
+    // --- Write entries ---
+    c.logLifecycle(toolId, "launched", { version: "1.0.0" });
+    c.logTool(toolId, "Starting analysis...");
+    c.writeOutput(toolId, { result: "42 vowels found", confidence: 0.99 });
+    c.logAudit(toolId, "api.openai.com", "ALLOW", "domain");
+    c.logAudit(toolId, "evil.com", "DENY", "domain", "Not in allowlist");
+    c.logLifecycle(toolId, "stopped");
+
+    console.log(`✅ Wrote 6 entries to: ${c.getPath(toolId)}`);
+
+    // --- Verify the JSONL file exists and has 6 lines ---
+    const raw = readFileSync(c.getPath(toolId), "utf-8");
+    const lines = raw.split("\n").filter((l) => l.trim().length > 0);
+    if (lines.length !== 6) throw new Error(`Expected 6 lines, got ${lines.length}`);
+    console.log(`✅ JSONL file has 6 lines`);
+
+    // --- Verify each line is valid JSON ---
+    const entries = lines.map((l) => JSON.parse(l));
+    console.log(`✅ All lines are valid JSON`);
+
+    // --- Verify entry structure ---
+    const first = entries[0];
+    if (!first.id || !first.timestamp || !first.source || !first.type || !first.data) {
+      throw new Error("Entry missing required fields");
+    }
+    console.log(`✅ Entry structure valid: { id, timestamp, source, type, data }`);
+
+    // --- Verify sources ---
+    const sources = entries.map((e: {source: string}) => e.source);
+    if (!sources.includes("core")) throw new Error("Missing core source");
+    if (!sources.includes("tool")) throw new Error("Missing tool source");
+    if (!sources.includes("gatekeeper")) throw new Error("Missing gatekeeper source");
+    console.log(`✅ All three sources present: core, tool, gatekeeper`);
+
+    // --- Read with filters ---
+    const all = c.read(toolId);
+    if (all.length !== 6) throw new Error(`read() returned ${all.length}, expected 6`);
+    console.log(`✅ read() returns all 6 entries`);
+
+    const auditOnly = c.read(toolId, { type: "audit" });
+    if (auditOnly.length !== 2) throw new Error(`Expected 2 audit entries, got ${auditOnly.length}`);
+    console.log(`✅ read({ type: "audit" }) returns 2 entries`);
+
+    const gatekeeperOnly = c.read(toolId, { source: "gatekeeper" });
+    if (gatekeeperOnly.length !== 2) throw new Error(`Expected 2 gatekeeper entries`);
+    console.log(`✅ read({ source: "gatekeeper" }) returns 2 entries`);
+
+    const limited = c.read(toolId, { limit: 2 });
+    if (limited.length !== 2) throw new Error(`limit: 2 returned ${limited.length}`);
+    console.log(`✅ read({ limit: 2 }) respects limit`);
+
+    // --- hasEntries ---
+    if (!c.hasEntries(toolId)) throw new Error("hasEntries() returned false");
+    if (c.hasEntries("nonexistent-tool")) throw new Error("hasEntries() should return false for unknown tool");
+    console.log(`✅ hasEntries() works correctly`);
+
+    // --- Verify gatekeeper logDecision() auto-writes via setChronicleInstance ---
+    const policy = new ManifestGatekeeperPolicy();
+    const manifest: ToolManifest = {
+      manifestVersion: "1.0.0",
+      id: "gatekeeper-chronicle-tool",
+      version: "1.0.0",
+      displayName: "GK Chronicle Test",
+      description: "Tests gatekeeper → chronicle wiring",
+      runtime: { type: "wasm", entry: "test.wasm" },
+      permissions: {
+        internet: true,
+        allowed_domains: ["httpbin.org"],
+        files: [],
+        services: [],
+      },
+      resources: { memory: "64m", timeout: "10s" },
+      tools: {},
+    };
+    policy.registerTool(manifest);
+
+    // logDecision() is what the http_request host function calls after checkDomain.
+    // Test that it auto-persists to Chronicle.
+    policy.logDecision({
+      timestamp: new Date().toISOString(),
+      toolId: "gatekeeper-chronicle-tool",
+      resource: "httpbin.org",
+      action: "ALLOW",
+      type: "domain",
+    });
+    policy.logDecision({
+      timestamp: new Date().toISOString(),
+      toolId: "gatekeeper-chronicle-tool",
+      resource: "evil.com",
+      action: "DENY",
+      reason: "Not in allowlist",
+      type: "domain",
+    });
+
+    const gkEntries = c.read("gatekeeper-chronicle-tool", { source: "gatekeeper" });
+    if (gkEntries.length !== 2) {
+      throw new Error(`Expected gatekeeper to write 2 audit entries, got ${gkEntries.length}`);
+    }
+    const allow = gkEntries.find((e) => (e.data as {action: string}).action === "ALLOW");
+    const deny = gkEntries.find((e) => (e.data as {action: string}).action === "DENY");
+    if (!allow || !deny) throw new Error("Missing ALLOW or DENY entry");
+    console.log(`✅ Gatekeeper auto-writes to Chronicle on domain decisions`);
+    console.log(`   ALLOW: ${(allow.data as {resource: string}).resource}`);
+    console.log(`   DENY:  ${(deny.data as {resource: string}).resource} — ${(deny.data as {reason: string}).reason}`);
+
+    console.log("\n✅ All Chronicle tests passed!");
+  } finally {
+    // Cleanup temp dir
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+// =============================================================================
 // Run all tests
 // =============================================================================
 
@@ -162,6 +295,7 @@ async function main() {
   try {
     await testWasmDirect();
     testGatekeeper();
+    testChronicle();
 
     console.log("\n=========================================");
     console.log("✅ All tests passed! Pipeline is working.");
