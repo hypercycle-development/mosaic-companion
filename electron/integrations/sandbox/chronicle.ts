@@ -207,6 +207,3 @@ export function getChronicle(): Chronicle {
 export function setChronicleInstance(c: Chronicle): void {
   _instance = c;
 }
-
-/** @deprecated use getChronicle() — kept for backwards compat during transition */
-export const chronicle = { get: getChronicle };
