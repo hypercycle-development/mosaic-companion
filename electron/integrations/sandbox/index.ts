@@ -15,9 +15,11 @@ import { app, ipcMain } from "electron";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import type { ToolModule } from "../tools/types";
-import type { ToolManifest, InstalledTool, ToolLauncher, RunningTool } from "./types";
+import type { InstalledTool, ToolLauncher, RunningTool } from "./types";
 import { WasmLauncher } from "./wasm-launcher";
 import { createToolBridge } from "./tool-bridge";
+import { chronicle } from "./chronicle";
+import type { ChronicleQuery } from "./types";
 
 // =============================================================================
 // Tool Manager
@@ -89,10 +91,14 @@ export class ToolManager {
   // ---------------------------------------------------------------------------
 
   /**
-   * Install a tool from its manifest.
-   * Saves the manifest and .wasm file path for later launching.
+   * Install a tool from its WASM file.
+   * Extracts the manifest from the binary via mosaic_manifest(), then persists.
+   * The manifest embedded in the WASM is the single source of truth.
    */
-  installTool(manifest: ToolManifest, wasmFilePath: string): InstalledTool {
+  async installTool(wasmFilePath: string): Promise<InstalledTool> {
+    // Extract manifest directly from the WASM binary
+    const manifest = await this.launcher.extractManifest(wasmFilePath);
+
     if (this.installed.has(manifest.id)) {
       throw new Error(`Tool "${manifest.id}" is already installed`);
     }
@@ -137,6 +143,7 @@ export class ToolManager {
 
   /**
    * Launch an installed tool and register it in the ToolRegistry.
+   * Re-extracts the manifest from the WASM binary to ensure integrity.
    */
   async launchTool(toolId: string): Promise<RunningTool> {
     const installed = this.installed.get(toolId);
@@ -149,20 +156,20 @@ export class ToolManager {
       throw new Error(`Tool "${toolId}" is already running`);
     }
 
-    // Update manifest with the actual file path
-    const manifestWithPath = {
-      ...installed.manifest,
-      runtime: {
-        ...installed.manifest.runtime,
-        entry: installed.entryPath,
-      },
-    };
+    // Re-extract the manifest from the WASM binary (source of truth)
+    const manifest = await this.launcher.extractManifest(installed.entryPath);
 
     // Launch via the ToolLauncher (WasmLauncher)
-    const runningTool = await this.launcher.launch(manifestWithPath);
+    const runningTool = await this.launcher.launch(manifest);
+
+    // Log lifecycle event
+    chronicle.logLifecycle(toolId, "launched", {
+      version: manifest.version,
+      runtime: manifest.runtime.type,
+    });
 
     // Create a ToolModule bridge
-    const bridge = createToolBridge(manifestWithPath, this.launcher);
+    const bridge = createToolBridge(manifest, this.launcher);
 
     this.bridges.set(moduleName, bridge);
 
@@ -196,6 +203,9 @@ export class ToolManager {
     await this.launcher.stop(toolId);
     this.bridges.delete(moduleName);
 
+    // Log lifecycle event
+    chronicle.logLifecycle(toolId, "stopped");
+
     console.log(`[ToolManager] Stopped: ${toolId}`);
   }
 
@@ -220,9 +230,9 @@ export class ToolManager {
   // ---------------------------------------------------------------------------
 
   private registerIPC(): void {
-    ipcMain.handle("toolSandbox:install", async (_event, manifest: ToolManifest, wasmPath: string) => {
+    ipcMain.handle("toolSandbox:install", async (_event, wasmPath: string) => {
       try {
-        return { success: true, data: this.installTool(manifest, wasmPath) };
+        return { success: true, data: await this.installTool(wasmPath) };
       } catch (err) {
         return { success: false, error: (err as Error).message };
       }
@@ -267,6 +277,27 @@ export class ToolManager {
       const available = await this.launcher.isAvailable();
       return { success: true, data: available };
     });
+
+    // ─── Chronicle IPC ───
+
+    ipcMain.handle(
+      "chronicle:read",
+      async (_event, toolId: string, query?: ChronicleQuery) => {
+        try {
+          const entries = chronicle.read(toolId, query);
+          return { success: true, data: entries };
+        } catch (err) {
+          return { success: false, error: (err as Error).message };
+        }
+      },
+    );
+
+    ipcMain.handle(
+      "chronicle:hasEntries",
+      async (_event, toolId: string) => {
+        return { success: true, data: chronicle.hasEntries(toolId) };
+      },
+    );
   }
 
   // ---------------------------------------------------------------------------

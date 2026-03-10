@@ -78,7 +78,8 @@ All tools (built-in, MCP, sandboxed WASM) implement the `ToolModule` interface. 
 ### Sandbox tool flow
 
 ```
-manifest.json + tool.wasm → ToolManager.installTool()
+tool.wasm → ToolManager.installTool(wasmPath)
+  → WasmLauncher.extractManifest() calls mosaic_manifest() export → ToolManifest
   → ToolManager.launchTool() → WasmLauncher.launch()
     → Extism loads .wasm + injects host functions (gated by GatekeeperPolicy)
     → createToolBridge() → ToolModule registered in ToolRegistry

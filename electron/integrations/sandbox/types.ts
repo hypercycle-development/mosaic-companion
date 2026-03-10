@@ -138,6 +138,13 @@ export interface RunningTool {
  * When Docker is needed, implement DockerLauncher — nothing else changes.
  */
 export interface ToolLauncher {
+  /**
+   * Extract the manifest embedded in a tool binary.
+   * For WASM tools this calls the exported mosaic_manifest() function.
+   * The manifest inside the binary is the single source of truth.
+   */
+  extractManifest(entryPath: string): Promise<ToolManifest>;
+
   /** Load and start a tool from its manifest. */
   launch(manifest: ToolManifest): Promise<RunningTool>;
 
@@ -227,6 +234,44 @@ export interface GatekeeperPolicy {
 export interface GatekeeperDecision {
   allowed: boolean;
   reason?: string;
+}
+
+// =============================================================================
+// Chronicle (Append-Only Tool Output)
+// =============================================================================
+
+/** Sources that can write to a tool's Chronicle */
+export type ChronicleSource = "tool" | "gatekeeper" | "core";
+
+/** Types of chronicle entries */
+export type ChronicleEntryType = "log" | "output" | "audit" | "lifecycle";
+
+/** A single entry in a tool's chronicle (one JSONL line) */
+export interface ChronicleEntry {
+  /** Unique entry ID */
+  id: string;
+  /** ISO timestamp */
+  timestamp: string;
+  /** Who wrote this entry */
+  source: ChronicleSource;
+  /** Entry category */
+  type: ChronicleEntryType;
+  /** Structured data payload */
+  data: Record<string, unknown>;
+}
+
+/** Options for querying chronicle entries */
+export interface ChronicleQuery {
+  /** Filter by source */
+  source?: ChronicleSource;
+  /** Filter by entry type */
+  type?: ChronicleEntryType;
+  /** Only entries after this ISO timestamp */
+  after?: string;
+  /** Only entries before this ISO timestamp */
+  before?: string;
+  /** Maximum number of entries to return (default: 100) */
+  limit?: number;
 }
 
 // =============================================================================

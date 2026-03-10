@@ -112,8 +112,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   // Tool sandbox management (WASM tools)
   toolSandbox: {
-    install: (manifest: Record<string, unknown>, wasmPath: string) =>
-      ipcRenderer.invoke("toolSandbox:install", manifest, wasmPath),
+    install: (wasmPath: string) =>
+      ipcRenderer.invoke("toolSandbox:install", wasmPath),
     uninstall: (toolId: string) =>
       ipcRenderer.invoke("toolSandbox:uninstall", toolId),
     launch: (toolId: string) =>

@@ -53,6 +53,49 @@ export class WasmLauncher implements ToolLauncher {
   // ToolLauncher interface
   // ---------------------------------------------------------------------------
 
+  /**
+   * Extract the manifest from a WASM binary by calling its mosaic_manifest() export.
+   * This is the single source of truth — no external manifest file is trusted.
+   */
+  async extractManifest(wasmPath: string): Promise<ToolManifest> {
+    console.log(`[WasmLauncher] Extracting manifest from: ${wasmPath}`);
+
+    const wasmSource = this.resolveWasmSourceFromPath(wasmPath);
+
+    // Load the plugin temporarily with no host functions — just to read the manifest
+    const plugin = await createPlugin(wasmSource, { useWasi: true });
+
+    try {
+      const result = await plugin.call("mosaic_manifest");
+      if (!result) {
+        throw new Error(
+          "WASM module does not export mosaic_manifest() or it returned no data",
+        );
+      }
+
+      const manifestJson = result.text();
+      let manifest: ToolManifest;
+
+      try {
+        manifest = JSON.parse(manifestJson) as ToolManifest;
+      } catch {
+        throw new Error("mosaic_manifest() returned invalid JSON");
+      }
+
+      this.validateManifest(manifest);
+
+      // Override runtime.entry with the actual file path we loaded from
+      manifest.runtime.entry = wasmPath;
+
+      console.log(
+        `[WasmLauncher] Extracted manifest for "${manifest.id}" v${manifest.version}`,
+      );
+      return manifest;
+    } finally {
+      await plugin.close();
+    }
+  }
+
   async launch(manifest: ToolManifest): Promise<RunningTool> {
     console.log(`[WasmLauncher] Loading tool: ${manifest.id}`);
 
@@ -191,14 +234,10 @@ export class WasmLauncher implements ToolLauncher {
   // ---------------------------------------------------------------------------
 
   /**
-   * Resolve the WASM source from the manifest.
+   * Resolve the WASM source from a file path.
    * Returns the Uint8Array of the WASM binary.
    */
-  private resolveWasmSource(manifest: ToolManifest): Uint8Array {
-    const wasmPath = manifest.runtime.entry;
-
-    // If it's a URL, let Extism handle it
-    // For now, we only support local file paths
+  private resolveWasmSourceFromPath(wasmPath: string): Uint8Array {
     try {
       const buffer = readFileSync(wasmPath);
       return new Uint8Array(buffer);
@@ -207,6 +246,14 @@ export class WasmLauncher implements ToolLauncher {
         `Failed to load WASM file "${wasmPath}": ${(err as Error).message}`,
       );
     }
+  }
+
+  /**
+   * Resolve the WASM source from the manifest.
+   * Returns the Uint8Array of the WASM binary.
+   */
+  private resolveWasmSource(manifest: ToolManifest): Uint8Array {
+    return this.resolveWasmSourceFromPath(manifest.runtime.entry);
   }
 
   /**
@@ -275,5 +322,43 @@ export class WasmLauncher implements ToolLauncher {
     if (unit === "ms") return value;
     if (unit === "m") return value * 60_000;
     return value * 1000; // seconds
+  }
+
+  /**
+   * Validate that a manifest extracted from WASM has all required fields.
+   * Throws if the manifest is invalid.
+   */
+  private validateManifest(manifest: ToolManifest): void {
+    const required: (keyof ToolManifest)[] = [
+      "manifestVersion",
+      "id",
+      "version",
+      "displayName",
+      "description",
+      "runtime",
+      "permissions",
+      "resources",
+      "tools",
+    ];
+
+    for (const field of required) {
+      if (manifest[field] === undefined || manifest[field] === null) {
+        throw new Error(`Manifest missing required field: "${field}"`);
+      }
+    }
+
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(manifest.id)) {
+      throw new Error(
+        `Manifest id "${manifest.id}" must be kebab-case (e.g. "my-tool")`,
+      );
+    }
+
+    if (!manifest.runtime?.type) {
+      throw new Error('Manifest missing runtime.type (expected "wasm" or "docker")');
+    }
+
+    if (!manifest.tools || Object.keys(manifest.tools).length === 0) {
+      throw new Error("Manifest must declare at least one tool function");
+    }
   }
 }
