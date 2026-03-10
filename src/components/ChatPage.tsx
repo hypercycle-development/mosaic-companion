@@ -30,6 +30,7 @@ export const ChatPage: React.FC = () => {
   const [newRoomName, setNewRoomName] = useState("");
   const [showNewRoom, setShowNewRoom] = useState(false);
   const [messageInput, setMessageInput] = useState("");
+  const [vaultError, setVaultError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -185,7 +186,12 @@ export const ChatPage: React.FC = () => {
         [activeRoomId]: (prev[activeRoomId] ?? []).filter((id) => id !== agentId),
       }));
     } else {
-      await window.chatAPI?.assignAgent(activeRoomId, agentId, agentName);
+      const result = await window.chatAPI?.assignAgent(activeRoomId, agentId, agentName);
+      if (result && !result.success) {
+        setVaultError(result.error ?? "Vault access required");
+        return;
+      }
+      setVaultError(null);
       setAssignedAgents((prev) => ({
         ...prev,
         [activeRoomId]: [...(prev[activeRoomId] ?? []), agentId],
@@ -522,6 +528,11 @@ export const ChatPage: React.FC = () => {
               })}
               {allAgents.length === 0 && (
                 <p className="text-xs text-gray-600">No agents configured</p>
+              )}
+              {vaultError && (
+                <div className="mt-2 p-2 bg-red-950/40 border border-red-800/40 rounded-lg">
+                  <p className="text-[10px] text-red-400 leading-snug">{vaultError}</p>
+                </div>
               )}
             </div>
           ) : (

@@ -62,6 +62,7 @@ export async function callActiveLLM(
   prompt: string,
   systemPrompt?: string,
   agentId?: string,
+  apiKeyOverride?: string,
 ): Promise<string | null> {
   const agent = agentId ? readAgentById(agentId) : readActiveAgent();
   if (!agent) {
@@ -73,21 +74,25 @@ export async function callActiveLLM(
     return null;
   }
 
-  console.log(`[MosaicBot/LLM] Using agent "${agent.name}" (${agent.provider}/${agent.model})`);
+  const effectiveAgent = apiKeyOverride
+    ? { ...agent, apiKey: apiKeyOverride }
+    : agent;
+
+  console.log(`[MosaicBot/LLM] Using agent "${agent.name}" (${agent.provider}/${agent.model})${apiKeyOverride ? " [vault key]" : ""}`);
 
   try {
-    switch (agent.provider) {
+    switch (effectiveAgent.provider) {
       case "claude":
-        return await callClaude(agent, [{ role: "user", content: prompt }], systemPrompt);
+        return await callClaude(effectiveAgent, [{ role: "user", content: prompt }], systemPrompt);
       case "openai":
       case "custom":
-        return await callOpenAI(agent, [{ role: "user", content: prompt }], systemPrompt);
+        return await callOpenAI(effectiveAgent, [{ role: "user", content: prompt }], systemPrompt);
       case "gemini":
-        return await callGemini(agent, [{ role: "user", content: prompt }]);
+        return await callGemini(effectiveAgent, [{ role: "user", content: prompt }]);
       case "ollama":
-        return await callOllama(agent, [{ role: "user", content: prompt }], systemPrompt);
+        return await callOllama(effectiveAgent, [{ role: "user", content: prompt }], systemPrompt);
       default:
-        throw new Error(`Unknown provider: ${(agent as AgentConfig).provider}`);
+        throw new Error(`Unknown provider: ${(effectiveAgent as AgentConfig).provider}`);
     }
   } catch (e) {
     console.error(`[MosaicBot/LLM] Call failed (${agent.provider}):`, e);

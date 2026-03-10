@@ -212,15 +212,21 @@ export function initChat(): void {
     "chat:assign-agent",
     async (_e: IpcMainInvokeEvent, roomId: string, agentId: string, agentName: string) => {
       const settings = readSettings();
+
+      // Try to start the agent (vault gate enforced inside)
+      if (settings.serverUrl) {
+        const result = startAgentInRoom(settings.serverUrl, roomId, agentId, agentName);
+        if (!result.success) {
+          return { success: false, error: result.error };
+        }
+      }
+
       const assignments = readAssignments();
       if (!assignments[roomId]) assignments[roomId] = [];
       if (!assignments[roomId].includes(agentId)) {
         assignments[roomId].push(agentId);
       }
       writeAssignments(assignments);
-      if (settings.serverUrl) {
-        startAgentInRoom(settings.serverUrl, roomId, agentId, agentName);
-      }
       return { success: true };
     },
   );
