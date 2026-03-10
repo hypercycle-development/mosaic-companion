@@ -16,7 +16,7 @@ import type {
   AuditEntry,
   ToolManifest,
 } from "./types";
-import { chronicle } from "./chronicle";
+import { getChronicle } from "./chronicle";
 
 // =============================================================================
 // Manifest-Based Gatekeeper Policy
@@ -143,7 +143,7 @@ export class ManifestGatekeeperPolicy implements GatekeeperPolicy {
     );
 
     // Persist to Chronicle
-    chronicle.logAudit(
+    getChronicle().logAudit(
       entry.toolId,
       entry.resource,
       entry.action,
@@ -307,16 +307,16 @@ export function createHostFunctions(
     // ─── LOGGING: append-only output → Chronicle ───
     log(_ctx: HostFunctionContext, message: string): void {
       console.log(`[Tool:${toolId}] ${message}`);
-      chronicle.logTool(toolId, message);
+      getChronicle().logTool(toolId, message);
     },
 
     write_output(_ctx: HostFunctionContext, data: string): void {
       console.log(`[Tool:${toolId}:output] ${data}`);
       try {
         const parsed = JSON.parse(data);
-        chronicle.writeOutput(toolId, parsed);
+        getChronicle().writeOutput(toolId, parsed);
       } catch {
-        chronicle.writeOutput(toolId, { raw: data });
+        getChronicle().writeOutput(toolId, { raw: data });
       }
     },
   };

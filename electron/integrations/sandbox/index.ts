@@ -18,7 +18,7 @@ import type { ToolModule } from "../tools/types";
 import type { InstalledTool, ToolLauncher, RunningTool } from "./types";
 import { WasmLauncher } from "./wasm-launcher";
 import { createToolBridge } from "./tool-bridge";
-import { chronicle } from "./chronicle";
+import { getChronicle } from "./chronicle";
 import type { ChronicleQuery } from "./types";
 
 // =============================================================================
@@ -163,7 +163,7 @@ export class ToolManager {
     const runningTool = await this.launcher.launch(manifest);
 
     // Log lifecycle event
-    chronicle.logLifecycle(toolId, "launched", {
+    getChronicle().logLifecycle(toolId, "launched", {
       version: manifest.version,
       runtime: manifest.runtime.type,
     });
@@ -204,7 +204,7 @@ export class ToolManager {
     this.bridges.delete(moduleName);
 
     // Log lifecycle event
-    chronicle.logLifecycle(toolId, "stopped");
+    getChronicle().logLifecycle(toolId, "stopped");
 
     console.log(`[ToolManager] Stopped: ${toolId}`);
   }
@@ -284,7 +284,7 @@ export class ToolManager {
       "chronicle:read",
       async (_event, toolId: string, query?: ChronicleQuery) => {
         try {
-          const entries = chronicle.read(toolId, query);
+          const entries = getChronicle().read(toolId, query);
           return { success: true, data: entries };
         } catch (err) {
           return { success: false, error: (err as Error).message };
@@ -295,7 +295,7 @@ export class ToolManager {
     ipcMain.handle(
       "chronicle:hasEntries",
       async (_event, toolId: string) => {
-        return { success: true, data: chronicle.hasEntries(toolId) };
+        return { success: true, data: getChronicle().hasEntries(toolId) };
       },
     );
   }
