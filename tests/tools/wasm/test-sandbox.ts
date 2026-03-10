@@ -1,13 +1,26 @@
 /**
  * Test Script: WASM Sandbox Pipeline
  *
- * Tests the WasmLauncher + Gatekeeper flow directly, without Electron.
- * Run: npx tsx test-tool-wasm/test-sandbox.ts
+ * Tests the WasmLauncher + Gatekeeper + Chronicle flow directly, without Electron.
+ * Run: npx tsx tests/tools/wasm/test-sandbox.ts
  *
  * What it tests:
- * 1. WasmLauncher loads a .wasm file
- * 2. Calling an exported function returns results
- * 3. GatekeeperPolicy correctly allows/denies domains
+ * 1. WasmLauncher loads a .wasm file and calls an exported function
+ * 2. GatekeeperPolicy correctly allows/denies domains, files, and services
+ * 3. Chronicle writes append-only JSONL entries and supports filtered reads
+ *
+ * TODO(testing): Migrate to Vitest.
+ * Vitest is the right fit — the project already uses Vite, so config is shared,
+ * ESNext modules work natively, and `vi.mock("electron", ...)` cleanly replaces
+ * the current setChronicleInstance() workaround for Electron deps.
+ *
+ * Migration steps:
+ *   1. `npm install -D vitest` (devDependency only, never bundled)
+ *   2. Add `vitest.config.ts` at project root with `environment: "node"`
+ *      and `exclude: ["electron/**", "src/**"]`
+ *   3. Rename this file to `test-sandbox.test.ts`
+ *   4. Replace manual `if/throw` assertions with `expect()` from "vitest"
+ *   5. Add `"test": "vitest run"` and `"test:watch": "vitest"` to package.json scripts
  */
 
 import { resolve } from "path";
