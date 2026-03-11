@@ -31,6 +31,7 @@ import {
   getMCPSystemPrompt,
 } from "../services/ActionParser";
 import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import { INTERNAL_SETTINGS_URL } from "../types/types";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
 import { ToolUIRenderer } from "./tool-ui";
@@ -90,19 +91,20 @@ const RenderMessageContent: React.FC<{ content: string; role: "assistant" | "use
       const toolArgs = toolMatch[3].trim();
       return (
         <>
-          {cleanText && <ReactMarkdown>{cleanText}</ReactMarkdown>}
+          {cleanText && <ReactMarkdown remarkPlugins={[remarkBreaks]}>{cleanText}</ReactMarkdown>}
           <ToolChip label={`Called ${toolLabel}`} detail={toolArgs || "{}"} />
         </>
       );
     }
-    return <ReactMarkdown>{content}</ReactMarkdown>;
+    return <ReactMarkdown remarkPlugins={[remarkBreaks]}>{content}</ReactMarkdown>;
   }
 
   // User messages — check for [Tool Output for ...]
   const toolOutputMatch = content.match(/^\[Tool Output for ([^\]]+)\]\n?([\s\S]*)$/);
   if (toolOutputMatch) {
     const toolName = toolOutputMatch[1];
-    const outputBody = toolOutputMatch[2].trim();
+    // Strip the [Instruction: ...] tag — it's for the AI, not the user
+    const outputBody = toolOutputMatch[2].replace(/\n*\[Instruction:[^\]]*\]$/, "").trim();
     return <ToolChip label={`Output from ${toolName}`} detail={outputBody || "(empty)"} />;
   }
 
@@ -401,23 +403,34 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
 
     let fullResponse = "";
-    // If it's a tool output (depth > 0), we don't start with empty streaming content necessarily, 
-    // but the UI expects `streamingContent` to be the *current* generation.
-    // However, previous messages are already in `currentMessages`.
-    
+
     try {
       await AIService.sendMessage(selectedAgent!, currentMessages, {
         onToken: (token) => {
           fullResponse += token;
-          // If depth > 0, we might want to differentiate visually, but for now simple streaming check
-          setStreamingContent(prev => depth === 0 ? fullResponse : prev + token);
-          // Actually, setStreamingContent usually replaces the content of the "ghost" message being generated.
-          // In a recursive flow, the previous assistant message is already "committed" to the chat history.
-          // So we only stream the *current* response.
-          setStreamingContent(fullResponse);
+
+          // Detect <use_tool> during streaming so the UI transitions smoothly
+          // instead of flashing the raw XML + hallucinated data then replacing it.
+          const tagStart = fullResponse.indexOf('<use_tool');
+          if (tagStart >= 0) {
+            const preamble = fullResponse.substring(0, tagStart).trim();
+            const nameMatch = fullResponse.match(/<use_tool\s+server="[^"]*"\s+tool="([^"]*)"/);
+            const toolName = nameMatch ? nameMatch[1].replace(/_/g, ' ') : '';
+            const indicator = toolName ? `🛠️ Calling ${toolName}...` : '🛠️ Preparing tool call...';
+
+            // Hide preamble if it contains suspected hallucinated numbers
+            const hasNumbers = /\$[\d,.]+|\d+\.\d+%|\d{2,}[,.]\d/.test(preamble);
+            if (hasNumbers || !preamble) {
+              setStreamingContent(indicator);
+            } else {
+              const cleanLines = preamble.split('\n').filter(l => l.trim()).slice(0, 2).join('\n');
+              setStreamingContent(cleanLines ? `${cleanLines}\n\n${indicator}` : indicator);
+            }
+          } else {
+            setStreamingContent(fullResponse);
+          }
         },
         onComplete: async (response) => {
-          // 1. Commit the Assistant's response to the session
           const assistantMsg: ChatMessage = {
             id: `msg-${Date.now()}`,
             role: "assistant",
@@ -426,48 +439,57 @@ export const ChatView: React.FC<ChatViewProps> = ({
             agentId: selectedAgent!.id,
           };
 
-          const messagesWithAssistant = [...currentMessages, assistantMsg];
-          const sessionWithAssistant = {
-            ...currentSession,
-            messages: messagesWithAssistant,
-            updatedAt: Date.now(),
-          };
-
-          // Update state & save
-          setSessions((prev) =>
-            prev.map((s) => (s.id === currentSession.id ? sessionWithAssistant : s))
-          );
-          await saveSession(sessionWithAssistant);
-
-          // 2. Check for Actions
+          // Check for tool call BEFORE committing — avoids the flash caused by
+          // committing the raw response then immediately replacing it.
           const action = parseAction(response);
 
           if (action.type === "TOOL_CALL") {
-             setStreamingContent("🛠️ Executing " + action.params?.tool + "...");
-             
+             const toolLabel = action.params?.tool?.replace(/_/g, ' ') || 'tool';
+
+             // Use only text BEFORE the <use_tool> tag as preamble.
+             // cleanResponse includes text AFTER </use_tool> which often contains
+             // hallucinated data (e.g. "$97,336") that would poison the number check.
+             const tagIndex = response.indexOf('<use_tool');
+             const preToolText = tagIndex >= 0 ? response.substring(0, tagIndex).trim() : '';
+             const preambleLines = preToolText
+               .split('\n').filter(line => line.trim().length > 0).slice(0, 3).join('\n');
+             const hasHallucinatedData = /\$[\d,.]+|\d+\.\d+%|\d{2,}[,.]\d/.test(preambleLines);
+             const safeContent = hasHallucinatedData
+               ? `Checking ${toolLabel}...`
+               : (preambleLines || `Checking ${toolLabel}...`);
+
+             const cleanedAssistantMsg: ChatMessage = {
+               ...assistantMsg,
+               content: safeContent + '\n' + (action.rawTag || ''),
+             };
+
+             // Keep streaming indicator while tool executes
+             setStreamingContent(`🛠️ Executing ${toolLabel}...`);
+
              const result = await executeToolCall(action, selectedAgent!.id);
-             
-             // Create User Message (Tool Output)
+
+             // Create Tool Output message
              const toolMsg: ChatMessage = {
                  id: `msg-${Date.now() + 1}`,
                  role: "user",
-                 content: `[Tool Output for ${action.params?.server}:${action.params?.tool}]\n${result.text}`,
+                 content: `[Tool Output for ${action.params?.server}:${action.params?.tool}]\n${result.text}\n\n[Instruction: Use ONLY the data above. Respond in 1-2 sentences. Do not add data from your training — only from this tool output.]`,
                  timestamp: Date.now(),
                  agentId: selectedAgent!.id,
                  uiBlocks: result.uiBlocks,
                  displayHint: result.displayHint,
              };
-             
-             const nextMessages = [...messagesWithAssistant, toolMsg];
+
+             // Commit cleaned assistant message + tool output together (single render)
+             const nextMessages = [...currentMessages, cleanedAssistantMsg, toolMsg];
              const nextSession = {
-                 ...sessionWithAssistant,
+                 ...currentSession,
                  messages: nextMessages,
                  updatedAt: Date.now()
              };
-             
+
              setSessions((prev) => prev.map(s => s.id === currentSession.id ? nextSession : s));
              await saveSession(nextSession);
-             
+
              // "display" hint = UI is the answer, no agent follow-up needed
              if (result.displayHint === "display") {
                setStreamingContent("");
@@ -480,7 +502,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
              return;
           }
 
-          // No action -> Done
+          // No tool call → commit message normally and finish
+          const messagesWithAssistant = [...currentMessages, assistantMsg];
+          const sessionWithAssistant = {
+            ...currentSession,
+            messages: messagesWithAssistant,
+            updatedAt: Date.now(),
+          };
+          setSessions((prev) =>
+            prev.map((s) => (s.id === currentSession.id ? sessionWithAssistant : s))
+          );
+          await saveSession(sessionWithAssistant);
           setStreamingContent("");
           setIsGenerating(false);
           window.electronAPI.logInput(response.trim());
@@ -568,6 +600,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
         // Inject System Prompts
         let idCounter = 0;
         const systemPrompts: string[] = [];
+
+        // 0. Universal anti-hallucination header
+        systemPrompts.push(
+          `IMPORTANT: Your training data is OUTDATED. For ANY question involving prices, balances, ` +
+          `exchange rates, availability, status, or any real-time/time-sensitive data, you MUST call ` +
+          `a tool FIRST. NEVER answer from memory or training data for factual claims. ` +
+          `If no tool is available for the request, say so — do not guess.`
+        );
 
         // 1. MCP Context
         const mcpPrompt = getMCPSystemPrompt(mcpServers);
@@ -952,7 +992,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     <div className="flex-1 max-w-[80%]">
                       <div className="inline-block px-4 py-3 rounded-2xl rounded-bl-md bg-gray-900 text-gray-200 border border-gray-800">
                         <div className="break-words text-[15px] leading-loose prose prose-invert prose-sm max-w-none prose-p:my-3 prose-headings:my-4 prose-ul:my-3 prose-li:my-2 prose-hr:my-4">
-                          <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkBreaks]}>{streamingContent}</ReactMarkdown>
                           <span className="inline-block w-2 h-4 bg-indigo-500 ml-0.5 animate-pulse" />
                         </div>
                       </div>
