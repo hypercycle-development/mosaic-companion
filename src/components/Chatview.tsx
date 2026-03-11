@@ -14,6 +14,7 @@ import {
   Zap,
   History,
   AlertCircle,
+  AlertTriangle,
   Mail,
   Wrench,
   ChevronRight,
@@ -73,9 +74,40 @@ const ToolChip: React.FC<{ label: string; detail: string }> = ({ label, detail }
   );
 };
 
+/** Collapsed indicator for <mosaic_ui> blocks that failed validation */
+const FailedBlockChip: React.FC<{ count: number; snippets?: string[] }> = ({ count, snippets }) => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="my-1.5">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-900/30 hover:bg-amber-800/30 border border-amber-700/40 rounded-lg text-[11px] text-amber-400/80 hover:text-amber-300 transition-all"
+      >
+        <AlertTriangle size={11} className="shrink-0" />
+        <span className="font-medium">
+          {count === 1 ? "1 visual block failed to render" : `${count} visual blocks failed to render`}
+        </span>
+        <ChevronRight
+          size={10}
+          className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+        />
+      </button>
+      {expanded && (
+        <div className="mt-1.5 px-3 py-2 bg-amber-950/40 border border-amber-800/30 rounded-lg text-[10px] text-amber-500/60 overflow-x-auto max-h-40">
+          <p className="mb-1 text-amber-400/60">The agent tried to render UI blocks but they didn't pass validation.</p>
+          {snippets && snippets.length > 0 && (
+            <pre className="whitespace-pre-wrap break-words text-amber-600/50">{snippets.join("\n---\n")}</pre>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 /**
  * Renders message content with smart detection of tool artifacts.
  * - Assistant messages: strips <use_tool> XML, shows clean text + collapsed chip
+ * - If raw <mosaic_ui> tags remain in content (old sessions), parses and shows blocks/feedback
  * - User messages: collapses [Tool Output for ...] into a chip
  */
 const RenderMessageContent: React.FC<{ content: string; role: "assistant" | "user" }> = ({
@@ -83,22 +115,50 @@ const RenderMessageContent: React.FC<{ content: string; role: "assistant" | "use
   role,
 }) => {
   if (role === "assistant") {
+    // Check if content has leftover <mosaic_ui> tags (old saved sessions or edge cases)
+    const hasMosaicTags = /<mosaic_ui>[\s\S]*?<\/mosaic_ui>/.test(content);
+    let displayContent = content;
+    let recoveredBlocks: import("../components/tool-ui/types").ToolUIBlock[] | null = null;
+    let inlineFailed: { count: number; snippets: string[] } | null = null;
+
+    if (hasMosaicTags) {
+      const uiResult = parseMosaicUI(content);
+      displayContent = uiResult.cleanContent;
+      if (uiResult.blocks.length > 0) {
+        recoveredBlocks = uiResult.blocks;
+      }
+      if (uiResult.failedBlockCount > 0) {
+        inlineFailed = {
+          count: uiResult.failedBlockCount,
+          snippets: uiResult.failedRawSnippets,
+        };
+      }
+    }
+
     // Check for <use_tool server="..." tool="...">...</use_tool>
-    const toolMatch = content.match(
+    const toolMatch = displayContent.match(
       /<use_tool\s+server="([^"]+)"\s+tool="([^"]+)">([\s\S]*?)<\/use_tool>/
     );
     if (toolMatch) {
-      const cleanText = content.replace(/<use_tool[\s\S]*?<\/use_tool>/, "").trim();
+      const cleanText = displayContent.replace(/<use_tool[\s\S]*?<\/use_tool>/, "").trim();
       const toolLabel = `${toolMatch[1]}:${toolMatch[2]}`;
       const toolArgs = toolMatch[3].trim();
       return (
         <>
           {cleanText && <ReactMarkdown remarkPlugins={[remarkBreaks]}>{cleanText}</ReactMarkdown>}
           <ToolChip label={`Called ${toolLabel}`} detail={toolArgs || "{}"} />
+          {recoveredBlocks && <ToolUIRenderer blocks={recoveredBlocks} />}
+          {inlineFailed && <FailedBlockChip count={inlineFailed.count} snippets={inlineFailed.snippets} />}
         </>
       );
     }
-    return <ReactMarkdown remarkPlugins={[remarkBreaks]}>{content}</ReactMarkdown>;
+    return (
+      <>
+        <ReactMarkdown remarkPlugins={[remarkBreaks]}>{displayContent}</ReactMarkdown>
+        {recoveredBlocks && <ToolUIRenderer blocks={recoveredBlocks} />}
+        {inlineFailed && <FailedBlockChip count={inlineFailed.count} snippets={inlineFailed.snippets} />}
+      </>
+    );
   }
 
   // User messages — check for [Tool Output for ...]
@@ -513,12 +573,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
           // No tool call → check for <mosaic_ui> blocks if rich UI is enabled
           let uiBlocks: import("../components/tool-ui/types").ToolUIBlock[] | undefined;
           let finalContent = response;
+          let failedUIBlockCount: number | undefined;
+          let failedUIRawSnippets: string[] | undefined;
 
           if (selectedAgent?.richUI) {
             const uiResult = parseMosaicUI(response);
+            console.log("[RichUI]", { blocks: uiResult.blocks.length, failed: uiResult.failedBlockCount });
+            // Always use cleaned content — never show raw <mosaic_ui> tags
+            finalContent = uiResult.cleanContent;
             if (uiResult.blocks.length > 0) {
-              finalContent = uiResult.cleanContent;
               uiBlocks = uiResult.blocks;
+            }
+            if (uiResult.failedBlockCount > 0) {
+              failedUIBlockCount = uiResult.failedBlockCount;
+              failedUIRawSnippets = uiResult.failedRawSnippets;
             }
           }
 
@@ -526,6 +594,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
             ...assistantMsg,
             content: finalContent,
             uiBlocks,
+            failedUIBlockCount,
+            failedUIRawSnippets,
           }];
           const sessionWithAssistant = {
             ...currentSession,
@@ -982,6 +1052,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         </div>
                         {message.role === "assistant" && message.uiBlocks && message.uiBlocks.length > 0 && (
                           <ToolUIRenderer blocks={message.uiBlocks} />
+                        )}
+                        {message.role === "assistant" && message.failedUIBlockCount && message.failedUIBlockCount > 0 && !message.uiBlocks?.length && (
+                          <FailedBlockChip count={message.failedUIBlockCount} snippets={message.failedUIRawSnippets} />
                         )}
                       </div>
 

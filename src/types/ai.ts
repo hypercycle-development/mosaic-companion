@@ -29,6 +29,10 @@ export interface ChatMessage {
   uiBlocks?: ToolUIBlock[];
   /** "display" = UI was the answer (agent didn't analyze), "analyze" = agent commented */
   displayHint?: "display" | "analyze";
+  /** Number of <mosaic_ui> blocks that failed validation (for user feedback) */
+  failedUIBlockCount?: number;
+  /** Raw JSON snippets of failed blocks (for collapsed debug view) */
+  failedUIRawSnippets?: string[];
 }
 
 export interface ChatSession {
