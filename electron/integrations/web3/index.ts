@@ -9,7 +9,7 @@
 import { app, safeStorage } from "electron";
 import path from "path";
 import fs from "fs";
-import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
+import { privateKeyToAccount, generatePrivateKey, type PrivateKeyAccount } from "viem/accounts";
 
 // =============================================================================
 // Constants
@@ -60,6 +60,16 @@ function getWalletConfigPath(): string {
 }
 
 export function saveWalletKey(privateKey: string): boolean {
+  // If renderer asked main to generate the key, do it here in the main process
+  const PLACEHOLDER = "PRIVATE_KEY_TO_BE_GENERATED";
+  if (privateKey === PLACEHOLDER) {
+    try {
+      privateKey = generatePrivateKey();
+    } catch (error) {
+      console.error("[Web3] Failed to generate private key in main:", error);
+      return false;
+    }
+  }
   if (!safeStorage.isEncryptionAvailable()) {
     console.error("[Web3] SafeStorage is not available on this system.");
     return false;
