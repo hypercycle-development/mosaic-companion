@@ -44,6 +44,7 @@ The manifest is the contract between a tool developer and MosAIc. It declares:
   "tools": {
     "analyze": {
       "description": "Analyze a CSV dataset and return statistics (mean, median, outliers).",
+      "displayHint": "analyze",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -62,6 +63,7 @@ The manifest is the contract between a tool developer and MosAIc. It declares:
     },
     "summarize": {
       "description": "Generate a natural-language summary of a dataset using AI.",
+      "displayHint": "analyze",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -150,10 +152,11 @@ For Docker runtime, additional fields apply: `cpu`, `disk`, `vram`.
 
 The `tools` object declares functions the tool exposes to agents. Each key is the function name.
 
-| Field                      | Type   | Required | Description                                                 |
-| -------------------------- | ------ | -------- | ----------------------------------------------------------- |
-| `tools.<name>.description` | string | ✅       | What this function does (injected into agent system prompt) |
-| `tools.<name>.inputSchema` | object | ❌       | JSON Schema for the function's input                        |
+| Field                          | Type                            | Required | Description                                                 |
+| ------------------------------ | ------------------------------- | -------- | ----------------------------------------------------------- |
+| `tools.<name>.description`     | string                          | ✅       | What this function does (injected into agent system prompt) |
+| `tools.<name>.inputSchema`     | object                          | ❌       | JSON Schema for the function's input                        |
+| `tools.<name>.displayHint`     | `"display"` \| `"analyze"`      | ❌       | Default hint for how the agent should handle results (see below) |
 
 When a tool is loaded, MosAIc registers each function in the ToolRegistry. Agents see them in the system prompt:
 
@@ -227,6 +230,49 @@ The tool doesn't render HTML. It returns a JSON array of UI blocks:
 | `alert`    | Status message: `info`, `warning`, `error`, `success`   |
 
 MosAIc provides the React components. The tool just says "show a bar chart with this data." New UI types can be added without changing the manifest format.
+
+### `displayHint` — Controlling Agent Follow-up
+
+After a tool call, MosAIc decides whether to send the result back to the agent for commentary, or stop and just show the UI. `displayHint` controls this.
+
+| Value | Behaviour |
+| --------- | --------- |
+| `"analyze"` | **(Default)** Agent receives the tool's `data` field and generates a follow-up response. Use this when the agent should interpret or summarise results for the user. |
+| `"display"` | UI blocks are the complete response. The agent does **not** see the data and does **not** send a follow-up message. Use this for dashboards, visualisations, or any result where the UI speaks for itself. |
+
+**Priority order (highest to lowest):**
+1. `displayHint` field in the tool's own JSON response (per-call, dynamic)
+2. `displayHint` in the manifest under `tools.<name>` (per-function default)
+3. `"analyze"` — the implicit fallback if nothing is set (backwards-compatible)
+
+This means a tool can override its manifest default at runtime. For example, an analytics tool might default to `"analyze"` but return `"display"` when it detects a simple "just show me the chart" request.
+
+**Manifest example — mixed hints:**
+
+```json
+"tools": {
+  "dashboard": {
+    "description": "Render an overview dashboard.",
+    "displayHint": "display"
+  },
+  "analyze": {
+    "description": "Run statistical analysis and explain the results.",
+    "displayHint": "analyze"
+  }
+}
+```
+
+**Per-call override in tool response:**
+
+```js
+// The tool's JS code can override the manifest default:
+const result = {
+  data: { summary: "..." },
+  ui: [ /* blocks */ ],
+  displayHint: "display"  // overrides manifest default for this call
+};
+Host.outputString(JSON.stringify(result));
+```
 
 ---
 
