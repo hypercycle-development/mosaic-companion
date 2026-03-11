@@ -308,14 +308,10 @@ const PrivateKeyManager: React.FC<{ onWalletChanged: () => void }> = ({
     }
   };
 
-  const generateRandomPrivateKey = () => {
-    return generatePrivateKey();
-  };
-
   const handleSave = async () => {
     let keyToSave = privateKey;
     if (!privateKey) {
-      keyToSave = generateRandomPrivateKey();
+      keyToSave = generatePrivateKey();
       toast.info("No private key entered. Generated a new random key.");
     }
     setIsSaving(true);
