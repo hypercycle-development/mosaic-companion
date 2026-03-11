@@ -15,6 +15,7 @@ export interface AIAgentConfig {
   isActive: boolean;
   createdAt: number;
   boxAccess?: string[]; // IDs of vault boxes this agent can access
+  richUI?: boolean; // Allow agent to render charts, tables, cards inline via <mosaic_ui>
 }
 
 export interface ChatMessage {

@@ -20,6 +20,7 @@ import {
   Server,
   Thermometer,
   Zap,
+  Info,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -928,6 +929,42 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               step={0.1}
                             />
                           </label>
+                        </div>
+
+                        {/* Rich UI Toggle */}
+                        <div className="flex items-center justify-between py-3 px-1">
+                          <div>
+                            <span className="text-sm text-gray-300 flex items-center gap-1.5">
+                              Rich Visual Responses
+                              <span className="relative group">
+                                <Info size={13} className="text-gray-500 cursor-help" />
+                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-xs text-gray-300 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50 shadow-lg">
+                                  Enables the agent to display data using visual elements like charts, tables, and cards instead of plain text. This may increase token usage per response. Enable on models where richer output is worth the cost.
+                                </span>
+                              </span>
+                            </span>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Render charts, tables, and cards inline in chat
+                            </p>
+                          </div>
+                          <button
+                            onClick={() =>
+                              updateAgent(agent.id, {
+                                richUI: !agent.richUI,
+                              })
+                            }
+                            className={`
+                              relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0
+                              ${agent.richUI ? "bg-indigo-600" : "bg-gray-700"}
+                            `}
+                          >
+                            <span
+                              className={`
+                                inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out
+                                ${agent.richUI ? "translate-x-6" : "translate-x-1"}
+                              `}
+                            />
+                          </button>
                         </div>
 
                         {/* Actions Row */}
