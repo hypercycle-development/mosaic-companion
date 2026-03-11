@@ -455,6 +455,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                  timestamp: Date.now(),
                  agentId: selectedAgent!.id,
                  uiBlocks: result.uiBlocks,
+                 displayHint: result.displayHint,
              };
              
              const nextMessages = [...messagesWithAssistant, toolMsg];
@@ -467,7 +468,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
              setSessions((prev) => prev.map(s => s.id === currentSession.id ? nextSession : s));
              await saveSession(nextSession);
              
-             // Recurse
+             // "display" hint = UI is the answer, no agent follow-up needed
+             if (result.displayHint === "display") {
+               setStreamingContent("");
+               setIsGenerating(false);
+               return;
+             }
+
+             // "analyze" (default) = send data back to agent for commentary
              await processAIResponse(nextSession, nextMessages, depth + 1);
              return;
           }
