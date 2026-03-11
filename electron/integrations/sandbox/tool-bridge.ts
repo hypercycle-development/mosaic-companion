@@ -39,6 +39,7 @@ export function createToolBridge(
           success: result.success,
           data: result.data,
           error: result.error,
+          ui: result.ui,
         };
       },
     }),
