@@ -3,6 +3,9 @@
 //
 // All tools — Gmail, Web3, Vault, MCP, WASM — use the same <use_tool> format.
 
+import type { ToolUIBlock, BlockType } from "../components/tool-ui/types";
+import { MAX_BLOCK_COUNT, MAX_BLOCK_DEPTH } from "../components/tool-ui/types";
+
 export type ActionType = "TOOL_CALL" | "NONE";
 
 export interface ParsedAction {
@@ -136,6 +139,204 @@ export function getMCPSystemPrompt(servers: any[]): string {
   });
 
   return prompt;
+}
+
+// =============================================================================
+// Agent Rich UI — <mosaic_ui> tag parsing
+// =============================================================================
+
+/** Block types the agent is allowed to emit (display-only — no interactive blocks) */
+const AGENT_ALLOWED_BLOCKS: ReadonlySet<BlockType> = new Set([
+  // Display
+  "text", "markdown", "code", "alert", "image", "divider",
+  // Data
+  "table", "card", "list", "chart",
+  // Layout (needed to compose the above)
+  "tabs", "row", "column", "section",
+]);
+
+/** Result of parsing <mosaic_ui> tags from an agent response */
+export interface MosaicUIParseResult {
+  /** Response content with <mosaic_ui> tags removed */
+  cleanContent: string;
+  /** Validated UI blocks extracted from the tags (empty if none found) */
+  blocks: ToolUIBlock[];
+}
+
+/**
+ * Recursively count all blocks including nested children.
+ */
+function countBlocks(blocks: unknown[]): number {
+  let count = 0;
+  for (const block of blocks) {
+    if (!block || typeof block !== "object") continue;
+    count++;
+    const b = block as Record<string, unknown>;
+    if (Array.isArray(b.blocks)) count += countBlocks(b.blocks);
+    if (Array.isArray(b.tabs)) {
+      for (const tab of b.tabs) {
+        if (tab && typeof tab === "object" && Array.isArray((tab as Record<string, unknown>).blocks)) {
+          count += countBlocks((tab as Record<string, unknown>).blocks as unknown[]);
+        }
+      }
+    }
+  }
+  return count;
+}
+
+/**
+ * Recursively check max nesting depth of layout blocks.
+ */
+function maxDepth(blocks: unknown[], current: number = 0): number {
+  if (current > MAX_BLOCK_DEPTH) return current;
+  let deepest = current;
+  for (const block of blocks) {
+    if (!block || typeof block !== "object") continue;
+    const b = block as Record<string, unknown>;
+    if (Array.isArray(b.blocks)) {
+      deepest = Math.max(deepest, maxDepth(b.blocks, current + 1));
+    }
+    if (Array.isArray(b.tabs)) {
+      for (const tab of b.tabs) {
+        if (tab && typeof tab === "object" && Array.isArray((tab as Record<string, unknown>).blocks)) {
+          deepest = Math.max(deepest, maxDepth((tab as Record<string, unknown>).blocks as unknown[], current + 1));
+        }
+      }
+    }
+  }
+  return deepest;
+}
+
+/**
+ * Recursively filter blocks to only allowed types.
+ * Removes form, button, and any unknown types.
+ */
+function filterAllowedBlocks(blocks: unknown[]): ToolUIBlock[] {
+  const result: ToolUIBlock[] = [];
+  for (const block of blocks) {
+    if (!block || typeof block !== "object") continue;
+    const b = block as Record<string, unknown>;
+    const type = b.type as string;
+    if (!type || !AGENT_ALLOWED_BLOCKS.has(type as BlockType)) continue;
+
+    // Recursively filter children for layout blocks
+    if (type === "row" || type === "column" || type === "section") {
+      if (Array.isArray(b.blocks)) {
+        result.push({ ...b, blocks: filterAllowedBlocks(b.blocks) } as ToolUIBlock);
+      }
+    } else if (type === "tabs" && Array.isArray(b.tabs)) {
+      const filteredTabs = (b.tabs as Array<Record<string, unknown>>)
+        .filter(tab => tab && typeof tab === "object" && typeof tab.id === "string" && typeof tab.label === "string")
+        .map(tab => ({
+          ...tab,
+          blocks: Array.isArray(tab.blocks) ? filterAllowedBlocks(tab.blocks) : [],
+        }));
+      result.push({ ...b, tabs: filteredTabs } as ToolUIBlock);
+    } else if (type === "image") {
+      // Only allow data: URIs — no external URLs
+      const src = b.src as string;
+      if (typeof src === "string" && src.startsWith("data:")) {
+        result.push(b as unknown as ToolUIBlock);
+      }
+    } else if (type === "chart") {
+      // Validate chart has a proper series array with data points
+      if (Array.isArray(b.series) && b.series.length > 0 &&
+          b.series.every((s: any) => s && typeof s === "object" && typeof s.name === "string" && Array.isArray(s.data))) {
+        result.push(b as unknown as ToolUIBlock);
+      }
+    } else if (type === "table") {
+      // Validate table has columns and rows arrays
+      if (Array.isArray(b.columns) && Array.isArray(b.rows)) {
+        result.push(b as unknown as ToolUIBlock);
+      }
+    } else {
+      result.push(b as unknown as ToolUIBlock);
+    }
+  }
+  return result;
+}
+
+/**
+ * Parse <mosaic_ui> tags from an agent response.
+ *
+ * Extracts JSON UI block arrays, validates them, and strips the
+ * tags from the response content. Only display/data/layout blocks
+ * are allowed — interactive blocks (form, button) are silently removed.
+ *
+ * Returns the clean content + validated blocks (empty array if none found or all invalid).
+ */
+export function parseMosaicUI(response: string): MosaicUIParseResult {
+  const tagPattern = /<mosaic_ui>([\s\S]*?)<\/mosaic_ui>/g;
+
+  const allBlocks: ToolUIBlock[] = [];
+  let hasMatch = false;
+
+  // Extract all <mosaic_ui> tags (there could be multiple in one response)
+  let match;
+  while ((match = tagPattern.exec(response)) !== null) {
+    hasMatch = true;
+    const jsonStr = match[1].trim();
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (!Array.isArray(parsed)) {
+        console.warn("[parseMosaicUI] Tag content is not an array, skipping");
+        continue;
+      }
+      const filtered = filterAllowedBlocks(parsed);
+      allBlocks.push(...filtered);
+    } catch (e) {
+      console.warn("[parseMosaicUI] Failed to parse JSON in <mosaic_ui> tag:", e);
+    }
+  }
+
+  if (!hasMatch) {
+    return { cleanContent: response, blocks: [] };
+  }
+
+  // Enforce limits
+  if (maxDepth(allBlocks) > MAX_BLOCK_DEPTH) {
+    console.warn("[parseMosaicUI] Blocks exceed max depth, discarding");
+    return { cleanContent: response.replace(tagPattern, "").trim(), blocks: [] };
+  }
+
+  const totalCount = countBlocks(allBlocks);
+  const cappedBlocks = totalCount > MAX_BLOCK_COUNT
+    ? allBlocks.slice(0, MAX_BLOCK_COUNT)
+    : allBlocks;
+
+  // Remove tags from content
+  const cleanContent = response.replace(tagPattern, "").trim();
+
+  return { cleanContent, blocks: cappedBlocks };
+}
+
+/**
+ * Generate the system prompt section that teaches the agent about <mosaic_ui>.
+ * Only included when the agent has richUI enabled.
+ */
+export function getRichUISystemPrompt(): string {
+  return [
+    "## Rich Visual Display",
+    "",
+    "You can optionally render a SINGLE table or chart when the data truly benefits from it.",
+    "Use <mosaic_ui> tags with a JSON array of block objects. MosAIc renders them natively.",
+    "",
+    "Block types: \"table\", \"chart\" (bar/line/pie/scatter/area/donut), \"card\", \"code\", \"alert\", \"list\".",
+    "Layout: \"row\", \"column\" to arrange blocks side-by-side.",
+    "",
+    "Example:",
+    "<mosaic_ui>",
+    '[{"type":"table","title":"Comparison","columns":[{"key":"name","label":"Name"},{"key":"type","label":"Type"},{"key":"stars","label":"Stars","align":"right"}],"rows":[{"name":"React","type":"Library","stars":"220k"},{"name":"Vue","type":"Framework","stars":"207k"}]}]',
+    "</mosaic_ui>",
+    "",
+    "STRICT RULES:",
+    "1. DEFAULT IS TEXT. Most answers should be normal markdown. Only use <mosaic_ui> when you have structured data with 3+ columns or numeric trends.",
+    "2. KEEP IT MINIMAL. One table OR one chart per response. Never combine tables + cards + rows unless the user explicitly asked for a dashboard or detailed comparison.",
+    "3. NEVER use <mosaic_ui> for: opinions, explanations, recommendations, short answers, simple lists, or anything with fewer than 4 data rows.",
+    "4. If you can answer well in 1-2 paragraphs of text, DO THAT. Do not add visual blocks just because you can.",
+    "5. The JSON must be a valid array. For images, src must be a data: URI.",
+    "6. Text before/after the tag is fine — explain what the visual shows.",
+  ].join("\n");
 }
 
 /**
