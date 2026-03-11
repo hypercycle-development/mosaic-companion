@@ -178,6 +178,10 @@ const RenderMessageContent: React.FC<{ content: string; role: "assistant" | "use
   return <span className="whitespace-pre-wrap">{content}</span>;
 };
 
+/** Filter out ephemeral [System Context] messages — they should never be persisted */
+const stripSystemContext = (msgs: ChatMessage[]): ChatMessage[] =>
+  msgs.filter(m => !m.content.startsWith("[System Context]"));
+
 export const ChatView: React.FC<ChatViewProps> = ({
   onNavigate,
   onCreateNewChatTab,
@@ -548,7 +552,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
              };
 
              // Commit cleaned assistant message + tool output together (single render)
-             const nextMessages = [...currentMessages, cleanedAssistantMsg, toolMsg];
+             const persistMessages = stripSystemContext(currentMessages);
+             const nextMessages = [...persistMessages, cleanedAssistantMsg, toolMsg];
              const nextSession = {
                  ...currentSession,
                  messages: nextMessages,
@@ -566,7 +571,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
              }
 
              // "analyze" (default) = send data back to agent for commentary
-             await processAIResponse(nextSession, nextMessages, depth + 1);
+             // Keep system context for the AI on the recursive call
+             const aiMessages = [...currentMessages, cleanedAssistantMsg, toolMsg];
+             await processAIResponse(nextSession, aiMessages, depth + 1);
              return;
           }
 
@@ -578,7 +585,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
           if (selectedAgent?.richUI) {
             const uiResult = parseMosaicUI(response);
-            console.log("[RichUI]", { blocks: uiResult.blocks.length, failed: uiResult.failedBlockCount });
             // Always use cleaned content — never show raw <mosaic_ui> tags
             finalContent = uiResult.cleanContent;
             if (uiResult.blocks.length > 0) {
@@ -590,7 +596,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
             }
           }
 
-          const messagesWithAssistant = [...currentMessages, {
+          const persistMessages = stripSystemContext(currentMessages);
+          const messagesWithAssistant = [...persistMessages, {
             ...assistantMsg,
             content: finalContent,
             uiBlocks,
@@ -687,8 +694,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     try {
         await window.electronAPI.logInput(messageContent);
         
-        // Prepare context
-        const messagesForAI = updatedMessages.filter(m => m.role !== "system");
+        // Prepare context — strip any previously-persisted system context
+        const messagesForAI = updatedMessages.filter(m => m.role !== "system" && !m.content.startsWith("[System Context]"));
         
         // Inject System Prompts
         let idCounter = 0;
