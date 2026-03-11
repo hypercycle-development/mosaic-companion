@@ -29,6 +29,8 @@ import {
   parseAction,
   executeToolCall,
   getMCPSystemPrompt,
+  parseMosaicUI,
+  getRichUISystemPrompt,
 } from "../services/ActionParser";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
@@ -426,6 +428,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
               const cleanLines = preamble.split('\n').filter(l => l.trim()).slice(0, 2).join('\n');
               setStreamingContent(cleanLines ? `${cleanLines}\n\n${indicator}` : indicator);
             }
+          } else if (selectedAgent?.richUI && fullResponse.indexOf('<mosaic_ui') >= 0) {
+            // Hide <mosaic_ui> JSON during streaming — only show text before the tag.
+            // The blocks will be parsed and rendered properly in onComplete.
+            const uiTagStart = fullResponse.indexOf('<mosaic_ui');
+            const textBefore = fullResponse.substring(0, uiTagStart).trim();
+            setStreamingContent(textBefore || '');
           } else {
             setStreamingContent(fullResponse);
           }
@@ -502,8 +510,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
              return;
           }
 
-          // No tool call → commit message normally and finish
-          const messagesWithAssistant = [...currentMessages, assistantMsg];
+          // No tool call → check for <mosaic_ui> blocks if rich UI is enabled
+          let uiBlocks: import("../components/tool-ui/types").ToolUIBlock[] | undefined;
+          let finalContent = response;
+
+          if (selectedAgent?.richUI) {
+            const uiResult = parseMosaicUI(response);
+            if (uiResult.blocks.length > 0) {
+              finalContent = uiResult.cleanContent;
+              uiBlocks = uiResult.blocks;
+            }
+          }
+
+          const messagesWithAssistant = [...currentMessages, {
+            ...assistantMsg,
+            content: finalContent,
+            uiBlocks,
+          }];
           const sessionWithAssistant = {
             ...currentSession,
             messages: messagesWithAssistant,
@@ -640,6 +663,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
             }
         } catch (e) {
             console.error("Failed to get vault context:", e);
+        }
+
+        // 4. Agent Rich UI — teach agent about <mosaic_ui> if enabled
+        if (selectedAgent!.richUI) {
+            systemPrompts.push(getRichUISystemPrompt());
         }
 
         if (systemPrompts.length > 0) {
@@ -952,6 +980,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             <RenderMessageContent content={message.content} role="user" />
                           )}
                         </div>
+                        {message.role === "assistant" && message.uiBlocks && message.uiBlocks.length > 0 && (
+                          <ToolUIRenderer blocks={message.uiBlocks} />
+                        )}
                       </div>
 
                       {/* Message Actions */}
