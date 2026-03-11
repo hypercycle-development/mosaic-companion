@@ -16,6 +16,7 @@
 | [gatekeeper.md](./gatekeeper.md)                           | Outbound traffic filtering, proxy/DNS design, domain allowlists            |
 | [data-model.md](./data-model.md)                           | Chronicle (append-only output), Vault, wallet, reference vs dereference    |
 | [permissions.md](./permissions.md)                         | Permission model, profiles, no-runtime-escalation, future-compatible seams |
+| [tool-ui.md](./tool-ui.md)                                 | How WASM tools render UI blocks inside MosAIc (block types, approach)      |
 | [implementation-status.md](./implementation-status.md)     | What's built vs planned, Linear tickets, open questions                    |
 | [victors-tickets.md](./victors-tickets.md)                 | Victor's guide for assigned Linear tickets (HYP-652/660/664/663)           |
 
