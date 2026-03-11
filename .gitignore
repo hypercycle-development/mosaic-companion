@@ -53,3 +53,6 @@ project_dump.txt
 
 *.resolved.md
 *.plan.md
+
+# Local planning docs
+/plans/
