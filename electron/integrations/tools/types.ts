@@ -36,6 +36,8 @@ export interface ToolResult {
   success: boolean;
   data?: unknown;
   error?: string;
+  /** Optional UI blocks for visual rendering (WASM tools) */
+  ui?: unknown[];
 }
 
 // =============================================================================
