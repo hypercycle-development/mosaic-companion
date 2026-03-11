@@ -122,7 +122,9 @@ export function getMCPSystemPrompt(servers: any[]): string {
   prompt += "1. When you want to use a tool, output ONLY a short intro sentence, then the <use_tool> XML tag.\n";
   prompt += "2. You MUST stop writing IMMEDIATELY after the closing </use_tool> tag. Do NOT continue with any text, answers, or guesses.\n";
   prompt += "3. NEVER guess or hallucinate tool results. Wait for the actual tool output before responding.\n";
-  prompt += "4. After you receive the [Tool Output], use that data to write your final response to the user.\n\n";
+  prompt += "4. After you receive the [Tool Output], use that data to write your final response to the user.\n";
+  prompt += "5. ABSOLUTELY NEVER state prices, balances, numbers, or ANY live data before receiving [Tool Output]. Your training data is outdated. ANY number you write before a tool call is a hallucination and WILL be wrong.\n";
+  prompt += "6. For ANY question about current prices, balances, exchange rates, or real-time data: call the tool FIRST, speak AFTER.\n\n";
 
   servers.forEach((server) => {
     if (!server.tools || server.tools.length === 0) return;
