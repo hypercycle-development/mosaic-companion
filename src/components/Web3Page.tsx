@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { generatePrivateKey } from "viem/accounts";
+// Placeholder sent to main process to request generation there
+const PRIVATE_KEY_TO_BE_GENERATED = "PRIVATE_KEY_TO_BE_GENERATED";
 import {
   Save,
   Trash2,
@@ -311,8 +312,8 @@ const PrivateKeyManager: React.FC<{ onWalletChanged: () => void }> = ({
   const handleSave = async () => {
     let keyToSave = privateKey;
     if (!privateKey) {
-      keyToSave = generatePrivateKey();
-      toast.info("No private key entered. Generated a new random key.");
+      keyToSave = PRIVATE_KEY_TO_BE_GENERATED;
+      toast.info("No private key entered. Requesting backend to generate a new key.");
     }
     setIsSaving(true);
     if (window.electronAPI?.trading?.saveWallet) {
