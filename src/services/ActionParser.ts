@@ -161,6 +161,10 @@ export interface MosaicUIParseResult {
   cleanContent: string;
   /** Validated UI blocks extracted from the tags (empty if none found) */
   blocks: ToolUIBlock[];
+  /** Number of blocks that failed validation and were dropped */
+  failedBlockCount: number;
+  /** Raw JSON snippets of blocks that failed validation (for debug display) */
+  failedRawSnippets: string[];
 }
 
 /**
@@ -239,10 +243,22 @@ function filterAllowedBlocks(blocks: unknown[]): ToolUIBlock[] {
         result.push(b as unknown as ToolUIBlock);
       }
     } else if (type === "chart") {
-      // Validate chart has a proper series array with data points
+      // Validate chart has series data
+      // Agents sometimes use "data" (flat array for pie) instead of "series" — normalize it
       if (Array.isArray(b.series) && b.series.length > 0 &&
           b.series.every((s: any) => s && typeof s === "object" && typeof s.name === "string" && Array.isArray(s.data))) {
         result.push(b as unknown as ToolUIBlock);
+      } else if (Array.isArray(b.data) && b.data.length > 0) {
+        // Flat data array (common for pie/donut): [{name, value}, ...] → wrap as series
+        const flatData = b.data as Array<Record<string, unknown>>;
+        if (flatData.every(d => d && typeof d === "object" && "name" in d && "value" in d)) {
+          const converted = {
+            ...b,
+            series: [{ name: "data", data: flatData.map(d => ({ x: d.name as string, y: d.value as number })) }],
+          };
+          delete (converted as Record<string, unknown>).data;
+          result.push(converted as unknown as ToolUIBlock);
+        }
       }
     } else if (type === "table") {
       // Validate table has columns and rows arrays
@@ -269,7 +285,9 @@ export function parseMosaicUI(response: string): MosaicUIParseResult {
   const tagPattern = /<mosaic_ui>([\s\S]*?)<\/mosaic_ui>/g;
 
   const allBlocks: ToolUIBlock[] = [];
+  let rawBlockCount = 0;
   let hasMatch = false;
+  const failedRawSnippets: string[] = [];
 
   // Extract all <mosaic_ui> tags (there could be multiple in one response)
   let match;
@@ -280,23 +298,38 @@ export function parseMosaicUI(response: string): MosaicUIParseResult {
       const parsed = JSON.parse(jsonStr);
       if (!Array.isArray(parsed)) {
         console.warn("[parseMosaicUI] Tag content is not an array, skipping");
+        rawBlockCount++;
+        failedRawSnippets.push(jsonStr.slice(0, 200));
         continue;
       }
+      rawBlockCount += parsed.length;
       const filtered = filterAllowedBlocks(parsed);
+      // Track dropped blocks — collect raw snippets for debug view
+      const droppedCount = parsed.length - filtered.length;
+      if (droppedCount > 0) {
+        // We can't precisely match which raw→filtered, so collect all raw entries
+        // and let the count difference tell the story
+        for (const raw of parsed) {
+          failedRawSnippets.push(JSON.stringify(raw).slice(0, 200));
+        }
+      }
       allBlocks.push(...filtered);
     } catch (e) {
       console.warn("[parseMosaicUI] Failed to parse JSON in <mosaic_ui> tag:", e);
+      rawBlockCount++;
+      failedRawSnippets.push(jsonStr.slice(0, 200));
     }
   }
 
   if (!hasMatch) {
-    return { cleanContent: response, blocks: [] };
+    return { cleanContent: response, blocks: [], failedBlockCount: 0, failedRawSnippets: [] };
   }
 
   // Enforce limits
   if (maxDepth(allBlocks) > MAX_BLOCK_DEPTH) {
     console.warn("[parseMosaicUI] Blocks exceed max depth, discarding");
-    return { cleanContent: response.replace(tagPattern, "").trim(), blocks: [] };
+    const clean = response.replace(tagPattern, "").trim();
+    return { cleanContent: clean, blocks: [], failedBlockCount: rawBlockCount, failedRawSnippets };
   }
 
   const totalCount = countBlocks(allBlocks);
@@ -306,8 +339,9 @@ export function parseMosaicUI(response: string): MosaicUIParseResult {
 
   // Remove tags from content
   const cleanContent = response.replace(tagPattern, "").trim();
+  const failedBlockCount = rawBlockCount - allBlocks.length;
 
-  return { cleanContent, blocks: cappedBlocks };
+  return { cleanContent, blocks: cappedBlocks, failedBlockCount, failedRawSnippets };
 }
 
 /**
