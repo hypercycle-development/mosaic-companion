@@ -8,7 +8,7 @@ export const ToolRow: React.FC<RowBlock & { renderBlock: (block: ToolUIBlock, in
 }) => (
   <div className="flex flex-wrap items-start" style={{ gap }}>
     {blocks.map((block, i) => (
-      <div key={i} className="flex-1 min-w-0">
+      <div key={i} className="flex-1" style={{ minWidth: 220 }}>
         {renderBlock(block, i)}
       </div>
     ))}
