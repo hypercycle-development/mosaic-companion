@@ -119,7 +119,7 @@ const ChartInner: React.FC<{ block: ChartBlock }> = ({ block }) => {
 };
 
 export const ToolChart: React.FC<ChartBlock> = (block) => (
-  <div className="rounded-lg border border-gray-700 bg-gray-800/40 overflow-hidden">
+  <div className="rounded-lg border border-gray-700 bg-gray-800/40 overflow-hidden" style={{ minWidth: 220 }}>
     {block.title && (
       <div className="px-3 py-2 text-sm font-medium text-gray-200 border-b border-gray-700">
         {block.title}
