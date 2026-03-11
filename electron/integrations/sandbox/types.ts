@@ -13,12 +13,21 @@
 // Tool Manifest (declared by tool developers)
 // =============================================================================
 
+/**
+ * How the agent should handle the tool's response.
+ * - "display": UI blocks are the answer — don't send data back to the agent.
+ * - "analyze": Agent should see the data and provide commentary (default).
+ */
+export type DisplayHint = "display" | "analyze";
+
 /** A single tool function declared in the manifest */
 export interface ManifestTool {
   /** What this function does (injected into agent system prompt) */
   description: string;
   /** JSON Schema for the function's input */
   inputSchema?: Record<string, unknown>;
+  /** Default display hint for this function's results */
+  displayHint?: DisplayHint;
 }
 
 /** Permissions a tool requests in its manifest */
@@ -184,6 +193,8 @@ export interface ToolCallResult {
   error?: string;
   /** Optional UI blocks for rendering in MosAIc */
   ui?: ToolUIBlock[];
+  /** How the agent should handle this response */
+  displayHint?: DisplayHint;
 }
 
 // =============================================================================

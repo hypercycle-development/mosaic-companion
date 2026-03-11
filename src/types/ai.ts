@@ -26,6 +26,8 @@ export interface ChatMessage {
   isStreaming?: boolean;
   /** UI blocks returned by a tool call (rendered by ToolUIRenderer) */
   uiBlocks?: ToolUIBlock[];
+  /** "display" = UI was the answer (agent didn't analyze), "analyze" = agent commented */
+  displayHint?: "display" | "analyze";
 }
 
 export interface ChatSession {
