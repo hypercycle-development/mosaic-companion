@@ -33,6 +33,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import { INTERNAL_SETTINGS_URL } from "../types/types";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
+import { ToolUIRenderer } from "./tool-ui";
 
 interface ChatViewProps {
   onNavigate?: (url: string) => void;
@@ -273,7 +274,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   // Create new session (for New Chat button)
   const createNewSession = useCallback((): ChatSession => {
-    if (!selectedAgentId) return;
+    if (!selectedAgentId) return null as any;
 
     const session: ChatSession = {
       id: `session-${Date.now()}`,
@@ -450,9 +451,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
              const toolMsg: ChatMessage = {
                  id: `msg-${Date.now() + 1}`,
                  role: "user",
-                 content: `[Tool Output for ${action.params?.server}:${action.params?.tool}]\n${result}`,
+                 content: `[Tool Output for ${action.params?.server}:${action.params?.tool}]\n${result.text}`,
                  timestamp: Date.now(),
                  agentId: selectedAgent!.id,
+                 uiBlocks: result.uiBlocks,
+                 displayHint: result.displayHint,
              };
              
              const nextMessages = [...messagesWithAssistant, toolMsg];
@@ -465,7 +468,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
              setSessions((prev) => prev.map(s => s.id === currentSession.id ? nextSession : s));
              await saveSession(nextSession);
              
-             // Recurse
+             // "display" hint = UI is the answer, no agent follow-up needed
+             if (result.displayHint === "display") {
+               setStreamingContent("");
+               setIsGenerating(false);
+               return;
+             }
+
+             // "analyze" (default) = send data back to agent for commentary
              await processAIResponse(nextSession, nextMessages, depth + 1);
              return;
           }
@@ -842,8 +852,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   if (isToolOutput) {
                     return (
                       <div key={message.id} className="flex justify-center">
-                        <div className="max-w-[60%]">
+                        <div className="max-w-[80%]">
                           <RenderMessageContent content={message.content} role="user" />
+                          {message.uiBlocks && message.uiBlocks.length > 0 && (
+                            <ToolUIRenderer blocks={message.uiBlocks} />
+                          )}
                         </div>
                       </div>
                     );

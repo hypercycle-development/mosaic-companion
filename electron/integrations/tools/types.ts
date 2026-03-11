@@ -36,6 +36,10 @@ export interface ToolResult {
   success: boolean;
   data?: unknown;
   error?: string;
+  /** Optional UI blocks for visual rendering (WASM tools) */
+  ui?: unknown[];
+  /** How the agent should handle this response: "display" (UI is the answer) or "analyze" (agent comments) */
+  displayHint?: "display" | "analyze";
 }
 
 // =============================================================================

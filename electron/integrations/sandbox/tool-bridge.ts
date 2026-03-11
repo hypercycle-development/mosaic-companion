@@ -39,6 +39,9 @@ export function createToolBridge(
           success: result.success,
           data: result.data,
           error: result.error,
+          ui: result.ui,
+          // Per-call hint wins, then manifest default for this function
+          displayHint: result.displayHint ?? toolDef.displayHint,
         };
       },
     }),

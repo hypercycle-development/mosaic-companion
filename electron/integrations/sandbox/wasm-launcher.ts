@@ -208,6 +208,7 @@ export class WasmLauncher implements ToolLauncher {
           success: true,
           data: parsed.data ?? parsed,
           ui: parsed.ui,
+          displayHint: parsed.displayHint,
         };
       } catch {
         // If not JSON, return as string
