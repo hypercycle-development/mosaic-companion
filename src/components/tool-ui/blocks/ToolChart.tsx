@@ -118,17 +118,29 @@ const ChartInner: React.FC<{ block: ChartBlock }> = ({ block }) => {
   }
 };
 
-export const ToolChart: React.FC<ChartBlock> = (block) => (
-  <div className="rounded-lg border border-gray-700 bg-gray-800/40 overflow-hidden" style={{ minWidth: 220 }}>
-    {block.title && (
-      <div className="px-3 py-2 text-sm font-medium text-gray-200 border-b border-gray-700">
-        {block.title}
+export const ToolChart: React.FC<ChartBlock> = (block) => {
+  // Guard against invalid series data — agent may send malformed JSON
+  if (!block.series || !Array.isArray(block.series) || block.series.length === 0) {
+    return (
+      <div className="rounded-lg border border-gray-700 bg-gray-800/40 p-3">
+        {block.title && <div className="text-sm font-medium text-gray-200 mb-1">{block.title}</div>}
+        <div className="text-xs text-gray-500">Chart data unavailable — missing or invalid series.</div>
       </div>
-    )}
-    <div className="p-2" style={{ height: 280 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <ChartInner block={block} />
-      </ResponsiveContainer>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-700 bg-gray-800/40 overflow-hidden" style={{ minWidth: 220 }}>
+      {block.title && (
+        <div className="px-3 py-2 text-sm font-medium text-gray-200 border-b border-gray-700">
+          {block.title}
+        </div>
+      )}
+      <div className="p-2" style={{ height: 280 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ChartInner block={block} />
+        </ResponsiveContainer>
+      </div>
     </div>
-  </div>
-);
+  );
+};
