@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { Wallet as EthersWallet} from "ethers";
+import { generatePrivateKey } from "viem/accounts";
 import {
   Save,
   Trash2,
@@ -309,8 +309,7 @@ const PrivateKeyManager: React.FC<{ onWalletChanged: () => void }> = ({
   };
 
   const generateRandomPrivateKey = () => {
-    const wallet = EthersWallet.createRandom();
-    return wallet.privateKey;
+    return generatePrivateKey();
   };
 
   const handleSave = async () => {

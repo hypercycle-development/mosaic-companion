@@ -47,7 +47,6 @@
     "better-sqlite3": "^12.6.2",
     "chokidar": "^3.6.0",
     "electron-squirrel-startup": "^1.0.1",
-    "ethers": "^6.16.0",
     "google-auth-library": "^10.5.0",
     "googleapis": "^170.0.0",
     "gtoken": "^8.0.0",
