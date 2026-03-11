@@ -1,3 +1,4 @@
+import { ToolUIBlock } from "../components/tool-ui";
 // AI Agent Types and Configuration
 
 export type AIProvider = "claude" | "openai" | "gemini" | "ollama" | "custom";
@@ -23,6 +24,8 @@ export interface ChatMessage {
   timestamp: number;
   agentId: string;
   isStreaming?: boolean;
+  /** UI blocks returned by a tool call (rendered by ToolUIRenderer) */
+  uiBlocks?: ToolUIBlock[];
 }
 
 export interface ChatSession {

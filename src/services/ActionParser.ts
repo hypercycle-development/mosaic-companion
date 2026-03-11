@@ -46,9 +46,15 @@ export function parseAction(response: string): ParsedAction {
  * Routes to the built-in ToolRegistry first (Gmail, Web3, Vault, WASM tools).
  * Falls back to MCP servers if the module isn't found in the registry.
  */
-export async function executeToolCall(action: ParsedAction, agentId?: string): Promise<string> {
+/** Structured result from executeToolCall — text for the agent + optional UI blocks */
+export interface ToolCallOutput {
+  text: string;
+  uiBlocks?: import("../components/tool-ui/types").ToolUIBlock[];
+}
+
+export async function executeToolCall(action: ParsedAction, agentId?: string): Promise<ToolCallOutput> {
   if (action.type !== "TOOL_CALL" || !action.params) {
-    return "Invalid tool action";
+    return { text: "Invalid tool action" };
   }
 
   const { server, tool, args } = action.params;
@@ -61,13 +67,28 @@ export async function executeToolCall(action: ParsedAction, agentId?: string): P
     if (registryResult && registryResult.success !== undefined) {
       if (registryResult.success) {
         const data = registryResult.data;
-        return typeof data === "string" ? data : JSON.stringify(data, null, 2);
+        // If data is an object with ui blocks, extract them
+        let uiBlocks: import("../components/tool-ui/types").ToolUIBlock[] | undefined;
+        let textData = data;
+        if (data && typeof data === "object" && !Array.isArray(data) && "ui" in (data as Record<string, unknown>)) {
+          const obj = data as Record<string, unknown>;
+          uiBlocks = obj.ui as import("../components/tool-ui/types").ToolUIBlock[];
+          // Remove ui from the data sent to the agent (it's for rendering, not for LLM)
+          const { ui: _, ...rest } = obj;
+          textData = Object.keys(rest).length > 0 ? rest : data;
+        }
+        // Also check top-level ui field on registryResult
+        if (!uiBlocks && registryResult.ui) {
+          uiBlocks = registryResult.ui;
+        }
+        const text = typeof textData === "string" ? textData : JSON.stringify(textData, null, 2);
+        return { text, uiBlocks };
       }
       // "not found" means the module doesn't exist in the registry — try MCP
       if (registryResult.error?.includes("not found")) {
         // Fall through to MCP
       } else {
-        return `Error: ${registryResult.error}`;
+        return { text: `Error: ${registryResult.error}` };
       }
     }
   } catch (e) {
@@ -78,12 +99,12 @@ export async function executeToolCall(action: ParsedAction, agentId?: string): P
   try {
     const result = await window.electronAPI.mcpAPI.callTool(server, tool, args);
     if (result.success) {
-      return JSON.stringify(result.result, null, 2);
+      return { text: JSON.stringify(result.result, null, 2) };
     } else {
-      return `Error calling tool ${tool}: ${result.error}`;
+      return { text: `Error calling tool ${tool}: ${result.error}` };
     }
   } catch (e) {
-    return `Error calling tool ${tool}: ${(e as Error).message}`;
+    return { text: `Error calling tool ${tool}: ${(e as Error).message}` };
   }
 }
 
