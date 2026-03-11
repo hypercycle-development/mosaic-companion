@@ -892,7 +892,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   if (isToolOutput) {
                     return (
                       <div key={message.id} className="flex justify-center">
-                        <div className="max-w-[80%]">
+                        <div className="max-w-[90%]">
                           <RenderMessageContent content={message.content} role="user" />
                           {message.uiBlocks && message.uiBlocks.length > 0 && (
                             <ToolUIRenderer blocks={message.uiBlocks} />
