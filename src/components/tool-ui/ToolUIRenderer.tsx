@@ -1,6 +1,26 @@
 import React from "react";
 import type { ToolUIBlock } from "./types";
 import { MAX_BLOCK_COUNT, MAX_BLOCK_DEPTH } from "./types";
+
+// =============================================================================
+// Error Boundary — prevents a single bad block from crashing the whole app
+// =============================================================================
+
+interface ErrorBoundaryState { hasError: boolean }
+
+class BlockErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error) {
+    console.warn("[ToolUI] Block render error:", error.message);
+  }
+  render() {
+    if (this.state.hasError) {
+      return <div className="text-xs text-red-400/70 px-2 py-1">Block failed to render.</div>;
+    }
+    return this.props.children;
+  }
+}
 import {
   ToolText,
   ToolMarkdown,
@@ -37,28 +57,28 @@ const renderBlock = (block: ToolUIBlock, index: number, depth: number): React.Re
 
   switch (block.type) {
     // Display
-    case "text":      return <ToolText key={index} {...block} />;
-    case "markdown":  return <ToolMarkdown key={index} {...block} />;
-    case "code":      return <ToolCode key={index} {...block} />;
-    case "alert":     return <ToolAlert key={index} {...block} />;
-    case "image":     return <ToolImage key={index} {...block} />;
-    case "divider":   return <ToolDivider key={index} />;
+    case "text":      return <BlockErrorBoundary key={index}><ToolText {...block} /></BlockErrorBoundary>;
+    case "markdown":  return <BlockErrorBoundary key={index}><ToolMarkdown {...block} /></BlockErrorBoundary>;
+    case "code":      return <BlockErrorBoundary key={index}><ToolCode {...block} /></BlockErrorBoundary>;
+    case "alert":     return <BlockErrorBoundary key={index}><ToolAlert {...block} /></BlockErrorBoundary>;
+    case "image":     return <BlockErrorBoundary key={index}><ToolImage {...block} /></BlockErrorBoundary>;
+    case "divider":   return <BlockErrorBoundary key={index}><ToolDivider /></BlockErrorBoundary>;
 
     // Data
-    case "table":     return <ToolTable key={index} {...block} />;
-    case "card":      return <ToolCard key={index} {...block} />;
-    case "list":      return <ToolList key={index} {...block} />;
-    case "chart":     return <ToolChart key={index} {...block} />;
+    case "table":     return <BlockErrorBoundary key={index}><ToolTable {...block} /></BlockErrorBoundary>;
+    case "card":      return <BlockErrorBoundary key={index}><ToolCard {...block} /></BlockErrorBoundary>;
+    case "list":      return <BlockErrorBoundary key={index}><ToolList {...block} /></BlockErrorBoundary>;
+    case "chart":     return <BlockErrorBoundary key={index}><ToolChart {...block} /></BlockErrorBoundary>;
 
     // Interactive
-    case "form":      return <ToolForm key={index} {...block} />;
-    case "button":    return <ToolButton key={index} {...block} />;
+    case "form":      return <BlockErrorBoundary key={index}><ToolForm {...block} /></BlockErrorBoundary>;
+    case "button":    return <BlockErrorBoundary key={index}><ToolButton {...block} /></BlockErrorBoundary>;
 
     // Layout (recursive)
-    case "tabs":      return <ToolTabs key={index} {...block} renderBlock={childRenderer} />;
-    case "row":       return <ToolRow key={index} {...block} renderBlock={childRenderer} />;
-    case "column":    return <ToolColumn key={index} {...block} renderBlock={childRenderer} />;
-    case "section":   return <ToolSection key={index} {...block} renderBlock={childRenderer} />;
+    case "tabs":      return <BlockErrorBoundary key={index}><ToolTabs {...block} renderBlock={childRenderer} /></BlockErrorBoundary>;
+    case "row":       return <BlockErrorBoundary key={index}><ToolRow {...block} renderBlock={childRenderer} /></BlockErrorBoundary>;
+    case "column":    return <BlockErrorBoundary key={index}><ToolColumn {...block} renderBlock={childRenderer} /></BlockErrorBoundary>;
+    case "section":   return <BlockErrorBoundary key={index}><ToolSection {...block} renderBlock={childRenderer} /></BlockErrorBoundary>;
 
     default:
       return (
