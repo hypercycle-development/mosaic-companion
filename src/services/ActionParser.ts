@@ -50,6 +50,8 @@ export function parseAction(response: string): ParsedAction {
 export interface ToolCallOutput {
   text: string;
   uiBlocks?: import("../components/tool-ui/types").ToolUIBlock[];
+  /** "display" = UI is the answer (skip agent recursion), "analyze" = agent comments (default) */
+  displayHint?: "display" | "analyze";
 }
 
 export async function executeToolCall(action: ParsedAction, agentId?: string): Promise<ToolCallOutput> {
@@ -82,7 +84,7 @@ export async function executeToolCall(action: ParsedAction, agentId?: string): P
           uiBlocks = registryResult.ui;
         }
         const text = typeof textData === "string" ? textData : JSON.stringify(textData, null, 2);
-        return { text, uiBlocks };
+        return { text, uiBlocks, displayHint: registryResult.displayHint };
       }
       // "not found" means the module doesn't exist in the registry — try MCP
       if (registryResult.error?.includes("not found")) {
