@@ -281,6 +281,38 @@ export class ToolManager {
       return { success: true, data: available };
     });
 
+    // ─── Panel Rendering IPC ───
+
+    ipcMain.handle(
+      "toolSandbox:renderPanel",
+      async (_event, toolId: string, panelId: string) => {
+        try {
+          if (!this.isToolRunning(toolId)) {
+            return { success: false, error: `Tool "${toolId}" is not running` };
+          }
+          const result = await this.launcher.callFunction(toolId, "mosaic_render_panel", { panelId });
+          return result;
+        } catch (err) {
+          return { success: false, error: (err as Error).message };
+        }
+      },
+    );
+
+    ipcMain.handle(
+      "toolSandbox:callFunction",
+      async (_event, toolId: string, functionName: string, args: Record<string, unknown>) => {
+        try {
+          if (!this.isToolRunning(toolId)) {
+            return { success: false, error: `Tool "${toolId}" is not running` };
+          }
+          const result = await this.launcher.callFunction(toolId, functionName, args);
+          return result;
+        } catch (err) {
+          return { success: false, error: (err as Error).message };
+        }
+      },
+    );
+
     // ─── Chronicle IPC ───
 
     ipcMain.handle(
