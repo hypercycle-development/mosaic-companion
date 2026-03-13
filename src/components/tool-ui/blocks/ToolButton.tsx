@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { ButtonBlock } from "../types";
+import type { ToolUIActionHandler } from "../ToolUIRenderer";
 
 const VARIANT_CLASSES: Record<string, string> = {
   primary:   "bg-blue-600 hover:bg-blue-500 text-white",
@@ -8,14 +9,18 @@ const VARIANT_CLASSES: Record<string, string> = {
   ghost:     "bg-transparent hover:bg-gray-800 text-gray-300 border border-gray-700",
 };
 
-export const ToolButton: React.FC<ButtonBlock> = ({ label, variant = "secondary", action }) => {
+export const ToolButton: React.FC<ButtonBlock & { onAction?: ToolUIActionHandler }> = ({ label, variant = "secondary", action, onAction }) => {
   const [running, setRunning] = useState(false);
 
   const handleClick = async () => {
     setRunning(true);
     try {
-      const fullToolName = `${action.server}:${action.tool}`;
-      await (window as any).electronAPI?.tools?.execute?.(fullToolName, action.args ?? {});
+      if (onAction) {
+        await onAction(action, action.args ?? {});
+      } else {
+        const fullToolName = `${action.server}:${action.tool}`;
+        await (window as any).electronAPI?.tools?.execute?.(fullToolName, action.args ?? {});
+      }
     } finally {
       setRunning(false);
     }

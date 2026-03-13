@@ -27,7 +27,7 @@ export const ToolTabs: React.FC<TabsBlock & { renderBlock: (block: ToolUIBlock, 
         ))}
       </div>
       {active && (
-        <div className="p-3 flex flex-col gap-2">
+        <div key={active.id} className="p-3 flex flex-col gap-2" style={{ animation: "toolUiFadeIn 200ms ease-out" }}>
           {active.blocks.map((block, i) => renderBlock(block, i))}
         </div>
       )}

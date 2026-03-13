@@ -20,7 +20,7 @@ export const ToolSection: React.FC<SectionBlock & { renderBlock: (block: ToolUIB
         {title}
       </button>
       {!collapsed && (
-        <div className="p-3 flex flex-col gap-2">
+        <div className="p-3 flex flex-col gap-2" style={{ animation: "toolUiFadeIn 200ms ease-out" }}>
           {blocks.map((block, i) => renderBlock(block, i))}
         </div>
       )}
