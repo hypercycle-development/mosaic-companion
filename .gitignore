@@ -56,3 +56,6 @@ project_dump.txt
 
 # Local planning docs
 /plans/
+
+# External repos (cloned for co-development)
+/external/
