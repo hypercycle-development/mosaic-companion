@@ -15,8 +15,11 @@ import {
   ChevronRight,
   AlertTriangle,
   ScrollText,
+  LayoutDashboard,
+  Eye,
 } from "lucide-react";
 import type { ToolManifest, InstalledTool, ChronicleEntry, ChronicleQuery } from "../../electron/integrations/sandbox/types";
+import { INTERNAL_TOOL_PANEL_PREFIX } from "../types/types";
 
 // =============================================================================
 // Types
@@ -170,11 +173,13 @@ const ToolCard: React.FC<{
   onLaunch: (id: string) => void;
   onStop: (id: string) => void;
   onUninstall: (id: string) => void;
+  onOpenPanel?: (toolId: string) => void;
   busy: boolean;
-}> = ({ tool, isRunning, onLaunch, onStop, onUninstall, busy }) => {
+}> = ({ tool, isRunning, onLaunch, onStop, onUninstall, onOpenPanel, busy }) => {
   const [expanded, setExpanded] = useState(false);
   const m = tool.manifest;
   const toolCount = Object.keys(m.tools).length;
+  const hasPanels = (m.ui?.panels?.length ?? 0) > 0;
 
   return (
     <div className="bg-gray-900/50 border border-gray-700 rounded-xl overflow-hidden">
@@ -206,6 +211,16 @@ const ToolCard: React.FC<{
 
         {/* Actions */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {isRunning && hasPanels && (
+            <button
+              onClick={() => onOpenPanel?.(m.id)}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-indigo-900/40 hover:bg-indigo-800/60 text-indigo-300 text-xs font-medium transition-colors"
+              title="Open panel in new tab"
+            >
+              <LayoutDashboard size={14} />
+              Open Panel
+            </button>
+          )}
           {isRunning ? (
             <button
               onClick={() => onStop(m.id)}
@@ -398,7 +413,7 @@ const ChronicleViewer: React.FC<{ tools: InstalledTool[] }> = ({ tools }) => {
 // Main SandboxPage
 // =============================================================================
 
-export const SandboxPage: React.FC = () => {
+export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ onNavigate }) => {
   const [tab, setTab] = useState<TabId>("tools");
   const [installed, setInstalled] = useState<InstalledTool[]>([]);
   const [runningIds, setRunningIds] = useState<Set<string>>(new Set());
@@ -559,6 +574,13 @@ export const SandboxPage: React.FC = () => {
             </span>
           )}
           <button
+            onClick={() => onNavigate?.(`${INTERNAL_TOOL_PANEL_PREFIX}__demo__`)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium"
+          >
+            <Eye size={14} />
+            Demo Panel
+          </button>
+          <button
             onClick={handlePickFile}
             disabled={!available || installing}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium disabled:opacity-50"
@@ -633,6 +655,9 @@ export const SandboxPage: React.FC = () => {
                 onLaunch={handleLaunch}
                 onStop={handleStop}
                 onUninstall={handleUninstall}
+                onOpenPanel={(toolId) =>
+                  onNavigate?.(`${INTERNAL_TOOL_PANEL_PREFIX}${toolId}`)
+                }
                 busy={busyTools.has(tool.manifest.id)}
               />
             ))
