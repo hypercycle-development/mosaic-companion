@@ -9,6 +9,7 @@ import {
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
   INTERNAL_SANDBOX_URL,
+  INTERNAL_TOOL_PANEL_PREFIX,
   Tab,
 } from "../types/types";
 import { LandingPage } from "./LandingPage";
@@ -19,8 +20,10 @@ import { ChatPage } from "./ChatPage";
 import { Web3Page } from "./Web3Page";
 import { VaultPage } from "./VaultPage";
 import { SandboxPage } from "./SandboxPage";
+import { ToolPanelView } from "./ToolPanelView";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
+import { HYPERINSIGHT_MANIFEST, HYPERINSIGHT_PANEL_DATA } from "./tool-ui/demos/hyperinsight";
 
 interface ContentAreaProps {
   url: string;
@@ -407,7 +410,71 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
 
     return (
       <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
-        <SandboxPage />
+        <SandboxPage onNavigate={onNavigate} />
+      </div>
+    );
+  }
+
+  if (url.startsWith(INTERNAL_TOOL_PANEL_PREFIX)) {
+    const toolId = url.slice(INTERNAL_TOOL_PANEL_PREFIX.length);
+
+    // ─── Dev-mode demo panel ───────────────────────────────────────
+    if (toolId === "__demo__") {
+      useEffect(() => {
+        onUpdateTab({ title: "HyperInsight (Demo)", isLoading: false, favicon: undefined });
+      }, [url]);
+
+      return (
+        <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
+          <ToolPanelView
+            toolId="__demo__"
+            manifest={HYPERINSIGHT_MANIFEST}
+            mockData={HYPERINSIGHT_PANEL_DATA}
+          />
+        </div>
+      );
+    }
+
+    const [manifest, setManifest] = useState<any>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
+
+    useEffect(() => {
+      const load = async () => {
+        const res = await window.electronAPI.toolSandbox.listInstalled();
+        if (res.success && res.data) {
+          const tool = res.data.find((t: any) => t.manifest.id === toolId);
+          if (tool) {
+            setManifest(tool.manifest);
+            onUpdateTab({ title: tool.manifest.displayName, isLoading: false, favicon: undefined });
+          } else {
+            setLoadError(`Tool "${toolId}" not found`);
+            onUpdateTab({ title: "Tool Panel", isLoading: false, favicon: undefined });
+          }
+        }
+      };
+      load();
+    }, [url]);
+
+    if (loadError) {
+      return (
+        <div className="flex items-center justify-center h-64 text-red-400">
+          <AlertTriangle size={20} className="mr-2" />
+          {loadError}
+        </div>
+      );
+    }
+
+    if (!manifest) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 size={32} className="animate-spin text-gray-500" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
+        <ToolPanelView toolId={toolId} manifest={manifest} />
       </div>
     );
   }
