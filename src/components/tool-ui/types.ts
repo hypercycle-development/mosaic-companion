@@ -29,7 +29,9 @@ export type BlockType =
   | "tabs"
   | "row"
   | "column"
-  | "section";
+  | "section"
+  | "stat-card"
+  | "badge";
 
 /** Base fields shared by every block */
 interface BlockBase {
@@ -85,27 +87,55 @@ export interface DividerBlock extends BlockBase {
 // Data Blocks
 // =============================================================================
 
+/** Named color tokens for cell formatting */
+export type CellColor = "green" | "red" | "yellow" | "blue" | "purple" | "cyan" | "gray";
+
 export interface TableColumn {
   key: string;
   label: string;
   align?: "left" | "center" | "right";
+  /** Apply a color to all cells in this column (overridden by per-cell colors) */
+  color?: CellColor;
+  /** Render cells in this column as monospace */
+  mono?: boolean;
 }
+
+/** Per-cell color override: cellColors[rowIndex][columnKey] */
+export type CellColorMap = Record<number, Record<string, CellColor>>;
 
 export interface TableBlock extends BlockBase {
   type: "table";
   title?: string;
   columns: TableColumn[];
   rows: Record<string, unknown>[];
+  /** Per-cell color overrides */
+  cellColors?: CellColorMap;
+  /** Show a search input that filters rows client-side */
+  searchable?: boolean;
+  /** Placeholder text for the search input */
+  searchPlaceholder?: string;
+  /** Action template fired when a row is clicked. Row data is merged into action.args. */
+  onRowClick?: ButtonAction;
 }
 
 export interface CardField {
   label: string;
   value: string;
+  /** Optional icon name (rendered via lucide-react) */
+  icon?: "download" | "star" | "clock" | "check" | "info" | "warning" | "shield" | "globe" | "cpu" | "database" | "zap" | "hash";
+  /** Color the value text */
+  color?: CellColor;
 }
 
 export interface CardBlock extends BlockBase {
   type: "card";
   title?: string;
+  /** Color for the title text */
+  titleColor?: CellColor;
+  /** Render title in monospace */
+  titleMono?: boolean;
+  /** Subtitle shown right-aligned in the title row (e.g. "ID: 84006") */
+  subtitle?: string;
   fields: CardField[];
 }
 
@@ -211,6 +241,48 @@ export interface ButtonBlock extends BlockBase {
 }
 
 // =============================================================================
+// Stat Card Block
+// =============================================================================
+
+/** Trend data point for sparkline in stat cards */
+export interface TrendPoint {
+  value: number;
+}
+
+export type StatCardColor = "blue" | "green" | "red" | "yellow" | "purple" | "cyan" | "gray";
+
+export interface StatCardBlock extends BlockBase {
+  type: "stat-card";
+  /** Main label (e.g. "Active AIMs") */
+  label: string;
+  /** Big number or value string */
+  value: string;
+  /** Smaller subtext below the value */
+  subtext?: string;
+  /** Accent color theme */
+  color?: StatCardColor;
+  /** Optional sparkline trend data */
+  trend?: TrendPoint[];
+  /** Icon for the card */
+  icon?: "cpu" | "database" | "globe" | "zap" | "server" | "activity" | "layers" | "box" | "shield" | "hash";
+  /** Tooltip text shown on hover (via info icon) */
+  tooltip?: string;
+}
+
+// =============================================================================
+// Badge Block
+// =============================================================================
+
+export type BadgeColor = "blue" | "green" | "red" | "yellow" | "purple" | "cyan" | "gray";
+
+export interface BadgeBlock extends BlockBase {
+  type: "badge";
+  label: string;
+  color?: BadgeColor;
+  icon?: "download" | "star" | "clock" | "check" | "info" | "warning" | "zap" | "globe" | "hash";
+}
+
+// =============================================================================
 // Layout Blocks
 // =============================================================================
 
@@ -229,6 +301,8 @@ export interface RowBlock extends BlockBase {
   type: "row";
   gap?: number;
   blocks: ToolUIBlock[];
+  /** When true, children flow inline without stretching to equal widths */
+  inline?: boolean;
 }
 
 export interface ColumnBlock extends BlockBase {
@@ -264,14 +338,16 @@ export type ToolUIBlock =
   | TabsBlock
   | RowBlock
   | ColumnBlock
-  | SectionBlock;
+  | SectionBlock
+  | StatCardBlock
+  | BadgeBlock;
 
 // =============================================================================
 // Constraints
 // =============================================================================
 
 /** Maximum nesting depth for layout blocks (row, column, section, tabs) */
-export const MAX_BLOCK_DEPTH = 4;
+export const MAX_BLOCK_DEPTH = 6;
 
 /** Maximum number of blocks in a single UI response */
 export const MAX_BLOCK_COUNT = 50;
