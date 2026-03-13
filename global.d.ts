@@ -307,6 +307,8 @@ declare global {
         listInstalled: () => Promise<{ success: boolean; data?: InstalledTool[] }>;
         listRunning: () => Promise<{ success: boolean; data?: RunningToolInfo[] }>;
         isAvailable: () => Promise<{ success: boolean; data?: boolean }>;
+        renderPanel: (toolId: string, panelId: string) => Promise<{ success: boolean; data?: unknown; ui?: Array<{ type: string; [key: string]: unknown }>; error?: string }>;
+        callFunction: (toolId: string, functionName: string, args: Record<string, unknown>) => Promise<{ success: boolean; data?: unknown; ui?: Array<{ type: string; [key: string]: unknown }>; error?: string }>;
       };
 
       // Chronicle (tool activity log)
