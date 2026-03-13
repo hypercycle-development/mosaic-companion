@@ -2,7 +2,7 @@ import React from "react";
 import type { RowBlock, ToolUIBlock } from "../types";
 
 export const ToolRow: React.FC<RowBlock & { renderBlock: (block: ToolUIBlock, index: number) => React.ReactNode }> = ({
-  gap = 12,
+  gap = 16,
   blocks,
   inline,
   renderBlock,

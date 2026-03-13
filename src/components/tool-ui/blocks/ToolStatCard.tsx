@@ -74,23 +74,23 @@ export const ToolStatCard: React.FC<StatCardBlock> = ({
 
   return (
     <div
-      className={`rounded-lg border ${accent.border} bg-gray-800/40 p-4 flex flex-col justify-between min-h-[120px] transition-all duration-200 hover:bg-gray-800/60 hover:-translate-y-0.5`}
+      className={`rounded-lg border ${accent.border} bg-gray-800/40 p-5 flex flex-col justify-between min-h-[140px] transition-all duration-200 hover:bg-gray-800/60 hover:-translate-y-0.5`}
       title={tooltip}
     >
       <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-gray-500">
+        <span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-400">
           {IconComp && (
-            <span className={`inline-flex items-center justify-center w-5 h-5 rounded ${accent.iconBg}`}>
-              <IconComp size={12} className={accent.text} />
+            <span className={`inline-flex items-center justify-center w-7 h-7 rounded-md ${accent.iconBg}`}>
+              <IconComp size={16} className={accent.text} />
             </span>
           )}
           {label}
         </span>
-        {tooltip && <Info size={14} className="text-gray-600 hover:text-gray-400 cursor-help transition-colors" />}
+        {tooltip && <Info size={16} className="text-gray-600 hover:text-gray-400 cursor-help transition-colors" />}
       </div>
-      <div className="mt-1">
-        <span className={`text-2xl font-bold ${accent.text}`}>{value}</span>
-        {subtext && <span className="ml-2 text-xs text-gray-500">{subtext}</span>}
+      <div className="mt-2">
+        <span className={`text-3xl font-bold ${accent.text}`}>{value}</span>
+        {subtext && <span className="ml-2 text-sm text-gray-500">{subtext}</span>}
       </div>
       {trend && trend.length >= 2 && <Sparkline data={trend} color={accent.line} />}
     </div>

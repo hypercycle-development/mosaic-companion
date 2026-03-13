@@ -24,8 +24,8 @@ export const ToolBadge: React.FC<BadgeBlock> = ({ label, color = "gray", icon })
   const IconComp = icon ? ICON_MAP[icon] : null;
 
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${cls}`}>
-      {IconComp && <IconComp size={12} />}
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium ${cls}`}>
+      {IconComp && <IconComp size={14} />}
       {label}
     </span>
   );
