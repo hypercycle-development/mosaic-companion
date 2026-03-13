@@ -277,6 +277,10 @@ function buildAimDetail(aim: AIMEntry): ToolUIBlock[] {
   const ports = aim.compute > 0 ? ["4000", "4001"] : ["4000"];
 
   return [
+    // ── AIM name header ───────────────────────────────────────────────
+    { type: "text", content: aim.name, variant: "heading", color: "green", mono: true },
+    { type: "text", content: "Performance & Analytics", variant: "caption" },
+
     // ── Node Activity header row ──────────────────────────────────────
     { type: "row", inline: true, blocks: [
       { type: "column", blocks: [
@@ -319,15 +323,15 @@ function buildAimDetail(aim: AIMEntry): ToolUIBlock[] {
       ] },
       { type: "column", blocks: [
         { type: "card", fields: [
-          { label: "Total Pulls", value: String(aim.pulls), icon: "download" },
-          { label: "Stars", value: String(aim.stars), icon: "star" },
-          { label: "Last Updated", value: aim.lastUpdated, icon: "clock", color: "green" },
+          { label: "Total Pulls", value: String(aim.pulls), icon: "download", iconColor: "blue" },
+          { label: "Stars", value: String(aim.stars), icon: "star", iconColor: "yellow" },
+          { label: "Last Updated", value: aim.lastUpdated, icon: "clock", color: "green", iconColor: "green" },
         ] },
       ] },
     ] },
 
     // ── Release Explorer ──────────────────────────────────────────────
-    { type: "section", title: "Release Explorer — View versions, architectures, and requirements", collapsed: false, blocks: [
+    { type: "section", title: "Release Explorer", subtitle: "View versions, architectures, and requirements", icon: "box", iconColor: "text-orange-500", collapsed: true, blocks: [
       { type: "tabs", tabs: [
         { id: "amd64", label: "linux/amd64", blocks: [
           { type: "row", blocks: [
@@ -409,31 +413,20 @@ function buildAimDetail(aim: AIMEntry): ToolUIBlock[] {
 
     // ── Metric charts (Nodes, TFLOPS, cGHz — matches HyperInsight tabs) ──
     { type: "tabs", tabs: [
-      { id: "nodes-chart", label: "Nodes", blocks: [
+      { id: "nodes-chart", label: "Nodes", icon: "server", blocks: [
         { type: "chart", chartType: "area", title: `Active Nodes (1W)`, series: [
           { name: "Nodes", data: fakeWeekly(aim.activeNodes) },
         ] },
       ] },
-      { id: "tflops-chart", label: "TFLOPS", blocks: [
+      { id: "tflops-chart", label: "TFLOPS", icon: "zap", blocks: [
         { type: "chart", chartType: "area", title: `Compute TFLOPS (1W)`, series: [
           { name: "TFLOPS", data: fakeWeekly(Math.round(aim.compute)) },
         ] },
       ] },
-      { id: "cghz-chart", label: "cGHz", blocks: [
+      { id: "cghz-chart", label: "cGHz", icon: "cpu", blocks: [
         { type: "chart", chartType: "area", title: `CPU cGHz (1W)`, series: [
           { name: "cGHz", data: fakeWeekly(aim.cpu) },
         ] },
-      ] },
-    ] },
-
-    // ── Action buttons ────────────────────────────────────────────────
-    { type: "divider" },
-    { type: "row", blocks: [
-      { type: "column", blocks: [
-        { type: "button", label: "Deploy to Node", variant: "primary", action: { tool: "deploy_aim", server: "ext:__demo__", args: { aim: aim.name } } },
-      ] },
-      { type: "column", blocks: [
-        { type: "button", label: "View on Registry", variant: "secondary", action: { tool: "open_registry", server: "ext:__demo__", args: { aim: aim.name } } },
       ] },
     ] },
   ];
@@ -457,10 +450,10 @@ export const HYPERINSIGHT_MANIFEST = {
   tools: {},
   ui: {
     panels: [
-      { id: "leaderboard", title: "Leaderboard" },
-      { id: "aims", title: "Aims" },
-      { id: "nodes", title: "Nodes" },
-      { id: "aim-detail", title: "AIM Detail" },
+      { id: "leaderboard", title: "Leaderboard", icon: "trophy" },
+      { id: "aims", title: "Aims", icon: "chart" },
+      { id: "nodes", title: "Nodes", icon: "server" },
+      { id: "aim-detail", title: "AIM Detail", hidden: true },
     ],
   },
 };

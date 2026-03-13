@@ -51,17 +51,17 @@ export const ToolTable: React.FC<TableBlock & { onAction?: TableActionHandler }>
   return (
     <div className="rounded-lg border border-gray-700 overflow-hidden">
       {(title || searchable) && (
-        <div className="flex items-center justify-between gap-3 px-3 py-2 bg-gray-800 border-b border-gray-700">
-          {title && <span className="text-sm font-medium text-gray-200">{title}</span>}
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-gray-800 border-b border-gray-700">
+          {title && <span className="text-sm font-semibold text-gray-200">{title}</span>}
           {searchable && (
             <div className="relative flex-shrink-0">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={searchPlaceholder ?? "Search..."}
-                className="pl-8 pr-3 py-1 text-xs rounded-md bg-gray-900 border border-gray-700 text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-500 w-48"
+                className="pl-9 pr-3 py-1.5 text-sm rounded-md bg-gray-900 border border-gray-700 text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-500 w-52"
               />
             </div>
           )}
@@ -74,7 +74,7 @@ export const ToolTable: React.FC<TableBlock & { onAction?: TableActionHandler }>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-3 py-2 font-medium text-gray-400 text-${col.align ?? "left"} border-b border-gray-700`}
+                  className={`px-4 py-2.5 font-semibold text-gray-400 text-${col.align ?? "left"} border-b border-gray-700`}
                 >
                   {col.label}
                 </th>
@@ -96,7 +96,7 @@ export const ToolTable: React.FC<TableBlock & { onAction?: TableActionHandler }>
                   return (
                     <td
                       key={col.key}
-                      className={`px-3 py-2 text-${col.align ?? "left"} ${colorClass}${monoClass}`}
+                      className={`px-4 py-2.5 text-${col.align ?? "left"} ${colorClass}${monoClass}`}
                     >
                       {String(row[col.key] ?? "")}
                     </td>

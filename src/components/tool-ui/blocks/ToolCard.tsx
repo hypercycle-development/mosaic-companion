@@ -27,22 +27,23 @@ export const ToolCard: React.FC<CardBlock> = ({ title, titleColor, titleMono, su
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-800/40 overflow-hidden transition-all duration-200 hover:border-gray-600 hover:-translate-y-0.5">
       {title && (
-        <div className="px-3 py-2 flex items-center justify-between gap-2 border-b border-gray-700">
-          <span className={`text-sm font-medium truncate ${titleColorClass}${titleMonoClass}`}>{title}</span>
+        <div className="px-4 py-3 flex items-center justify-between gap-2 border-b border-gray-700">
+          <span className={`text-sm font-semibold truncate ${titleColorClass}${titleMonoClass}`}>{title}</span>
           {subtitle && <span className="text-xs text-gray-500 shrink-0">{subtitle}</span>}
         </div>
       )}
-      <div className="p-3 grid gap-2">
+      <div className="p-4 grid gap-3">
       {fields.map((f, i) => {
         const IconComp = f.icon ? ICON_MAP[f.icon] : null;
         const valueClass = f.color ? (VALUE_COLOR_CLASSES[f.color] ?? "text-gray-200") : "text-gray-200";
+        const iconColorClass = f.iconColor ? (VALUE_COLOR_CLASSES[f.iconColor] ?? "text-gray-500") : f.color ? (VALUE_COLOR_CLASSES[f.color] ?? "text-gray-500") : "text-gray-500";
         return (
           <div key={i} className="flex items-center justify-between gap-4">
-            <span className="flex items-center gap-1.5 text-xs text-gray-500 shrink-0">
-              {IconComp && <IconComp size={13} className="text-gray-500" />}
+            <span className="flex items-center gap-2 text-sm text-gray-400 shrink-0">
+              {IconComp && <IconComp size={18} className={iconColorClass} />}
               {f.label}
             </span>
-            <span className={`text-sm text-right ${valueClass}`}>{f.value}</span>
+            <span className={`text-sm font-medium text-right ${valueClass}`}>{f.value}</span>
           </div>
         );
       })}

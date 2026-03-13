@@ -68,6 +68,10 @@ export interface ToolUIPanel {
   description?: string;
   /** Default panel height in pixels */
   defaultHeight?: number;
+  /** Icon name for the panel tab */
+  icon?: string;
+  /** If true, panel is navigable but not shown as a tab */
+  hidden?: boolean;
 }
 
 /** UI configuration in the manifest */

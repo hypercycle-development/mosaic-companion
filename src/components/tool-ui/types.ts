@@ -48,6 +48,10 @@ export interface TextBlock extends BlockBase {
   type: "text";
   content: string;
   variant?: TextVariant;
+  /** Color for the text */
+  color?: CellColor;
+  /** Render in monospace */
+  mono?: boolean;
 }
 
 export interface MarkdownBlock extends BlockBase {
@@ -125,6 +129,8 @@ export interface CardField {
   icon?: "download" | "star" | "clock" | "check" | "info" | "warning" | "shield" | "globe" | "cpu" | "database" | "zap" | "hash";
   /** Color the value text */
   color?: CellColor;
+  /** Color the icon (defaults to color if set, otherwise gray) */
+  iconColor?: CellColor;
 }
 
 export interface CardBlock extends BlockBase {
@@ -286,9 +292,13 @@ export interface BadgeBlock extends BlockBase {
 // Layout Blocks
 // =============================================================================
 
+export type TabIcon = "server" | "zap" | "cpu" | "activity" | "trophy" | "chart" | "globe" | "database" | "layers" | "box" | "shield" | "hash";
+
 export interface TabDef {
   id: string;
   label: string;
+  /** Optional icon rendered before the label */
+  icon?: TabIcon;
   blocks: ToolUIBlock[];
 }
 
@@ -313,7 +323,13 @@ export interface ColumnBlock extends BlockBase {
 export interface SectionBlock extends BlockBase {
   type: "section";
   title: string;
+  /** Subtitle shown below the title */
+  subtitle?: string;
   collapsed?: boolean;
+  /** Icon name for the section header */
+  icon?: TabIcon;
+  /** Icon color class (e.g. "text-orange-500") */
+  iconColor?: string;
   blocks: ToolUIBlock[];
 }
 

@@ -144,7 +144,7 @@ export const ToolUIRenderer: React.FC<ToolUIRendererProps> = ({ blocks, onAction
   const capped = blocks.slice(0, MAX_BLOCK_COUNT);
 
   return (
-    <div className="tool-ui-container flex flex-col gap-2 mt-2">
+    <div className="tool-ui-container flex flex-col gap-4 mt-2">
       <style>{TOOL_UI_KEYFRAMES}</style>
       {capped.map((block, i) => renderBlock(block, i, 0, onAction))}
       {blocks.length > MAX_BLOCK_COUNT && (
