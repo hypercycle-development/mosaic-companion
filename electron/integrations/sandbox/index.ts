@@ -13,7 +13,8 @@
 
 import { app, ipcMain, safeStorage } from "electron";
 import { join } from "path";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from "fs";
+import { createHash } from "crypto";
 import type { ToolModule } from "../tools/types";
 import type { InstalledTool, ToolLauncher, ToolManifest, RunningTool } from "./types";
 import { WasmLauncher } from "./wasm-launcher";
@@ -106,11 +107,18 @@ export class ToolManager {
       throw new Error(`Tool "${manifest.id}" is already installed`);
     }
 
+    const sourceBytes = readFileSync(wasmFilePath);
+    const fileHash = this.sha256(sourceBytes);
+    const storedPath = this.persistApprovedArtifact(wasmFilePath, manifest, fileHash);
+
     const installedTool: InstalledTool = {
       manifest,
       installedAt: new Date().toISOString(),
       enabled: true,
-      entryPath: wasmFilePath,
+      pinned: false,
+      entryPath: storedPath,
+      sourcePath: wasmFilePath,
+      fileHash,
     };
 
     this.installed.set(manifest.id, installedTool);
@@ -118,6 +126,49 @@ export class ToolManager {
 
     console.log(`[ToolManager] Installed: ${manifest.displayName} (${manifest.id})`);
     return installedTool;
+  }
+
+  /**
+   * Update an installed tool from a newly approved WASM file.
+   * Replaces the stored artifact metadata and relaunches if it was running.
+   */
+  async updateTool(wasmFilePath: string): Promise<InstalledTool> {
+    const manifest = await this.launcher.extractManifest(wasmFilePath);
+    const existing = this.installed.get(manifest.id);
+    if (!existing) {
+      throw new Error(`Tool "${manifest.id}" is not installed`);
+    }
+
+    const sourceBytes = readFileSync(wasmFilePath);
+    const fileHash = this.sha256(sourceBytes);
+    if (existing.fileHash && existing.fileHash === fileHash) {
+      throw new Error(`Tool "${manifest.id}" is already at this exact build`);
+    }
+
+    const storedPath = this.persistApprovedArtifact(wasmFilePath, manifest, fileHash);
+    const wasRunning = this.isToolRunning(manifest.id);
+
+    if (wasRunning) {
+      await this.stopTool(manifest.id);
+    }
+
+    const updatedTool: InstalledTool = {
+      ...existing,
+      manifest,
+      entryPath: storedPath,
+      sourcePath: wasmFilePath,
+      fileHash,
+    };
+
+    this.installed.set(manifest.id, updatedTool);
+    this.saveInstalled();
+
+    if (wasRunning && updatedTool.enabled) {
+      await this.launchTool(manifest.id);
+    }
+
+    console.log(`[ToolManager] Updated: ${manifest.displayName} (${manifest.id})`);
+    return updatedTool;
   }
 
   /**
@@ -157,6 +208,21 @@ export class ToolManager {
     const moduleName = `ext:${toolId}`;
     if (this.bridges.has(moduleName)) {
       throw new Error(`Tool "${toolId}" is already running`);
+    }
+
+    // Verify persisted artifact integrity before launch.
+    // If this fails, the stored file was modified after install approval.
+    const currentHash = this.sha256(readFileSync(installed.entryPath));
+    if (installed.fileHash && installed.fileHash !== currentHash) {
+      throw new Error(
+        `Tool integrity check failed for "${toolId}". Expected ${installed.fileHash.slice(0, 12)}..., got ${currentHash.slice(0, 12)}...`,
+      );
+    }
+    // Backfill missing hash for legacy installs.
+    if (!installed.fileHash) {
+      installed.fileHash = currentHash;
+      this.installed.set(toolId, installed);
+      this.saveInstalled();
     }
 
     // Re-extract the manifest from the WASM binary (source of truth)
@@ -263,18 +329,46 @@ export class ToolManager {
     return this.bridges.has(`ext:${toolId}`);
   }
 
+  setToolPinned(toolId: string, pinned: boolean): void {
+    const installed = this.installed.get(toolId);
+    if (!installed) {
+      throw new Error(`Tool "${toolId}" is not installed`);
+    }
+    installed.pinned = pinned;
+    this.installed.set(toolId, installed);
+    this.saveInstalled();
+  }
+
   // ---------------------------------------------------------------------------
   // IPC Handlers
   // ---------------------------------------------------------------------------
 
   private registerIPC(): void {
-    ipcMain.handle("toolSandbox:install", async (_event, wasmPath: string) => {
+    ipcMain.handle("toolSandbox:inspectManifest", async (_event, wasmPath: string) => {
       try {
-        return { success: true, data: await this.installTool(wasmPath) };
+        const manifest = await this.launcher.extractManifest(wasmPath);
+        const fileHash = this.sha256(readFileSync(wasmPath));
+        return { success: true, data: { manifest, fileHash } };
       } catch (err) {
         return { success: false, error: (err as Error).message };
       }
     });
+
+    ipcMain.handle(
+      "toolSandbox:install",
+      async (_event, wasmPath: string, approval?: { approved?: boolean }) => {
+      try {
+        // Enforce explicit approval in the install flow.
+        // This is a UX safety gate for manual .wasm installs.
+        if (!approval?.approved) {
+          return { success: false, error: "Installation requires explicit permission approval" };
+        }
+        return { success: true, data: await this.installTool(wasmPath) };
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
+      }
+      },
+    );
 
     ipcMain.handle("toolSandbox:uninstall", async (_event, toolId: string) => {
       try {
@@ -309,6 +403,29 @@ export class ToolManager {
 
     ipcMain.handle("toolSandbox:listRunning", async () => {
       return { success: true, data: this.getRunningTools() };
+    });
+
+    ipcMain.handle(
+      "toolSandbox:update",
+      async (_event, wasmPath: string, approval?: { approved?: boolean }) => {
+        try {
+          if (!approval?.approved) {
+            return { success: false, error: "Update requires explicit permission approval" };
+          }
+          return { success: true, data: await this.updateTool(wasmPath) };
+        } catch (err) {
+          return { success: false, error: (err as Error).message };
+        }
+      },
+    );
+
+    ipcMain.handle("toolSandbox:setPinned", async (_event, toolId: string, pinned: boolean) => {
+      try {
+        this.setToolPinned(toolId, pinned);
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
+      }
     });
 
     ipcMain.handle("toolSandbox:isAvailable", async () => {
@@ -416,6 +533,27 @@ export class ToolManager {
     } catch (err) {
       console.error("[ToolManager] Failed to save installed tools:", err);
     }
+  }
+
+  private persistApprovedArtifact(
+    wasmFilePath: string,
+    manifest: ToolManifest,
+    fileHash: string,
+  ): string {
+    const toolsDir = join(this.dataDir, "tools", manifest.id);
+    if (!existsSync(toolsDir)) {
+      mkdirSync(toolsDir, { recursive: true });
+    }
+    const storedFileName = `${manifest.id}-${manifest.version}-${fileHash.slice(0, 12)}.wasm`;
+    const storedPath = join(toolsDir, storedFileName);
+    if (!existsSync(storedPath)) {
+      copyFileSync(wasmFilePath, storedPath);
+    }
+    return storedPath;
+  }
+
+  private sha256(data: Buffer): string {
+    return createHash("sha256").update(data).digest("hex");
   }
 }
 

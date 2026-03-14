@@ -33,8 +33,10 @@ import {
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
   INTERNAL_SANDBOX_URL,
+  INTERNAL_TOOL_PANEL_PREFIX,
 } from "../types/types";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
+import type { InstalledTool } from "../../electron/integrations/sandbox/types";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -53,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   // Hypercycle nodes state
   const [nodes, setNodes] = useState<HypercycleNode[]>([]);
+  const [pinnedTools, setPinnedTools] = useState<InstalledTool[]>([]);
 
   // Live status tracking: { [nodeId]: { isLive, checking, lastChecked, latency } }
   const [nodeStatuses, setNodeStatuses] = useState<
@@ -155,6 +158,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const interval = setInterval(checkAllNodes, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [nodes, checkNodeConnection]);
+
+  // Load pinned sandbox tools (refresh periodically to reflect pin changes)
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPinnedTools = async () => {
+      try {
+        const res = await window.electronAPI.toolSandbox.listInstalled();
+        if (!cancelled && res.success && res.data) {
+          setPinnedTools(
+            res.data.filter(
+              (tool) => Boolean(tool.pinned) && (tool.manifest.ui?.panels?.length ?? 0) > 0,
+            ),
+          );
+        }
+      } catch {
+        if (!cancelled) setPinnedTools([]);
+      }
+    };
+
+    loadPinnedTools();
+    const interval = setInterval(loadPinnedTools, 15_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
   // Navigation Items
   const navItems: SidebarItem[] = [
     { id: "home", label: "Home", icon: "Home", url: INTERNAL_HOME_URL },
@@ -340,6 +371,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
         </nav>
+
+        {/* 1b. Pinned Tools */}
+        {pinnedTools.length > 0 && (
+          <div className="space-y-2 px-3">
+            <div className="px-3 mb-2 flex items-center justify-between text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+              <span>Pinned Tools</span>
+              <Cpu size={12} />
+            </div>
+
+            {pinnedTools.map((tool) => {
+              const url = `${INTERNAL_TOOL_PANEL_PREFIX}${tool.manifest.id}`;
+              const isActive = currentUrl === url;
+
+              return (
+                <button
+                  key={tool.manifest.id}
+                  onClick={() => onNavigate(url)}
+                  className={`w-full flex items-center px-3 py-2.5 rounded-lg transition-all relative group border ${
+                    isActive
+                      ? "bg-indigo-900/20 text-gray-100 border-indigo-500/20"
+                      : "hover-surface-accent text-gray-400 hover:text-gray-200 border-transparent"
+                  }`}
+                >
+                  <Cpu className="size-4 mr-3 text-indigo-400" />
+                  <div className="flex-1 text-left min-w-0">
+                    <span className="text-sm block truncate">{tool.manifest.displayName}</span>
+                    <span className="text-[10px] text-gray-600 font-mono block truncate">
+                      v{tool.manifest.version}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* 2. Active AI Agents */}
         {activeAgents.length > 0 && (
