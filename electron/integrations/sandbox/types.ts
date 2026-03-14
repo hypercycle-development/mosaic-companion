@@ -302,6 +302,12 @@ export interface InstalledTool {
   installedAt: string;
   /** Whether the tool is currently enabled */
   enabled: boolean;
+  /** Whether the tool should appear in the sidebar quick access list */
+  pinned?: boolean;
   /** Path to the .wasm file (for WASM tools) or image reference (for Docker) */
   entryPath: string;
+  /** Original user-selected source path at install time (for audit only) */
+  sourcePath?: string;
+  /** SHA-256 hash of the persisted tool binary */
+  fileHash?: string;
 }

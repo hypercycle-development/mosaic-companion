@@ -23,7 +23,6 @@ import { SandboxPage } from "./SandboxPage";
 import { ToolPanelView } from "./ToolPanelView";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
-import { HYPERINSIGHT_MANIFEST, HYPERINSIGHT_PANEL_DATA } from "./tool-ui/demos/hyperinsight";
 
 interface ContentAreaProps {
   url: string;
@@ -255,13 +254,6 @@ const ToolPanelPage: React.FC<{
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Demo panel — no IPC needed
-    if (toolId === "__demo__") {
-      setManifest(HYPERINSIGHT_MANIFEST);
-      onUpdateTab({ title: "HyperInsight (Demo)", isLoading: false, favicon: undefined });
-      return;
-    }
-
     // Real tool — fetch manifest from installed tools
     const load = async () => {
       const res = await window.electronAPI.toolSandbox.listInstalled();
@@ -301,7 +293,6 @@ const ToolPanelPage: React.FC<{
       <ToolPanelView
         toolId={toolId}
         manifest={manifest}
-        mockData={toolId === "__demo__" ? HYPERINSIGHT_PANEL_DATA : undefined}
       />
     </div>
   );
