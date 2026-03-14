@@ -11,11 +11,11 @@
  * WasmLauncher now and could be DockerLauncher later.
  */
 
-import { app, ipcMain } from "electron";
+import { app, ipcMain, safeStorage } from "electron";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import type { ToolModule } from "../tools/types";
-import type { InstalledTool, ToolLauncher, RunningTool } from "./types";
+import type { InstalledTool, ToolLauncher, ToolManifest, RunningTool } from "./types";
 import { WasmLauncher } from "./wasm-launcher";
 import { createToolBridge } from "./tool-bridge";
 import { getChronicle } from "./chronicle";
@@ -162,8 +162,11 @@ export class ToolManager {
     // Re-extract the manifest from the WASM binary (source of truth)
     const manifest = await this.launcher.extractManifest(installed.entryPath);
 
+    // Pre-materialize tool-specific input data (secrets, config)
+    const inputData = this.resolveInputData(manifest);
+
     // Launch via the ToolLauncher (WasmLauncher)
-    const runningTool = await this.launcher.launch(manifest);
+    const runningTool = await this.launcher.launch(manifest, inputData);
 
     // Log lifecycle event
     getChronicle().logLifecycle(toolId, "launched", {
@@ -183,6 +186,38 @@ export class ToolManager {
     }
 
     return runningTool;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Input Data Resolution
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Resolve pre-materialized input data for a tool.
+   * Core decrypts secrets and injects them so the tool can read via readInput().
+   */
+  private resolveInputData(manifest: ToolManifest): Map<string, string> {
+    const data = new Map<string, string>();
+
+    // HyperInsight: decrypt API key from safeStorage and inject
+    if (manifest.id === "hyperinsight") {
+      try {
+        const keyFile = join(app.getPath("userData"), "hyperinsight.json");
+        if (existsSync(keyFile)) {
+          const raw = JSON.parse(readFileSync(keyFile, "utf8"));
+          if (raw.apiKeyEncB64 && safeStorage.isEncryptionAvailable()) {
+            const encBuf = Buffer.from(raw.apiKeyEncB64, "base64");
+            const apiKey = safeStorage.decryptString(encBuf);
+            data.set("api_key", apiKey);
+            console.log(`[ToolManager] Injected API key for hyperinsight`);
+          }
+        }
+      } catch (err) {
+        console.warn(`[ToolManager] Failed to resolve HyperInsight API key:`, (err as Error).message);
+      }
+    }
+
+    return data;
   }
 
   /**
@@ -285,12 +320,12 @@ export class ToolManager {
 
     ipcMain.handle(
       "toolSandbox:renderPanel",
-      async (_event, toolId: string, panelId: string) => {
+      async (_event, toolId: string, panelId: string, context?: Record<string, unknown>) => {
         try {
           if (!this.isToolRunning(toolId)) {
             return { success: false, error: `Tool "${toolId}" is not running` };
           }
-          const result = await this.launcher.callFunction(toolId, "mosaic_render_panel", { panelId });
+          const result = await this.launcher.callFunction(toolId, "mosaic_render_panel", { panelId, context });
           return result;
         } catch (err) {
           return { success: false, error: (err as Error).message };
