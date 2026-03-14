@@ -158,8 +158,9 @@ export interface ToolLauncher {
    */
   extractManifest(entryPath: string): Promise<ToolManifest>;
 
-  /** Load and start a tool from its manifest. */
-  launch(manifest: ToolManifest): Promise<RunningTool>;
+  /** Load and start a tool from its manifest.
+   *  @param inputData  Optional pre-materialized key-value data injected into the sandbox via `readInput()`. */
+  launch(manifest: ToolManifest, inputData?: Map<string, string>): Promise<RunningTool>;
 
   /** Call an exported function on a running tool. */
   callFunction(

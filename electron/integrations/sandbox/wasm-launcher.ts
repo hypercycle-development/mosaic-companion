@@ -129,7 +129,7 @@ export class WasmLauncher implements ToolLauncher {
     }
   }
 
-  async launch(manifest: ToolManifest): Promise<RunningTool> {
+  async launch(manifest: ToolManifest, inputData?: Map<string, string>): Promise<RunningTool> {
     console.log(`[WasmLauncher] Loading tool: ${manifest.id}`);
 
     if (this.loaded.has(manifest.id)) {
@@ -139,11 +139,11 @@ export class WasmLauncher implements ToolLauncher {
     // Register manifest with gatekeeper for policy enforcement
     gatekeeperPolicy.registerTool(manifest);
 
-    // Prepare input data (empty for now — will be populated from Vault/pre-materialization)
-    const inputData = new Map<string, string>();
+    // Pre-materialized data injected by Core (e.g. API keys, Vault entries)
+    const resolvedInputData = inputData ?? new Map<string, string>();
 
     // Create host functions gated by the gatekeeper
-    const hostFns = createHostFunctions(manifest, gatekeeperPolicy, inputData);
+    const hostFns = createHostFunctions(manifest, gatekeeperPolicy, resolvedInputData);
 
     // Load the WASM module
     const wasmData = this.resolveWasmSource(manifest);

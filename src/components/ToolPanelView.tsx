@@ -118,7 +118,7 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
 
       try {
         const result: ToolCallResult =
-          await window.electronAPI.toolSandbox.renderPanel(toolId, panelId);
+          await window.electronAPI.toolSandbox.renderPanel(toolId, panelId, panelContextRef.current);
 
         if (!mountedRef.current) return;
 

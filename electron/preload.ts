@@ -126,8 +126,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("toolSandbox:listRunning"),
     isAvailable: () =>
       ipcRenderer.invoke("toolSandbox:isAvailable"),
-    renderPanel: (toolId: string, panelId: string) =>
-      ipcRenderer.invoke("toolSandbox:renderPanel", toolId, panelId),
+    renderPanel: (toolId: string, panelId: string, context?: Record<string, unknown>) =>
+      ipcRenderer.invoke("toolSandbox:renderPanel", toolId, panelId, context),
     callFunction: (toolId: string, functionName: string, args: Record<string, unknown>) =>
       ipcRenderer.invoke("toolSandbox:callFunction", toolId, functionName, args),
   },
