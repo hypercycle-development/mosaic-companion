@@ -53,6 +53,14 @@ interface PanelState {
   error: string | null;
 }
 
+interface PanelCacheEntry {
+  blocks: ToolUIBlock[];
+  error: string | null;
+  ts: number;
+}
+
+const PANEL_CACHE_TTL_MS = 5 * 60_000;
+
 // =============================================================================
 // Component
 // =============================================================================
@@ -73,6 +81,9 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
     error: null,
   });
   const mountedRef = useRef(true);
+  const activePanelRef = useRef(activePanelId);
+  const panelCacheRef = useRef<Map<string, PanelCacheEntry>>(new Map());
+  const prefetchedPanelsRef = useRef<Set<string>>(new Set());
   /** Context from a navigation action (e.g. which AIM was clicked) */
   const panelContextRef = useRef<Record<string, unknown> | undefined>(undefined);
   /** Navigation history stack for back button */
@@ -97,51 +108,94 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    activePanelRef.current = activePanelId;
+  }, [activePanelId]);
+
   // ─── Render Panel ──────────────────────────────────────────────────
 
   const renderPanel = useCallback(
-    async (panelId: string) => {
-      setPanelState((s) => ({ ...s, loading: true, error: null }));
+    async (
+      panelId: string,
+      options: { force?: boolean; keepExisting?: boolean; inBackground?: boolean } = {},
+    ) => {
+      const { force = false, keepExisting = false, inBackground = false } = options;
+      const context = panelContextRef.current;
+      const cacheKey = `${panelId}:${JSON.stringify(context ?? {})}`;
+      const cached = panelCacheRef.current.get(cacheKey);
+
+      if (cached && !force) {
+        if (!inBackground) {
+          setPanelState({
+            blocks: cached.blocks,
+            loading: false,
+            error: cached.error,
+          });
+        }
+
+        if (Date.now() - cached.ts > PANEL_CACHE_TTL_MS) {
+          void renderPanel(panelId, { force: true, keepExisting: true, inBackground: true });
+        }
+        return;
+      }
+
+      if (!inBackground) {
+        if (keepExisting) {
+          setPanelState((s) => ({ ...s, loading: true, error: null }));
+        } else {
+          setPanelState({ blocks: [], loading: true, error: null });
+        }
+      }
 
       // Dev-mode: use mock data instead of IPC
       if (mockData) {
         const blocks = typeof mockData === "function"
-          ? mockData(panelId, panelContextRef.current)
+          ? mockData(panelId, context)
           : mockData[panelId];
-        setPanelState({
+        const nextState: PanelState = {
           blocks: blocks ?? [],
           loading: false,
           error: blocks ? null : `No mock data for panel "${panelId}"`,
-        });
+        };
+
+        panelCacheRef.current.set(cacheKey, { ...nextState, ts: Date.now() });
+        if (!mountedRef.current || activePanelRef.current !== panelId) return;
+        setPanelState(nextState);
         return;
       }
 
       try {
         const result: ToolCallResult =
-          await window.electronAPI.toolSandbox.renderPanel(toolId, panelId, panelContextRef.current);
-
-        if (!mountedRef.current) return;
+          await window.electronAPI.toolSandbox.renderPanel(toolId, panelId, context);
 
         if (result.success) {
-          setPanelState({
+          const nextState: PanelState = {
             blocks: (result.ui ?? []) as ToolUIBlock[],
             loading: false,
             error: null,
-          });
+          };
+          panelCacheRef.current.set(cacheKey, { ...nextState, ts: Date.now() });
+          if (!mountedRef.current || activePanelRef.current !== panelId || inBackground) return;
+          setPanelState(nextState);
         } else {
-          setPanelState({
+          const nextState: PanelState = {
             blocks: [],
             loading: false,
             error: result.error ?? "Failed to render panel",
-          });
+          };
+          panelCacheRef.current.set(cacheKey, { ...nextState, ts: Date.now() });
+          if (!mountedRef.current || activePanelRef.current !== panelId || inBackground) return;
+          setPanelState(nextState);
         }
       } catch (err) {
-        if (!mountedRef.current) return;
-        setPanelState({
+        const nextState: PanelState = {
           blocks: [],
           loading: false,
           error: (err as Error).message,
-        });
+        };
+        panelCacheRef.current.set(cacheKey, { ...nextState, ts: Date.now() });
+        if (!mountedRef.current || activePanelRef.current !== panelId || inBackground) return;
+        setPanelState(nextState);
       }
     },
     [toolId, mockData],
@@ -153,6 +207,27 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
       renderPanel(activePanelId);
     }
   }, [activePanelId, renderPanel]);
+
+  // Prefetch sibling tabs in the background after first visible panel load.
+  useEffect(() => {
+    if (!activePanelId) return;
+
+    const key = `${toolId}:${activePanelId}`;
+    if (prefetchedPanelsRef.current.has(key)) return;
+    prefetchedPanelsRef.current.add(key);
+
+    const timer = window.setTimeout(() => {
+      panels
+        .filter((p: ToolUIPanel) => p.id !== activePanelId)
+        .forEach((p: ToolUIPanel) => {
+          void renderPanel(p.id, { inBackground: true });
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [activePanelId, panels, renderPanel, toolId]);
 
   // ─── Action Handler (buttons/forms in panels) ─────────────────────
 
@@ -187,7 +262,7 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
         );
         // Re-render the panel after the action completes
         if (activePanelId) {
-          await renderPanel(activePanelId);
+          await renderPanel(activePanelId, { force: true, keepExisting: true });
         }
       } catch (err) {
         console.error("[ToolPanelView] Action error:", err);
@@ -226,7 +301,7 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
           </div>
         </div>
         <button
-          onClick={() => activePanelId && renderPanel(activePanelId)}
+          onClick={() => activePanelId && renderPanel(activePanelId, { force: true, keepExisting: true })}
           disabled={panelState.loading}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm transition-colors disabled:opacity-50"
           title="Refresh panel"
@@ -277,7 +352,15 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
       )}
 
       {/* Panel content */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div className="flex-1 overflow-y-auto px-8 py-6 relative">
+        {/* Loading overlay — shown over existing content during tab switch / navigation */}
+        {panelState.loading && panelState.blocks.length > 0 && (
+          <div className="absolute inset-0 z-10 bg-gray-950/60 flex items-center justify-center">
+            <Loader2 size={32} className="animate-spin text-indigo-400" />
+          </div>
+        )}
+
+        {/* Initial load spinner — no content yet */}
         {panelState.loading && panelState.blocks.length === 0 && (
           <div className="flex items-center justify-center h-48">
             <Loader2 size={32} className="animate-spin text-gray-500" />
@@ -290,7 +373,7 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
             <div>
               <p>{panelState.error}</p>
               <button
-                onClick={() => activePanelId && renderPanel(activePanelId)}
+                onClick={() => activePanelId && renderPanel(activePanelId, { force: true, keepExisting: true })}
                 className="mt-2 text-xs text-red-400 hover:text-red-300 underline"
               >
                 Retry
