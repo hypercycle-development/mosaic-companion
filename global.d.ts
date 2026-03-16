@@ -309,6 +309,9 @@ declare global {
         listInstalled: () => Promise<{ success: boolean; data?: InstalledTool[] }>;
         listRunning: () => Promise<{ success: boolean; data?: RunningToolInfo[] }>;
         setPinned: (toolId: string, pinned: boolean) => Promise<{ success: boolean; error?: string }>;
+        setInput: (toolId: string, key: string, value: string) => Promise<{ success: boolean; error?: string }>;
+        deleteInput: (toolId: string, key: string) => Promise<{ success: boolean; error?: string }>;
+        getInputStatus: (toolId: string) => Promise<{ success: boolean; data?: Record<string, boolean>; error?: string }>;
         isAvailable: () => Promise<{ success: boolean; data?: boolean }>;
         renderPanel: (toolId: string, panelId: string, context?: Record<string, unknown>) => Promise<{ success: boolean; data?: unknown; ui?: Array<{ type: string; [key: string]: unknown }>; error?: string }>;
         callFunction: (toolId: string, functionName: string, args: Record<string, unknown>) => Promise<{ success: boolean; data?: unknown; ui?: Array<{ type: string; [key: string]: unknown }>; error?: string }>;
