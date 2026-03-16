@@ -20,7 +20,9 @@ import {
 } from "lucide-react";
 import { ToolUIRenderer } from "./tool-ui/ToolUIRenderer";
 import type { ToolUIActionHandler } from "./tool-ui/ToolUIRenderer";
-import type { ToolUIBlock } from "./tool-ui/types";
+import type { ToolUIBlock, DetailPanelBlock, ConfirmModalBlock } from "./tool-ui/types";
+import { ToolDetailSidebar } from "./tool-ui/blocks/ToolDetailSidebar";
+import { ToolConfirmModal } from "./tool-ui/blocks/ToolConfirmModal";
 import type {
   ToolManifest,
   ToolUIPanel,
@@ -88,6 +90,11 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
   const panelContextRef = useRef<Record<string, unknown> | undefined>(undefined);
   /** Navigation history stack for back button */
   const navHistoryRef = useRef<string[]>([]);
+
+  /** Right-side detail sidebar (opened by actions with target: "sidebar") */
+  const [sidebarPanel, setSidebarPanel] = useState<DetailPanelBlock | null>(null);
+  /** Confirmation modal (opened by confirm-modal blocks or target: "modal") */
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalBlock | null>(null);
 
   /** Whether the active panel is a hidden panel (navigated into, not tabbed to) */
   const isHiddenPanel = !panels.some((p: ToolUIPanel) => p.id === activePanelId);
@@ -229,6 +236,28 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
     };
   }, [activePanelId, panels, renderPanel, toolId]);
 
+  // ─── Overlay block extraction ──────────────────────────────────────
+
+  /**
+   * Extract detail-panel / confirm-modal blocks from a tool response.
+   * These are "overlay" blocks that render in the sidebar or modal,
+   * not inline in the panel.
+   */
+  const extractOverlayBlocks = useCallback((blocks: ToolUIBlock[]) => {
+    let detailPanel: DetailPanelBlock | null = null;
+    let modal: ConfirmModalBlock | null = null;
+
+    for (const block of blocks) {
+      if (block.type === "detail-panel" && !detailPanel) {
+        detailPanel = block as DetailPanelBlock;
+      } else if (block.type === "confirm-modal" && !modal) {
+        modal = block as ConfirmModalBlock;
+      }
+    }
+
+    return { detailPanel, modal };
+  }, []);
+
   // ─── Action Handler (buttons/forms in panels) ─────────────────────
 
   const handleAction: ToolUIActionHandler = useCallback(
@@ -254,13 +283,45 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
         console.log("[ToolPanelView] Mock action:", { action, args });
         return;
       }
+
+      // Check for action target: "sidebar" or "modal"
+      const target = ("target" in action ? action.target : undefined) ?? "inline";
+
       try {
-        await window.electronAPI.toolSandbox.callFunction(
-          toolId,
-          action.tool,
-          args,
-        );
-        // Re-render the panel after the action completes
+        const result: ToolCallResult =
+          await window.electronAPI.toolSandbox.callFunction(toolId, action.tool, args);
+
+        // Check the response for overlay blocks (detail-panel, confirm-modal)
+        const responseBlocks = (result.ui ?? []) as ToolUIBlock[];
+        const overlays = extractOverlayBlocks(responseBlocks);
+
+        if (target === "sidebar" || overlays.detailPanel) {
+          // Render result in the right detail sidebar
+          if (overlays.detailPanel) {
+            setSidebarPanel(overlays.detailPanel);
+          } else if (responseBlocks.length > 0) {
+            // Wrap response blocks in a synthetic detail-panel
+            setSidebarPanel({
+              type: "detail-panel",
+              title: action.tool.replace(/_/g, " "),
+              blocks: responseBlocks,
+            });
+          }
+          // Also show any confirm-modal that came with the response
+          if (overlays.modal) {
+            setConfirmModal(overlays.modal);
+          }
+          return;
+        }
+
+        if (target === "modal" || overlays.modal) {
+          if (overlays.modal) {
+            setConfirmModal(overlays.modal);
+          }
+          return;
+        }
+
+        // Default "inline" target: re-render the panel
         if (activePanelId) {
           await renderPanel(activePanelId, { force: true, keepExisting: true });
         }
@@ -268,7 +329,17 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
         console.error("[ToolPanelView] Action error:", err);
       }
     },
-    [toolId, activePanelId, renderPanel, mockData],
+    [toolId, activePanelId, renderPanel, mockData, allPanels, extractOverlayBlocks],
+  );
+
+  // ─── Block renderer for sidebar/modal child blocks ────────────────
+
+  const renderChildBlocks = useCallback(
+    (blocks: ToolUIBlock[] | undefined) => {
+      if (!blocks || blocks.length === 0) return null;
+      return <ToolUIRenderer blocks={blocks} onAction={handleAction} />;
+    },
+    [handleAction],
   );
 
   // ─── No panels declared ───────────────────────────────────────────
@@ -390,9 +461,33 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
         )}
 
         {panelState.blocks.length > 0 && (
-          <ToolUIRenderer blocks={panelState.blocks} onAction={handleAction} />
+          <ToolUIRenderer
+            blocks={panelState.blocks.filter(
+              (b) => b.type !== "detail-panel" && b.type !== "confirm-modal",
+            )}
+            onAction={handleAction}
+          />
         )}
       </div>
+
+      {/* Right Detail Sidebar (tool-scoped) */}
+      {sidebarPanel && (
+        <ToolDetailSidebar
+          panel={sidebarPanel}
+          onClose={() => setSidebarPanel(null)}
+          renderBlocks={renderChildBlocks}
+        />
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmModal && (
+        <ToolConfirmModal
+          modal={confirmModal}
+          onClose={() => setConfirmModal(null)}
+          onAction={handleAction}
+          renderBlocks={renderChildBlocks}
+        />
+      )}
     </div>
   );
 };

@@ -16,3 +16,5 @@ export { ToolColumn } from "./ToolColumn";
 export { ToolSection } from "./ToolSection";
 export { ToolStatCard } from "./ToolStatCard";
 export { ToolBadge } from "./ToolBadge";
+export { ToolDetailSidebar } from "./ToolDetailSidebar";
+export { ToolConfirmModal } from "./ToolConfirmModal";

@@ -31,7 +31,9 @@ export type BlockType =
   | "column"
   | "section"
   | "stat-card"
-  | "badge";
+  | "badge"
+  | "detail-panel"
+  | "confirm-modal";
 
 /** Base fields shared by every block */
 interface BlockBase {
@@ -233,10 +235,20 @@ export interface FormBlock extends BlockBase {
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 
+/**
+ * Where the result of an action should render.
+ * - "inline"  (default): re-render the current panel in place.
+ * - "sidebar": render the result in the right detail sidebar.
+ * - "modal":   show a confirmation modal before executing.
+ */
+export type ActionTarget = "inline" | "sidebar" | "modal";
+
 export interface ButtonAction {
   tool: string;
   server: string;
   args?: Record<string, unknown>;
+  /** Where the tool's response should render. Default: "inline". */
+  target?: ActionTarget;
 }
 
 export interface ButtonBlock extends BlockBase {
@@ -356,7 +368,65 @@ export type ToolUIBlock =
   | ColumnBlock
   | SectionBlock
   | StatCardBlock
-  | BadgeBlock;
+  | BadgeBlock
+  | DetailPanelBlock
+  | ConfirmModalBlock;
+
+// =============================================================================
+// Detail Panel Block (right sidebar)
+// =============================================================================
+
+/**
+ * A detail panel block that renders in a right-side drawer/sidebar.
+ * Returned by tools when an action has target: "sidebar", or directly
+ * as a top-level block with type "detail-panel".
+ *
+ * The tool provides a title, optional subtitle, and child blocks.
+ * MosAIc owns the slide-in animation, close button, and overlay.
+ */
+export interface DetailPanelBlock extends BlockBase {
+  type: "detail-panel";
+  /** Title shown in the sidebar header */
+  title: string;
+  /** Optional subtitle (e.g. ID, status badge text) */
+  subtitle?: string;
+  /** Width of the sidebar: "narrow" (384px), "medium" (480px), "wide" (640px) */
+  width?: "narrow" | "medium" | "wide";
+  /** Child blocks rendered inside the sidebar body */
+  blocks: ToolUIBlock[];
+}
+
+// =============================================================================
+// Confirm Modal Block
+// =============================================================================
+
+/**
+ * A confirmation modal that asks the user to approve or reject an action.
+ * Tools return this when they need explicit user consent before proceeding
+ * (e.g. "Confirm this transaction?", "Delete this item?").
+ *
+ * - confirmAction: fired when the user clicks Confirm
+ * - cancelAction:  fired when the user clicks Cancel (optional — default just closes)
+ */
+export interface ConfirmModalBlock extends BlockBase {
+  type: "confirm-modal";
+  /** Modal title (e.g. "Confirm Transaction") */
+  title: string;
+  /** Descriptive message explaining what will happen */
+  message: string;
+  /** Optional severity for visual styling: "info" | "warning" | "danger" */
+  severity?: "info" | "warning" | "danger";
+  /** Detail blocks shown between the message and the action buttons */
+  details?: ToolUIBlock[];
+  /** Label for the confirm button (default: "Confirm") */
+  confirmLabel?: string;
+  /** Label for the cancel button (default: "Cancel") */
+  cancelLabel?: string;
+  /** Action triggered on confirm */
+  confirmAction: ButtonAction;
+  /** Action triggered on cancel (optional — default just closes the modal) */
+  cancelAction?: ButtonAction;
+}
 
 // =============================================================================
 // Constraints

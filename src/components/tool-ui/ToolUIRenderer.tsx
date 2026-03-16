@@ -113,6 +113,12 @@ const renderBlock = (
     case "stat-card": return <BlockErrorBoundary key={index}><ToolStatCard {...block} /></BlockErrorBoundary>;
     case "badge":     return <BlockErrorBoundary key={index}><ToolBadge {...block} /></BlockErrorBoundary>;
 
+    // Overlay blocks — handled by ToolPanelView/Chatview, not rendered inline.
+    // If they somehow reach the renderer, skip them silently.
+    case "detail-panel":
+    case "confirm-modal":
+      return null;
+
     default:
       return (
         <div key={index} className="text-xs text-gray-500 px-2 py-1">
