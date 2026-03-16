@@ -130,6 +130,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("toolSandbox:listRunning"),
     setPinned: (toolId: string, pinned: boolean) =>
       ipcRenderer.invoke("toolSandbox:setPinned", toolId, pinned),
+    setInput: (toolId: string, key: string, value: string) =>
+      ipcRenderer.invoke("toolSandbox:setInput", toolId, key, value),
+    deleteInput: (toolId: string, key: string) =>
+      ipcRenderer.invoke("toolSandbox:deleteInput", toolId, key),
+    getInputStatus: (toolId: string) =>
+      ipcRenderer.invoke("toolSandbox:getInputStatus", toolId),
     isAvailable: () =>
       ipcRenderer.invoke("toolSandbox:isAvailable"),
     renderPanel: (toolId: string, panelId: string, context?: Record<string, unknown>) =>

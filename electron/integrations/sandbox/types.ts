@@ -30,6 +30,18 @@ export interface ManifestTool {
   displayHint?: DisplayHint;
 }
 
+/** An input value a tool declares it needs (e.g. API keys, config strings) */
+export interface ManifestInput {
+  /** Input type: "secret" values are encrypted at rest, "string" stored as-is */
+  type: "secret" | "string";
+  /** Human-readable description shown to the user */
+  description: string;
+  /** Whether the tool can function without this input (default true) */
+  required?: boolean;
+  /** Default value used when the user hasn't configured one. For secrets this is a plain-text fallback bundled by the tool author. */
+  default?: string;
+}
+
 /** Permissions a tool requests in its manifest */
 export interface ToolPermissions {
   /** Whether the tool can make outbound HTTP requests */
@@ -117,6 +129,8 @@ export interface ToolManifest {
   resources: ToolResources;
   /** Functions this tool exposes to agents */
   tools: Record<string, ManifestTool>;
+  /** Named inputs the tool needs (API keys, config values) — user-provided at install/config time */
+  inputs?: Record<string, ManifestInput>;
   /** UI rendering configuration */
   ui?: ToolUI;
 }
@@ -294,6 +308,22 @@ export interface ChronicleQuery {
 // Installed Tool (persisted to disk)
 // =============================================================================
 
+/** Snapshot of what was approved at install or update time */
+export interface ApprovalRecord {
+  /** When approval was granted (ISO string) */
+  approvedAt: string;
+  /** Manifest version that was approved */
+  approvedVersion: string;
+  /** SHA-256 hash of the binary that was approved */
+  approvedFileHash: string;
+  /** Permissions snapshot at approval time */
+  approvedPermissions: ToolPermissions;
+  /** Function names that were approved */
+  approvedFunctions: string[];
+  /** Whether this was an install or update */
+  action: "install" | "update";
+}
+
 /** Represents an installed tool (manifest saved to disk) */
 export interface InstalledTool {
   /** The full manifest */
@@ -310,4 +340,6 @@ export interface InstalledTool {
   sourcePath?: string;
   /** SHA-256 hash of the persisted tool binary */
   fileHash?: string;
+  /** History of approval decisions (most recent first) */
+  approvals?: ApprovalRecord[];
 }

@@ -19,8 +19,11 @@ import {
   CheckSquare,
   Pin,
   PinOff,
+  KeyRound,
+  Check,
+  X,
 } from "lucide-react";
-import type { ToolManifest, InstalledTool, ChronicleEntry, ChronicleQuery } from "../../electron/integrations/sandbox/types";
+import type { ToolManifest, InstalledTool, ChronicleEntry, ChronicleQuery, ApprovalRecord } from "../../electron/integrations/sandbox/types";
 import { INTERNAL_TOOL_PANEL_PREFIX } from "../types/types";
 
 // =============================================================================
@@ -437,6 +440,27 @@ const ManifestPreview: React.FC<{
         {manifest.resources.timeout}
       </div>
 
+      {/* Declared Inputs */}
+      {manifest.inputs && Object.keys(manifest.inputs).length > 0 && (
+        <div className="space-y-1">
+          <h4 className="text-xs uppercase tracking-wider text-gray-500 font-medium flex items-center gap-1.5">
+            <KeyRound size={12} /> Required Inputs ({Object.keys(manifest.inputs).length})
+          </h4>
+          <div className="space-y-1">
+            {Object.entries(manifest.inputs).map(([key, input]) => (
+              <div key={key} className="text-sm text-gray-300 bg-gray-800/50 px-3 py-1.5 rounded flex items-center gap-2">
+                <span className="text-amber-400 font-mono">{key}</span>
+                <span className="text-xs px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">{input.type}</span>
+                {input.required !== false && !input.default && <span className="text-xs text-red-400">required</span>}
+                {input.default !== undefined && <span className="text-xs text-blue-400">has default</span>}
+                <span className="text-gray-500 ml-1">{input.description}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500">You can configure these values after installation in the tool settings.</p>
+        </div>
+      )}
+
       <label className="flex items-start gap-2 p-3 rounded-lg border border-gray-700 bg-gray-950/70 cursor-pointer">
         <input
           type="checkbox"
@@ -491,9 +515,48 @@ const ToolCard: React.FC<{
   busy: boolean;
 }> = ({ tool, isRunning, onLaunch, onStop, onUninstall, onTogglePin, onOpenPanel, busy }) => {
   const [expanded, setExpanded] = useState(false);
+  const [inputStatus, setInputStatus] = useState<Record<string, boolean>>({});
+  const [inputValues, setInputValues] = useState<Record<string, string>>({});
+  const [savingInput, setSavingInput] = useState<string | null>(null);
   const m = tool.manifest;
   const toolCount = Object.keys(m.tools).length;
   const hasPanels = (m.ui?.panels?.length ?? 0) > 0;
+  const hasInputs = m.inputs && Object.keys(m.inputs).length > 0;
+
+  useEffect(() => {
+    if (expanded && hasInputs) {
+      window.electronAPI.toolSandbox.getInputStatus(m.id).then((res) => {
+        if (res.success && res.data) setInputStatus(res.data);
+      });
+    }
+  }, [expanded, hasInputs, m.id]);
+
+  const handleSaveInput = async (key: string) => {
+    const value = inputValues[key];
+    if (!value) return;
+    setSavingInput(key);
+    try {
+      const res = await window.electronAPI.toolSandbox.setInput(m.id, key, value);
+      if (res.success) {
+        setInputStatus((prev) => ({ ...prev, [key]: true }));
+        setInputValues((prev) => { const next = { ...prev }; delete next[key]; return next; });
+      }
+    } finally {
+      setSavingInput(null);
+    }
+  };
+
+  const handleDeleteInput = async (key: string) => {
+    setSavingInput(key);
+    try {
+      const res = await window.electronAPI.toolSandbox.deleteInput(m.id, key);
+      if (res.success) {
+        setInputStatus((prev) => ({ ...prev, [key]: false }));
+      }
+    } finally {
+      setSavingInput(null);
+    }
+  };
 
   return (
     <div className="bg-gray-900/50 border border-gray-700 rounded-xl overflow-hidden">
@@ -635,6 +698,77 @@ const ToolCard: React.FC<{
             {m.author && <> &middot; Author: {m.author}</>}
             {tool.fileHash && <> &middot; SHA-256: {tool.fileHash.slice(0, 12)}...</>}
           </div>
+
+          {/* Input Configuration */}
+          {hasInputs && (
+            <div className="space-y-2">
+              <span className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                <KeyRound size={12} /> Inputs
+              </span>
+              {Object.entries(m.inputs!).map(([key, decl]) => (
+                <div key={key} className="bg-gray-800/50 rounded p-2.5 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-amber-400">{key}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">{decl.type}</span>
+                    {inputStatus[key] ? (
+                      <span className="text-xs text-emerald-400 flex items-center gap-0.5"><Check size={10} /> configured</span>
+                    ) : decl.default !== undefined ? (
+                      <span className="text-xs text-blue-400">using default</span>
+                    ) : (
+                      <span className="text-xs text-gray-500">not set</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">{decl.description}</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type={decl.type === "secret" ? "password" : "text"}
+                      placeholder={inputStatus[key] ? "••••••••" : `Enter ${key}...`}
+                      value={inputValues[key] ?? ""}
+                      onChange={(e) => setInputValues((prev) => ({ ...prev, [key]: e.target.value }))}
+                      className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <button
+                      onClick={() => handleSaveInput(key)}
+                      disabled={!inputValues[key] || savingInput === key}
+                      className="px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs disabled:opacity-50"
+                    >
+                      {savingInput === key ? <Loader2 size={12} className="animate-spin" /> : "Save"}
+                    </button>
+                    {inputStatus[key] && (
+                      <button
+                        onClick={() => handleDeleteInput(key)}
+                        disabled={savingInput === key}
+                        className="p-1 rounded hover:bg-red-900/40 text-red-400 hover:text-red-300 disabled:opacity-50"
+                        title="Remove value"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Approval History */}
+          {tool.approvals && tool.approvals.length > 0 && (
+            <div className="space-y-1">
+              <span className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                <CheckSquare size={12} /> Approval History
+              </span>
+              {tool.approvals.slice(0, 3).map((a, i) => (
+                <div key={i} className="text-xs bg-gray-800/50 px-3 py-1.5 rounded text-gray-400 flex items-center gap-2">
+                  <span className={a.action === "install" ? "text-emerald-400" : "text-indigo-400"}>{a.action}</span>
+                  <span>v{a.approvedVersion}</span>
+                  <span className="font-mono">{a.approvedFileHash.slice(0, 12)}...</span>
+                  <span className="ml-auto">{new Date(a.approvedAt).toLocaleDateString()}</span>
+                </div>
+              ))}
+              {tool.approvals.length > 3 && (
+                <span className="text-xs text-gray-600">+ {tool.approvals.length - 3} earlier approval(s)</span>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
