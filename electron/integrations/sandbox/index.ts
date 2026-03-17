@@ -13,7 +13,7 @@
 
 import { app, ipcMain, safeStorage } from "electron";
 import { join } from "path";
-import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, unlinkSync, rmSync } from "fs";
 import { createHash } from "crypto";
 import type { ToolModule } from "../tools/types";
 import type { InstalledTool, ToolLauncher, ToolManifest, RunningTool, ApprovalRecord } from "./types";
@@ -39,7 +39,13 @@ export class ToolManager {
   private onUnregister?: (name: string) => void;
 
   constructor() {
-    this.launcher = new WasmLauncher();
+    const wasmLauncher = new WasmLauncher();
+    // Let WASM tools persist input values (e.g. auto-registered API keys)
+    // back to the host's encrypted store via the write_input host function.
+    wasmLauncher.setWriteInputCallback((toolId, key, value) => {
+      this.setToolInput(toolId, key, value);
+    });
+    this.launcher = wasmLauncher;
 
     // Persistence directory
     this.dataDir = join(app.getPath("userData"), "sandbox");
@@ -182,7 +188,8 @@ export class ToolManager {
   }
 
   /**
-   * Uninstall a tool. Stops it if running, removes from registry.
+   * Uninstall a tool. Stops it if running, removes from registry,
+   * and cleans up the WASM file and inputs from disk.
    */
   async uninstallTool(toolId: string): Promise<void> {
     const installed = this.installed.get(toolId);
@@ -193,6 +200,26 @@ export class ToolManager {
     // Stop if running
     if (this.bridges.has(`ext:${toolId}`)) {
       await this.stopTool(toolId);
+    }
+
+    // Delete the tool's directory (WASM file + any other stored artifacts)
+    const toolDir = join(this.dataDir, "tools", toolId);
+    try {
+      if (existsSync(toolDir)) {
+        rmSync(toolDir, { recursive: true });
+      }
+    } catch (err) {
+      console.warn(`[ToolManager] Failed to remove tool dir ${toolDir}:`, err);
+    }
+
+    // Delete the tool's encrypted inputs file
+    const inputsFile = join(this.inputsDir, `${toolId}.json`);
+    try {
+      if (existsSync(inputsFile)) {
+        unlinkSync(inputsFile);
+      }
+    } catch (err) {
+      console.warn(`[ToolManager] Failed to remove inputs file:`, err);
     }
 
     this.installed.delete(toolId);
