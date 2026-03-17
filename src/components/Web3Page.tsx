@@ -1,7 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { PRIVATE_KEY_GENERATION_PLACEHOLDER } from "../../electron/integrations/web3/constants";
+import { toast } from "react-toastify";
 import {
   Save,
   Trash2,
@@ -23,6 +21,7 @@ import {
   Search,
   Gauge,
 } from "lucide-react";
+import { PRIVATE_KEY_GENERATION_PLACEHOLDER } from "../../electron/integrations/web3/constants";
 
 // =============================================================================
 // Types
@@ -1625,8 +1624,6 @@ export const Web3Page: React.FC = () => {
           <RecentActions />
         </section>
       </div>
-
-      <ToastContainer theme="dark" />
     </div>
   );
 };

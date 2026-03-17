@@ -30,6 +30,18 @@ export interface ManifestTool {
   displayHint?: DisplayHint;
 }
 
+/** An input value a tool declares it needs (e.g. API keys, config strings) */
+export interface ManifestInput {
+  /** Input type: "secret" values are encrypted at rest, "string" stored as-is */
+  type: "secret" | "string";
+  /** Human-readable description shown to the user */
+  description: string;
+  /** Whether the tool can function without this input (default true) */
+  required?: boolean;
+  /** Default value used when the user hasn't configured one. For secrets this is a plain-text fallback bundled by the tool author. */
+  default?: string;
+}
+
 /** Permissions a tool requests in its manifest */
 export interface ToolPermissions {
   /** Whether the tool can make outbound HTTP requests */
@@ -68,6 +80,10 @@ export interface ToolUIPanel {
   description?: string;
   /** Default panel height in pixels */
   defaultHeight?: number;
+  /** Icon name for the panel tab */
+  icon?: string;
+  /** If true, panel is navigable but not shown as a tab */
+  hidden?: boolean;
 }
 
 /** UI configuration in the manifest */
@@ -113,6 +129,8 @@ export interface ToolManifest {
   resources: ToolResources;
   /** Functions this tool exposes to agents */
   tools: Record<string, ManifestTool>;
+  /** Named inputs the tool needs (API keys, config values) — user-provided at install/config time */
+  inputs?: Record<string, ManifestInput>;
   /** UI rendering configuration */
   ui?: ToolUI;
 }
@@ -154,8 +172,9 @@ export interface ToolLauncher {
    */
   extractManifest(entryPath: string): Promise<ToolManifest>;
 
-  /** Load and start a tool from its manifest. */
-  launch(manifest: ToolManifest): Promise<RunningTool>;
+  /** Load and start a tool from its manifest.
+   *  @param inputData  Optional pre-materialized key-value data injected into the sandbox via `readInput()`. */
+  launch(manifest: ToolManifest, inputData?: Map<string, string>): Promise<RunningTool>;
 
   /** Call an exported function on a running tool. */
   callFunction(
@@ -289,6 +308,22 @@ export interface ChronicleQuery {
 // Installed Tool (persisted to disk)
 // =============================================================================
 
+/** Snapshot of what was approved at install or update time */
+export interface ApprovalRecord {
+  /** When approval was granted (ISO string) */
+  approvedAt: string;
+  /** Manifest version that was approved */
+  approvedVersion: string;
+  /** SHA-256 hash of the binary that was approved */
+  approvedFileHash: string;
+  /** Permissions snapshot at approval time */
+  approvedPermissions: ToolPermissions;
+  /** Function names that were approved */
+  approvedFunctions: string[];
+  /** Whether this was an install or update */
+  action: "install" | "update";
+}
+
 /** Represents an installed tool (manifest saved to disk) */
 export interface InstalledTool {
   /** The full manifest */
@@ -297,6 +332,14 @@ export interface InstalledTool {
   installedAt: string;
   /** Whether the tool is currently enabled */
   enabled: boolean;
+  /** Whether the tool should appear in the sidebar quick access list */
+  pinned?: boolean;
   /** Path to the .wasm file (for WASM tools) or image reference (for Docker) */
   entryPath: string;
+  /** Original user-selected source path at install time (for audit only) */
+  sourcePath?: string;
+  /** SHA-256 hash of the persisted tool binary */
+  fileHash?: string;
+  /** History of approval decisions (most recent first) */
+  approvals?: ApprovalRecord[];
 }
