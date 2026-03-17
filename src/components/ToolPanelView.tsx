@@ -21,6 +21,7 @@ import {
 import { ToolUIRenderer } from "./tool-ui/ToolUIRenderer";
 import type { ToolUIActionHandler } from "./tool-ui/ToolUIRenderer";
 import type { ToolUIBlock, DetailPanelBlock, ConfirmModalBlock } from "./tool-ui/types";
+import { fireToolToasts } from "./tool-ui/fireToolToasts";
 import { ToolDetailSidebar } from "./tool-ui/blocks/ToolDetailSidebar";
 import { ToolConfirmModal } from "./tool-ui/blocks/ToolConfirmModal";
 import type {
@@ -47,6 +48,8 @@ export interface ToolPanelViewProps {
   /** Dev-mode: supply mock blocks keyed by panelId to bypass IPC.
    *  Can be a static map or a function that receives (panelId, context) for dynamic panels. */
   mockData?: Record<string, ToolUIBlock[]> | ((panelId: string, context?: Record<string, unknown>) => ToolUIBlock[] | undefined);
+  /** Dev-mode: handle actions and return mock response blocks (for sidebar/modal demos). */
+  mockActionHandler?: (toolName: string, args: Record<string, unknown>) => ToolUIBlock[] | undefined;
 }
 
 interface PanelState {
@@ -71,6 +74,7 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
   toolId,
   manifest,
   mockData,
+  mockActionHandler,
 }) => {
   const allPanels = manifest.ui?.panels ?? [];
   const panels = allPanels.filter((p: ToolUIPanel) => !p.hidden);
@@ -281,6 +285,25 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
       // Dev-mode: log instead of calling IPC
       if (mockData) {
         console.log("[ToolPanelView] Mock action:", { action, args });
+        if (mockActionHandler) {
+          const rawBlocks = mockActionHandler(action.tool, args as Record<string, unknown>) ?? [];
+          const responseBlocks = fireToolToasts(rawBlocks);
+          const overlays = extractOverlayBlocks(responseBlocks);
+          const target = ("target" in action ? action.target : undefined) ?? "inline";
+          if (target === "sidebar" || overlays.detailPanel) {
+            setSidebarPanel(overlays.detailPanel ?? {
+              type: "detail-panel",
+              title: action.tool.replace(/_/g, " "),
+              blocks: responseBlocks,
+            });
+            if (overlays.modal) setConfirmModal(overlays.modal);
+            return;
+          }
+          if (target === "modal" || overlays.modal) {
+            if (overlays.modal) setConfirmModal(overlays.modal);
+            return;
+          }
+        }
         return;
       }
 
@@ -292,7 +315,7 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
           await window.electronAPI.toolSandbox.callFunction(toolId, action.tool, args);
 
         // Check the response for overlay blocks (detail-panel, confirm-modal)
-        const responseBlocks = (result.ui ?? []) as ToolUIBlock[];
+        const responseBlocks = fireToolToasts((result.ui ?? []) as ToolUIBlock[]);
         const overlays = extractOverlayBlocks(responseBlocks);
 
         if (target === "sidebar" || overlays.detailPanel) {
@@ -329,7 +352,7 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
         console.error("[ToolPanelView] Action error:", err);
       }
     },
-    [toolId, activePanelId, renderPanel, mockData, allPanels, extractOverlayBlocks],
+    [toolId, activePanelId, renderPanel, mockData, mockActionHandler, allPanels, extractOverlayBlocks],
   );
 
   // ─── Block renderer for sidebar/modal child blocks ────────────────

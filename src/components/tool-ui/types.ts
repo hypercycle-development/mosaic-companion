@@ -33,7 +33,8 @@ export type BlockType =
   | "stat-card"
   | "badge"
   | "detail-panel"
-  | "confirm-modal";
+  | "confirm-modal"
+  | "toast";
 
 /** Base fields shared by every block */
 interface BlockBase {
@@ -370,7 +371,8 @@ export type ToolUIBlock =
   | StatCardBlock
   | BadgeBlock
   | DetailPanelBlock
-  | ConfirmModalBlock;
+  | ConfirmModalBlock
+  | ToastBlock;
 
 // =============================================================================
 // Detail Panel Block (right sidebar)
@@ -426,6 +428,30 @@ export interface ConfirmModalBlock extends BlockBase {
   confirmAction: ButtonAction;
   /** Action triggered on cancel (optional — default just closes the modal) */
   cancelAction?: ButtonAction;
+}
+
+// =============================================================================
+// Toast Block
+// =============================================================================
+
+/** Toast notification level (maps to react-toastify methods) */
+export type ToastLevel = "success" | "error" | "warning" | "info";
+
+/**
+ * A toast notification block. Tools return this to show a brief,
+ * auto-dismissing notification. Toasts are never rendered inline —
+ * they are extracted from responses and fired via react-toastify.
+ */
+export interface ToastBlock extends BlockBase {
+  type: "toast";
+  /** Notification level / style */
+  level: ToastLevel;
+  /** Short message displayed in the toast */
+  message: string;
+  /** Optional bold title shown above the message */
+  title?: string;
+  /** Auto-close delay in milliseconds (default: 4000) */
+  duration?: number;
 }
 
 // =============================================================================

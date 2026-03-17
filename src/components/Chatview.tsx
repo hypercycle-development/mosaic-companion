@@ -39,6 +39,7 @@ import { INTERNAL_SETTINGS_URL } from "../types/types";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
 import { ToolUIRenderer } from "./tool-ui";
 import type { ConfirmModalBlock } from "./tool-ui/types";
+import { fireToolToasts } from "./tool-ui/fireToolToasts";
 import { ToolConfirmModal } from "./tool-ui/blocks/ToolConfirmModal";
 
 interface ChatViewProps {
@@ -544,8 +545,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
              const result = await executeToolCall(action, selectedAgent!.id);
 
+             // Fire any toast blocks from the tool response
+             const blocksAfterToast = result.uiBlocks
+               ? fireToolToasts(result.uiBlocks as import("./tool-ui/types").ToolUIBlock[])
+               : undefined;
+
              // Check if the tool returned a confirm-modal block
-             const modalBlock = result.uiBlocks?.find(
+             const modalBlock = blocksAfterToast?.find(
                (b: { type: string }) => b.type === "confirm-modal",
              ) as ConfirmModalBlock | undefined;
              if (modalBlock) {
@@ -553,7 +559,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
              }
 
              // Filter overlay blocks from inline rendering
-             const inlineBlocks = result.uiBlocks?.filter(
+             const inlineBlocks = blocksAfterToast?.filter(
                (b: { type: string }) => b.type !== "confirm-modal" && b.type !== "detail-panel",
              );
 
