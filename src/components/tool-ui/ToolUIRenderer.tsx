@@ -117,6 +117,7 @@ const renderBlock = (
     // If they somehow reach the renderer, skip them silently.
     case "detail-panel":
     case "confirm-modal":
+    case "toast":
       return null;
 
     default:

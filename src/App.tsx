@@ -9,6 +9,8 @@ import { CommandPalette } from "./components/CommandPalette";
 import { SandboxWarningBanner } from "./components/SandboxWarningBanner";
 import { INTERNAL_HOME_URL, INTERNAL_CHAT_URL, Tab } from "./types/types";
 import { useTheme } from "./ThemeProvider";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function App() {
   // --- Persistent State ---
@@ -479,6 +481,7 @@ function App() {
           />
         )}
       </main>
+      <ToastContainer theme="dark" position="bottom-right" />
     </div>
   );
 }

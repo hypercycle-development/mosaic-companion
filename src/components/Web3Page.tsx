@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "react-toastify";
 import {
   Save,
   Trash2,
@@ -1326,8 +1325,6 @@ export const Web3Page: React.FC = () => {
           <RecentActions />
         </section>
       </div>
-
-      <ToastContainer theme="dark" />
     </div>
   );
 };
