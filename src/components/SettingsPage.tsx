@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "react-toastify";
 
 import {
   Save,
@@ -1387,8 +1386,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           </button>
         </div>
       </div>
-
-      <ToastContainer theme="dark" />
     </div>
   );
 };

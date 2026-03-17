@@ -38,6 +38,9 @@ import remarkBreaks from "remark-breaks";
 import { INTERNAL_SETTINGS_URL } from "../types/types";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
 import { ToolUIRenderer } from "./tool-ui";
+import type { ConfirmModalBlock } from "./tool-ui/types";
+import { fireToolToasts } from "./tool-ui/fireToolToasts";
+import { ToolConfirmModal } from "./tool-ui/blocks/ToolConfirmModal";
 
 interface ChatViewProps {
   onNavigate?: (url: string) => void;
@@ -198,6 +201,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [showAgentSelector, setShowAgentSelector] = useState(false);
   const [showHistorySidebar, setShowHistorySidebar] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  /** Confirmation modal triggered by a tool response in chat */
+  const [chatConfirmModal, setChatConfirmModal] = useState<ConfirmModalBlock | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -540,6 +545,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
              const result = await executeToolCall(action, selectedAgent!.id);
 
+             // Fire any toast blocks from the tool response
+             const blocksAfterToast = result.uiBlocks
+               ? fireToolToasts(result.uiBlocks as import("./tool-ui/types").ToolUIBlock[])
+               : undefined;
+
+             // Check if the tool returned a confirm-modal block
+             const modalBlock = blocksAfterToast?.find(
+               (b: { type: string }) => b.type === "confirm-modal",
+             ) as ConfirmModalBlock | undefined;
+             if (modalBlock) {
+               setChatConfirmModal(modalBlock);
+             }
+
+             // Filter overlay blocks from inline rendering
+             const inlineBlocks = blocksAfterToast?.filter(
+               (b: { type: string }) => b.type !== "confirm-modal" && b.type !== "detail-panel",
+             );
+
              // Create Tool Output message
              const toolMsg: ChatMessage = {
                  id: `msg-${Date.now() + 1}`,
@@ -547,7 +570,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                  content: `[Tool Output for ${action.params?.server}:${action.params?.tool}]\n${result.text}\n\n[Instruction: Use ONLY the data above. Respond in 1-2 sentences. Do not add data from your training — only from this tool output.]`,
                  timestamp: Date.now(),
                  agentId: selectedAgent!.id,
-                 uiBlocks: result.uiBlocks,
+                 uiBlocks: inlineBlocks,
                  displayHint: result.displayHint,
              };
 
@@ -1206,6 +1229,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
         onNewChat={createNewSession}
         agentName={selectedAgent?.name}
       />
+
+      {/* Tool Confirmation Modal (triggered by tool responses in chat) */}
+      {chatConfirmModal && (
+        <ToolConfirmModal
+          modal={chatConfirmModal}
+          onClose={() => setChatConfirmModal(null)}
+        />
+      )}
     </div>
   );
 };

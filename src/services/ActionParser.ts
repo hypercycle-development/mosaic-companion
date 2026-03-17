@@ -86,7 +86,7 @@ export async function executeToolCall(action: ParsedAction, agentId?: string): P
         if (!uiBlocks && registryResult.ui) {
           uiBlocks = registryResult.ui;
         }
-        const text = typeof textData === "string" ? textData : JSON.stringify(textData, null, 2);
+        const text = typeof textData === "string" ? textData : JSON.stringify(textData);
         return { text, uiBlocks, displayHint: registryResult.displayHint };
       }
       // "not found" means the module doesn't exist in the registry — try MCP
@@ -104,7 +104,7 @@ export async function executeToolCall(action: ParsedAction, agentId?: string): P
   try {
     const result = await window.electronAPI.mcpAPI.callTool(server, tool, args);
     if (result.success) {
-      return { text: JSON.stringify(result.result, null, 2) };
+      return { text: JSON.stringify(result.result) };
     } else {
       return { text: `Error calling tool ${tool}: ${result.error}` };
     }

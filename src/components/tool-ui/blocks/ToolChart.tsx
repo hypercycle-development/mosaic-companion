@@ -50,7 +50,7 @@ const ChartInner: React.FC<{ block: ChartBlock }> = ({ block }) => {
           <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8, fontSize: 12 }} />
           {seriesNames.length > 1 && <Legend />}
           {seriesNames.map((name, i) => (
-            <Bar key={name} dataKey={name} fill={COLORS[i % COLORS.length]} radius={[3, 3, 0, 0]} />
+            <Bar key={name} dataKey={name} fill={COLORS[i % COLORS.length]} radius={[3, 3, 0, 0]} animationDuration={800} animationEasing="ease-out" />
           ))}
         </BarChart>
       );
@@ -64,7 +64,7 @@ const ChartInner: React.FC<{ block: ChartBlock }> = ({ block }) => {
           <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8, fontSize: 12 }} />
           {seriesNames.length > 1 && <Legend />}
           {seriesNames.map((name, i) => (
-            <Line key={name} type="monotone" dataKey={name} stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 3 }} />
+            <Line key={name} type="monotone" dataKey={name} stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 3 }} animationDuration={800} animationEasing="ease-out" />
           ))}
         </LineChart>
       );
@@ -78,7 +78,7 @@ const ChartInner: React.FC<{ block: ChartBlock }> = ({ block }) => {
           <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8, fontSize: 12 }} />
           {seriesNames.length > 1 && <Legend />}
           {seriesNames.map((name, i) => (
-            <Area key={name} type="monotone" dataKey={name} stroke={COLORS[i % COLORS.length]} fill={COLORS[i % COLORS.length]} fillOpacity={0.2} />
+            <Area key={name} type="monotone" dataKey={name} stroke={COLORS[i % COLORS.length]} fill={COLORS[i % COLORS.length]} fillOpacity={0.2} animationDuration={800} animationEasing="ease-out" />
           ))}
         </AreaChart>
       );
@@ -102,7 +102,7 @@ const ChartInner: React.FC<{ block: ChartBlock }> = ({ block }) => {
       const innerRadius = chartType === "donut" ? "40%" : 0;
       return (
         <PieChart>
-          <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={innerRadius} outerRadius="80%" paddingAngle={2} label={{ fill: "#9ca3af", fontSize: 11 }}>
+          <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={innerRadius} outerRadius="80%" paddingAngle={2} label={{ fill: "#9ca3af", fontSize: 11 }} animationDuration={800} animationEasing="ease-out">
             {pieData.map((_, i) => (
               <Cell key={i} fill={COLORS[i % COLORS.length]} />
             ))}

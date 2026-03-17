@@ -300,13 +300,21 @@ declare global {
 
       // Tool Sandbox (WASM tools)
       toolSandbox: {
-        install: (wasmPath: string) => Promise<{ success: boolean; data?: { manifest: ToolManifest; installedAt: string; enabled: boolean; entryPath: string }; error?: string }>;
+        inspectManifest: (wasmPath: string) => Promise<{ success: boolean; data?: { manifest: ToolManifest; fileHash: string }; error?: string }>;
+        install: (wasmPath: string, approval: { approved: boolean }) => Promise<{ success: boolean; data?: { manifest: ToolManifest; installedAt: string; enabled: boolean; pinned?: boolean; entryPath: string; sourcePath?: string; fileHash?: string }; error?: string }>;
+        update: (wasmPath: string, approval: { approved: boolean }) => Promise<{ success: boolean; data?: { manifest: ToolManifest; installedAt: string; enabled: boolean; pinned?: boolean; entryPath: string; sourcePath?: string; fileHash?: string }; error?: string }>;
         uninstall: (toolId: string) => Promise<{ success: boolean; error?: string }>;
         launch: (toolId: string) => Promise<{ success: boolean; error?: string }>;
         stop: (toolId: string) => Promise<{ success: boolean; error?: string }>;
         listInstalled: () => Promise<{ success: boolean; data?: InstalledTool[] }>;
         listRunning: () => Promise<{ success: boolean; data?: RunningToolInfo[] }>;
+        setPinned: (toolId: string, pinned: boolean) => Promise<{ success: boolean; error?: string }>;
+        setInput: (toolId: string, key: string, value: string) => Promise<{ success: boolean; error?: string }>;
+        deleteInput: (toolId: string, key: string) => Promise<{ success: boolean; error?: string }>;
+        getInputStatus: (toolId: string) => Promise<{ success: boolean; data?: Record<string, boolean>; error?: string }>;
         isAvailable: () => Promise<{ success: boolean; data?: boolean }>;
+        renderPanel: (toolId: string, panelId: string, context?: Record<string, unknown>) => Promise<{ success: boolean; data?: unknown; ui?: Array<{ type: string; [key: string]: unknown }>; error?: string }>;
+        callFunction: (toolId: string, functionName: string, args: Record<string, unknown>) => Promise<{ success: boolean; data?: unknown; ui?: Array<{ type: string; [key: string]: unknown }>; error?: string }>;
       };
 
       // Chronicle (tool activity log)

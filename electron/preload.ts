@@ -112,8 +112,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   // Tool sandbox management (WASM tools)
   toolSandbox: {
-    install: (wasmPath: string) =>
-      ipcRenderer.invoke("toolSandbox:install", wasmPath),
+    inspectManifest: (wasmPath: string) =>
+      ipcRenderer.invoke("toolSandbox:inspectManifest", wasmPath),
+    install: (wasmPath: string, approval: { approved: boolean }) =>
+      ipcRenderer.invoke("toolSandbox:install", wasmPath, approval),
+    update: (wasmPath: string, approval: { approved: boolean }) =>
+      ipcRenderer.invoke("toolSandbox:update", wasmPath, approval),
     uninstall: (toolId: string) =>
       ipcRenderer.invoke("toolSandbox:uninstall", toolId),
     launch: (toolId: string) =>
@@ -124,8 +128,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("toolSandbox:listInstalled"),
     listRunning: () =>
       ipcRenderer.invoke("toolSandbox:listRunning"),
+    setPinned: (toolId: string, pinned: boolean) =>
+      ipcRenderer.invoke("toolSandbox:setPinned", toolId, pinned),
+    setInput: (toolId: string, key: string, value: string) =>
+      ipcRenderer.invoke("toolSandbox:setInput", toolId, key, value),
+    deleteInput: (toolId: string, key: string) =>
+      ipcRenderer.invoke("toolSandbox:deleteInput", toolId, key),
+    getInputStatus: (toolId: string) =>
+      ipcRenderer.invoke("toolSandbox:getInputStatus", toolId),
     isAvailable: () =>
       ipcRenderer.invoke("toolSandbox:isAvailable"),
+    renderPanel: (toolId: string, panelId: string, context?: Record<string, unknown>) =>
+      ipcRenderer.invoke("toolSandbox:renderPanel", toolId, panelId, context),
+    callFunction: (toolId: string, functionName: string, args: Record<string, unknown>) =>
+      ipcRenderer.invoke("toolSandbox:callFunction", toolId, functionName, args),
   },
   // Chronicle (tool activity log)
   chronicle: {

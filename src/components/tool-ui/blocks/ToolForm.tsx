@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import type { FormBlock } from "../types";
+import type { ToolUIActionHandler } from "../ToolUIRenderer";
 
-export const ToolForm: React.FC<FormBlock> = ({ id, submitLabel = "Submit", submitAction, fields }) => {
+export const ToolForm: React.FC<FormBlock & { onAction?: ToolUIActionHandler }> = ({ id, submitLabel = "Submit", submitAction, fields, onAction }) => {
   const [values, setValues] = useState<Record<string, unknown>>(() => {
     const init: Record<string, unknown> = {};
     for (const f of fields) {
@@ -18,9 +19,13 @@ export const ToolForm: React.FC<FormBlock> = ({ id, submitLabel = "Submit", subm
     e.preventDefault();
     setSubmitting(true);
     try {
-      const fullToolName = `${submitAction.server}:${submitAction.tool}`;
       const args = { ...submitAction.args, ...values };
-      await (window as any).electronAPI?.tools?.execute?.(fullToolName, args);
+      if (onAction) {
+        await onAction(submitAction, args);
+      } else {
+        const fullToolName = `${submitAction.server}:${submitAction.tool}`;
+        await (window as any).electronAPI?.tools?.execute?.(fullToolName, args);
+      }
     } finally {
       setSubmitting(false);
     }

@@ -1,0 +1,4 @@
+[submodule "external/mosaic-tools"]
+	path = external/mosaic-tools
+	url = https://github.com/hypercycle-development/mosaic-tools.git
+	branch = hyperinsight-wip

@@ -5,7 +5,7 @@ export const ToolColumn: React.FC<ColumnBlock & { renderBlock: (block: ToolUIBlo
   blocks,
   renderBlock,
 }) => (
-  <div className="flex flex-col gap-2">
+  <div className="flex flex-col gap-3">
     {blocks.map((block, i) => renderBlock(block, i))}
   </div>
 );
