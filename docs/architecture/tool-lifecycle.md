@@ -2,232 +2,209 @@
 
 How tools are built, distributed, installed, and executed in MosAIc.
 
+> Last updated: 2026-03-17. WASM is the primary and only implemented runtime.
+
 ---
 
 ## 1. Tool Development
 
-A tool is a self-contained unit of functionality that runs in the Sandbox. Tool developers create:
+A tool is a self-contained WASM binary that runs in MosAIc's sandbox. Tool developers create:
 
-1. **The tool code** — business logic in any supported language
-2. **A manifest** — declares identity, permissions, resources, and available functions
+1. **The tool code** — TypeScript/JavaScript (Rust/Go planned)
+2. **A manifest** (`manifest.json`) — declares identity, permissions, inputs, tools, and UI panels
 
-### Manifest Format (Phase 1)
+### Manifest Format
+
+See [manifest.md](./manifest.md) for the full specification. Key fields:
 
 ```json
 {
-  "id": "python-data-analyzer",
-  "manifest-version": "1.0.0",
+  "manifestVersion": "1.0.0",
+  "id": "my-tool",
   "version": "1.0.0",
-  "image": "registry.mosaic.ai/python-data-analyzer:1.0.0",
+  "displayName": "My Tool",
+  "description": "What the tool does (injected into agent system prompt).",
+  "runtime": { "type": "wasm", "entry": "my-tool.wasm" },
   "permissions": {
-    "internet": false,
-    "allowed_domains": []
+    "internet": true,
+    "allowed_domains": ["api.example.com"]
   },
-  "resources": {
-    "cpu": "1",
-    "memory": "512m",
-    "disk": "1g",
-    "vram": "0"
+  "resources": { "memory": "64m", "timeout": "30s" },
+  "inputs": {
+    "api_key": { "type": "secret", "description": "API key", "required": false }
   },
-  "recommended_profile": "limited",
-  "description": "Advanced data analysis tool.",
   "tools": {
-    "analyze": {
-      "description": "Analyze a dataset",
-      "inputSchema": { ... }
+    "my_function": {
+      "description": "Does something useful.",
+      "displayHint": "display",
+      "inputSchema": { "type": "object", "properties": { "query": { "type": "string" } } }
     }
+  },
+  "ui": {
+    "panels": [
+      { "id": "dashboard", "title": "Dashboard", "icon": "chart" }
+    ]
   }
 }
 ```
 
-Key manifest fields:
+### Building for WASM (JS/TS)
 
-- `id` — Unique identifier, globally unique within the registry
-- `manifest-version` — Version of the manifest format itself
-- `version` — Version of the tool (semver)
-- `image` — OCI-compatible image reference (Docker for Phase 1, could be WASM in future)
-- `permissions` — What the tool is allowed to do (see [permissions.md](./permissions.md))
-- `resources` — CPU, memory, disk, and VRAM limits
-- `recommended_profile` — Suggested outbound profile (user can override)
-- `tools` — Functions exposed to agents (integrated into MosAIc's ToolRegistry)
-
-> **Note:** Filesystem permissions (`filesystem_read`/`filesystem_write`) are excluded from v1. Tools have NO host filesystem access. Data is pre-materialized into `/inputs:ro` by Core.
-
-### Building for Docker (Phase 1)
-
-```dockerfile
-FROM python:3.12-slim
-
-# Security: non-root user
-RUN useradd -m -u 1001 tooluser
-USER 1001
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY src/ /app/
-WORKDIR /app
-
-ENTRYPOINT ["python", "main.py"]
-```
-
-**Requirements:**
-
-- Must use a non-root user (`USER 1001`)
-- Must work with read-only root filesystem (`--read-only`)
-- Must not assume host-specific directory layouts
-- Must expose an HTTP server and accept the `/init?key=<key>` protocol (see [container-communication.md](./container-communication.md))
-- All tool containers run as Linux containers (Docker Desktop abstracts this on macOS/Windows)
-- Images should be OCI-compatible (works with Docker, Podman, containerd)
-
-### Building for WASM (Future)
+Tools are built in two steps:
 
 ```bash
-# JS/TS tools via Extism PDK
-extism-js src/index.js -o tool.wasm
+# Step 1: Bundle TypeScript → CommonJS JavaScript (esbuild inlines manifest.json)
+npm run bundle    # → dist/bundle.js
 
-# Rust tools
-cargo build --target wasm32-wasi --release
+# Step 2: Compile JS bundle → WASM via extism-js
+extism-js dist/bundle.js -i index.d.ts -o dist/my-tool.wasm
 ```
 
-Output is a single `.wasm` file. No Dockerfile needed.
+**Prerequisites:**
+- Node.js ≥ 18
+- [extism-js](https://github.com/extism/js-pdk) CLI on `$PATH`
+- [Binaryen](https://github.com/WebAssembly/binaryen) (`wasm-opt`, `wasm-merge` on `$PATH`)
+
+**Required WASM exports:**
+
+Every tool must export:
+1. `mosaic_manifest()` — returns the full manifest JSON via `Host.outputString()`
+2. One function per entry in `manifest.tools` — reads JSON input, returns JSON output
+3. `mosaic_render_panel()` (if the tool has UI panels) — renders panel content
+
+Output is a single `.wasm` file. The manifest is embedded inside at build time.
+
+> **Source code:** See the [mosaic-tools](https://github.com/hypercycle-development/mosaic-tools) repository for the build system, shared SDK, and example tools.
 
 ---
 
 ## 2. Distribution
 
-### Private Registry (Phase 1)
+### Current (v1)
 
-All tool images are stored in a private Docker registry.
+Tools are distributed as `.wasm` files. Users install them locally via the Tool Sandbox page:
 
 ```
-Developer → pushes image → Private Registry
+Developer → builds .wasm → shares file or publishes to releases
                               ↓
-User → browses in MosAIc → pulls manifest → reviews permissions → installs
+User → "Install .wasm Tool" → picks file → reviews manifest → approves → installed
 ```
 
-**Registry requirements:**
+### Future: Tool Registry
 
-- Authenticated access (short-lived tokens)
-- Version tagging support
-- Options: Harbor, AWS ECR, self-hosted Docker Registry v2
-- Images are NOT stored on-chain or in decentralized storage
-
-### Payment Flow (Deferred — Not Phase 1 Priority)
-
-The paid tool registry/distribution model is **deferred**. Current payments priority is wallet integration for purchasing HyperCycle remote services (USDC on Base, TODA TDN).
-
-When implemented:
-
-1. User selects a paid tool
-2. User completes crypto payment
-3. Backend verifies the transaction
-4. Backend records license in internal database
-5. Backend issues registry pull authorization
-6. MosAIc pulls image
+A browseable catalog of tools is planned. The registry will support:
+- Authenticated access
+- Version tagging
+- Discovery and search
+- Payment integration (crypto)
 
 ---
 
 ## 3. Installation
 
-### User Approval Flow
+### Approval Flow (Implemented)
 
 ```
-MosAIc fetches manifest from registry
-  → Displays to user:
-     - Tool name, description, version
-     - Requested permissions (internet, resources, etc.)
-     - Resource limits (CPU, memory)
-  → User must EXPLICITLY approve
-  → If approved: image is pulled and registered
+User picks a .wasm file
+  → MosAIc calls mosaic_manifest() to read the embedded manifest
+  → Displays manifest review screen:
+     - Tool name, version, description, author
+     - Requested permissions (internet, domains)
+     - Resource limits (memory, timeout)
+     - Surface area (functions, panels, domains)
+     - Approval history (if updating)
+  → User must EXPLICITLY approve (checkbox + confirm)
+  → If approved:
+     - WASM file copied to ~/.config/mosaic-companion/tools/<tool-id>/
+     - SHA-256 hash recorded for integrity
+     - Approval record saved
+     - Tool auto-launched if enabled
   → If denied: nothing happens
 ```
 
 **No tool is installed without user approval.**
 
-Permission escalation after installation (e.g., a new version requesting internet access when the previous version didn't) requires **re-approval**.
+### Updates
+
+When re-installing the same tool:
+- MosAIc compares the incoming manifest to the installed version
+- Shows a diff of permission/capability changes
+- Same-hash builds are rejected ("already at this exact build")
+- Permission changes require re-approval
+
+### Input Configuration
+
+Tools that declare `inputs` in their manifest can be configured after install:
+- **Required inputs** (default): shown in the config UI for the user to provide
+- **Auto-managed inputs** (`required: false`): hidden from UI, managed by the tool itself (e.g. auto-registered API keys via `writeInput()`)
+
+Inputs are stored encrypted on disk using Electron's `safeStorage` API.
 
 ---
 
 ## 4. Execution
 
-### Container Launch (Phase 1)
+### WASM Launch (Implemented)
 
-When a tool is invoked (by an agent via `<use_tool>` or by the user), MosAIc:
+When a tool is launched, MosAIc:
 
-1. Creates a Docker container with hardening flags:
+1. **Verifies integrity:** re-reads `mosaic_manifest()` from the stored WASM file, compares to the approved manifest
+2. **Resolves inputs:** merges user-configured values + defaults from manifest
+3. **Creates Extism plugin** with:
+   - `useWasi: true` — WASI support for stdio
+   - `runInWorker: true` — runs in a worker thread (BackgroundPlugin)
+   - `allowedHosts` — mapped from `permissions.allowed_domains` (enables Extism built-in HTTP)
+   - `config` — input data injected as key-value config (readable via `Config.get()`)
+   - Host functions: `mosaic_log`, `mosaic_write_output`, `mosaic_write_input`
+4. **Registers in ToolRegistry** — tool functions become available to AI agents
+5. **Logs lifecycle event** to Chronicle
 
-   ```
-   --cap-drop ALL          # Drop all Linux capabilities
-   --read-only             # Read-only root filesystem
-   --cpus=1 --memory=512m  # Resource limits from manifest
-   --network=mosaic-tools  # Docker bridge (no host networking)
-   -p <dynamic>:<tool_port> # Expose tool's HTTP server
-   ```
-
-2. Mounts only the tool's isolated directories:
-
-   ```
-   /mosaic_data/tools/<tool_id>/inputs/  →  /inputs:ro     # Pre-materialized data
-   /mosaic_data/tools/<tool_id>/tmp/     →  /tmp:rw        # Ephemeral scratch
-   ```
-
-3. Calls `/init?key=<random_uuid>` to initialize the tool with an access key
-
-4. If internet is allowed, routes outbound traffic through the Gatekeeper (see [gatekeeper.md](./gatekeeper.md))
-
-5. Sends tool calls via HTTP POST to the container's port (with access key header)
-
-6. Captures output → appends to the tool's **Chronicle** (append-only)
-
-7. Returns result to the agent/user via the ToolRegistry
-
-8. Container is stopped and removed after use (or timeout)
-
-See [container-communication.md](./container-communication.md) for the full protocol.
-
-### Container Security Hardening
-
-| Measure            | Flag                      | Effect                       |
-| ------------------ | ------------------------- | ---------------------------- |
-| Non-root user      | `USER 1001` in Dockerfile | Reduces impact of compromise |
-| Drop capabilities  | `--cap-drop ALL`          | No elevated kernel access    |
-| Read-only root FS  | `--read-only`             | No persistent tampering      |
-| No host networking | No `--network host`       | No direct host access        |
-| Resource limits    | `--cpus` / `--memory`     | Prevents resource exhaustion |
-| Seccomp (default)  | Docker default profile    | Restricts dangerous syscalls |
-
-### WASM Execution (Future)
-
-When using WASM instead of Docker:
-
-1. Load `.wasm` module via Extism/Wasmtime
-2. Inject host functions based on approved permissions
-3. Execute function with JSON input
-4. Capture output → Chronicle
-5. No container overhead, ~5-50ms startup
-
-### Integration with ToolRegistry
-
-Regardless of runtime (Docker, WASM, child process), tools appear to agents through the same `ToolModule` interface:
+### Tool Call Flow
 
 ```
-Agent → <use_tool server="tool-id" tool="function">args</use_tool>
-  → ActionParser → ToolRegistry.executeTool()
-    → Docker container / WASM module / child process
-      → Result → Chronicle (logged) → Agent
+Agent → <use_tool server="ext:my-tool" tool="my_function">{"query": "..."}</use_tool>
+  → ActionParser → ToolRegistry.executeTool("ext:my-tool", "my_function", args)
+    → WasmLauncher.callFunction() → plugin.call("my_function", JSON.stringify(args))
+      → WASM module runs, optionally calls host functions
+      → Returns JSON: { data: ..., ui: [...], displayHint: "display" }
+    → Result logged to Chronicle
+    → If displayHint="display": UI blocks rendered, agent doesn't see data
+    → If displayHint="analyze": data sent to agent for commentary
 ```
 
-The agent doesn't know or care about the underlying runtime.
+### Panel Rendering Flow
+
+```
+User opens tool panel tab (e.g. "Leaderboard")
+  → ToolPanelView calls toolSandbox.callFunction(toolId, "mosaic_render_panel", { panelId: "leaderboard" })
+    → WASM renders panel → returns JSON array of UI blocks
+    → UI blocks rendered by ToolUIRenderer (React components)
+  → User clicks button with action="navigate_panel"
+    → New panel loaded: { panelId: "aim-detail", args: { name: "..." } }
+```
+
+### Security
+
+| Measure            | How                                                       |
+| ------------------ | --------------------------------------------------------- |
+| Zero-capability default | WASM has no network/filesystem/OS access by default  |
+| Domain allowlist   | Extism `allowedHosts` enforces `permissions.allowed_domains` |
+| Gatekeeper audit   | All outbound HTTP logged to Chronicle                     |
+| Input encryption   | Inputs stored via `safeStorage` (OS keychain-backed)     |
+| Integrity chain    | SHA-256 hash verified at launch time                      |
+| Worker isolation   | Each plugin runs in its own worker thread                 |
+| Non-reentrant      | Plugin calls are serialized (no concurrent execution)     |
 
 ---
 
 ## 5. Lifecycle Management
 
-| Event                 | What Happens                                                                      |
-| --------------------- | --------------------------------------------------------------------------------- |
-| **Install**           | Manifest reviewed → user approves → image pulled → registered as ToolModule       |
-| **Update**            | New manifest compared → permission changes require re-approval → new image pulled |
-| **Uninstall**         | Container removed → image deleted → tool data directory cleaned up                |
-| **Disable**           | Tool remains installed but is not loaded into ToolRegistry                        |
-| **Permission change** | Requires explicit user re-approval                                                |
+| Event                 | What Happens                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| **Install**           | Manifest extracted → user approves → WASM stored → launched → registered in ToolRegistry |
+| **Launch**            | Integrity verified → Extism plugin created → host functions injected → tool active   |
+| **Stop**              | Plugin closed → worker terminated → unregistered from ToolRegistry                   |
+| **Update**            | New manifest compared → permission changes shown → re-approval if needed → relaunched |
+| **Uninstall**         | Plugin stopped → WASM file deleted → inputs file deleted → removed from registry     |
+| **Pin/Unpin**         | Toggle sidebar visibility — pinned tools show as sidebar navigation items            |
+| **Permission change** | Requires explicit user re-approval                                                   |

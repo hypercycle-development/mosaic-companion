@@ -1,37 +1,42 @@
-# Tool Manifest Specification (WIP)
+# Tool Manifest Specification
 
-> **Status:** Work-in-progress draft. This will evolve as we prototype.
+> **Status:** Stable v1.0.0. Implemented and shipping.
 
 The manifest is the contract between a tool developer and MosAIc. It declares:
 
 - What the tool is and how to run it
 - What permissions it needs (network, files, services)
 - What functions it exposes to agents
+- What inputs it needs (API keys, config)
 - What UI it can render inside MosAIc
+
+The manifest is embedded in the WASM binary at build time. There is no separate manifest file at runtime — MosAIc reads it by calling the tool's `mosaic_manifest()` export.
 
 ---
 
 ## Full Manifest Example
 
+Based on the HyperInsight tool (a real, shipping tool):
+
 ```json
 {
   "manifestVersion": "1.0.0",
-  "id": "csv-analyzer",
+  "id": "hyperinsight",
   "version": "1.0.0",
-  "displayName": "CSV Data Analyzer",
-  "description": "Analyze CSV datasets with statistics, charts, and AI-powered insights.",
-  "author": "MosAIc Community",
+  "displayName": "HyperInsight",
+  "description": "HyperCycle network analytics — AIM leaderboard, node stats, and compute metrics.",
+  "author": "HyperCycle",
   "license": "MIT",
-  "icon": "icon.png",
+  "icon": "trophy",
 
   "runtime": {
     "type": "wasm",
-    "entry": "tool.wasm"
+    "entry": "hyperinsight.wasm"
   },
 
   "permissions": {
     "internet": true,
-    "allowed_domains": ["api.openai.com"],
+    "allowed_domains": ["api.hyperinsight.app"],
     "files": [],
     "services": []
   },
@@ -41,50 +46,47 @@ The manifest is the contract between a tool developer and MosAIc. It declares:
     "timeout": "30s"
   },
 
+  "inputs": {
+    "api_key": {
+      "type": "secret",
+      "description": "HyperInsight API key — auto-registered on first run",
+      "required": false
+    }
+  },
+
   "tools": {
-    "analyze": {
-      "description": "Analyze a CSV dataset and return statistics (mean, median, outliers).",
-      "displayHint": "analyze",
+    "get_network_stats": {
+      "description": "Get current HyperCycle network statistics including active/available AIM counts, total nodes, compute capacity, and a ranked topAims array (top 5 by activeNodes).",
+      "displayHint": "display",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "data": {
-            "type": "string",
-            "description": "CSV content to analyze"
-          },
-          "columns": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Columns to analyze (empty = all)"
-          }
-        },
-        "required": ["data"]
+        "properties": {}
       }
     },
-    "summarize": {
-      "description": "Generate a natural-language summary of a dataset using AI.",
-      "displayHint": "analyze",
+    "get_aim_details": {
+      "description": "Get detailed analytics for a specific AIM by name, including active nodes, compute metrics, metadata, releases, and charts.",
+      "displayHint": "display",
       "inputSchema": {
         "type": "object",
         "properties": {
-          "data": {
+          "name": {
             "type": "string",
-            "description": "CSV content to summarize"
+            "description": "The full AIM name (e.g. 'hypercycle/ollama-aim')"
           }
         },
-        "required": ["data"]
+        "required": ["name"]
       }
     }
   },
 
   "ui": {
     "panels": [
-      {
-        "id": "results",
-        "title": "Analysis Results",
-        "description": "Displays analysis results with tables and charts.",
-        "defaultHeight": 400
-      }
+      { "id": "leaderboard", "title": "Leaderboard", "icon": "trophy" },
+      { "id": "aims", "title": "Aims", "icon": "chart" },
+      { "id": "nodes", "title": "Nodes", "icon": "server" },
+      { "id": "aim-detail", "title": "AIM Detail", "hidden": true },
+      { "id": "aim-charts", "title": "AIM Charts", "hidden": true },
+      { "id": "aim-releases", "title": "AIM Releases", "hidden": true }
     ]
   }
 }
@@ -109,21 +111,13 @@ The manifest is the contract between a tool developer and MosAIc. It declares:
 
 ### Runtime
 
-| Field           | Type                   | Required | Description                                          |
-| --------------- | ---------------------- | -------- | ---------------------------------------------------- |
-| `runtime.type`  | `"wasm"` \| `"docker"` | ✅       | Execution runtime                                    |
-| `runtime.entry` | string                 | ✅       | Entry point — `.wasm` file or Docker image reference |
-
-**WASM runtime:**
+| Field           | Type     | Required | Description                                          |
+| --------------- | -------- | -------- | ---------------------------------------------------- |
+| `runtime.type`  | `"wasm"` | ✅       | Execution runtime (WASM only in v1)                  |
+| `runtime.entry` | string   | ✅       | Entry point — `.wasm` filename                       |
 
 ```json
 { "type": "wasm", "entry": "tool.wasm" }
-```
-
-**Docker runtime (future, optional):**
-
-```json
-{ "type": "docker", "entry": "registry.mosaic.ai/ml-trainer:1.0.0" }
 ```
 
 ### Permissions
@@ -146,7 +140,38 @@ Everything is **denied by default**. The tool explicitly declares what it needs.
 | `resources.memory`  | string | `"64m"` | Max memory for the WASM module       |
 | `resources.timeout` | string | `"30s"` | Max execution time per function call |
 
-For Docker runtime, additional fields apply: `cpu`, `disk`, `vram`.
+### Inputs (Optional)
+
+Tools can declare named inputs they need — API keys, configuration strings, user preferences. Inputs are:
+
+- Shown to the user for configuration (unless `required: false`)
+- Stored encrypted on disk by MosAIc Core
+- Injected into the WASM sandbox as Extism config at launch time
+- Readable by the tool via `readInput(key)` at runtime
+
+| Field                        | Type                      | Required | Description                                                     |
+| ---------------------------- | ------------------------- | -------- | --------------------------------------------------------------- |
+| `inputs.<key>.type`          | `"secret"` \| `"string"`  | ✅       | `"secret"` values are encrypted at rest                         |
+| `inputs.<key>.description`   | string                    | ✅       | Human-readable description shown in the config UI               |
+| `inputs.<key>.required`      | boolean                   | ❌       | Default `true`. If `false`, hidden from install UI (auto-managed) |
+| `inputs.<key>.default`       | string                    | ❌       | Fallback value when user hasn't configured one                  |
+
+**Auto-managed inputs:** Set `required: false` for inputs the tool obtains itself (e.g. auto-registering an API key on first run via `writeInput()`). These are hidden from the user in the install/config screens.
+
+```json
+"inputs": {
+  "api_key": {
+    "type": "secret",
+    "description": "API key — auto-registered on first run",
+    "required": false
+  },
+  "custom_endpoint": {
+    "type": "string",
+    "description": "Custom API endpoint URL",
+    "default": "https://api.example.com"
+  }
+}
+```
 
 ### Tools (Functions)
 
@@ -169,33 +194,41 @@ Available tools for CSV Data Analyzer (server: "ext:csv-analyzer"):
 
 ### UI (Rendering Panels)
 
-Tools can declare UI panels that render inside MosAIc. The tool returns structured UI descriptors at runtime; MosAIc renders them using built-in React components.
+Tools can declare UI panels that render inside MosAIc as tabs. The tool returns structured UI descriptors at runtime; MosAIc renders them using built-in React components.
 
-| Field                       | Type   | Required | Description                    |
-| --------------------------- | ------ | -------- | ------------------------------ |
-| `ui.panels`                 | array  | ❌       | UI panels this tool can render |
-| `ui.panels[].id`            | string | ✅       | Panel identifier               |
-| `ui.panels[].title`         | string | ✅       | Panel display name             |
-| `ui.panels[].description`   | string | ❌       | What the panel shows           |
-| `ui.panels[].defaultHeight` | number | ❌       | Default panel height in pixels |
+| Field                       | Type    | Required | Description                                   |
+| --------------------------- | ------- | -------- | --------------------------------------------- |
+| `ui.panels`                 | array   | ❌       | UI panels this tool can render                |
+| `ui.panels[].id`            | string  | ✅       | Panel identifier (passed to `mosaic_render_panel`) |
+| `ui.panels[].title`         | string  | ✅       | Panel tab display name                        |
+| `ui.panels[].description`   | string  | ❌       | What the panel shows                          |
+| `ui.panels[].defaultHeight` | number  | ❌       | Default panel height in pixels                |
+| `ui.panels[].icon`          | string  | ❌       | Icon name for the panel tab                   |
+| `ui.panels[].hidden`        | boolean | ❌       | If `true`, not shown as a tab — navigable only via button actions |
 
-**How UI rendering works at runtime:**
+**Visible vs Hidden panels:** Visible panels appear as tabs in the tool's panel view. Hidden panels are for detail/drill-down views navigated to via `navigate_panel` button actions. For example, an "AIM Detail" panel that opens when clicking a row in the leaderboard.
 
-The tool doesn't render HTML. It returns a JSON array of UI blocks:
+**How panel rendering works at runtime:**
+
+The tool must export a `mosaic_render_panel` function. MosAIc calls it with a JSON input containing the `panelId` (and optional `args`):
+
+```json
+{ "panelId": "leaderboard" }
+{ "panelId": "aim-detail", "args": { "name": "hypercycle/ollama-aim" } }
+```
+
+The function returns a JSON array of UI blocks:
 
 ```json
 {
-  "success": true,
-  "data": { "mean": 42.5, "median": 40 },
   "ui": [
     {
       "type": "table",
       "title": "Statistics",
-      "columns": ["Metric", "Value"],
+      "columns": [{"key": "metric", "label": "Metric"}, {"key": "value", "label": "Value"}],
       "rows": [
-        ["Mean", "42.5"],
-        ["Median", "40"],
-        ["Std Dev", "5.2"]
+        {"metric": "Mean", "value": "42.5"},
+        {"metric": "Median", "value": "40"}
       ]
     },
     {
@@ -204,13 +237,8 @@ The tool doesn't render HTML. It returns a JSON array of UI blocks:
       "title": "Distribution",
       "data": [
         { "label": "0-20", "value": 5 },
-        { "label": "20-40", "value": 12 },
-        { "label": "40-60", "value": 18 }
+        { "label": "20-40", "value": 12 }
       ]
-    },
-    {
-      "type": "markdown",
-      "content": "## Summary\nThe dataset shows a **normal distribution** with mean 42.5."
     }
   ]
 }
@@ -218,18 +246,34 @@ The tool doesn't render HTML. It returns a JSON array of UI blocks:
 
 **Supported UI block types (v1):**
 
-| Type       | Description                                             |
-| ---------- | ------------------------------------------------------- |
-| `table`    | Tabular data with columns and rows                      |
-| `chart`    | Charts: `bar`, `line`, `pie`, `scatter`                 |
-| `markdown` | Rich text with markdown formatting                      |
-| `image`    | Base64-encoded image (charts, plots, etc.)              |
-| `form`     | Input form for tool parameters (re-run with user input) |
-| `card`     | Summary card with key-value pairs                       |
-| `code`     | Syntax-highlighted code block                           |
-| `alert`    | Status message: `info`, `warning`, `error`, `success`   |
+| Type       | Description                                                  |
+| ---------- | ------------------------------------------------------------ |
+| `text`     | Styled text (variants: `heading`, `subheading`, `body`, `caption`, `label`) |
+| `markdown` | Rich text with markdown formatting                           |
+| `code`     | Syntax-highlighted code block                                |
+| `table`    | Tabular data with columns and rows (sorting built-in)        |
+| `chart`    | Charts: `bar`, `line`, `pie`, `scatter`                      |
+| `card`     | Summary card with key-value pairs                            |
+| `image`    | Base64-encoded image (data-URI)                              |
+| `alert`    | Status message: `info`, `warning`, `error`, `success`        |
+| `button`   | Clickable button — triggers `navigate_panel` or tool calls   |
+| `form`     | Input form for tool parameters                               |
+| `divider`  | Visual separator                                             |
+| `toast`    | Ephemeral notification (not rendered in panel)               |
 
 MosAIc provides the React components. The tool just says "show a bar chart with this data." New UI types can be added without changing the manifest format.
+
+**Button actions (navigate between panels):**
+
+```json
+{
+  "type": "button",
+  "label": "View Details →",
+  "action": "navigate_panel",
+  "panelId": "aim-detail",
+  "args": { "name": "hypercycle/ollama-aim" }
+}
+```
 
 ### `displayHint` — Controlling Agent Follow-up
 
@@ -288,17 +332,28 @@ Host.outputString(JSON.stringify(result));
 
 ---
 
-## Relationship to WASM Host Functions
+## Relationship to Host Functions
 
-The manifest's `permissions` field directly controls which host functions are available:
+The manifest's `permissions` and `inputs` fields control what the tool can do at runtime:
 
 ```
 Manifest declares:                  MosAIc provides:
-  internet: true                  →   http_request() host function (with domain check)
-  internet: false                 →   http_request() is NOT injected
-  files: ["/data/*.csv"]          →   file_read() host function (with path check)
-  files: []                       →   file_read() is NOT injected
-  services: ["elasticsearch"]     →   db_query("elasticsearch", ...) allowed
+  internet: true                  →   Http.request() (Extism built-in, domain-filtered by allowedHosts)
+  internet: false                 →   Http.request() blocked (no allowedHosts configured)
+  inputs: { api_key: ... }        →   readInput("api_key") returns the stored value via Config.get()
+  (any tool)                      →   writeInput(key, value) persists to encrypted store
+  (any tool)                      →   log(message) appends to Chronicle
+  (any tool)                      →   writeOutput(data) pushes data to MosAIc
 ```
 
-If a permission isn't declared, the corresponding host function simply doesn't exist for that WASM module. The tool cannot call it — not blocked, just absent.
+**Available host functions (v1):**
+
+| Function                               | Description                                                     |
+| -------------------------------------- | --------------------------------------------------------------- |
+| `httpRequest(url, method, headers, body)` | HTTP request via Extism built-in `Http.request()`. Only allowed to `permissions.allowed_domains`. |
+| `readInput(key)`                       | Read input data by key. Uses Extism `Config.get()` — inputs are injected as config at plugin creation. |
+| `writeInput(key, value)`               | Persist an input to MosAIc's encrypted store. For auto-registration flows. |
+| `log(message)`                         | Write a log entry to the tool's Chronicle (append-only).        |
+| `writeOutput(data)`                    | Push output data to MosAIc.                                     |
+
+HTTP requests use Extism's built-in HTTP support (not a custom host function). MosAIc maps `permissions.allowed_domains` to Extism's `allowedHosts` config. The Gatekeeper enforces the allowlist.
