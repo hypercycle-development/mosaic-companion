@@ -22,17 +22,16 @@ import {
   KeyRound,
   Check,
   X,
-  Eye,
 } from "lucide-react";
 import type { ToolManifest, InstalledTool, ChronicleEntry, ChronicleQuery, ApprovalRecord } from "../../electron/integrations/sandbox/types";
 import { INTERNAL_TOOL_PANEL_PREFIX } from "../types/types";
-import { ToolUIDemo } from "./ToolUIDemo";
+// import { ToolUIDemo } from "./ToolUIDemo"; // kept for reference — will reuse in WASM tool
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type TabId = "tools" | "chronicle" | "ui-demo";
+type TabId = "tools" | "chronicle";
 
 interface PendingToolReview {
   manifest: ToolManifest;
@@ -1145,17 +1144,7 @@ export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ 
           <ScrollText size={14} className="inline mr-1.5 -mt-0.5" />
           Chronicle
         </button>
-        <button
-          onClick={() => setTab("ui-demo")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            tab === "ui-demo"
-              ? "border-indigo-500 text-indigo-400"
-              : "border-transparent text-gray-500 hover:text-gray-300"
-          }`}
-        >
-          <Eye size={14} className="inline mr-1.5 -mt-0.5" />
-          UI Demo
-        </button>
+
       </div>
 
       {/* Tab Content */}
@@ -1191,7 +1180,7 @@ export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ 
 
       {tab === "chronicle" && <ChronicleViewer tools={installed} />}
 
-      {tab === "ui-demo" && <ToolUIDemo />}
+
     </div>
   );
 };
