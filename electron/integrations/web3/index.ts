@@ -9,7 +9,12 @@
 import { app, safeStorage } from "electron";
 import path from "path";
 import fs from "fs";
-import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
+import {
+  privateKeyToAccount,
+  generatePrivateKey,
+  type PrivateKeyAccount,
+} from "viem/accounts";
+import { PRIVATE_KEY_GENERATION_PLACEHOLDER } from "./constants";
 
 // =============================================================================
 // Constants
@@ -60,6 +65,15 @@ function getWalletConfigPath(): string {
 }
 
 export function saveWalletKey(privateKey: string): boolean {
+  // If renderer asked main to generate the key, do it here in the main process
+  if (privateKey === PRIVATE_KEY_GENERATION_PLACEHOLDER) {
+    try {
+      privateKey = generatePrivateKey();
+    } catch (error) {
+      console.error("[Web3] Failed to generate private key in main:", error);
+      return false;
+    }
+  }
   if (!safeStorage.isEncryptionAvailable()) {
     console.error("[Web3] SafeStorage is not available on this system.");
     return false;
@@ -199,9 +213,10 @@ export function saveAddressBookContact(
     : { success: false, error: "Failed to save" };
 }
 
-export function deleteAddressBookContact(
-  id: string,
-): { success: boolean; error?: string } {
+export function deleteAddressBookContact(id: string): {
+  success: boolean;
+  error?: string;
+} {
   const contacts = readAddressBook();
   const filtered = contacts.filter((c) => c.id !== id);
   if (filtered.length === contacts.length) {
@@ -214,8 +229,7 @@ export function deleteAddressBookContact(
 export function lookupContact(name: string): WalletContact | null {
   const contacts = readAddressBook();
   return (
-    contacts.find(
-      (c) => c.name.toLowerCase() === name.trim().toLowerCase(),
-    ) || null
+    contacts.find((c) => c.name.toLowerCase() === name.trim().toLowerCase()) ||
+    null
   );
 }
