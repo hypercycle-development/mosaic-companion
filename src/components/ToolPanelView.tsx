@@ -219,27 +219,6 @@ export const ToolPanelView: React.FC<ToolPanelViewProps> = ({
     }
   }, [activePanelId, renderPanel]);
 
-  // Prefetch sibling tabs in the background after first visible panel load.
-  useEffect(() => {
-    if (!activePanelId) return;
-
-    const key = `${toolId}:${activePanelId}`;
-    if (prefetchedPanelsRef.current.has(key)) return;
-    prefetchedPanelsRef.current.add(key);
-
-    const timer = window.setTimeout(() => {
-      panels
-        .filter((p: ToolUIPanel) => p.id !== activePanelId)
-        .forEach((p: ToolUIPanel) => {
-          void renderPanel(p.id, { inBackground: true });
-        });
-    }, 250);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [activePanelId, panels, renderPanel, toolId]);
-
   // ─── Overlay block extraction ──────────────────────────────────────
 
   /**
