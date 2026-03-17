@@ -168,9 +168,16 @@ export class WasmLauncher implements ToolLauncher {
       ? manifest.permissions.allowed_domains
       : [];
 
+    // Pass input data as Extism Config so guest can read via Config.get().
+    // This is reliable in worker mode (unlike cp.store() return values).
+    const config: Record<string, string> = {};
+    for (const [k, v] of resolvedInputData.entries()) {
+      config[k] = v;
+    }
+
     const plugin = await createPlugin(
       { wasm: [{ data: wasmData }] },
-      { useWasi: true, runInWorker: true, functions: extismFunctions, allowedHosts },
+      { useWasi: true, runInWorker: true, functions: extismFunctions, allowedHosts, config },
     );
 
     const runningTool: RunningTool = {
