@@ -200,6 +200,13 @@ export interface WasmHostFunctions {
   read_input: (ctx: HostFunctionContext, key: string) => string;
 
   /**
+   * Persist an input value back to the host's encrypted store.
+   * Validates the key is declared in the manifest. Updates the
+   * in-session Map so subsequent read_input calls see the new value.
+   */
+  write_input: (ctx: HostFunctionContext, key: string, value: string) => void;
+
+  /**
    * Log a message (append-only, goes to Chronicle).
    */
   log: (ctx: HostFunctionContext, message: string) => void;
@@ -209,6 +216,12 @@ export interface WasmHostFunctions {
    */
   write_output: (ctx: HostFunctionContext, data: string) => void;
 }
+
+/**
+ * Callback that persists an input value to the host's encrypted store.
+ * Provided by ToolManager so the gatekeeper doesn't need filesystem access.
+ */
+export type WriteInputCallback = (toolId: string, key: string, value: string) => void;
 
 /**
  * Create the host functions for a WASM tool module.
@@ -223,6 +236,7 @@ export function createHostFunctions(
   manifest: ToolManifest,
   policy: GatekeeperPolicy,
   inputData: Map<string, string>,
+  onWriteInput?: WriteInputCallback,
 ): WasmHostFunctions {
   const toolId = manifest.id;
 
@@ -305,6 +319,20 @@ export function createHostFunctions(
         return "";
       }
       return data;
+    },
+
+    // ─── DATA: persist a value back to the host's encrypted store ───
+    write_input(_ctx: HostFunctionContext, key: string, value: string): void {
+      // Only allow keys declared in the manifest
+      if (!manifest.inputs?.[key]) {
+        throw new Error(`Input key "${key}" is not declared in manifest`);
+      }
+      // Update in-session Map so subsequent reads see it immediately
+      inputData.set(key, value);
+      // Persist to disk via ToolManager callback
+      if (onWriteInput) {
+        onWriteInput(toolId, key, value);
+      }
     },
 
     // ─── LOGGING: append-only output → Chronicle ───

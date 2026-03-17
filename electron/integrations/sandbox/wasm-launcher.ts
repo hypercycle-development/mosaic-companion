@@ -20,6 +20,7 @@ import type {
 import {
   gatekeeperPolicy,
   createHostFunctions,
+  type WriteInputCallback,
 } from "./gatekeeper";
 
 // =============================================================================
@@ -48,6 +49,8 @@ const STUB_HOST_FUNCTIONS = {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     mosaic_read_input(_cp: CallContext, _keyOffs: bigint): bigint { return 0n; },
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    mosaic_write_input(_cp: CallContext, _keyOffs: bigint, _valOffs: bigint) {},
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async mosaic_http_request(
       _cp: CallContext,
       _urlOffs: bigint,
@@ -74,6 +77,12 @@ interface LoadedWasmTool {
 
 export class WasmLauncher implements ToolLauncher {
   private loaded: Map<string, LoadedWasmTool> = new Map();
+  private writeInputCallback?: WriteInputCallback;
+
+  /** Set a callback that persists input values to the host's encrypted store. */
+  setWriteInputCallback(cb: WriteInputCallback): void {
+    this.writeInputCallback = cb;
+  }
 
   // ---------------------------------------------------------------------------
   // ToolLauncher interface
@@ -143,7 +152,7 @@ export class WasmLauncher implements ToolLauncher {
     const resolvedInputData = inputData ?? new Map<string, string>();
 
     // Create host functions gated by the gatekeeper
-    const hostFns = createHostFunctions(manifest, gatekeeperPolicy, resolvedInputData);
+    const hostFns = createHostFunctions(manifest, gatekeeperPolicy, resolvedInputData, this.writeInputCallback);
 
     // Load the WASM module
     const wasmData = this.resolveWasmSource(manifest);
@@ -152,9 +161,16 @@ export class WasmLauncher implements ToolLauncher {
     // Build Extism host functions in the format Extism expects
     const extismFunctions = this.buildExtismFunctions(manifest.id, hostFns);
 
+    // Enable Extism's built-in HTTP for domains the manifest allows.
+    // Guest code uses the PDK's Http.request() which goes through
+    // the SDK's internal http_request host function — reliable in worker mode.
+    const allowedHosts = manifest.permissions.internet
+      ? manifest.permissions.allowed_domains
+      : [];
+
     const plugin = await createPlugin(
       { wasm: [{ data: wasmData }] },
-      { useWasi: true, runInWorker: true, functions: extismFunctions },
+      { useWasi: true, runInWorker: true, functions: extismFunctions, allowedHosts },
     );
 
     const runningTool: RunningTool = {
@@ -326,6 +342,13 @@ export class WasmLauncher implements ToolLauncher {
           const key = cp.read(keyOffs)?.text() ?? "";
           const result = hostFns.read_input(ctx, key);
           return cp.store(result);
+        },
+
+        // Write input data (persist to encrypted store)
+        mosaic_write_input(cp: CallContext, keyOffs: bigint, valOffs: bigint) {
+          const key = cp.read(keyOffs)?.text() ?? "";
+          const value = cp.read(valOffs)?.text() ?? "";
+          hostFns.write_input(ctx, key, value);
         },
 
         // Log message
