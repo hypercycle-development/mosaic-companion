@@ -33,6 +33,15 @@
   - [Chronicle Audit Trail](#chronicle-audit-trail)
   - [Security Layers Diagram](#security-layers-diagram)
 - [Generic Input System](#generic-input-system)
+- [Detail Sidebar](#detail-sidebar)
+  - [Opening via Action Target](#opening-via-action-target)
+  - [Opening via Block Type](#opening-via-block-type)
+  - [Component Anatomy](#sidebar-component-anatomy)
+- [Confirmation Modal](#confirmation-modal)
+  - [Returning a Confirm Modal from a Tool](#returning-a-confirm-modal-from-a-tool)
+  - [Severity Levels](#severity-levels)
+  - [Modal in Agent Chat](#modal-in-agent-chat)
+  - [Component Anatomy](#modal-component-anatomy)
 - [Sidebar & Routing Integration](#sidebar--routing-integration)
 - [Files Changed](#files-changed)
 
@@ -114,6 +123,8 @@ themed React component.
 | `form`        | `ToolForm`        | Input form that submits to a tool function       |
 | `stat-card`   | `ToolStatCard`    | Metric card: value, label, trend, sparkline      |
 | `badge`       | `ToolBadge`       | Colored tag/label with variant support           |
+| `detail-panel`| `ToolDetailSidebar`| Right-side drawer with title + child blocks (overlay) |
+| `confirm-modal`| `ToolConfirmModal`| Confirmation dialog with severity theming (overlay) |
 
 Block type definitions live in `src/components/tool-ui/types.ts`.
 Block renderers live in `src/components/tool-ui/blocks/`.
@@ -127,6 +138,7 @@ interface BlockAction {
   server: string;   // e.g. "ext:hyperinsight"
   tool: string;     // function name, or "__navigate_panel__" for navigation
   args?: Record<string, unknown>;
+  target?: "inline" | "sidebar" | "modal";  // where the response renders
 }
 ```
 
@@ -135,9 +147,12 @@ When an action fires:
 1. `ToolUIRenderer` calls the `onAction` handler passed from `ToolPanelView`.
 2. If `action.tool === "__navigate_panel__"`, it's a panel navigation — push
    current panel to history, set context, switch to target panel.
-3. Otherwise, call the tool function via IPC
-   (`toolSandbox:callFunction(toolId, functionName, args)`), then re-render
-   the active panel with `force: true`.
+3. `ToolPanelView` checks the `target` field:
+   - **`"inline"`** (default): call the tool function, then re-render the panel.
+   - **`"sidebar"`**: call the tool function, render the response in the right
+     detail sidebar instead of replacing the panel.
+   - **`"modal"`**: call the tool function, show a confirmation modal if the
+     response contains a `confirm-modal` block.
 
 ### Caching & Prefetching
 
@@ -547,6 +562,212 @@ indicators: "configured" (green), "using default" (blue), "not set" (gray).
 
 ---
 
+## Detail Sidebar
+
+**File:** `src/components/tool-ui/blocks/ToolDetailSidebar.tsx`
+
+The detail sidebar is a right-side drawer that slides in when a user clicks a
+list item, table row, or card — anything that warrants an "inspect" or
+"drill-down" view. It's tool-scoped and doesn't interfere with MosAIc's
+navigation sidebar on the left.
+
+### Opening via Action Target
+
+Any `ButtonAction` (used by buttons, table row clicks, form submits) can set
+`target: "sidebar"` to route the tool's response into the sidebar:
+
+```json
+{
+  "type": "table",
+  "columns": [
+    { "key": "name", "label": "Node" },
+    { "key": "status", "label": "Status" }
+  ],
+  "rows": [
+    { "name": "node-alpha", "status": "active" },
+    { "name": "node-beta", "status": "idle" }
+  ],
+  "onRowClick": {
+    "server": "ext:my-tool",
+    "tool": "get_node_details",
+    "args": { "nodeId": "${name}" },
+    "target": "sidebar"
+  }
+}
+```
+
+When the user clicks a row:
+
+1. `ToolPanelView` calls `get_node_details({ nodeId: "node-alpha" })` via IPC.
+2. The tool returns blocks (e.g. cards, charts, stats about the node).
+3. If the response contains a `detail-panel` block, that block is used directly.
+4. Otherwise, the response blocks are wrapped in a synthetic `detail-panel`.
+5. The sidebar slides in from the right, showing the tool's content.
+
+The main panel underneath stays visible — the sidebar is an overlay.
+
+### Opening via Block Type
+
+A tool can also return a `detail-panel` block directly in any response:
+
+```json
+{
+  "type": "detail-panel",
+  "title": "Node: alpha-7",
+  "subtitle": "Region: us-east-1 · Status: active",
+  "width": "medium",
+  "blocks": [
+    { "type": "stat-card", "label": "Uptime", "value": "99.7%", "color": "green" },
+    { "type": "stat-card", "label": "Requests/s", "value": "1,240", "color": "blue" },
+    { "type": "section", "title": "Recent Activity", "blocks": [
+      { "type": "table", "columns": [...], "rows": [...] }
+    ]}
+  ]
+}
+```
+
+When `ToolPanelView` encounters a `detail-panel` block in any tool response
+(panel render or action result), it extracts it and renders it in the sidebar.
+The block is filtered out of the inline panel content.
+
+### Sidebar Component Anatomy
+
+```typescript
+interface DetailPanelBlock {
+  type: "detail-panel";
+  title: string;                          // Header title
+  subtitle?: string;                      // Optional subtitle
+  width?: "narrow" | "medium" | "wide";   // 384px / 480px / 640px
+  blocks: ToolUIBlock[];                  // Child blocks rendered in body
+}
+```
+
+**Behavior:**
+- Slides in from the right with CSS animation (250ms ease-out)
+- Semi-transparent backdrop dims the panel underneath
+- Closes on: X button click, Escape key, or backdrop click
+- Scrollable body for long content
+- Child blocks support full interactivity — buttons and forms inside the
+  sidebar trigger actions via the same `handleAction` handler
+
+---
+
+## Confirmation Modal
+
+**File:** `src/components/tool-ui/blocks/ToolConfirmModal.tsx`
+
+The confirmation modal lets tools request explicit user consent before
+performing critical actions. This works in **both** the panel UI and the
+agent chat.
+
+Use cases:
+- "Confirm this transaction?" (Web3 transfers)
+- "Delete this item permanently?"
+- "Deploy to production?"
+- "Grant this permission?"
+
+### Returning a Confirm Modal from a Tool
+
+A tool returns a `confirm-modal` block as part of its response:
+
+```json
+{
+  "type": "confirm-modal",
+  "title": "Confirm Transaction",
+  "message": "Send 0.5 ETH to 0xabc1234...def? This action cannot be undone.",
+  "severity": "warning",
+  "confirmLabel": "Send",
+  "cancelLabel": "Cancel",
+  "confirmAction": {
+    "server": "ext:web3-tool",
+    "tool": "execute_transfer",
+    "args": { "to": "0xabc1234...def", "amount": "0.5", "token": "ETH" }
+  },
+  "details": [
+    { "type": "card", "title": "Transfer Details", "fields": [
+      { "label": "To", "value": "0xabc1234...def", "icon": "globe" },
+      { "label": "Amount", "value": "0.5 ETH", "icon": "zap", "color": "yellow" },
+      { "label": "Network", "value": "Ethereum Mainnet", "icon": "database" }
+    ]}
+  ]
+}
+```
+
+A button action can also use `target: "modal"` to indicate the response should
+be treated as a modal:
+
+```json
+{
+  "type": "button",
+  "label": "Transfer",
+  "variant": "danger",
+  "action": {
+    "server": "ext:web3-tool",
+    "tool": "prepare_transfer",
+    "args": { "to": "0xabc...", "amount": "0.5" },
+    "target": "modal"
+  }
+}
+```
+
+### Severity Levels
+
+| Severity | Use Case | Visual |
+| --- | --- | --- |
+| `info` (default) | Low-risk confirmations | Blue icon + accent |
+| `warning` | Medium-risk, reversible actions | Yellow/amber icon + accent |
+| `danger` | High-risk, irreversible actions | Red icon + accent |
+
+Each severity has a matching icon (`Info`, `AlertTriangle`, `ShieldAlert`),
+border color, background tint, and confirm button color.
+
+### Modal in Agent Chat
+
+When a tool called by the AI agent returns a `confirm-modal` block, MosAIc
+extracts it from the tool result and shows the modal overlay in the chat view.
+This lets the agent propose an action (e.g. "I'll transfer 0.5 ETH") while the
+tool ensures the user explicitly approves before execution.
+
+**Chat flow:**
+
+```
+Agent: "I'll transfer 0.5 ETH to the address you specified."
+  → Agent calls <use_tool server="ext:web3-tool" tool="prepare_transfer">
+  → Tool returns confirm-modal block
+  → MosAIc shows modal overlay in chat
+  → User clicks "Confirm" → confirmAction fires → tool executes transfer
+  → User clicks "Cancel" → modal closes, no action taken
+```
+
+The `confirm-modal` block is filtered out of the inline message blocks —
+it only renders as a modal overlay, never inline in the chat.
+
+### Modal Component Anatomy
+
+```typescript
+interface ConfirmModalBlock {
+  type: "confirm-modal";
+  title: string;                        // Modal title
+  message: string;                      // Descriptive message
+  severity?: "info" | "warning" | "danger";
+  details?: ToolUIBlock[];              // Optional detail blocks between message and buttons
+  confirmLabel?: string;                // Default: "Confirm"
+  cancelLabel?: string;                 // Default: "Cancel"
+  confirmAction: ButtonAction;          // Fired on confirm
+  cancelAction?: ButtonAction;          // Fired on cancel (optional — default just closes)
+}
+```
+
+**Behavior:**
+- Centered overlay with backdrop blur
+- Scale-in animation (200ms ease-out)
+- Closes on: Cancel click, Escape key, or backdrop click
+- Confirm triggers the `confirmAction` via the same action handler, then closes
+- Cancel triggers `cancelAction` if provided, then closes
+- Detail blocks inside the modal support full rendering (cards, tables, text, etc.)
+
+---
+
 ## Sidebar & Routing Integration
 
 ### Pinned Tools in Sidebar
@@ -582,6 +803,7 @@ URL occurs:
 | **IPC layer** | `electron/preload.ts`, `global.d.ts` | `renderPanel`, `callFunction`, `setInput`, `deleteInput`, `getInputStatus` |
 | **Panel rendering** | `src/components/ToolPanelView.tsx` (new) | Full panel lifecycle with caching, prefetch, navigation |
 | **Sandbox page** | `src/components/SandboxPage.tsx` | Manifest review, update diff, approval history, input config, pin/open panel |
-| **UI blocks** | `src/components/tool-ui/` (10 files) | `stat-card`, `badge`, enhanced table/card/tabs/section/text/button/form |
+| **UI blocks** | `src/components/tool-ui/` (12 files) | `stat-card`, `badge`, `detail-panel`, `confirm-modal`, enhanced table/card/tabs/section/text/button/form |
 | **Navigation** | `src/components/Sidebar.tsx`, `ContentArea.tsx`, `src/types/types.ts` | Pinned tools sidebar, tool-panel routing |
+| **Chat integration** | `src/components/Chatview.tsx` | Confirmation modal rendering from tool responses in agent chat |
 | **External** | `.gitmodules`, `external/mosaic-tools` | Submodule for co-developed WASM tools |
