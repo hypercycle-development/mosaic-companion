@@ -527,7 +527,11 @@ const ToolCard: React.FC<{
   const m = tool.manifest;
   const toolCount = Object.keys(m.tools).length;
   const hasPanels = (m.ui?.panels?.length ?? 0) > 0;
-  const hasInputs = m.inputs && Object.keys(m.inputs).length > 0;
+  // Only show user-facing inputs (required !== false); auto-managed ones like api_key are hidden
+  const visibleInputs = m.inputs
+    ? Object.entries(m.inputs).filter(([, decl]) => decl.required !== false)
+    : [];
+  const hasInputs = visibleInputs.length > 0;
 
   useEffect(() => {
     if (expanded && hasInputs) {
@@ -711,7 +715,7 @@ const ToolCard: React.FC<{
               <span className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
                 <KeyRound size={12} /> Inputs
               </span>
-              {Object.entries(m.inputs!).map(([key, decl]) => (
+              {visibleInputs.map(([key, decl]) => (
                 <div key={key} className="bg-gray-800/50 rounded p-2.5 space-y-1.5">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono text-amber-400">{key}</span>
