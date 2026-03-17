@@ -441,26 +441,30 @@ const ManifestPreview: React.FC<{
         {manifest.resources.timeout}
       </div>
 
-      {/* Declared Inputs */}
-      {manifest.inputs && Object.keys(manifest.inputs).length > 0 && (
-        <div className="space-y-1">
-          <h4 className="text-xs uppercase tracking-wider text-gray-500 font-medium flex items-center gap-1.5">
-            <KeyRound size={12} /> Required Inputs ({Object.keys(manifest.inputs).length})
-          </h4>
+      {/* Declared Inputs — only show required ones (auto-managed inputs are hidden) */}
+      {(() => {
+        const requiredInputs = manifest.inputs
+          ? Object.entries(manifest.inputs).filter(([, input]) => input.required !== false)
+          : [];
+        return requiredInputs.length > 0 ? (
           <div className="space-y-1">
-            {Object.entries(manifest.inputs).map(([key, input]) => (
-              <div key={key} className="text-sm text-gray-300 bg-gray-800/50 px-3 py-1.5 rounded flex items-center gap-2">
-                <span className="text-amber-400 font-mono">{key}</span>
-                <span className="text-xs px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">{input.type}</span>
-                {input.required !== false && !input.default && <span className="text-xs text-red-400">required</span>}
-                {input.default !== undefined && <span className="text-xs text-blue-400">has default</span>}
-                <span className="text-gray-500 ml-1">{input.description}</span>
-              </div>
-            ))}
+            <h4 className="text-xs uppercase tracking-wider text-gray-500 font-medium flex items-center gap-1.5">
+              <KeyRound size={12} /> Required Inputs ({requiredInputs.length})
+            </h4>
+            <div className="space-y-1">
+              {requiredInputs.map(([key, input]) => (
+                <div key={key} className="text-sm text-gray-300 bg-gray-800/50 px-3 py-1.5 rounded flex items-center gap-2">
+                  <span className="text-amber-400 font-mono">{key}</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">{input.type}</span>
+                  {!input.default && <span className="text-xs text-red-400">required</span>}
+                  <span className="text-gray-500 ml-1">{input.description}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500">You can configure these values after installation in the tool settings.</p>
           </div>
-          <p className="text-xs text-gray-500">You can configure these values after installation in the tool settings.</p>
-        </div>
-      )}
+        ) : null;
+      })()}
 
       <label className="flex items-start gap-2 p-3 rounded-lg border border-gray-700 bg-gray-950/70 cursor-pointer">
         <input
