@@ -21,6 +21,15 @@ import {
   BrainCircuit,
   Plug,
   Lock,
+  Zap,
+  Activity,
+  Trophy,
+  BarChart3,
+  Globe,
+  Layers,
+  Box,
+  Shield,
+  Hash,
 } from "lucide-react";
 import {
   SidebarItem,
@@ -37,6 +46,13 @@ import {
 } from "../types/types";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
 import type { InstalledTool } from "../../electron/integrations/sandbox/types";
+
+/** Map manifest icon names → lucide components (shared with ToolPanelView) */
+const TOOL_ICON_MAP: Record<string, React.FC<{ size?: number; className?: string }>> = {
+  server: Server, zap: Zap, cpu: Cpu, activity: Activity, trophy: Trophy,
+  chart: BarChart3, globe: Globe, database: Database, layers: Layers,
+  box: Box, shield: Shield, hash: Hash,
+};
 
 interface SidebarProps {
   isOpen: boolean;
@@ -181,9 +197,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     loadPinnedTools();
     const interval = setInterval(loadPinnedTools, 15_000);
 
+    // Refresh immediately when pin state changes (dispatched by SandboxPage)
+    const onPinChange = () => loadPinnedTools();
+    window.addEventListener("pinned-tools-changed", onPinChange);
+
     return () => {
       cancelled = true;
       clearInterval(interval);
+      window.removeEventListener("pinned-tools-changed", onPinChange);
     };
   }, []);
   // Navigation Items
@@ -394,7 +415,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       : "hover-surface-accent text-gray-400 hover:text-gray-200 border-transparent"
                   }`}
                 >
-                  <Cpu className="size-4 mr-3 text-indigo-400" />
+                  {(() => {
+                    const IconComp = TOOL_ICON_MAP[tool.manifest.icon ?? ""] ?? Cpu;
+                    return <IconComp size={16} className="mr-3 text-indigo-400" />;
+                  })()}
                   <div className="flex-1 text-left min-w-0">
                     <span className="text-sm block truncate">{tool.manifest.displayName}</span>
                     <span className="text-[10px] text-gray-600 font-mono block truncate">

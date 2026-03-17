@@ -1039,6 +1039,8 @@ export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ 
       const res = await window.electronAPI.toolSandbox.setPinned(toolId, pinned);
       if (!res.success) setError(res.error ?? "Failed to update pin state");
       await refresh();
+      // Notify Sidebar to refresh pinned tools immediately
+      window.dispatchEvent(new CustomEvent("pinned-tools-changed"));
     } catch (err) {
       setError((err as Error).message);
     } finally {

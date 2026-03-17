@@ -298,8 +298,11 @@ export function createHostFunctions(
     // ─── DATA: the tool's ONLY way to read approved input ───
     read_input(_ctx: HostFunctionContext, key: string): string {
       const data = inputData.get(key);
+      // Return empty string for missing keys instead of throwing.
+      // Host function throws kill the entire WASM call — guest-side
+      // try/catch can never intercept them in Extism.
       if (data === undefined) {
-        throw new Error(`Input key "${key}" not found`);
+        return "";
       }
       return data;
     },
