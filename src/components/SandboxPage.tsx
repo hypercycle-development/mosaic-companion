@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { toast } from "react-toastify";
 import {
   Package,
   Play,
@@ -883,7 +884,7 @@ export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ 
   const [runningIds, setRunningIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [busyTools, setBusyTools] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
+  const showError = (msg: string) => toast.error(msg, { autoClose: 5000 });
 
   // Install flow state
   const [pendingReview, setPendingReview] = useState<PendingToolReview | null>(null);
@@ -908,7 +909,7 @@ export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ 
         setRunningIds(new Set(runningRes.data.map((r: RunningToolInfo) => r.toolId)));
       }
     } catch (err) {
-      setError((err as Error).message);
+      showError((err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -926,7 +927,6 @@ export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ 
   // ─── Actions ─────────────────────────────────────────────────────────
 
   const handlePickFile = async () => {
-    setError(null);
     const filePath = await window.electronAPI.dialog.openFile({
       filters: [{ name: "WebAssembly", extensions: ["wasm"] }],
     });
@@ -945,24 +945,28 @@ export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ 
           existingTool,
         });
       } else {
-        setError(res.error ?? "Failed to read manifest");
+        showError(res.error ?? "Failed to read manifest");
       }
     } catch (err) {
-      setError((err as Error).message);
+      showError((err as Error).message);
     }
   };
 
   const handleConfirmInstall = async () => {
     if (!pendingReview || !permissionsApproved) return;
 
-    setError(null);
     setInstalling(true);
     try {
       const res = pendingReview.existingTool
         ? await window.electronAPI.toolSandbox.update(pendingReview.wasmPath, { approved: true })
         : await window.electronAPI.toolSandbox.install(pendingReview.wasmPath, { approved: true });
       if (!res.success) {
-        setError(res.error ?? `Failed to ${pendingReview.existingTool ? "update" : "install"} tool`);
+        const msg = res.error ?? `Failed to ${pendingReview.existingTool ? "update" : "install"} tool`;
+        if (msg.includes("already at this exact build")) {
+          toast.warning(msg, { autoClose: 4000 });
+        } else {
+          showError(msg);
+        }
         return;
       }
 
@@ -970,7 +974,7 @@ export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ 
       setPermissionsApproved(false);
       await refresh();
     } catch (err) {
-      setError((err as Error).message);
+      showError((err as Error).message);
     } finally {
       setInstalling(false);
     }
@@ -983,14 +987,13 @@ export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ 
   };
 
   const handleLaunch = async (toolId: string) => {
-    setError(null);
     setBusyTools((s) => new Set(s).add(toolId));
     try {
       const res = await window.electronAPI.toolSandbox.launch(toolId);
-      if (!res.success) setError(res.error ?? "Failed to launch tool");
+      if (!res.success) showError(res.error ?? "Failed to launch tool");
       await refresh();
     } catch (err) {
-      setError((err as Error).message);
+      showError((err as Error).message);
     } finally {
       setBusyTools((s) => {
         const next = new Set(s);
@@ -1001,14 +1004,13 @@ export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ 
   };
 
   const handleStop = async (toolId: string) => {
-    setError(null);
     setBusyTools((s) => new Set(s).add(toolId));
     try {
       const res = await window.electronAPI.toolSandbox.stop(toolId);
-      if (!res.success) setError(res.error ?? "Failed to stop tool");
+      if (!res.success) showError(res.error ?? "Failed to stop tool");
       await refresh();
     } catch (err) {
-      setError((err as Error).message);
+      showError((err as Error).message);
     } finally {
       setBusyTools((s) => {
         const next = new Set(s);
@@ -1019,34 +1021,38 @@ export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ 
   };
 
   const handleUninstall = async (toolId: string) => {
-    setError(null);
-    setBusyTools((s) => new Set(s).add(toolId));
+    // Optimistically remove from UI immediately so the user sees instant feedback
+    setInstalled((prev) => prev.filter((t) => t.manifest.id !== toolId));
+    setRunningIds((prev) => {
+      const next = new Set(prev);
+      next.delete(toolId);
+      return next;
+    });
+    window.dispatchEvent(new CustomEvent("pinned-tools-changed"));
+
     try {
       const res = await window.electronAPI.toolSandbox.uninstall(toolId);
-      if (!res.success) setError(res.error ?? "Failed to uninstall tool");
-      await refresh();
+      if (!res.success) {
+        showError(res.error ?? "Failed to uninstall tool");
+        // Revert optimistic update on failure
+        await refresh();
+      }
     } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusyTools((s) => {
-        const next = new Set(s);
-        next.delete(toolId);
-        return next;
-      });
+      showError((err as Error).message);
+      await refresh();
     }
   };
 
   const handleTogglePin = async (toolId: string, pinned: boolean) => {
-    setError(null);
     setBusyTools((s) => new Set(s).add(toolId));
     try {
       const res = await window.electronAPI.toolSandbox.setPinned(toolId, pinned);
-      if (!res.success) setError(res.error ?? "Failed to update pin state");
+      if (!res.success) showError(res.error ?? "Failed to update pin state");
       await refresh();
       // Notify Sidebar to refresh pinned tools immediately
       window.dispatchEvent(new CustomEvent("pinned-tools-changed"));
     } catch (err) {
-      setError((err as Error).message);
+      showError((err as Error).message);
     } finally {
       setBusyTools((s) => {
         const next = new Set(s);
@@ -1099,20 +1105,6 @@ export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ 
           </button>
         </div>
       </div>
-
-      {/* Error banner */}
-      {error && (
-        <div className="flex items-start gap-2 p-3 border border-red-800 bg-red-950/50 rounded-lg text-sm text-red-300">
-          <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
-          <span>{error}</span>
-          <button
-            onClick={() => setError(null)}
-            className="ml-auto text-red-400 hover:text-red-300 text-xs"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
 
       {/* Install approval gate */}
       {pendingReview && (
