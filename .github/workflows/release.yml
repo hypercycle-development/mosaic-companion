@@ -78,7 +78,7 @@ jobs:
           VERSION_TYPE="${{ needs.check-deploy.outputs.version_type }}"
 
           # Create tag message with download links
-          TAG_MESSAGE="Release v${VERSION} (${VERSION_TYPE})
+          TAG_MESSAGE="Release v${VERSION} (${VERSION_TYPE})"
 
           git tag -a "v${VERSION}" -m "$TAG_MESSAGE"
           git push origin "v${VERSION}"
