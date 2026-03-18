@@ -74,14 +74,14 @@ VERSION=$(node -p "require('./package.json').version")
 APP_NAME=$(node -p "require('./package.json').name")
 
 # Verify app name matches expected pattern for experimental
-EXPECTED_NAME_PREFIX="mosaic-companion-${EXPERIMENT_NAME}"
-if [[ "$APP_NAME" != "mosaic-companion-${EXPERIMENT_NAME}" ]]; then
+EXPECTED_NAME_PREFIX="mosaic-${EXPERIMENT_NAME}"
+if [[ "$APP_NAME" != "mosaic-${EXPERIMENT_NAME}" ]]; then
     echo "⚠️  Warning: package.json name is '$APP_NAME'"
     echo "   For experiment '${EXPERIMENT_NAME}', expected name: '${EXPECTED_NAME_PREFIX}'"
     echo ""
     echo "   Make sure to update:"
-    echo "   1. package.json: \"name\": \"mosaic-companion-${EXPERIMENT_NAME}\""
-    echo "   2. forge.config.js: packagerConfig.name: \"mosaic-companion-${EXPERIMENT_NAME}\""
+    echo "   1. package.json: \"name\": \"mosaic-${EXPERIMENT_NAME}\""
+    echo "   2. forge.config.js: packagerConfig.name: \"mosaic-${EXPERIMENT_NAME}\""
     echo ""
     read -p "Continue anyway? [y/N]: " response
     case "$response" in
@@ -214,25 +214,25 @@ if confirm "Build and upload experimental artifacts to S3?"; then
   "downloads": {
     "linux": {
       "x64": {
-        "appimage": "${BUCKET_URL}/linux/x64/mosaic-companion-${VERSION}-x64.AppImage",
-        "deb": "${BUCKET_URL}/linux/x64/mosaic-companion_${VERSION}_amd64.deb"
+        "appimage": "${BUCKET_URL}/linux/x64/${APP_NAME}-${VERSION}-x64.AppImage",
+        "deb": "${BUCKET_URL}/linux/x64/${APP_NAME}_${VERSION}_amd64.deb"
       },
       "arm64": {
-        "appimage": "${BUCKET_URL}/linux/arm64/mosaic-companion-${VERSION}-arm64.AppImage",
-        "deb": "${BUCKET_URL}/linux/arm64/mosaic-companion_${VERSION}_arm64.deb"
+        "appimage": "${BUCKET_URL}/linux/arm64/${APP_NAME}-${VERSION}-arm64.AppImage",
+        "deb": "${BUCKET_URL}/linux/arm64/${APP_NAME}_${VERSION}_arm64.deb"
       }
     },
     "win32": {
       "x64": {
-        "setup": "${BUCKET_URL}/win32/x64/mosaic-companion-${VERSION}-Setup.exe"
+        "setup": "${BUCKET_URL}/win32/x64/${APP_NAME}-${VERSION}-Setup.exe"
       }
     },
     "darwin": {
       "x64": {
-        "dmg": "${BUCKET_URL}/darwin/x64/mosaic-companion-${VERSION}-x64.dmg"
+        "dmg": "${BUCKET_URL}/darwin/x64/${APP_NAME}-${VERSION}-x64.dmg"
       },
       "arm64": {
-        "dmg": "${BUCKET_URL}/darwin/arm64/mosaic-companion-${VERSION}-arm64.dmg"
+        "dmg": "${BUCKET_URL}/darwin/arm64/${APP_NAME}-${VERSION}-arm64.dmg"
       }
     }
   }

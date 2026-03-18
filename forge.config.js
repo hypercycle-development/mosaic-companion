@@ -36,8 +36,8 @@ fi
 export default {
     packagerConfig: {
         appId: 'com.mosaic.companion',
-        name: 'mosaic-companion-hyperinsight',
-        executableName: 'mosaic-companion-hyperinsight',
+        name: 'mosaic-hyperinsight',
+        executableName: 'mosaic-hyperinsight',
         icon: 'assets/icon',
         asar: true,
         asarUnpack: [
