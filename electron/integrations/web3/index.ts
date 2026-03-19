@@ -69,8 +69,8 @@ export function saveWalletKey(privateKey: string): boolean {
   if (privateKey === PRIVATE_KEY_GENERATION_PLACEHOLDER) {
     try {
       privateKey = generatePrivateKey();
-    } catch (error) {
-      console.error("[Web3] Failed to generate private key in main:", error);
+    } catch {
+      console.error("[Web3] Failed to generate private key in main.");
       return false;
     }
   }
@@ -85,8 +85,8 @@ export function saveWalletKey(privateKey: string): boolean {
       JSON.stringify({ encryptedKey: buffer.toString("base64") }),
     );
     return true;
-  } catch (error) {
-    console.error("[Web3] Failed to save wallet key:", error);
+  } catch {
+    console.error("[Web3] Failed to save wallet key.");
     return false;
   }
 }
@@ -101,8 +101,8 @@ export function getWalletKey(): string | null {
 
     const buffer = Buffer.from(data.encryptedKey, "base64");
     return safeStorage.decryptString(buffer);
-  } catch (error) {
-    console.error("[Web3] Failed to retrieve wallet key:", error);
+  } catch {
+    console.error("[Web3] Failed to retrieve wallet key.");
     return null;
   }
 }
@@ -132,15 +132,32 @@ export function getWalletAddress(): string | null {
   if (!key) return null;
 
   try {
-    // Ensure the key starts with 0x
     const formattedKey = key.startsWith("0x") ? key : `0x${key}`;
     const account: PrivateKeyAccount = privateKeyToAccount(
       formattedKey as `0x${string}`,
     );
     return account.address;
-  } catch (error) {
-    console.error("[Web3] Failed to derive wallet address:", error);
+  } catch {
+    console.error("[Web3] Failed to derive wallet address.");
     return null;
+  }
+}
+
+/**
+ * Run a callback with the wallet key, then overwrite any buffer copy.
+ * Best-effort mitigation against key retention in memory.
+ */
+export async function withWalletKey<T>(
+  fn: (formattedKey: `0x${string}`) => Promise<T>,
+): Promise<T> {
+  const key = getWalletKey();
+  if (!key) throw new Error("No wallet configured");
+  const formattedKey = (key.startsWith("0x") ? key : `0x${key}`) as `0x${string}`;
+  const keyBuf = Buffer.from(formattedKey, "utf8");
+  try {
+    return await fn(formattedKey);
+  } finally {
+    keyBuf.fill(0);
   }
 }
 

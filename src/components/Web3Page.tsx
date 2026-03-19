@@ -21,7 +21,6 @@ import {
   Search,
   Gauge,
 } from "lucide-react";
-import { PRIVATE_KEY_GENERATION_PLACEHOLDER } from "../../electron/integrations/web3/constants";
 
 // =============================================================================
 // Types
@@ -309,8 +308,6 @@ const PrivateKeyManager: React.FC<{ onWalletChanged: () => void }> = ({
   onWalletChanged,
 }) => {
   const [hasWallet, setHasWallet] = useState(false);
-  const [privateKey, setPrivateKey] = useState("");
-  const [showKey, setShowKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -324,28 +321,58 @@ const PrivateKeyManager: React.FC<{ onWalletChanged: () => void }> = ({
     }
   };
 
-  const handleSave = async () => {
-    let keyToSave = privateKey;
-    if (!privateKey) {
-      keyToSave = PRIVATE_KEY_GENERATION_PLACEHOLDER;
-      toast.info(
-        "No private key entered. Requesting backend to generate a new key.",
-      );
-    }
+  const handleGenerate = async () => {
     setIsSaving(true);
-    if (window.electronAPI?.trading?.saveWallet) {
-      const result = await window.electronAPI.trading.saveWallet(keyToSave);
-      if (result.success) {
-        toast.success("Private key saved securely.");
-        setPrivateKey("");
+    try {
+      const result = (await window.electronAPI?.trading?.saveWallet?.(
+        "PRIVATE_KEY_TO_BE_GENERATED",
+      )) as { success?: boolean };
+      if (result?.success) {
+        toast.success("New wallet generated and saved securely.");
         setHasWallet(true);
         onWalletChanged();
       } else {
-        toast.error("Failed to save wallet.");
+        toast.error("Failed to generate wallet.");
       }
+    } catch {
+      toast.error("Failed to generate wallet.");
     }
     setIsSaving(false);
   };
+
+  const handleImportFromClipboard = async () => {
+    setIsSaving(true);
+    try {
+      const result = (await window.electronAPI?.web3?.importFromClipboard?.()) as {
+        success?: boolean;
+        error?: string;
+      };
+      if (result?.success) {
+        toast.success("Wallet imported. Clipboard cleared.");
+        setHasWallet(true);
+        onWalletChanged();
+      } else {
+        toast.error(result?.error ?? "Failed to import. Copy a valid private key (0x + 64 hex chars) first.");
+      }
+    } catch {
+      toast.error("Failed to import from clipboard.");
+    }
+    setIsSaving(false);
+  };
+
+  const handleOpenSecureImport = () => {
+    window.electronAPI?.web3?.openSecureImportWindow?.();
+    toast.info("Paste your key in the secure window.");
+  };
+
+  useEffect(() => {
+    const unsub = window.electronAPI?.web3?.onWalletImported?.(() => {
+      checkWallet();
+      onWalletChanged();
+      toast.success("Wallet imported.");
+    });
+    return () => unsub?.();
+  }, [onWalletChanged]);
 
   const handleDelete = async () => {
     if (
@@ -398,42 +425,36 @@ const PrivateKeyManager: React.FC<{ onWalletChanged: () => void }> = ({
         </div>
       ) : (
         <div className="space-y-3">
-          <label className="block">
-            <span className="text-sm text-gray-400 mb-1 block">
-              Private Key (0x...)
-            </span>
-            <div className="relative">
-              <input
-                type={showKey ? "text" : "password"}
-                value={privateKey}
-                onChange={(e) => setPrivateKey(e.target.value)}
-                className="w-full px-4 py-2 pr-10 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100 font-mono text-sm"
-                placeholder="0x..."
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey(!showKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
-              >
-                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            <span className="block text-xs text-gray-500 mt-2">
-              Leave empty to generate a new random private key automatically.
-            </span>
-          </label>
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-          >
-            {isSaving ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Save size={16} />
-            )}
-            Save Private Key
-          </button>
+          <p className="text-xs text-gray-500">
+            Create a new wallet or import an existing one. Keys never pass through the main app UI.
+          </p>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleGenerate}
+              disabled={isSaving}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              {isSaving ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Save size={16} />
+              )}
+              Generate new wallet
+            </button>
+            <button
+              onClick={handleImportFromClipboard}
+              disabled={isSaving}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-gray-200 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              Import from clipboard
+            </button>
+            <button
+              onClick={handleOpenSecureImport}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              Import in secure window
+            </button>
+          </div>
         </div>
       )}
     </div>

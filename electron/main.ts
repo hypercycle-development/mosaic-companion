@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent, powerMonitor } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain, IpcMainInvokeEvent, powerMonitor } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -53,6 +53,7 @@ import {
   type Web3Config,
   type NetworkId,
 } from "./integrations/web3/config";
+import { saveWalletKey } from "./integrations/web3/index";
 import {
   getBoxes,
   getBox,
@@ -714,6 +715,64 @@ ipcMain.handle("web3:update-config", async (_event, updates: Partial<Web3Config>
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+});
+
+// Web3 wallet import (secure paths — key never passes through renderer IPC)
+function isValidPrivateKey(key: string): boolean {
+  const trimmed = key.trim();
+  if (!trimmed) return false;
+  const hex = trimmed.startsWith("0x") ? trimmed.slice(2) : trimmed;
+  return /^[a-fA-F0-9]{64}$/.test(hex);
+}
+
+ipcMain.handle("web3:import-from-clipboard", async () => {
+  try {
+    const text = clipboard.readText();
+    if (!isValidPrivateKey(text)) {
+      return { success: false, error: "Clipboard does not contain a valid Ethereum private key (64 hex chars, optional 0x prefix)." };
+    }
+    const ok = saveWalletKey(text.trim());
+    if (ok) clipboard.clear();
+    return { success: ok };
+  } catch {
+    return { success: false, error: "Failed to import from clipboard." };
+  }
+});
+
+ipcMain.handle("web3:import-wallet-secure", async (_event, privateKey: string) => {
+  try {
+    if (!isValidPrivateKey(privateKey)) {
+      return { success: false, error: "Invalid private key format." };
+    }
+    return { success: saveWalletKey(privateKey.trim()) };
+  } catch {
+    return { success: false, error: "Failed to save wallet." };
+  }
+});
+
+const SECURE_IMPORT_HTML = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Import Wallet</title><style>*{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#0f0f0f;color:#e5e5e5;padding:24px;margin:0;min-width:360px}h2{font-size:1rem;margin:0 0 16px;color:#a3a3a3}input{width:100%;padding:12px;background:#171717;border:1px solid #404040;border-radius:8px;color:#e5e5e5;font-family:monospace;font-size:13px;margin-bottom:12px}input:focus{outline:none;border-color:#6366f1}button{width:100%;padding:12px;background:#6366f1;border:none;border-radius:8px;color:#fff;font-weight:600;cursor:pointer}button:hover{background:#4f46e5}.hint{font-size:11px;color:#737373;margin-top:8px}</style></head><body><h2>Import private key</h2><p class="hint">Paste your key here. It is sent directly to the main process.</p><input type="password" id="key" placeholder="0x..." autocomplete="off"/><button id="submit">Import</button><script>document.getElementById("submit").onclick=async()=>{const k=document.getElementById("key").value.trim();if(!k)return;const b=document.getElementById("submit");b.disabled=true;try{const r=await window.secureWalletImport.submit(k);r.success?window.close():alert(r.error||"Import failed")}catch{alert("Import failed")}b.disabled=false}<\/script></body></html>`;
+
+ipcMain.on("web3:wallet-imported", () => {
+  mainWindow?.webContents.send("wallet:imported");
+});
+
+ipcMain.handle("web3:open-secure-import-window", async () => {
+  const preloadPath = path.join(__dirname, "secure-wallet-import-preload.js");
+  const win = new BrowserWindow({
+    width: 420,
+    height: 280,
+    title: "Import Wallet",
+    parent: mainWindow ?? undefined,
+    modal: !!mainWindow,
+    webPreferences: {
+      preload: preloadPath,
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+  win.setMenuBarVisibility(false);
+  win.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(SECURE_IMPORT_HTML));
 });
 
 // Theme Handlers
