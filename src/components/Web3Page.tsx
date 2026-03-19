@@ -261,7 +261,7 @@ const WalletOverview: React.FC<{ config: Web3Config | null }> = ({
         </div>
         {walletAddress && (
           <div className="mt-3 px-3 py-2 bg-gray-950/50 rounded-lg">
-            <p className="text-xs text-gray-500 font-mono break-all select-all">
+            <p className="text-xs text-gray-500 font-mono break-all select-all" data-testid="user-wallet-address">
               {walletAddress}
             </p>
           </div>
