@@ -9,6 +9,7 @@ import {
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
   INTERNAL_SANDBOX_URL,
+  INTERNAL_ONBOARDING_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
   Tab,
 } from "../types/types";
@@ -21,6 +22,7 @@ import { Web3Page } from "./Web3Page";
 import { VaultPage } from "./VaultPage";
 import { SandboxPage } from "./SandboxPage";
 import { ToolPanelView } from "./ToolPanelView";
+import { OnboardingPage } from "./OnboardingPage";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
 
@@ -41,6 +43,7 @@ interface ContentAreaProps {
   onUpdateTab: (updates: Partial<Tab>) => void;
   onStartDemo?: () => void;
   onCreateNewChatTab?: () => void;
+  onOnboardingComplete?: () => void;
   tabId?: string;
 }
 
@@ -309,6 +312,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   onUpdateTab,
   onStartDemo,
   onCreateNewChatTab,
+  onOnboardingComplete,
   tabId,
 }) => {
   // Handle Demo Command
@@ -476,6 +480,23 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   if (url.startsWith(INTERNAL_TOOL_PANEL_PREFIX)) {
     const toolId = url.slice(INTERNAL_TOOL_PANEL_PREFIX.length);
     return <ToolPanelPage toolId={toolId} url={url} onUpdateTab={onUpdateTab} />;
+  }
+
+  if (url === INTERNAL_ONBOARDING_URL) {
+    useEffect(() => {
+      onUpdateTab({
+        title: "Welcome",
+        isLoading: false,
+        favicon: undefined,
+      });
+    }, [url]);
+
+    return (
+      <OnboardingPage
+        onNavigate={onNavigate}
+        onComplete={() => onOnboardingComplete?.()}
+      />
+    );
   }
 
   if (url.startsWith("browser://")) {
