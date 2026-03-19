@@ -453,195 +453,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       </h1>
 
       <div className="space-y-8">
-        {/* Interface Section */}
-        <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
-            <Layout size={20} />
-            Interface Settings
-          </h2>
-          <div className="space-y-4">
-            <div>
-              <span className="text-gray-200 font-medium block">Theme</span>
-              <p className="text-sm text-gray-500 mb-3">
-                Choose a color theme. Changes apply instantly and persist across
-                restarts.
-              </p>
-              <div className="grid gap-3 md:grid-cols-2">
-                {themes.map((theme) => (
-                  <button
-                    key={theme.key}
-                    onClick={() => setThemeKey(theme.key as ThemeKey)}
-                    className={`w-full text-left rounded-lg p-4 border transition-all backdrop-blur-sm hover:scale-[1.01]
-                      ${
-                        themeKey === theme.key
-                          ? "border-indigo-500/50 ring-2 ring-indigo-500/30"
-                          : "border-gray-800"
-                      }
-                    `}
-                    style={{
-                      backgroundColor: "var(--surface)",
-                      color: "var(--text)",
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <div className="text-lg font-semibold">
-                          {theme.name}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {theme.description}
-                        </div>
-                      </div>
-                      {themeKey === theme.key && (
-                        <span className="text-xs px-2 py-1 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold">
-                          Active
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {(
-                        [
-                          "background",
-                          "surface",
-                          "accent",
-                          "primary",
-                          "warning",
-                          "success",
-                        ] as const
-                      ).map((token) => (
-                        <span
-                          key={token}
-                          className="h-8 w-8 rounded-lg border border-white/10"
-                          style={{ backgroundColor: theme.colors[token] }}
-                          title={token}
-                        />
-                      ))}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-gray-200 font-medium block">
-                  Classic Navigation Bar
-                </span>
-                <p className="text-sm text-gray-500">
-                  Show the traditional top address bar. Disabled by default for
-                  immersion.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowUrlBar && setShowUrlBar(!showUrlBar)}
-                className={`
-                  relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900
-                  ${showUrlBar ? "bg-indigo-600" : "bg-gray-700"}
-                `}
-              >
-                <span
-                  className={`
-                  inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out
-                  ${showUrlBar ? "translate-x-6" : "translate-x-1"}
-                `}
-                />
-              </button>
-            </div>
-
-            {/* Title Bar Style Setting */}
-            <div className="flex items-center justify-between pt-4 border-t border-gray-800">
-              <div>
-                <span className="text-gray-200 font-medium block">
-                  Window Title Bar
-                </span>
-                <p className="text-sm text-gray-500">
-                  Hidden shows styled controls. Default uses native OS title
-                  bar.
-                </p>
-              </div>
-              <div className="flex bg-gray-950 rounded-lg p-1 border border-gray-700">
-                <button
-                  onClick={async () => {
-                    if (updateSettings.titleBarStyle === "hidden") return;
-
-                    const result =
-                      await window.electronAPI?.showTitleBarConfirm?.();
-                    if (!result || result.buttonIndex === 2) return;
-
-                    await handleUpdateSettingChange("titleBarStyle", "hidden");
-
-                    if (result.buttonIndex === 0) {
-                      window.electronAPI?.restartWindow?.();
-                    } else {
-                      toast.info("Change will apply on next restart");
-                    }
-                  }}
-                  className={`
-                    px-3 py-1.5 rounded-md text-sm font-medium transition-all
-                    ${
-                      updateSettings.titleBarStyle !== "default"
-                        ? "bg-indigo-600 text-white shadow-sm"
-                        : "text-gray-400 hover:text-gray-200"
-                    }
-                  `}
-                >
-                  Hidden
-                </button>
-                <button
-                  onClick={async () => {
-                    if (updateSettings.titleBarStyle === "default") return;
-
-                    const result =
-                      await window.electronAPI?.showTitleBarConfirm?.();
-                    if (!result || result.buttonIndex === 2) return;
-
-                    await handleUpdateSettingChange("titleBarStyle", "default");
-
-                    if (result.buttonIndex === 0) {
-                      window.electronAPI?.restartWindow?.();
-                    } else {
-                      toast.info("Change will apply on next restart");
-                    }
-                  }}
-                  className={`
-                    px-3 py-1.5 rounded-md text-sm font-medium transition-all
-                    ${
-                      updateSettings.titleBarStyle === "default"
-                        ? "bg-gray-800 text-white shadow-sm"
-                        : "text-gray-400 hover:text-gray-200"
-                    }
-                  `}
-                >
-                  Default
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Startup Section */}
-        <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold mb-4 text-indigo-400">
-            On Startup
-          </h2>
-          <div className="space-y-4">
-            <label className="block">
-              <span className="text-gray-200 font-medium">
-                Default Landing URL
-              </span>
-              <p className="text-sm text-gray-500 mb-2">
-                The page that opens when you click Home or open a new tab.
-              </p>
-              <input
-                type="text"
-                value={homeUrl}
-                onChange={(e) => setHomeUrl(e.target.value)}
-                className="w-full max-w-lg px-4 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100 placeholder-gray-600"
-                placeholder="browser://home"
-              />
-            </label>
-          </div>
-        </section>
 
         {/* AI Agents Section */}
         <section
@@ -1302,6 +1113,196 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               })}
             </div>
           )}
+        </section>
+
+        {/* Interface Section */}
+        <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
+            <Layout size={20} />
+            Interface Settings
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <span className="text-gray-200 font-medium block">Theme</span>
+              <p className="text-sm text-gray-500 mb-3">
+                Choose a color theme. Changes apply instantly and persist across
+                restarts.
+              </p>
+              <div className="grid gap-3 md:grid-cols-2">
+                {themes.map((theme) => (
+                  <button
+                    key={theme.key}
+                    onClick={() => setThemeKey(theme.key as ThemeKey)}
+                    className={`w-full text-left rounded-lg p-4 border transition-all backdrop-blur-sm hover:scale-[1.01]
+                      ${
+                        themeKey === theme.key
+                          ? "border-indigo-500/50 ring-2 ring-indigo-500/30"
+                          : "border-gray-800"
+                      }
+                    `}
+                    style={{
+                      backgroundColor: "var(--surface)",
+                      color: "var(--text)",
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <div className="text-lg font-semibold">
+                          {theme.name}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {theme.description}
+                        </div>
+                      </div>
+                      {themeKey === theme.key && (
+                        <span className="text-xs px-2 py-1 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(
+                        [
+                          "background",
+                          "surface",
+                          "accent",
+                          "primary",
+                          "warning",
+                          "success",
+                        ] as const
+                      ).map((token) => (
+                        <span
+                          key={token}
+                          className="h-8 w-8 rounded-lg border border-white/10"
+                          style={{ backgroundColor: theme.colors[token] }}
+                          title={token}
+                        />
+                      ))}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-gray-200 font-medium block">
+                  Classic Navigation Bar
+                </span>
+                <p className="text-sm text-gray-500">
+                  Show the traditional top address bar. Disabled by default for
+                  immersion.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowUrlBar && setShowUrlBar(!showUrlBar)}
+                className={`
+                  relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900
+                  ${showUrlBar ? "bg-indigo-600" : "bg-gray-700"}
+                `}
+              >
+                <span
+                  className={`
+                  inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out
+                  ${showUrlBar ? "translate-x-6" : "translate-x-1"}
+                `}
+                />
+              </button>
+            </div>
+
+            {/* Title Bar Style Setting */}
+            <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+              <div>
+                <span className="text-gray-200 font-medium block">
+                  Window Title Bar
+                </span>
+                <p className="text-sm text-gray-500">
+                  Hidden shows styled controls. Default uses native OS title
+                  bar.
+                </p>
+              </div>
+              <div className="flex bg-gray-950 rounded-lg p-1 border border-gray-700">
+                <button
+                  onClick={async () => {
+                    if (updateSettings.titleBarStyle === "hidden") return;
+
+                    const result =
+                      await window.electronAPI?.showTitleBarConfirm?.();
+                    if (!result || result.buttonIndex === 2) return;
+
+                    await handleUpdateSettingChange("titleBarStyle", "hidden");
+
+                    if (result.buttonIndex === 0) {
+                      window.electronAPI?.restartWindow?.();
+                    } else {
+                      toast.info("Change will apply on next restart");
+                    }
+                  }}
+                  className={`
+                    px-3 py-1.5 rounded-md text-sm font-medium transition-all
+                    ${
+                      updateSettings.titleBarStyle !== "default"
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "text-gray-400 hover:text-gray-200"
+                    }
+                  `}
+                >
+                  Hidden
+                </button>
+                <button
+                  onClick={async () => {
+                    if (updateSettings.titleBarStyle === "default") return;
+
+                    const result =
+                      await window.electronAPI?.showTitleBarConfirm?.();
+                    if (!result || result.buttonIndex === 2) return;
+
+                    await handleUpdateSettingChange("titleBarStyle", "default");
+
+                    if (result.buttonIndex === 0) {
+                      window.electronAPI?.restartWindow?.();
+                    } else {
+                      toast.info("Change will apply on next restart");
+                    }
+                  }}
+                  className={`
+                    px-3 py-1.5 rounded-md text-sm font-medium transition-all
+                    ${
+                      updateSettings.titleBarStyle === "default"
+                        ? "bg-gray-800 text-white shadow-sm"
+                        : "text-gray-400 hover:text-gray-200"
+                    }
+                  `}
+                >
+                  Default
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Startup Section */}
+        <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400">
+            On Startup
+          </h2>
+          <div className="space-y-4">
+            <label className="block">
+              <span className="text-gray-200 font-medium">
+                Default Landing URL
+              </span>
+              <p className="text-sm text-gray-500 mb-2">
+                The page that opens when you click Home or open a new tab.
+              </p>
+              <input
+                type="text"
+                value={homeUrl}
+                onChange={(e) => setHomeUrl(e.target.value)}
+                className="w-full max-w-lg px-4 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100 placeholder-gray-600"
+                placeholder="browser://home"
+              />
+            </label>
+          </div>
         </section>
 
         {/* Updates Section */}
