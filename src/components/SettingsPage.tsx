@@ -652,7 +652,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-indigo-400 flex items-center gap-2">
               <Bot size={20} />
-              AI Neural Agents
+              AI Agents
             </h2>
             <button
               onClick={addAgent}
