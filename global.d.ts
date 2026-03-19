@@ -248,6 +248,9 @@ declare global {
           lookupToken: (contractAddress: string) => Promise<{ success: boolean; data?: string; error?: string }>;
           getConfig: () => Promise<any>;
           updateConfig: (updates: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
+          importFromClipboard: () => Promise<{ success: boolean; error?: string }>;
+          openSecureImportWindow: () => Promise<void>;
+          onWalletImported: (callback: () => void) => () => void;
       };
 
       // Tools registry bridge

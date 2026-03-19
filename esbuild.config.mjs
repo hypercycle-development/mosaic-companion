@@ -2,7 +2,11 @@
 import * as esbuild from "esbuild";
 
 await esbuild.build({
-  entryPoints: ["electron/main.ts", "electron/preload.ts"],
+  entryPoints: [
+    "electron/main.ts",
+    "electron/preload.ts",
+    "electron/secure-wallet-import-preload.ts",
+  ],
   bundle: true,
   platform: "node",
   outdir: "dist/main",

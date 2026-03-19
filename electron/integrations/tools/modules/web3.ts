@@ -25,7 +25,9 @@ import {
   saveAddressBookContact,
   deleteAddressBookContact,
   lookupContact,
+  withWalletKey,
 } from "../../web3/index";
+import { PRIVATE_KEY_GENERATION_PLACEHOLDER } from "../../web3/constants";
 import {
   loadConfig,
   getActiveRpcUrl,
@@ -206,34 +208,30 @@ export async function executeNativeTransfer(
   to: string,
   amountEth: number,
 ): Promise<{ txHash: string }> {
-  // Dynamic import viem to create wallet client
-  const { createWalletClient, http, parseEther } = await import("viem");
-  const { base, baseSepolia } = await import("viem/chains");
-  const { privateKeyToAccount } = await import("viem/accounts");
+  return withWalletKey(async (formattedKey) => {
+    const { createWalletClient, http, parseEther } = await import("viem");
+    const { base, baseSepolia } = await import("viem/chains");
+    const { privateKeyToAccount } = await import("viem/accounts");
 
-  const key = getWalletKey();
-  if (!key) throw new Error("No wallet configured");
+    const account = privateKeyToAccount(formattedKey);
+    const network = getActiveNetwork();
+    const chain = network.id === "base" ? base : baseSepolia;
+    const rpcUrl = network.customRpcUrl || network.rpcUrl;
 
-  const formattedKey = key.startsWith("0x") ? key : `0x${key}`;
-  const account = privateKeyToAccount(formattedKey as `0x${string}`);
+    const client = createWalletClient({
+      account,
+      chain,
+      transport: http(rpcUrl),
+    });
 
-  const network = getActiveNetwork();
-  const chain = network.id === "base" ? base : baseSepolia;
-  const rpcUrl = network.customRpcUrl || network.rpcUrl;
+    const hash = await client.sendTransaction({
+      to: to as `0x${string}`,
+      value: parseEther(amountEth.toString()),
+      chain,
+    } as any);
 
-  const client = createWalletClient({
-    account,
-    chain,
-    transport: http(rpcUrl),
+    return { txHash: hash };
   });
-
-  const hash = await client.sendTransaction({
-    to: to as `0x${string}`,
-    value: parseEther(amountEth.toString()),
-    chain,
-  } as any);
-
-  return { txHash: hash };
 }
 
 /** Execute a real ERC20 transfer via JSON-RPC */
@@ -242,52 +240,48 @@ export async function executeTokenTransfer(
   amount: number,
   token: TokenConfig,
 ): Promise<{ txHash: string }> {
-  const { createWalletClient, http } = await import("viem");
-  const { base, baseSepolia } = await import("viem/chains");
-  const { privateKeyToAccount } = await import("viem/accounts");
+  return withWalletKey(async (formattedKey) => {
+    const { createWalletClient, http } = await import("viem");
+    const { base, baseSepolia } = await import("viem/chains");
+    const { privateKeyToAccount } = await import("viem/accounts");
 
-  const key = getWalletKey();
-  if (!key) throw new Error("No wallet configured");
+    const account = privateKeyToAccount(formattedKey);
+    const network = getActiveNetwork();
+    const chain = network.id === "base" ? base : baseSepolia;
+    const rpcUrl = network.customRpcUrl || network.rpcUrl;
 
-  const formattedKey = key.startsWith("0x") ? key : `0x${key}`;
-  const account = privateKeyToAccount(formattedKey as `0x${string}`);
+    const client = createWalletClient({
+      account,
+      chain,
+      transport: http(rpcUrl),
+    });
 
-  const network = getActiveNetwork();
-  const chain = network.id === "base" ? base : baseSepolia;
-  const rpcUrl = network.customRpcUrl || network.rpcUrl;
+    const rawAmount = BigInt(Math.round(amount * Math.pow(10, token.decimals)));
 
-  const client = createWalletClient({
-    account,
-    chain,
-    transport: http(rpcUrl),
+    const erc20Abi = [
+      {
+        name: "transfer",
+        type: "function" as const,
+        inputs: [
+          { name: "to", type: "address" },
+          { name: "amount", type: "uint256" },
+        ],
+        outputs: [{ name: "", type: "bool" }],
+        stateMutability: "nonpayable" as const,
+      },
+    ];
+
+    const hash = await client.writeContract({
+      account,
+      address: token.contractAddress! as `0x${string}`,
+      abi: erc20Abi,
+      functionName: "transfer",
+      args: [to as `0x${string}`, rawAmount],
+      chain,
+    });
+
+    return { txHash: hash };
   });
-
-  // Convert amount to raw units
-  const rawAmount = BigInt(Math.round(amount * Math.pow(10, token.decimals)));
-
-  // ERC20 transfer(address,uint256) ABI
-  const erc20Abi = [
-    {
-      name: "transfer",
-      type: "function" as const,
-      inputs: [
-        { name: "to", type: "address" },
-        { name: "amount", type: "uint256" },
-      ],
-      outputs: [{ name: "", type: "bool" }],
-      stateMutability: "nonpayable" as const,
-    },
-  ];
-
-  const hash = await client.writeContract({
-    address: token.contractAddress as `0x${string}`,
-    abi: erc20Abi,
-    functionName: "transfer",
-    args: [to as `0x${string}`, rawAmount],
-    chain,
-  } as any);
-
-  return { txHash: hash };
 }
 
 // =============================================================================
@@ -688,13 +682,24 @@ const web3Tools: ToolDefinition[] = [
   // =========================================================================
   {
     name: "save-wallet",
-    description: "Securely store an Ethereum private key using OS encryption.",
+    description: "Generate and store a new Ethereum wallet. Only creates a new key — never accepts or imports an existing private key. Use empty/placeholder to generate.",
     inputSchema: {
       type: "object",
-      properties: { privateKey: { type: "string", description: "The private key" } },
+      properties: {
+        privateKey: {
+          type: "string",
+          description: "Must be empty or the generation placeholder. Raw private keys are rejected for security.",
+        },
+      },
       required: ["privateKey"],
     },
-    handler: async (args) => ({ success: saveWalletKey(args.privateKey as string) }),
+    handler: async (args) => {
+      const pk = args.privateKey as string;
+      if (pk && pk !== PRIVATE_KEY_GENERATION_PLACEHOLDER) {
+        return { success: false, error: "Import via tool is disabled. Use the Web3 settings UI to import a wallet." };
+      }
+      return { success: saveWalletKey(PRIVATE_KEY_GENERATION_PLACEHOLDER) };
+    },
   },
   {
     name: "delete-wallet",
