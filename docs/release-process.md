@@ -97,7 +97,7 @@ This uses the `electronuserland/builder:wine-mono` image and automatically:
 **Requirements for Docker builds:**
 
 - Docker installed and running
-- `.env.local` file with AWS credentials (passed to container)
+- `.env.local` file with AWS credentials (will be passed to container)
 - Sufficient disk space (~2GB for Docker image)
 
 **Typical multi-platform release workflow:**
