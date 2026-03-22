@@ -1,3 +1,4 @@
+import { ToolUIBlock } from "../components/tool-ui";
 // AI Agent Types and Configuration
 
 export type AIProvider = "claude" | "openai" | "gemini" | "ollama" | "custom";
@@ -14,6 +15,7 @@ export interface AIAgentConfig {
   isActive: boolean;
   createdAt: number;
   boxAccess?: string[]; // IDs of vault boxes this agent can access
+  richUI?: boolean; // Allow agent to render charts, tables, cards inline via <mosaic_ui>
 }
 
 export interface ChatMessage {
@@ -23,6 +25,14 @@ export interface ChatMessage {
   timestamp: number;
   agentId: string;
   isStreaming?: boolean;
+  /** UI blocks returned by a tool call (rendered by ToolUIRenderer) */
+  uiBlocks?: ToolUIBlock[];
+  /** "display" = UI was the answer (agent didn't analyze), "analyze" = agent commented */
+  displayHint?: "display" | "analyze";
+  /** Number of <mosaic_ui> blocks that failed validation (for user feedback) */
+  failedUIBlockCount?: number;
+  /** Raw JSON snippets of failed blocks (for collapsed debug view) */
+  failedUIRawSnippets?: string[];
 }
 
 export interface ChatSession {

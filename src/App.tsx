@@ -8,8 +8,10 @@ import { DemoOverlay } from "./components/DemoOverlay";
 import { CommandPalette } from "./components/CommandPalette";
 import { SandboxWarningBanner } from "./components/SandboxWarningBanner";
 import { TransactionApprovalModal } from "../plugins/payments-jit/renderer/components/TransactionApprovalModal";
-import { INTERNAL_HOME_URL, INTERNAL_CHAT_URL, Tab } from "./types/types";
+import { INTERNAL_HOME_URL, INTERNAL_CHAT_URL, INTERNAL_ONBOARDING_URL, Tab } from "./types/types";
 import { useTheme } from "./ThemeProvider";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function App() {
   // --- Persistent State ---
@@ -34,7 +36,7 @@ function App() {
   const [hasAgents, setHasAgents] = useState(false);
   const [titleBarStyle, setTitleBarStyle] = useState<string>("hidden");
 
-  // Check for configured agents on mount
+  // Check for configured agents and first-run onboarding
   useEffect(() => {
     const checkAgents = async () => {
       try {
@@ -43,7 +45,20 @@ function App() {
           (a: { isActive: boolean }) => a.isActive,
         );
         setHasAgents(activeAgents.length > 0);
-        // If we have agents and user hasn't explicitly chosen, stay in current mode
+
+        // If agents already exist but onboarding flag wasn't set (returning user), mark done
+        const onboardingDone = localStorage.getItem("mosaic_onboarding_complete");
+        if (!onboardingDone && agents.length > 0) {
+          localStorage.setItem("mosaic_onboarding_complete", "true");
+          // Navigate away from onboarding if we landed there
+          setTabs((prev) =>
+            prev.map((tab) =>
+              tab.history.present === INTERNAL_ONBOARDING_URL
+                ? { ...tab, title: "Home", history: { ...tab.history, present: homeUrl } }
+                : tab,
+            ),
+          );
+        }
       } catch {
         setHasAgents(false);
       }
@@ -68,14 +83,16 @@ function App() {
 
   // --- Tab & Session State ---
   const [tabs, setTabs] = useState<Tab[]>(() => {
-    // Initial tab
+    // Check if onboarding is needed (sync check — agent count verified async below)
+    const onboardingDone = localStorage.getItem("mosaic_onboarding_complete");
+    const initialUrl = onboardingDone ? homeUrl : INTERNAL_ONBOARDING_URL;
     return [
       {
         id: Date.now().toString(),
-        title: "Home",
+        title: onboardingDone ? "Home" : "Welcome",
         history: {
           past: [],
-          present: homeUrl,
+          present: initialUrl,
           future: [],
         },
         isLoading: false,
@@ -241,6 +258,11 @@ function App() {
     });
   };
 
+  const handleOnboardingComplete = () => {
+    localStorage.setItem("mosaic_onboarding_complete", "true");
+    setHasAgents(true);
+  };
+
   const handleRefresh = () => {
     const current = activeTab.history.present;
     updateActiveTabHistory({ ...activeTab.history, present: "" });
@@ -342,13 +364,15 @@ function App() {
       {/* Full Screen Demo Overlay */}
       {isDemoActive && <DemoOverlay onClose={() => setIsDemoActive(false)} />}
 
-      {/* Left Panel */}
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-        onNavigate={navigateTo}
-        currentUrl={activeTab.history.present}
-      />
+      {/* Left Panel — hidden during onboarding */}
+      {activeTab.history.present !== INTERNAL_ONBOARDING_URL && (
+        <Sidebar
+          isOpen={isSidebarOpen}
+          onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+          onNavigate={navigateTo}
+          currentUrl={activeTab.history.present}
+        />
+      )}
 
       {/* Main Browser Area */}
       <main
@@ -404,7 +428,7 @@ function App() {
           style={{ backgroundColor: "var(--surface)" }}
         >
           {/* Sidebar toggle button when sidebar is closed */}
-          {!showUrlBar && !isSidebarOpen && !isDemoActive && (
+          {!showUrlBar && !isSidebarOpen && !isDemoActive && activeTab.history.present !== INTERNAL_ONBOARDING_URL && (
             <button
               onClick={() => setIsSidebarOpen(true)}
               className="absolute top-4 left-4 z-50 p-2 rounded-full transition-colors backdrop-blur-md"
@@ -468,6 +492,7 @@ function App() {
                   onUpdateTab={(updates) => handleUpdateTab(tab.id, updates)}
                   onStartDemo={() => setIsDemoActive(true)}
                   onCreateNewChatTab={handleNewChatTab}
+                  onOnboardingComplete={handleOnboardingComplete}
                   tabId={tab.id}
                 />
               </div>
@@ -475,14 +500,15 @@ function App() {
           })}
         </div>
 
-        {/* Bottom AI Input Bar - hide when on AI Chat page (ChatView has its own input) */}
-        {!isDemoActive && activeTab.history.present !== INTERNAL_CHAT_URL && (
+        {/* Bottom AI Input Bar - hide during onboarding and on AI Chat page */}
+        {!isDemoActive && activeTab.history.present !== INTERNAL_CHAT_URL && activeTab.history.present !== INTERNAL_ONBOARDING_URL && (
           <BottomBar
             onSubmit={handleBottomBarSubmit}
             hasAgents={hasAgents}
           />
         )}
       </main>
+      <ToastContainer theme="dark" position="bottom-right" />
     </div>
   );
 }

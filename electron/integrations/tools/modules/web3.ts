@@ -306,7 +306,7 @@ const web3Tools: ToolDefinition[] = [
   // =========================================================================
   {
     name: "get_crypto_price",
-    description: "Fetch the current price of a cryptocurrency in USD.",
+    description: "Fetch the CURRENT real-time price of a cryptocurrency in USD. Returns only the latest price and 24h change. Cannot provide historical prices, price at specific past times, time series, or price charts.",
     inputSchema: {
       type: "object",
       properties: {
@@ -324,7 +324,7 @@ const web3Tools: ToolDefinition[] = [
   },
   {
     name: "get_market_news",
-    description: "Fetch recent news and market sentiment for a topic or token.",
+    description: "Fetch recent news headlines and market sentiment for a topic or token. Returns a brief summary only — not detailed articles or analysis.",
     inputSchema: {
       type: "object",
       properties: {
@@ -352,7 +352,7 @@ const web3Tools: ToolDefinition[] = [
   },
   {
     name: "get_wallet_balance",
-    description: "Get native ETH and configured token balances for the wallet or a specific address.",
+    description: "Get current native ETH and configured token balances for the wallet or a specific address. Returns balances only — not transaction history or past balances.",
     inputSchema: {
       type: "object",
       properties: {
@@ -544,7 +544,7 @@ const web3Tools: ToolDefinition[] = [
   // =========================================================================
   {
     name: "estimate_gas",
-    description: "Estimate gas cost for a transfer. Use before executing a transfer to show the user the cost.",
+    description: "Estimate gas cost for an ETH transfer on the current network. Only for ETH transfers — not ERC20 tokens.",
     inputSchema: {
       type: "object",
       properties: {

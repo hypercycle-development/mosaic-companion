@@ -33,6 +33,7 @@ import {
 import { mcpClient, setMainWindow as mcpSetMainWindow, initPlugins } from "./integrations/mcp/index";
 import { initializeTools, cleanupTools } from "./integrations/tools";
 import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
+import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integrations/chat/index";
 // Plugin IPC handler registrations
 import { registerHyperInsightIpc } from "../plugins/hyperinsight/main/index.js";
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
@@ -268,6 +269,7 @@ app.on("before-quit", () => {
   mcpClient.disconnectAll();
   cleanupTools().catch(console.error);
   if (mosaicBotStop) mosaicBotStop().catch(console.error);
+  stopChat();
 });
 
 // Suppress ERR_ABORTED errors from webviews
@@ -318,6 +320,7 @@ app.whenReady().then(() => {
 
   const win = createWindow();
   mcpSetMainWindow(win);
+  setChatMainWindow(win);
 
   // ==========================================================================
   // IMPORTANT: Register plugin IPC handlers BEFORE initPlugins().
@@ -332,6 +335,7 @@ app.whenReady().then(() => {
 
   // Now auto-connect MCP plugins (with correct env already set)
   initPlugins().catch((e) => console.error("[MCP] Plugin init failed:", e));
+  initChat();
 
   // Initialize tool registry
   initializeTools().catch((e) => console.error("[Tools] Init failed:", e));
@@ -419,6 +423,17 @@ ipcMain.handle("window:close", () => {
 
 ipcMain.handle("window:is-maximized", () => {
   return mainWindow ? mainWindow.isMaximized() : false;
+});
+
+// File dialog for sandbox tool installation
+ipcMain.handle("dialog:open-file", async (_event, options?: { filters?: Array<{ name: string; extensions: string[] }> }) => {
+  const { dialog } = await import("electron");
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ["openFile"],
+    filters: options?.filters ?? [{ name: "WebAssembly", extensions: ["wasm"] }],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
 });
 
 // CSV Logging

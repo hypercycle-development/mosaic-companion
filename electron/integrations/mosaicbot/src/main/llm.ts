@@ -1,0 +1,216 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Main-process LLM caller for MosaicBot
+//
+// Reads the active AI agent from userData/ai-agents.json and calls the
+// configured provider. Mirrors AIService (src/services/AIService.ts) but
+// runs in the Electron main process where API keys are safe and there is
+// no renderer context.
+//
+// Usage:
+//   const reply = await callActiveLLM(prompt, systemPrompt);
+//   if (!reply) // no active agent configured
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { app } from "electron";
+import fs from "fs";
+import path from "path";
+
+// Mirrors AIAgentConfig from src/types/ai.ts
+interface AgentConfig {
+  id: string;
+  name: string;
+  provider: "claude" | "openai" | "gemini" | "ollama" | "custom";
+  apiKey: string;
+  baseUrl?: string;
+  model: string;
+  maxTokens?: number;
+  temperature?: number;
+  isActive: boolean;
+}
+
+type Message = { role: string; content: string };
+
+// ── Agent resolution ──────────────────────────────────────────────────────────
+
+function readAgents(): AgentConfig[] {
+  try {
+    const agentsPath = path.join(app.getPath("userData"), "ai-agents.json");
+    if (!fs.existsSync(agentsPath)) return [];
+    return JSON.parse(fs.readFileSync(agentsPath, "utf-8")) as AgentConfig[];
+  } catch (e) {
+    console.error("[MosaicBot/LLM] Failed to read ai-agents.json:", e);
+    return [];
+  }
+}
+
+function readActiveAgent(): AgentConfig | null {
+  return readAgents().find((a) => a.isActive) ?? null;
+}
+
+function readAgentById(id: string): AgentConfig | null {
+  return readAgents().find((a) => a.id === id) ?? null;
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * Call the first active AI agent with the given prompt.
+ * Returns null (and logs a warning) when no active agent is configured.
+ * The caller is responsible for falling back to HEARTBEAT_OK.
+ */
+export async function callActiveLLM(
+  prompt: string,
+  systemPrompt?: string,
+  agentId?: string,
+): Promise<string | null> {
+  const agent = agentId ? readAgentById(agentId) : readActiveAgent();
+  if (!agent) {
+    console.warn(
+      agentId
+        ? `[MosaicBot/LLM] Agent "${agentId}" not found in ai-agents.json.`
+        : "[MosaicBot/LLM] No active AI agent configured. Open Settings → AI Agents and set one as active.",
+    );
+    return null;
+  }
+
+  console.log(`[MosaicBot/LLM] Using agent "${agent.name}" (${agent.provider}/${agent.model})`);
+
+  try {
+    switch (agent.provider) {
+      case "claude":
+        return await callClaude(agent, [{ role: "user", content: prompt }], systemPrompt);
+      case "openai":
+      case "custom":
+        return await callOpenAI(agent, [{ role: "user", content: prompt }], systemPrompt);
+      case "gemini":
+        return await callGemini(agent, [{ role: "user", content: prompt }]);
+      case "ollama":
+        return await callOllama(agent, [{ role: "user", content: prompt }], systemPrompt);
+      default:
+        throw new Error(`Unknown provider: ${(agent as AgentConfig).provider}`);
+    }
+  } catch (e) {
+    console.error(`[MosaicBot/LLM] Call failed (${agent.provider}):`, e);
+    return null;
+  }
+}
+
+// ── Provider implementations ──────────────────────────────────────────────────
+
+async function callClaude(
+  agent: AgentConfig,
+  messages: Message[],
+  systemPrompt?: string,
+): Promise<string> {
+  const body: Record<string, unknown> = {
+    model: agent.model,
+    max_tokens: agent.maxTokens ?? 1024,
+    messages,
+  };
+  if (systemPrompt) body.system = systemPrompt;
+
+  const res = await fetch(
+    `${agent.baseUrl ?? "https://api.anthropic.com"}/v1/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": agent.apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify(body),
+    },
+  );
+
+  if (!res.ok) throw new Error(`Claude ${res.status}: ${await res.text()}`);
+  const data = (await res.json()) as { content: Array<{ text: string }> };
+  return data.content[0].text;
+}
+
+async function callOpenAI(
+  agent: AgentConfig,
+  messages: Message[],
+  systemPrompt?: string,
+): Promise<string> {
+  const allMessages: Message[] = systemPrompt
+    ? [{ role: "system", content: systemPrompt }, ...messages]
+    : messages;
+
+  const res = await fetch(
+    `${agent.baseUrl ?? "https://api.openai.com"}/v1/chat/completions`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${agent.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: agent.model,
+        max_tokens: agent.maxTokens ?? 1024,
+        temperature: agent.temperature ?? 0.7,
+        messages: allMessages,
+      }),
+    },
+  );
+
+  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
+  const data = (await res.json()) as {
+    choices: Array<{ message: { content: string } }>;
+  };
+  return data.choices[0].message.content;
+}
+
+async function callGemini(agent: AgentConfig, messages: Message[]): Promise<string> {
+  const baseUrl = agent.baseUrl ?? "https://generativelanguage.googleapis.com";
+  const url = `${baseUrl}/v1beta/models/${agent.model}:generateContent?key=${agent.apiKey}`;
+
+  const contents = messages.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents,
+      generationConfig: {
+        maxOutputTokens: agent.maxTokens ?? 1024,
+        temperature: agent.temperature ?? 0.7,
+      },
+    }),
+  });
+
+  if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text()}`);
+  const data = (await res.json()) as {
+    candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
+  };
+  return data.candidates[0].content.parts[0].text;
+}
+
+async function callOllama(
+  agent: AgentConfig,
+  messages: Message[],
+  systemPrompt?: string,
+): Promise<string> {
+  const allMessages: Message[] = systemPrompt
+    ? [{ role: "system", content: systemPrompt }, ...messages]
+    : messages;
+
+  const res = await fetch(
+    `${agent.baseUrl ?? "http://localhost:11434"}/api/chat`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: agent.model,
+        messages: allMessages,
+        stream: false,
+      }),
+    },
+  );
+
+  if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
+  const data = (await res.json()) as { message: { content: string } };
+  return data.message.content;
+}
