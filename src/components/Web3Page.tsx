@@ -135,16 +135,17 @@ export const EthIcon: React.FC<{ size?: number; className?: string }> = ({
 // Wallet Overview Section
 // =============================================================================
 
-const WalletOverview: React.FC<{ config: Web3Config | null }> = ({ config }) => {
+const WalletOverview: React.FC<{ config: Web3Config | null; onConfigChanged: () => void }> = ({ config, onConfigChanged }) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [hasWallet, setHasWallet] = useState(false);
   const [balances, setBalances] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
 
   useEffect(() => {
     loadWallet();
-  }, []);
+  }, [config?.activeNetwork]);
 
   const loadWallet = async () => {
     setIsLoading(true);
@@ -220,11 +221,35 @@ const WalletOverview: React.FC<{ config: Web3Config | null }> = ({ config }) => 
                   ? `${walletAddress.slice(0, 8)}...${walletAddress.slice(-6)}`
                   : "Deriving..."}
               </p>
-              {network && (
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {network.name} · Chain ID {network.chainId}
-                </p>
-              )}
+              {config && Object.keys(config.networks).length > 0 ? (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <select
+                    value={config.activeNetwork}
+                    disabled={isSwitchingNetwork}
+                    onChange={async (e) => {
+                      setIsSwitchingNetwork(true);
+                      try {
+                        const updated = { ...config, activeNetwork: e.target.value };
+                        await window.electronAPI?.web3?.updateConfig(updated as any);
+                        onConfigChanged();
+                      } catch {
+                        toast.error("Failed to switch network.");
+                      }
+                      setIsSwitchingNetwork(false);
+                    }}
+                    className="bg-transparent text-xs text-gray-400 border-0 outline-none cursor-pointer hover:text-gray-200 transition-colors disabled:opacity-50 py-0 pl-0 pr-4 max-w-[200px]"
+                  >
+                    {Object.entries(config.networks).map(([id, net]) => (
+                      <option key={id} value={id} className="bg-gray-900 text-gray-200">
+                        {net.name} · Chain {net.chainId}
+                      </option>
+                    ))}
+                  </select>
+                  {isSwitchingNetwork && <Loader2 size={10} className="animate-spin text-gray-500 shrink-0" />}
+                </div>
+              ) : network ? (
+                <p className="text-xs text-gray-500 mt-0.5">{network.name} · Chain ID {network.chainId}</p>
+              ) : null}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -986,11 +1011,11 @@ const SafetySettingsSection: React.FC<{
       </p>
 
       <div className="space-y-3">
-        {/* Require Confirmation */}
+        {/* Require Confirmation — also gates AIM JIT payment modal */}
         <label className="flex items-center justify-between p-3 bg-gray-900/50 border border-gray-800 rounded-lg cursor-pointer hover:border-gray-700 transition-colors">
           <div>
-            <p className="text-sm font-medium text-gray-200">Require confirmation</p>
-            <p className="text-xs text-gray-500">Transfers need explicit approval before executing</p>
+            <p className="text-sm font-medium text-gray-200">Require user confirmation for payments</p>
+            <p className="text-xs text-gray-500">Show approval modal before executing any transfer or AIM JIT payment</p>
           </div>
           <div className="relative">
             <input
@@ -1251,7 +1276,7 @@ export const Web3Page: React.FC = () => {
             <Wallet size={20} />
             Wallet
           </h2>
-          <WalletOverview key={`overview-${walletKey}`} config={config} />
+          <WalletOverview key={`overview-${walletKey}`} config={config} onConfigChanged={handleConfigChanged} />
         </section>
 
         {/* Network */}

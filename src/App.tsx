@@ -7,6 +7,7 @@ import { BottomBar } from "./components/BottomBar";
 import { DemoOverlay } from "./components/DemoOverlay";
 import { CommandPalette } from "./components/CommandPalette";
 import { SandboxWarningBanner } from "./components/SandboxWarningBanner";
+import { TransactionApprovalModal } from "../plugins/payments-jit/renderer/components/TransactionApprovalModal";
 import { INTERNAL_HOME_URL, INTERNAL_CHAT_URL, Tab } from "./types/types";
 import { useTheme } from "./ThemeProvider";
 
@@ -334,6 +335,9 @@ function App() {
         }}
         hasAgents={hasAgents}
       />
+
+      {/* JIT Payment Approval Modal (listens for payments-jit:request_approval IPC events) */}
+      <TransactionApprovalModal />
 
       {/* Full Screen Demo Overlay */}
       {isDemoActive && <DemoOverlay onClose={() => setIsDemoActive(false)} />}

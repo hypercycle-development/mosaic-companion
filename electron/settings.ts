@@ -22,6 +22,7 @@ interface Node {
   adminHost: string;
   adminPort: string;
   isActive: boolean;
+  licenseKey?: string;
 }
 
 interface Settings {
@@ -201,6 +202,7 @@ export function addNode(node: Partial<Omit<Node, "id">>): {
     adminHost: node.adminHost || "",
     adminPort: node.adminPort || "8006",
     isActive: node.isActive !== undefined ? node.isActive : true,
+    licenseKey: node.licenseKey,
   };
 
   settings.nodes.push(newNode);

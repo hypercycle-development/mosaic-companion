@@ -16,6 +16,8 @@ interface Node {
   adminHost: string;
   adminPort: string;
   isActive: boolean;
+  // Need licenseKey to connect to node manifests in hyperinsight-aims.json
+  licenseKey?: string;
 }
 
 interface AIAgent {
@@ -150,6 +152,40 @@ contextBridge.exposeInMainWorld("electronAPI", {
     // Config (direct IPC — not through tool registry, needs dedicated handler)
     getConfig: () => ipcRenderer.invoke("web3:get-config"),
     updateConfig: (updates: Record<string, unknown>) => ipcRenderer.invoke("web3:update-config", updates),
+  },
+  // HyperInsight plugin
+  hyperinsight: {
+    getStatus: () => ipcRenderer.invoke("hyperinsight:get-status"),
+    ensureKey: () => ipcRenderer.invoke("hyperinsight:ensure-key"),
+    resetKey: () => ipcRenderer.invoke("hyperinsight:reset-key"),
+    getAims: () => ipcRenderer.invoke("hyperinsight:get-aims"),
+    getLeaderboard: () => ipcRenderer.invoke("hyperinsight:get-leaderboard"),
+    getNodes: (params?: any) => ipcRenderer.invoke("hyperinsight:get-nodes", params),
+    getNodeDetail: (license: string) => ipcRenderer.invoke("hyperinsight:get-node-detail", license),
+    getAimManifest: (license: string, aimName: string) => ipcRenderer.invoke("hyperinsight:get-node-aim-manifest", license, aimName),
+    getNetworkStats: () => ipcRenderer.invoke("hyperinsight:get-network-stats"),
+    getNetworkHistory: () => ipcRenderer.invoke("hyperinsight:get-network-history"),
+    getAimStats: (name: string, range?: string) => ipcRenderer.invoke("hyperinsight:get-aim-stats", name, range),
+    getAimStatsCurrent: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-stats-current", name),
+    getAimDetails: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-details", name),
+    getAimReleases: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-releases", name),
+    getAimReleaseDetail: (name: string, tag: string) => ipcRenderer.invoke("hyperinsight:get-aim-release-detail", name, tag),
+    saveGeneratedImage: (base64Data: string) => ipcRenderer.invoke("hyperinsight:save-generated-image", base64Data),
+    // AIM Nodes data
+    saveNodeData: (license: string, data: any) => ipcRenderer.invoke("aimnodes:save-node-data", license, data),
+    deleteNodeData: (license: string) => ipcRenderer.invoke("aimnodes:delete-node-data", license),
+    getSavedAims: (license?: string) => ipcRenderer.invoke("aimnodes:get-saved-aims", license),
+    handlePayment: (paymentData: any) => ipcRenderer.invoke("aimnodes:handle-payment", paymentData),
+  },
+  // JIT Payments plugin
+  paymentsJit: {
+    onRequestApproval: (handler: (data: any) => void) => {
+      const wrappedHandler = (_event: IpcRendererEvent, data: any) => handler(data);
+      ipcRenderer.on('payments-jit:request_approval', wrappedHandler);
+      return () => ipcRenderer.removeListener('payments-jit:request_approval', wrappedHandler);
+    },
+    approveResult: (requestId: string, approved: boolean) =>
+      ipcRenderer.invoke('payments-jit:approve_tx_result', { requestId, approved }),
   },
   // Vault (named boxes & agent access)
   vault: {
