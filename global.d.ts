@@ -1,8 +1,18 @@
-import { AIAgentConfig, ChatSession } from "./types/ai";
+import type { AIAgentConfig, ChatSession } from './types/ai';
+import type { ChatSettings, Room, StoredMessage, Member } from './types/chat';
+import type { ToolManifest, InstalledTool, ChronicleSource, ChronicleEntryType, ChronicleEntry, ChronicleQuery } from './electron/integrations/sandbox/types';
 
 declare global {
   // Vault types
   type BoxSourceType = "manual" | "import" | "connector";
+
+  // IPC-adapted variant of RunningTool: Date → string, ToolStatus → string (JSON transport)
+  interface RunningToolInfo {
+    toolId: string;
+    status: string;
+    startedAt: string;
+    manifest: ToolManifest;
+  }
 
   interface VaultBox {
     id: string;
@@ -319,6 +329,61 @@ declare global {
           disconnect: (server: string) => Promise<{ success: boolean }>;
           readResource: (server: string, uri: string) => Promise<{ success: boolean; result?: any; error?: string }>;
       };
+
+      // Tool Sandbox (WASM tools)
+      toolSandbox: {
+        inspectManifest: (wasmPath: string) => Promise<{ success: boolean; data?: { manifest: ToolManifest; fileHash: string }; error?: string }>;
+        install: (wasmPath: string, approval: { approved: boolean }) => Promise<{ success: boolean; data?: { manifest: ToolManifest; installedAt: string; enabled: boolean; pinned?: boolean; entryPath: string; sourcePath?: string; fileHash?: string }; error?: string }>;
+        update: (wasmPath: string, approval: { approved: boolean }) => Promise<{ success: boolean; data?: { manifest: ToolManifest; installedAt: string; enabled: boolean; pinned?: boolean; entryPath: string; sourcePath?: string; fileHash?: string }; error?: string }>;
+        uninstall: (toolId: string) => Promise<{ success: boolean; error?: string }>;
+        launch: (toolId: string) => Promise<{ success: boolean; error?: string }>;
+        stop: (toolId: string) => Promise<{ success: boolean; error?: string }>;
+        listInstalled: () => Promise<{ success: boolean; data?: InstalledTool[] }>;
+        listRunning: () => Promise<{ success: boolean; data?: RunningToolInfo[] }>;
+        setPinned: (toolId: string, pinned: boolean) => Promise<{ success: boolean; error?: string }>;
+        setInput: (toolId: string, key: string, value: string) => Promise<{ success: boolean; error?: string }>;
+        deleteInput: (toolId: string, key: string) => Promise<{ success: boolean; error?: string }>;
+        getInputStatus: (toolId: string) => Promise<{ success: boolean; data?: Record<string, boolean>; error?: string }>;
+        isAvailable: () => Promise<{ success: boolean; data?: boolean }>;
+        renderPanel: (toolId: string, panelId: string, context?: Record<string, unknown>) => Promise<{ success: boolean; data?: unknown; ui?: Array<{ type: string; [key: string]: unknown }>; error?: string }>;
+        callFunction: (toolId: string, functionName: string, args: Record<string, unknown>) => Promise<{ success: boolean; data?: unknown; ui?: Array<{ type: string; [key: string]: unknown }>; error?: string }>;
+      };
+
+      // Chronicle (tool activity log)
+      chronicle: {
+        read: (toolId: string, query?: ChronicleQuery) => Promise<{ success: boolean; data?: ChronicleEntry[]; error?: string }>;
+        hasEntries: (toolId: string) => Promise<{ success: boolean; data?: boolean }>;
+      };
+
+      // File dialog
+      dialog: {
+        openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string | null>;
+      };
+    };
+
+    chatAPI: {
+      getSettings: () => Promise<ChatSettings>;
+      saveSettings: (s: ChatSettings) => Promise<{ success: boolean; error?: string }>;
+      connect: () => Promise<{ success: boolean; error?: string }>;
+      disconnect: () => Promise<{ success: boolean }>;
+      status: () => Promise<{ status: string }>;
+      listRooms: () => Promise<{ success: boolean; error?: string }>;
+      createRoom: (name: string) => Promise<{ success: boolean; error?: string }>;
+      joinRoom: (roomId: string) => Promise<{ success: boolean; error?: string }>;
+      leaveRoom: (roomId: string) => Promise<{ success: boolean; error?: string }>;
+      sendMessage: (roomId: string, text: string) => Promise<{ success: boolean; error?: string }>;
+      assignAgent: (roomId: string, agentId: string, agentName: string) => Promise<{ success: boolean }>;
+      removeAgent: (roomId: string, agentId: string) => Promise<{ success: boolean }>;
+      listAssignedAgents: (roomId: string) => Promise<string[]>;
+      onConnectionChanged: (cb: (data: { status: string }) => void) => () => void;
+      onRoomsUpdated: (cb: (rooms: Room[]) => void) => () => void;
+      onRoomCreated: (cb: (room: Room) => void) => () => void;
+      onJoined: (cb: (data: { room: Room; history: StoredMessage[] }) => void) => () => void;
+      onLeft: (cb: (data: { roomId: string }) => void) => () => void;
+      onMessage: (cb: (message: StoredMessage) => void) => () => void;
+      onMemberJoined: (cb: (data: { roomId: string; member: Member }) => void) => () => void;
+      onMemberLeft: (cb: (data: { roomId: string; memberId: string; username: string }) => void) => () => void;
+      onError: (cb: (data: { message: string }) => void) => () => void;
     };
 
     // MosaicBot agent API

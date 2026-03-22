@@ -1,507 +1,408 @@
-// ActionParser.ts - Parse AI responses for action tags and execute Gmail operations
+// ActionParser.ts — Parse AI responses for <use_tool> invocations and route
+// them to the ToolRegistry (built-in tools) or MCP servers (external tools).
+//
+// All tools — Gmail, Web3, Vault, MCP, WASM — use the same <use_tool> format.
 
-export type GmailActionType =
-  | "GMAIL_RECENT"
-  | "GMAIL_SEARCH"
-  | "GMAIL_UNREAD"
-  | "GMAIL_LABEL"
-  | "GMAIL_READ"
-  | "GMAIL_MARK_READ"
-  | "GMAIL_MARK_UNREAD"
-  | "MCP_TOOL_CALL"
-  | "NONE";
+import type { ToolUIBlock, BlockType } from "../components/tool-ui/types";
+import { MAX_BLOCK_COUNT, MAX_BLOCK_DEPTH } from "../components/tool-ui/types";
+
+export type ActionType = "TOOL_CALL" | "NONE";
 
 export interface ParsedAction {
-  type: GmailActionType;
-  params?: Record<string, any>;
-  cleanResponse: string; // Response with action tags removed
-  rawTag?: string; // The original tag found
-}
-
-export interface EmailData {
-  id: string;
-  from: string;
-  subject: string;
-  snippet: string;
-  date: string;
-  isUnread: boolean;
-  hasAttachments?: boolean;
-  attachmentCount?: number;
-}
-
-// Store last fetched emails for context (to reference by index)
-let lastFetchedEmails: EmailData[] = [];
-
-export function getLastFetchedEmails(): EmailData[] {
-  return lastFetchedEmails;
-}
-
-export function setLastFetchedEmails(emails: EmailData[]): void {
-  lastFetchedEmails = emails;
+  type: ActionType;
+  params?: { server: string; tool: string; args: Record<string, unknown> };
+  cleanResponse: string;
+  rawTag?: string;
 }
 
 /**
- * Strip HTML tags from email body and convert to plain text
- * Handles common HTML entities and formatting
- */
-export function stripHtml(html: string): string {
-  if (!html) return "";
-
-  // Check if it looks like HTML (contains < and > tags)
-  if (!/<[^>]+>/.test(html)) {
-    return html; // Already plain text
-  }
-
-  let text = html;
-
-  // Remove style and script tags completely
-  text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
-  text = text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
-
-  // Convert common block elements to line breaks
-  text = text.replace(/<\/?(br|p|div|h[1-6]|li|tr)[^>]*>/gi, "\n");
-
-  // Convert links to just their text or URL
-  text = text.replace(
-    /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi,
-    "$2 ($1)",
-  );
-
-  // Remove all remaining HTML tags
-  text = text.replace(/<[^>]+>/g, "");
-
-  // Decode common HTML entities
-  text = text.replace(/&nbsp;/gi, " ");
-  text = text.replace(/&amp;/gi, "&");
-  text = text.replace(/&lt;/gi, "<");
-  text = text.replace(/&gt;/gi, ">");
-  text = text.replace(/&quot;/gi, '"');
-  text = text.replace(/&#39;/gi, "'");
-  text = text.replace(/&apos;/gi, "'");
-
-  // Clean up whitespace
-  text = text.replace(/\n\s*\n\s*\n/g, "\n\n"); // Max 2 consecutive newlines
-  text = text.replace(/^\s+|\s+$/gm, ""); // Trim each line
-  text = text.replace(/\n{3,}/g, "\n\n"); // Max 2 consecutive newlines again
-  text = text.trim();
-
-  return text;
-}
-
-/**
- * Format date to relative time (e.g., "2 hours ago", "Yesterday", "Jan 13")
- */
-export function formatRelativeDate(dateString: string): string {
-  try {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24)
-      return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return `${diffDays} days ago`;
-
-    // For older emails, show month and day
-    const months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    return `${months[date.getMonth()]} ${date.getDate()}`;
-  } catch {
-    return dateString; // Fallback to original if parsing fails
-  }
-}
-
-// Default email count
-const DEFAULT_EMAIL_COUNT = 20;
-
-// Regex patterns for action tags - capture entire content between brackets
-const ACTION_PATTERNS = {
-  GMAIL_RECENT: /\[GMAIL_RECENT(?::(\d+))?\]/gi,
-  GMAIL_UNREAD: /\[GMAIL_UNREAD(?::(\d+))?\]/gi,
-  GMAIL_SEARCH: /\[GMAIL_SEARCH:([^\]]+)\]/gi,
-  GMAIL_LABEL: /\[GMAIL_LABEL:([^\]]+)\]/gi,
-  GMAIL_READ: /\[GMAIL_READ:(\d+)\]/gi,
-};
-
-/**
- * Parse search query that may have an optional count suffix
- * e.g., "from:john" -> { query: "from:john", count: 20 }
- * e.g., "from:john:15" -> { query: "from:john", count: 15 }
- */
-function parseQueryWithCount(fullQuery: string): {
-  query: string;
-  count: number;
-} {
-  // Check if the last segment after : is a number (the count)
-  const lastColonIndex = fullQuery.lastIndexOf(":");
-  if (lastColonIndex > 0) {
-    const possibleCount = fullQuery.substring(lastColonIndex + 1);
-    if (/^\d+$/.test(possibleCount)) {
-      return {
-        query: fullQuery.substring(0, lastColonIndex),
-        count: parseInt(possibleCount),
-      };
-    }
-  }
-  return { query: fullQuery, count: DEFAULT_EMAIL_COUNT };
-}
-
-/**
- * Parse AI response for action tags
- * Returns the action type, parameters, and cleaned response
- * Supports dynamic count: [GMAIL_RECENT:30], [GMAIL_SEARCH:from:john:15]
+ * Parse an AI response for a <use_tool> invocation.
+ * Returns the parsed tool call or NONE if no invocation found.
  */
 export function parseAction(response: string): ParsedAction {
-  // Check for GMAIL_MARK_READ (with email index)
-  const markReadMatch = response.match(/\[GMAIL_MARK_READ:(\d+)\]/i);
-  if (markReadMatch) {
-    return {
-      type: "GMAIL_MARK_READ",
-      params: { index: parseInt(markReadMatch[1]) },
-      cleanResponse: response.replace(/\[GMAIL_MARK_READ:\d+\]/gi, "").trim(),
-      rawTag: markReadMatch[0],
-    };
-  }
+  const match = response.match(
+    /<use_tool\s+server="([^"]+)"\s+tool="([^"]+)">([\s\S]*?)<\/use_tool>/,
+  );
 
-  // Check for GMAIL_MARK_UNREAD (with email index)
-  const markUnreadMatch = response.match(/\[GMAIL_MARK_UNREAD:(\d+)\]/i);
-  if (markUnreadMatch) {
-    return {
-      type: "GMAIL_MARK_UNREAD",
-      params: { index: parseInt(markUnreadMatch[1]) },
-      cleanResponse: response.replace(/\[GMAIL_MARK_UNREAD:\d+\]/gi, "").trim(),
-      rawTag: markUnreadMatch[0],
-    };
-  }
-
-  // Check for GMAIL_READ (with email index)
-  const readMatch = response.match(/\[GMAIL_READ:(\d+)\]/i);
-  if (readMatch) {
-    return {
-      type: "GMAIL_READ",
-      params: { index: parseInt(readMatch[1]) },
-      cleanResponse: response.replace(ACTION_PATTERNS.GMAIL_READ, "").trim(),
-      rawTag: readMatch[0],
-    };
-  }
-
-  // Check for GMAIL_SEARCH (with parameter and optional count at end)
-  const searchMatch = response.match(/\[GMAIL_SEARCH:([^\]]+)\]/i);
-  if (searchMatch) {
-    const { query, count } = parseQueryWithCount(searchMatch[1]);
-    return {
-      type: "GMAIL_SEARCH",
-      params: { query, count },
-      cleanResponse: response.replace(ACTION_PATTERNS.GMAIL_SEARCH, "").trim(),
-      rawTag: searchMatch[0],
-    };
-  }
-
-  // Check for GMAIL_LABEL (with label name and optional count)
-  const labelMatch = response.match(/\[GMAIL_LABEL:([^\]]+)\]/i);
-  if (labelMatch) {
-    const { query: label, count } = parseQueryWithCount(labelMatch[1]);
-    return {
-      type: "GMAIL_LABEL",
-      params: { label: label.toUpperCase(), count },
-      cleanResponse: response.replace(ACTION_PATTERNS.GMAIL_LABEL, "").trim(),
-      rawTag: labelMatch[0],
-    };
-  }
-
-  // Check for GMAIL_UNREAD (with optional count)
-  const unreadMatch = response.match(/\[GMAIL_UNREAD(?::(\d+))?\]/i);
-  if (unreadMatch) {
-    return {
-      type: "GMAIL_UNREAD",
-      params: {
-        count: unreadMatch[1] ? parseInt(unreadMatch[1]) : DEFAULT_EMAIL_COUNT,
-      },
-      cleanResponse: response.replace(ACTION_PATTERNS.GMAIL_UNREAD, "").trim(),
-      rawTag: unreadMatch[0],
-    };
-  }
-
-  // Check for GMAIL_RECENT (with optional count)
-  const recentMatch = response.match(/\[GMAIL_RECENT(?::(\d+))?\]/i);
-  if (recentMatch) {
-    return {
-      type: "GMAIL_RECENT",
-      params: {
-        count: recentMatch[1] ? parseInt(recentMatch[1]) : DEFAULT_EMAIL_COUNT,
-      },
-      cleanResponse: response.replace(ACTION_PATTERNS.GMAIL_RECENT, "").trim(),
-      rawTag: recentMatch[0],
-    };
-  }
-
-  // Check for MCP Tool Call (XML-style)
-  // <use_tool server="name" tool="name">{"arg":"val"}</use_tool>
-  const mcpMatch = response.match(/<use_tool\s+server="([^"]+)"\s+tool="([^"]+)">([\s\S]*?)<\/use_tool>/);
-  if (mcpMatch) {
-    const serverName = mcpMatch[1];
-    const toolName = mcpMatch[2];
-    const argsString = mcpMatch[3];
-    let args = {};
+  if (match) {
+    let args: Record<string, unknown> = {};
     try {
-      args = JSON.parse(argsString);
-    } catch (e) {
-      console.error("Failed to parse MCP tool args:", e);
+      args = JSON.parse(match[3]);
+    } catch {
+      console.error("[ActionParser] Failed to parse tool args:", match[3]);
     }
 
     return {
-      type: "MCP_TOOL_CALL",
-      params: { server: serverName, tool: toolName, args },
+      type: "TOOL_CALL",
+      params: { server: match[1], tool: match[2], args },
       cleanResponse: response.replace(/<use_tool[\s\S]*?<\/use_tool>/, "").trim(),
-      rawTag: mcpMatch[0],
+      rawTag: match[0],
     };
   }
 
-  // No action found
-  return {
-    type: "NONE",
-    cleanResponse: response,
-  };
+  return { type: "NONE", cleanResponse: response };
+}
+
+/** Structured result from executeToolCall — text for the agent + optional UI blocks */
+export interface ToolCallOutput {
+  text: string;
+  uiBlocks?: import("../components/tool-ui/types").ToolUIBlock[];
+  /** "display" = UI is the answer (skip agent recursion), "analyze" = agent comments (default) */
+  displayHint?: "display" | "analyze";
 }
 
 /**
- * Execute an MCP or built-in tool action.
+ * Execute a tool call.
  *
- * Routes to the built-in tool registry first (via tools:execute).
- * If that fails because the module isn't found, falls back to MCP servers.
- * This means both built-in tools (Web3, etc.) and MCP-connected servers
- * use the same <use_tool> invocation format from the AI.
- *
- * @param agentId - Optional agent ID for access control enforcement (passed as ExecutionContext)
+ * Routes to the built-in ToolRegistry first (Gmail, Web3, Vault, WASM tools).
+ * Falls back to MCP servers if the module isn't found in the registry.
  */
-export async function executeMCPAction(action: ParsedAction, agentId?: string): Promise<string> {
-   if (action.type !== "MCP_TOOL_CALL" || !action.params) {
-       return "Invalid MCP action";
-   }
-   
-   const { server, tool, args } = action.params as { server: string; tool: string; args: any };
-   const context = agentId ? { agentId } : undefined;
-   
-   // 1. Try built-in tool registry first (handles web3, gmail-module, vault, future modules)
-   try {
-       const fullToolName = `${server}:${tool}`;
-       const registryResult = await (window as any).electronAPI?.tools?.execute?.(fullToolName, args || {}, context);
-       if (registryResult && registryResult.success !== undefined) {
-           // If the tool was found and executed (even if it returned an error), use this result
-           if (registryResult.success) {
-               const data = registryResult.data;
-               return typeof data === "string" ? data : JSON.stringify(data, null, 2);
-           }
-           // Check if the error is "module not found" — that means we should try MCP
-           if (registryResult.error?.includes("not found")) {
-               // Fall through to MCP
-           } else {
-               // Tool was found but returned an error (e.g. "no wallet configured")
-               return `Error: ${registryResult.error}`;
-           }
-       }
-   } catch (e) {
-       console.warn(`[ActionParser] Built-in tool ${server}:${tool} failed, trying MCP:`, e);
-   }
-
-   // 2. Fall back to MCP server
-   try {
-       const result = await window.electronAPI.mcpAPI.callTool(server, tool, args);
-       if (result.success) {
-           // Check if MCP server returned a __payment_required signal
-           // This happens when an AIM endpoint requires payment (HTTP 402).
-           // The mcp-server.js returns a structured JSON payload that we must
-           // intercept here and route to the JIT payment handler in the main process.
-           const firstContent = result.result?.content?.[0];
-           const resultText = typeof firstContent?.text === "string" ? firstContent.text : "";
-
-           if (resultText.includes('"__payment_required"')) {
-               try {
-                   const paymentData = JSON.parse(resultText);
-                   if (paymentData.__payment_required) {
-                       console.log("[ActionParser] Intercepted __payment_required signal. Routing to payment handler...");
-                       const paymentResult = await (window as any).electronAPI.hyperinsight.handlePayment(paymentData);
-                       if (paymentResult.success && paymentResult.result) {
-                           // Return the final tool output from the paid call (after JIT top-up + retry)
-                           const finalText = paymentResult.result.content?.[0]?.text;
-                           return finalText || JSON.stringify(paymentResult.result, null, 2);
-                       }
-                       // Payment failed or was rejected by the user
-                       if (paymentResult.result?.content?.[0]?.text) {
-                           return paymentResult.result.content[0].text;
-                       }
-                       return `Payment required but failed: ${paymentResult.error || "Unknown error"}`;
-                   }
-               } catch (parseErr) {
-                   // Not valid payment JSON — fall through to normal result handling
-                   console.warn("[ActionParser] Result contained __payment_required text but failed to parse:", parseErr);
-               }
-           }
-
-           return JSON.stringify(result.result, null, 2);
-       } else {
-           return `Error calling tool ${tool}: ${result.error}`;
-       }
-   } catch (e) {
-       return `Error calling tool ${tool}: ${(e as Error).message}`;
-   }
-}
-
-/**
- * Generate system prompt for MCP tools
- */
-export function getMCPSystemPrompt(servers: any[]): string {
-    if (!servers || servers.length === 0) return "";
-    
-    let prompt = "You have access to the following tools. To use a tool, output its XML tag.\n\n";
-    prompt += "CRITICAL RULES:\n";
-    prompt += "1. When you want to use a tool, output ONLY a short intro sentence, then the <use_tool> XML tag.\n";
-    prompt += "2. You MUST stop writing IMMEDIATELY after the closing </use_tool> tag. Do NOT continue with any text, answers, or guesses.\n";
-    prompt += "3. NEVER guess or hallucinate tool results. Wait for the actual tool output before responding.\n";
-    prompt += "4. After you receive the [Tool Output], use that data to write your final response to the user.\n\n";
-    
-    servers.forEach(server => {
-        if (!server.tools || server.tools.length === 0) return;
-        
-        prompt += `Server: ${server.name}\n`;
-        server.tools.forEach((tool: any) => {
-            prompt += `- Tool: ${tool.name}\n  Description: ${tool.description || "No description"}\n  Input Schema: ${JSON.stringify(tool.inputSchema)}\n`;
-            prompt += `  Usage: <use_tool server="${server.name}" tool="${tool.name}">JSON_ARGS</use_tool>\n\n`;
-        });
-    });
-    
-    return prompt;
-}
-
-/**
- * Format email data for AI consumption
- * Creates a structured string that's easy for the AI to parse
- */
-export function formatEmailsForAI(emails: EmailData[]): string {
-  if (emails.length === 0) {
-    return "No emails found matching the criteria.";
+export async function executeToolCall(action: ParsedAction, agentId?: string): Promise<ToolCallOutput> {
+  if (action.type !== "TOOL_CALL" || !action.params) {
+    return { text: "Invalid tool action" };
   }
 
-  // Store for later reference by index
-  setLastFetchedEmails(emails);
+  const { server, tool, args } = action.params;
+  const context = agentId ? { agentId } : undefined;
 
-  const formatted = emails.map((email, index) => {
-    const unreadMarker = email.isUnread ? "[UNREAD]" : "[READ]";
-    const attachmentMarker = email.hasAttachments
-      ? ` 📎${email.attachmentCount ? ` ${email.attachmentCount}` : ""}`
-      : "";
-    const relativeDate = formatRelativeDate(email.date);
-    return `
-Email ${index + 1} ${unreadMarker}${attachmentMarker}:
-- From: ${email.from}
-- Subject: ${email.subject}
-- Date: ${relativeDate}
-- Preview: ${email.snippet}
-`.trim();
+  // 1. Try built-in ToolRegistry first
+  try {
+    const fullToolName = `${server}:${tool}`;
+    const registryResult = await (window as any).electronAPI?.tools?.execute?.(fullToolName, args || {}, context);
+    if (registryResult && registryResult.success !== undefined) {
+      if (registryResult.success) {
+        const data = registryResult.data;
+        // If data is an object with ui blocks, extract them
+        let uiBlocks: import("../components/tool-ui/types").ToolUIBlock[] | undefined;
+        let textData = data;
+        if (data && typeof data === "object" && !Array.isArray(data) && "ui" in (data as Record<string, unknown>)) {
+          const obj = data as Record<string, unknown>;
+          uiBlocks = obj.ui as import("../components/tool-ui/types").ToolUIBlock[];
+          // Remove ui from the data sent to the agent (it's for rendering, not for LLM)
+          const { ui: _, ...rest } = obj;
+          textData = Object.keys(rest).length > 0 ? rest : data;
+        }
+        // Also check top-level ui field on registryResult
+        if (!uiBlocks && registryResult.ui) {
+          uiBlocks = registryResult.ui;
+        }
+        const text = typeof textData === "string" ? textData : JSON.stringify(textData);
+        return { text, uiBlocks, displayHint: registryResult.displayHint };
+      }
+      // "not found" means the module doesn't exist in the registry — try MCP
+      if (registryResult.error?.includes("not found")) {
+        // Fall through to MCP
+      } else {
+        return { text: `Error: ${registryResult.error}` };
+      }
+    }
+  } catch (e) {
+    console.warn(`[ActionParser] Built-in tool ${server}:${tool} failed, trying MCP:`, e);
+  }
+
+  // 2. Fall back to MCP server
+  try {
+    const result = await window.electronAPI.mcpAPI.callTool(server, tool, args);
+    if (result.success) {
+      // TODO: The __payment_required interception below could be extracted into a
+      // shared helper (e.g. handlePaymentRequired()) and unified with executeMCPAction
+      // once the two call-paths are fully consolidated. See plugins/payments-jit.
+
+      // Intercept __payment_required signal from AIM endpoints (HTTP 402).
+      // The mcp-server.js wraps the 402 response as JSON; we route it to the
+      // JIT payment handler in the main process, which handles top-up + retry.
+      const firstContent = result.result?.content?.[0];
+      const resultText = typeof firstContent?.text === "string" ? firstContent.text : "";
+
+      if (resultText.includes('"__payment_required"')) {
+        try {
+          const paymentData = JSON.parse(resultText);
+          if (paymentData.__payment_required) {
+            console.log("[ActionParser] Intercepted __payment_required signal. Routing to payment handler...");
+            const paymentResult = await (window as any).electronAPI.hyperinsight.handlePayment(paymentData);
+            if (paymentResult.success && paymentResult.result) {
+              const finalText = paymentResult.result.content?.[0]?.text;
+              return { text: finalText || JSON.stringify(paymentResult.result, null, 2) };
+            }
+            if (paymentResult.result?.content?.[0]?.text) {
+              return { text: paymentResult.result.content[0].text };
+            }
+            return { text: `Payment required but failed: ${paymentResult.error || "Unknown error"}` };
+          }
+        } catch (parseErr) {
+          console.warn("[ActionParser] Result contained __payment_required text but failed to parse:", parseErr);
+        }
+      }
+
+      return { text: JSON.stringify(result.result) };
+    } else {
+      return { text: `Error calling tool ${tool}: ${result.error}` };
+    }
+  } catch (e) {
+    return { text: `Error calling tool ${tool}: ${(e as Error).message}` };
+  }
+}
+
+/**
+ * Generate system prompt for MCP tools (external servers).
+ * Built-in tools get their prompts from ToolRegistry.getSystemPrompt().
+ */
+export function getMCPSystemPrompt(servers: any[]): string {
+  if (!servers || servers.length === 0) return "";
+
+  let prompt = "You have access to the following tools. To use a tool, output its XML tag.\n\n";
+  prompt += "CRITICAL RULES:\n";
+  prompt += "1. When you want to use a tool, output ONLY a short intro sentence, then the <use_tool> XML tag.\n";
+  prompt += "2. You MUST stop writing IMMEDIATELY after the closing </use_tool> tag. Do NOT continue with any text, answers, or guesses.\n";
+  prompt += "3. NEVER guess or hallucinate tool results. Wait for the actual tool output before responding.\n";
+  prompt += "4. After you receive the [Tool Output], use that data to write your final response to the user.\n";
+  prompt += "5. ABSOLUTELY NEVER state prices, balances, numbers, or ANY live data before receiving [Tool Output]. Your training data is outdated. ANY number you write before a tool call is a hallucination and WILL be wrong.\n";
+  prompt += "6. For ANY question about current prices, balances, exchange rates, or real-time data: call the tool FIRST, speak AFTER.\n\n";
+
+  servers.forEach((server) => {
+    if (!server.tools || server.tools.length === 0) return;
+    prompt += `Server: ${server.name}\n`;
+    server.tools.forEach((tool: any) => {
+      prompt += `- Tool: ${tool.name}\n  Description: ${tool.description || "No description"}\n  Input Schema: ${JSON.stringify(tool.inputSchema)}\n`;
+      prompt += `  Usage: <use_tool server="${server.name}" tool="${tool.name}">JSON_ARGS</use_tool>\n\n`;
+    });
   });
 
-  return `Found ${emails.length} email(s):\n\n${formatted.join("\n\n")}`;
+  return prompt;
+}
+
+// =============================================================================
+// Agent Rich UI — <mosaic_ui> tag parsing
+// =============================================================================
+
+/** Block types the agent is allowed to emit (display-only — no interactive blocks) */
+const AGENT_ALLOWED_BLOCKS: ReadonlySet<BlockType> = new Set([
+  // Display
+  "text", "markdown", "code", "alert", "image", "divider",
+  // Data
+  "table", "card", "list", "chart",
+  // Layout (needed to compose the above)
+  "tabs", "row", "column", "section",
+]);
+
+/** Result of parsing <mosaic_ui> tags from an agent response */
+export interface MosaicUIParseResult {
+  /** Response content with <mosaic_ui> tags removed */
+  cleanContent: string;
+  /** Validated UI blocks extracted from the tags (empty if none found) */
+  blocks: ToolUIBlock[];
+  /** Number of blocks that failed validation and were dropped */
+  failedBlockCount: number;
+  /** Raw JSON snippets of blocks that failed validation (for debug display) */
+  failedRawSnippets: string[];
 }
 
 /**
- * Build the follow-up prompt to send email data back to AI
- * Includes formatting instructions so AI follows our style
+ * Recursively count all blocks including nested children.
  */
-export function buildEmailAnalysisPrompt(
-  originalQuery: string,
-  emailData: string,
-): string {
-  return `Based on the user's request: "${originalQuery}"
-
-Here are the relevant emails from their inbox:
-
-${emailData}
-
-FORMAT YOUR RESPONSE LIKE THIS:
-
-📬 **Found X emails:**
-
----
-
-- 📩 **1. Subject** - Sender (time ago)
-
-- ✅ **2. Subject** - Sender (time ago)
-
----
-
-Legend: 📩 = unread, ✅ = read, 📎 = attachment
-
-CRITICAL RULES:
-- Use the EXACT index number from the email data (Email 1, Email 2, etc.)
-- The index number MUST match the "Email N" from the data - do NOT renumber
-- You may add ⭐ to highlight important emails, but keep their original index
-- Example: "⭐ 📩 **5. Important Email** - Sender" (keeps index 5 from data)
-- These index numbers are used for mark read/unread actions
-
-Provide the formatted list using the indexes from the data.`;
+function countBlocks(blocks: unknown[]): number {
+  let count = 0;
+  for (const block of blocks) {
+    if (!block || typeof block !== "object") continue;
+    count++;
+    const b = block as Record<string, unknown>;
+    if (Array.isArray(b.blocks)) count += countBlocks(b.blocks);
+    if (Array.isArray(b.tabs)) {
+      for (const tab of b.tabs) {
+        if (tab && typeof tab === "object" && Array.isArray((tab as Record<string, unknown>).blocks)) {
+          count += countBlocks((tab as Record<string, unknown>).blocks as unknown[]);
+        }
+      }
+    }
+  }
+  return count;
 }
 
 /**
- * Build a prompt for analyzing/summarizing a single email
- * Used when reading a specific email to get TL;DR and key points
+ * Recursively check max nesting depth of layout blocks.
  */
-export function buildSingleEmailAnalysisPrompt(
-  originalQuery: string,
-  emailData: string,
-): string {
-  return `Based on the user's request: "${originalQuery}"
-
-Here is the full email content:
-
-${emailData}
-
-SUMMARIZE THIS EMAIL using this EXACT format:
-
-📧 **Email: [Subject]**
-
-**TL;DR:** [One concise sentence summarizing what this email is about]
-
----
-
-- **From:** [Sender name/email]
-- **Date:** [Date in readable format]
-
-**Key Points:**
-- [Main point 1]
-- [Main point 2]
-- [Action items or important details, if any]
-
----
-
-RULES:
-- DO NOT include any raw HTML, CSS, or code
-- DO NOT include long URLs - just mention "click here to..." or describe the action
-- DO NOT repeat the entire email body
-- Keep it SHORT and SCANNABLE
-- Focus on the ESSENTIAL information only
-- If it's a notification/alert email, summarize the key action/status`;
+function maxDepth(blocks: unknown[], current: number = 0): number {
+  if (current > MAX_BLOCK_DEPTH) return current;
+  let deepest = current;
+  for (const block of blocks) {
+    if (!block || typeof block !== "object") continue;
+    const b = block as Record<string, unknown>;
+    if (Array.isArray(b.blocks)) {
+      deepest = Math.max(deepest, maxDepth(b.blocks, current + 1));
+    }
+    if (Array.isArray(b.tabs)) {
+      for (const tab of b.tabs) {
+        if (tab && typeof tab === "object" && Array.isArray((tab as Record<string, unknown>).blocks)) {
+          deepest = Math.max(deepest, maxDepth((tab as Record<string, unknown>).blocks as unknown[], current + 1));
+        }
+      }
+    }
+  }
+  return deepest;
 }
 
 /**
- * Check if Gmail is authenticated
- * Returns true if user is logged into Gmail
+ * Recursively filter blocks to only allowed types.
+ * Removes form, button, and any unknown types.
+ */
+function filterAllowedBlocks(blocks: unknown[]): ToolUIBlock[] {
+  const result: ToolUIBlock[] = [];
+  for (const block of blocks) {
+    if (!block || typeof block !== "object") continue;
+    const b = block as Record<string, unknown>;
+    const type = b.type as string;
+    if (!type || !AGENT_ALLOWED_BLOCKS.has(type as BlockType)) continue;
+
+    // Recursively filter children for layout blocks
+    if (type === "row" || type === "column" || type === "section") {
+      if (Array.isArray(b.blocks)) {
+        result.push({ ...b, blocks: filterAllowedBlocks(b.blocks) } as ToolUIBlock);
+      }
+    } else if (type === "tabs" && Array.isArray(b.tabs)) {
+      const filteredTabs = (b.tabs as Array<Record<string, unknown>>)
+        .filter(tab => tab && typeof tab === "object" && typeof tab.id === "string" && typeof tab.label === "string")
+        .map(tab => ({
+          ...tab,
+          blocks: Array.isArray(tab.blocks) ? filterAllowedBlocks(tab.blocks) : [],
+        }));
+      result.push({ ...b, tabs: filteredTabs } as ToolUIBlock);
+    } else if (type === "image") {
+      // Only allow data: URIs — no external URLs
+      const src = b.src as string;
+      if (typeof src === "string" && src.startsWith("data:")) {
+        result.push(b as unknown as ToolUIBlock);
+      }
+    } else if (type === "chart") {
+      // Validate chart has series data
+      // Agents sometimes use "data" (flat array for pie) instead of "series" — normalize it
+      if (Array.isArray(b.series) && b.series.length > 0 &&
+          b.series.every((s: any) => s && typeof s === "object" && typeof s.name === "string" && Array.isArray(s.data))) {
+        result.push(b as unknown as ToolUIBlock);
+      } else if (Array.isArray(b.data) && b.data.length > 0) {
+        // Flat data array (common for pie/donut): [{name, value}, ...] → wrap as series
+        const flatData = b.data as Array<Record<string, unknown>>;
+        if (flatData.every(d => d && typeof d === "object" && "name" in d && "value" in d)) {
+          const converted = {
+            ...b,
+            series: [{ name: "data", data: flatData.map(d => ({ x: d.name as string, y: d.value as number })) }],
+          };
+          delete (converted as Record<string, unknown>).data;
+          result.push(converted as unknown as ToolUIBlock);
+        }
+      }
+    } else if (type === "table") {
+      // Validate table has columns and rows arrays
+      if (Array.isArray(b.columns) && Array.isArray(b.rows)) {
+        result.push(b as unknown as ToolUIBlock);
+      }
+    } else {
+      result.push(b as unknown as ToolUIBlock);
+    }
+  }
+  return result;
+}
+
+/**
+ * Parse <mosaic_ui> tags from an agent response.
+ *
+ * Extracts JSON UI block arrays, validates them, and strips the
+ * tags from the response content. Only display/data/layout blocks
+ * are allowed — interactive blocks (form, button) are silently removed.
+ *
+ * Returns the clean content + validated blocks (empty array if none found or all invalid).
+ */
+export function parseMosaicUI(response: string): MosaicUIParseResult {
+  const tagPattern = /<mosaic_ui>([\s\S]*?)<\/mosaic_ui>/g;
+
+  const allBlocks: ToolUIBlock[] = [];
+  let rawBlockCount = 0;
+  let hasMatch = false;
+  const failedRawSnippets: string[] = [];
+
+  // Extract all <mosaic_ui> tags (there could be multiple in one response)
+  let match;
+  while ((match = tagPattern.exec(response)) !== null) {
+    hasMatch = true;
+    const jsonStr = match[1].trim();
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (!Array.isArray(parsed)) {
+        console.warn("[parseMosaicUI] Tag content is not an array, skipping");
+        rawBlockCount++;
+        failedRawSnippets.push(jsonStr.slice(0, 200));
+        continue;
+      }
+      rawBlockCount += parsed.length;
+      const filtered = filterAllowedBlocks(parsed);
+      // Track dropped blocks — collect raw snippets for debug view
+      const droppedCount = parsed.length - filtered.length;
+      if (droppedCount > 0) {
+        for (const raw of parsed) {
+          failedRawSnippets.push(JSON.stringify(raw).slice(0, 200));
+        }
+      }
+      allBlocks.push(...filtered);
+    } catch (e) {
+      console.warn("[parseMosaicUI] Failed to parse JSON in <mosaic_ui> tag:", e);
+      rawBlockCount++;
+      failedRawSnippets.push(jsonStr.slice(0, 200));
+    }
+  }
+
+  if (!hasMatch) {
+    return { cleanContent: response, blocks: [], failedBlockCount: 0, failedRawSnippets: [] };
+  }
+
+  // Enforce limits
+  if (maxDepth(allBlocks) > MAX_BLOCK_DEPTH) {
+    console.warn("[parseMosaicUI] Blocks exceed max depth, discarding");
+    const clean = response.replace(tagPattern, "").trim();
+    return { cleanContent: clean, blocks: [], failedBlockCount: rawBlockCount, failedRawSnippets };
+  }
+
+  const totalCount = countBlocks(allBlocks);
+  const cappedBlocks = totalCount > MAX_BLOCK_COUNT
+    ? allBlocks.slice(0, MAX_BLOCK_COUNT)
+    : allBlocks;
+
+  // Remove tags from content
+  const cleanContent = response.replace(tagPattern, "").trim();
+  const failedBlockCount = rawBlockCount - allBlocks.length;
+
+  return { cleanContent, blocks: cappedBlocks, failedBlockCount, failedRawSnippets };
+}
+
+/**
+ * Generate the system prompt section that teaches the agent about <mosaic_ui>.
+ * Only included when the agent has richUI enabled.
+ */
+export function getRichUISystemPrompt(): string {
+  return [
+    "## Rich Visual Display",
+    "",
+    "You can optionally render a SINGLE table or chart when the data truly benefits from it.",
+    "Use <mosaic_ui> tags with a JSON array of block objects. MosAIc renders them natively.",
+    "",
+    "Block types: \"table\", \"chart\" (bar/line/pie/scatter/area/donut), \"card\", \"code\", \"alert\", \"list\".",
+    "Layout: \"row\", \"column\" to arrange blocks side-by-side.",
+    "",
+    "Example:",
+    "<mosaic_ui>",
+    '[{"type":"table","title":"Comparison","columns":[{"key":"name","label":"Name"},{"key":"type","label":"Type"},{"key":"stars","label":"Stars","align":"right"}],"rows":[{"name":"React","type":"Library","stars":"220k"},{"name":"Vue","type":"Framework","stars":"207k"}]}]',
+    "</mosaic_ui>",
+    "",
+    "STRICT RULES:",
+    "1. DEFAULT IS TEXT. Most answers should be normal markdown. Only use <mosaic_ui> when you have structured data with 3+ columns or numeric trends.",
+    "2. KEEP IT MINIMAL. One table OR one chart per response. Never combine tables + cards + rows unless the user explicitly asked for a dashboard or detailed comparison.",
+    "3. NEVER use <mosaic_ui> for: opinions, explanations, recommendations, short answers, simple lists, or anything with fewer than 4 data rows.",
+    "4. If you can answer well in 1-2 paragraphs of text, DO THAT. Do not add visual blocks just because you can.",
+    "5. The JSON must be a valid array. For images, src must be a data: URI.",
+    "6. Text before/after the tag is fine — explain what the visual shows.",
+  ].join("\n");
+}
+
+/**
+ * Check if Gmail is authenticated.
  */
 export async function isGmailAuthenticated(): Promise<boolean> {
   try {
@@ -509,183 +410,5 @@ export async function isGmailAuthenticated(): Promise<boolean> {
     return status.authenticated;
   } catch {
     return false;
-  }
-}
-
-/**
- * Execute a Gmail action and return formatted results
- */
-export async function executeGmailAction(
-  action: ParsedAction,
-): Promise<string> {
-  // Check authentication first
-  const isAuthenticated = await isGmailAuthenticated();
-  if (!isAuthenticated) {
-    return "Gmail is not connected. Please sign in to Gmail in Settings to use email features.";
-  }
-
-  try {
-    let result;
-    const count = (action.params?.count as number) || DEFAULT_EMAIL_COUNT;
-
-    switch (action.type) {
-      case "GMAIL_RECENT":
-        result = await window.electronAPI.gmail.getEmails(count);
-        break;
-
-      case "GMAIL_UNREAD":
-        // Get more emails and filter to unread
-        result = await window.electronAPI.gmail.getEmails(count * 2);
-        if (result.success && result.emails) {
-          result.emails = result.emails
-            .filter((e) => e.isUnread)
-            .slice(0, count);
-        }
-        break;
-
-      case "GMAIL_SEARCH":
-        if (action.params?.query) {
-          result = await window.electronAPI.gmail.searchEmails(
-            action.params.query as string,
-            count,
-          );
-        } else {
-          return "Search query is missing.";
-        }
-        break;
-
-      case "GMAIL_LABEL":
-        if (action.params?.label) {
-          // Search by Gmail label using category: prefix
-          const label = action.params.label as string;
-          result = await window.electronAPI.gmail.searchEmails(
-            `category:${label.toLowerCase()}`,
-            count,
-          );
-        } else {
-          return "Label name is missing.";
-        }
-        break;
-
-      case "GMAIL_MARK_READ": {
-        const markReadIndex = action.params?.index as number;
-        const markReadEmails = getLastFetchedEmails();
-
-        if (markReadEmails.length === 0) {
-          return "No emails in context. Please fetch emails first.";
-        }
-
-        if (markReadIndex < 1 || markReadIndex > markReadEmails.length) {
-          return `Invalid email index. Please choose between 1 and ${markReadEmails.length}.`;
-        }
-
-        const emailToMarkRead = markReadEmails[markReadIndex - 1];
-        const markReadResult = await window.electronAPI.gmail.markRead(
-          emailToMarkRead.id,
-        );
-
-        if (!markReadResult.success) {
-          return `Error marking email as read: ${
-            markReadResult.error || "Unknown error"
-          }`;
-        }
-
-        // Update local cache
-        emailToMarkRead.isUnread = false;
-        return `✅ Email #${markReadIndex} marked as read: "${emailToMarkRead.subject}"`;
-      }
-
-      case "GMAIL_MARK_UNREAD": {
-        const markUnreadIndex = action.params?.index as number;
-        const markUnreadEmails = getLastFetchedEmails();
-
-        if (markUnreadEmails.length === 0) {
-          return "No emails in context. Please fetch emails first.";
-        }
-
-        if (markUnreadIndex < 1 || markUnreadIndex > markUnreadEmails.length) {
-          return `Invalid email index. Please choose between 1 and ${markUnreadEmails.length}.`;
-        }
-
-        const emailToMarkUnread = markUnreadEmails[markUnreadIndex - 1];
-        const markUnreadResult = await window.electronAPI.gmail.markUnread(
-          emailToMarkUnread.id,
-        );
-
-        if (!markUnreadResult.success) {
-          return `Error marking email as unread: ${
-            markUnreadResult.error || "Unknown error"
-          }`;
-        }
-
-        // Update local cache
-        emailToMarkUnread.isUnread = true;
-        return `📩 Email #${markUnreadIndex} marked as unread: "${emailToMarkUnread.subject}"`;
-      }
-
-      case "GMAIL_READ": {
-        // Read full email by index from last fetched emails
-        const index = action.params?.index as number;
-        const emails = getLastFetchedEmails();
-
-        if (emails.length === 0) {
-          return "No emails in context. Please fetch emails first using [GMAIL_RECENT] or [GMAIL_SEARCH:query].";
-        }
-
-        if (index < 1 || index > emails.length) {
-          return `Invalid email index. Please choose between 1 and ${emails.length}.`;
-        }
-
-        const email = emails[index - 1]; // Convert 1-based to 0-based
-        const detailResult = await window.electronAPI.gmail.getEmailDetails(
-          email.id,
-        );
-
-        if (!detailResult.success || !detailResult.email) {
-          return `Error reading email: ${
-            detailResult.error || "Unknown error"
-          }`;
-        }
-
-        const fullEmail = detailResult.email;
-        const relativeDate = formatRelativeDate(fullEmail.date);
-
-        // Check if auto-mark-as-read is enabled
-        let autoMarkMessage = "";
-        try {
-          const autoMarkSetting =
-            await window.electronAPI.gmail.getAutoMarkRead();
-          if (autoMarkSetting.enabled && email.isUnread) {
-            await window.electronAPI.gmail.markRead(email.id);
-            email.isUnread = false; // Update local cache
-            autoMarkMessage = "\n\n✅ (Auto-marked as read)";
-          }
-        } catch {
-          // Ignore auto-mark errors, don't block email display
-        }
-
-        return `Full email content for Email ${index}:
-
-From: ${fullEmail.from}
-To: ${fullEmail.to}
-Subject: ${fullEmail.subject}
-Date: ${relativeDate}
-
---- Email Body ---
-${stripHtml(fullEmail.body)}${autoMarkMessage}
-`.trim();
-      }
-
-      default:
-        return "Unknown Gmail action.";
-    }
-
-    if (!result.success) {
-      return `Error fetching emails: ${result.error || "Unknown error"}`;
-    }
-
-    return formatEmailsForAI(result.emails || []);
-  } catch (error) {
-    return `Error executing Gmail action: ${(error as Error).message}`;
   }
 }

@@ -36,6 +36,7 @@ Desktop.ini
 .env
 .env.local
 .env.*.local
+.env.test
 
 # Testing
 coverage/
@@ -49,6 +50,10 @@ config/gmail-credentials.json
 # agent files
 .github/copilot-instructions.md
 .github/skills/
+project_dump.txt
 
 *.resolved.md
 *.plan.md
+
+# Local planning docs
+/plans/

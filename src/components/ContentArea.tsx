@@ -4,19 +4,27 @@ import {
   INTERNAL_HOME_URL,
   INTERNAL_MCP_URL,
   INTERNAL_MOSAICBOT_URL,
+  INTERNAL_MULTI_CHAT_URL,
   INTERNAL_SETTINGS_URL,
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
   INTERNAL_HYPERINSIGHT_URL,
+  INTERNAL_SANDBOX_URL,
+  INTERNAL_ONBOARDING_URL,
+  INTERNAL_TOOL_PANEL_PREFIX,
   Tab,
 } from "../types/types";
 import { LandingPage } from "./LandingPage";
 import { SettingsPage } from "./SettingsPage";
 import { MosaicBotPanel } from "./MosaicBotPanel";
 import { MCPPage } from "./MCPPage";
+import { ChatPage } from "./ChatPage";
 import { Web3Page } from "./Web3Page";
 import { VaultPage } from "./VaultPage";
 import { HyperInsightView } from "../../plugins/hyperinsight/renderer/HyperInsightView";
+import { SandboxPage } from "./SandboxPage";
+import { ToolPanelView } from "./ToolPanelView";
+import { OnboardingPage } from "./OnboardingPage";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
 
@@ -37,6 +45,7 @@ interface ContentAreaProps {
   onUpdateTab: (updates: Partial<Tab>) => void;
   onStartDemo?: () => void;
   onCreateNewChatTab?: () => void;
+  onOnboardingComplete?: () => void;
   tabId?: string;
 }
 
@@ -237,6 +246,65 @@ const BrowserView: React.FC<BrowserViewProps> = ({
   );
 };
 
+// =============================================================================
+// ToolPanelPage — extracted so hooks are unconditional within this component
+// =============================================================================
+
+const ToolPanelPage: React.FC<{
+  toolId: string;
+  url: string;
+  onUpdateTab: (updates: Partial<Tab>) => void;
+}> = ({ toolId, url, onUpdateTab }) => {
+  const [manifest, setManifest] = useState<any>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Real tool — fetch manifest from installed tools
+    const load = async () => {
+      const res = await window.electronAPI.toolSandbox.listInstalled();
+      if (res.success && res.data) {
+        const tool = res.data.find((t: any) => t.manifest.id === toolId);
+        if (tool) {
+          setManifest(tool.manifest);
+          onUpdateTab({ title: tool.manifest.displayName, isLoading: false, favicon: undefined });
+        } else {
+          setLoadError(`Tool "${toolId}" not found`);
+          onUpdateTab({ title: "Tool Panel", isLoading: false, favicon: undefined });
+        }
+      }
+    };
+    load();
+  }, [url, toolId]);
+
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-64 text-red-400">
+        <AlertTriangle size={20} className="mr-2" />
+        {loadError}
+      </div>
+    );
+  }
+
+  if (!manifest) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 size={32} className="animate-spin text-gray-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
+      <ToolPanelView
+        toolId={toolId}
+        manifest={manifest}
+      />
+    </div>
+  );
+};
+
+// =============================================================================
+
 export const ContentArea: React.FC<ContentAreaProps> = ({
   url,
   onNavigate,
@@ -246,6 +314,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   onUpdateTab,
   onStartDemo,
   onCreateNewChatTab,
+  onOnboardingComplete,
   tabId,
 }) => {
   // Handle Demo Command
@@ -330,7 +399,11 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
 
   if (url === INTERNAL_MCP_URL) {
     useEffect(() => {
-      onUpdateTab({ title: "MCP Servers", isLoading: false, favicon: undefined });
+      onUpdateTab({
+        title: "MCP Servers",
+        isLoading: false,
+        favicon: undefined,
+      });
     }, [url]);
 
     return (
@@ -342,7 +415,11 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
 
   if (url === INTERNAL_MOSAICBOT_URL) {
     useEffect(() => {
-      onUpdateTab({ title: "Mosaic Bot", isLoading: false, favicon: undefined });
+      onUpdateTab({
+        title: "Mosaic Bot",
+        isLoading: false,
+        favicon: undefined,
+      });
     }, [url]);
 
     return (
@@ -352,6 +429,20 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     );
   }
 
+  if (url === INTERNAL_MULTI_CHAT_URL) {
+    useEffect(() => {
+      onUpdateTab({
+        title: "Chat Rooms",
+        isLoading: false,
+        favicon: undefined,
+      });
+    }, [url]);
+    return (
+      <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
+        <ChatPage />{" "}
+      </div>
+    );
+  }
   if (url === INTERNAL_WEB3_URL) {
     useEffect(() => {
       onUpdateTab({ title: "Web3", isLoading: false, favicon: undefined });
@@ -385,6 +476,40 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
         <HyperInsightView />
       </div>
+    );
+  }
+
+  if (url === INTERNAL_SANDBOX_URL) {
+    useEffect(() => {
+      onUpdateTab({ title: "Tool Sandbox", isLoading: false, favicon: undefined });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
+        <SandboxPage onNavigate={onNavigate} />
+      </div>
+    );
+  }
+
+  if (url.startsWith(INTERNAL_TOOL_PANEL_PREFIX)) {
+    const toolId = url.slice(INTERNAL_TOOL_PANEL_PREFIX.length);
+    return <ToolPanelPage toolId={toolId} url={url} onUpdateTab={onUpdateTab} />;
+  }
+
+  if (url === INTERNAL_ONBOARDING_URL) {
+    useEffect(() => {
+      onUpdateTab({
+        title: "Welcome",
+        isLoading: false,
+        favicon: undefined,
+      });
+    }, [url]);
+
+    return (
+      <OnboardingPage
+        onNavigate={onNavigate}
+        onComplete={() => onOnboardingComplete?.()}
+      />
     );
   }
 

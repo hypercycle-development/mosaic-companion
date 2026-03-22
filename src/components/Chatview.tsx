@@ -14,6 +14,7 @@ import {
   Zap,
   History,
   AlertCircle,
+  AlertTriangle,
   Mail,
   Wrench,
   ChevronRight,
@@ -27,21 +28,19 @@ import {
 import { AIService } from "../services/AIService";
 import {
   parseAction,
-  executeGmailAction,
-  executeMCPAction,
+  executeToolCall,
   getMCPSystemPrompt,
-  buildEmailAnalysisPrompt,
-  buildSingleEmailAnalysisPrompt,
-  isGmailAuthenticated,
+  parseMosaicUI,
+  getRichUISystemPrompt,
 } from "../services/ActionParser";
-import {
-  getGmailSystemPrompt,
-  mightBeEmailRelated,
-  detectEmailReadRequest,
-} from "../prompts/gmail-tools";
 import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import { INTERNAL_SETTINGS_URL } from "../types/types";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
+import { ToolUIRenderer } from "./tool-ui";
+import type { ConfirmModalBlock } from "./tool-ui/types";
+import { fireToolToasts } from "./tool-ui/fireToolToasts";
+import { ToolConfirmModal } from "./tool-ui/blocks/ToolConfirmModal";
 
 interface ChatViewProps {
   onNavigate?: (url: string) => void;
@@ -78,9 +77,40 @@ const ToolChip: React.FC<{ label: string; detail: string }> = ({ label, detail }
   );
 };
 
+/** Collapsed indicator for <mosaic_ui> blocks that failed validation */
+const FailedBlockChip: React.FC<{ count: number; snippets?: string[] }> = ({ count, snippets }) => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="my-1.5">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-900/30 hover:bg-amber-800/30 border border-amber-700/40 rounded-lg text-[11px] text-amber-400/80 hover:text-amber-300 transition-all"
+      >
+        <AlertTriangle size={11} className="shrink-0" />
+        <span className="font-medium">
+          {count === 1 ? "1 visual block failed to render" : `${count} visual blocks failed to render`}
+        </span>
+        <ChevronRight
+          size={10}
+          className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+        />
+      </button>
+      {expanded && (
+        <div className="mt-1.5 px-3 py-2 bg-amber-950/40 border border-amber-800/30 rounded-lg text-[10px] text-amber-500/60 overflow-x-auto max-h-40">
+          <p className="mb-1 text-amber-400/60">The agent tried to render UI blocks but they didn't pass validation.</p>
+          {snippets && snippets.length > 0 && (
+            <pre className="whitespace-pre-wrap break-words text-amber-600/50">{snippets.join("\n---\n")}</pre>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 /**
  * Renders message content with smart detection of tool artifacts.
  * - Assistant messages: strips <use_tool> XML, shows clean text + collapsed chip
+ * - If raw <mosaic_ui> tags remain in content (old sessions), parses and shows blocks/feedback
  * - User messages: collapses [Tool Output for ...] into a chip
  */
 const RenderMessageContent: React.FC<{ content: string; role: "assistant" | "user" }> = ({
@@ -88,29 +118,58 @@ const RenderMessageContent: React.FC<{ content: string; role: "assistant" | "use
   role,
 }) => {
   if (role === "assistant") {
+    // Check if content has leftover <mosaic_ui> tags (old saved sessions or edge cases)
+    const hasMosaicTags = /<mosaic_ui>[\s\S]*?<\/mosaic_ui>/.test(content);
+    let displayContent = content;
+    let recoveredBlocks: import("../components/tool-ui/types").ToolUIBlock[] | null = null;
+    let inlineFailed: { count: number; snippets: string[] } | null = null;
+
+    if (hasMosaicTags) {
+      const uiResult = parseMosaicUI(content);
+      displayContent = uiResult.cleanContent;
+      if (uiResult.blocks.length > 0) {
+        recoveredBlocks = uiResult.blocks;
+      }
+      if (uiResult.failedBlockCount > 0) {
+        inlineFailed = {
+          count: uiResult.failedBlockCount,
+          snippets: uiResult.failedRawSnippets,
+        };
+      }
+    }
+
     // Check for <use_tool server="..." tool="...">...</use_tool>
-    const toolMatch = content.match(
+    const toolMatch = displayContent.match(
       /<use_tool\s+server="([^"]+)"\s+tool="([^"]+)">([\s\S]*?)<\/use_tool>/
     );
     if (toolMatch) {
-      const cleanText = content.replace(/<use_tool[\s\S]*?<\/use_tool>/, "").trim();
+      const cleanText = displayContent.replace(/<use_tool[\s\S]*?<\/use_tool>/, "").trim();
       const toolLabel = `${toolMatch[1]}:${toolMatch[2]}`;
       const toolArgs = toolMatch[3].trim();
       return (
         <>
-          {cleanText && <ReactMarkdown>{cleanText}</ReactMarkdown>}
+          {cleanText && <ReactMarkdown remarkPlugins={[remarkBreaks]}>{cleanText}</ReactMarkdown>}
           <ToolChip label={`Called ${toolLabel}`} detail={toolArgs || "{}"} />
+          {recoveredBlocks && <ToolUIRenderer blocks={recoveredBlocks} />}
+          {inlineFailed && <FailedBlockChip count={inlineFailed.count} snippets={inlineFailed.snippets} />}
         </>
       );
     }
-    return <ReactMarkdown>{content}</ReactMarkdown>;
+    return (
+      <>
+        <ReactMarkdown remarkPlugins={[remarkBreaks]}>{displayContent}</ReactMarkdown>
+        {recoveredBlocks && <ToolUIRenderer blocks={recoveredBlocks} />}
+        {inlineFailed && <FailedBlockChip count={inlineFailed.count} snippets={inlineFailed.snippets} />}
+      </>
+    );
   }
 
   // User messages — check for [Tool Output for ...]
   const toolOutputMatch = content.match(/^\[Tool Output for ([^\]]+)\]\n?([\s\S]*)$/);
   if (toolOutputMatch) {
     const toolName = toolOutputMatch[1];
-    const outputBody = toolOutputMatch[2].trim();
+    // Strip the [Instruction: ...] tag — it's for the AI, not the user
+    const outputBody = toolOutputMatch[2].replace(/\n*\[Instruction:[^\]]*\]$/, "").trim();
     return <ToolChip label={`Output from ${toolName}`} detail={outputBody || "(empty)"} />;
   }
 
@@ -121,6 +180,10 @@ const RenderMessageContent: React.FC<{ content: string; role: "assistant" | "use
 
   return <span className="whitespace-pre-wrap">{content}</span>;
 };
+
+/** Filter out ephemeral [System Context] messages — they should never be persisted */
+const stripSystemContext = (msgs: ChatMessage[]): ChatMessage[] =>
+  msgs.filter(m => !m.content.startsWith("[System Context]"));
 
 export const ChatView: React.FC<ChatViewProps> = ({
   onNavigate,
@@ -136,9 +199,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [streamingContent, setStreamingContent] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showAgentSelector, setShowAgentSelector] = useState(false);
-  const [gmailConnected, setGmailConnected] = useState(false);
   const [showHistorySidebar, setShowHistorySidebar] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  /** Confirmation modal triggered by a tool response in chat */
+  const [chatConfirmModal, setChatConfirmModal] = useState<ConfirmModalBlock | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -222,10 +286,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   // Track if we've processed the pending message to avoid duplicate sends
   const pendingMessageProcessedRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    // Check Gmail connection status
-    isGmailAuthenticated().then(setGmailConnected);
-  }, []);
+
 
   // Reset processed flag when tabId changes
   useEffect(() => {
@@ -240,10 +301,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
     };
     getAgents();
     pendingMessageProcessedRef.current = null;
-
-    // TODO: Verify this is needed
-    // Check Gmail connection status
-    // isGmailAuthenticated().then(setGmailConnected);
   }, [tabId]);
 
   // Close agent selector on outside click
@@ -290,7 +347,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   // Create new session (for New Chat button)
   const createNewSession = useCallback((): ChatSession => {
-    if (!selectedAgentId) return;
+    if (!selectedAgentId) return null as any;
 
     const session: ChatSession = {
       id: `session-${Date.now()}`,
@@ -417,23 +474,40 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
 
     let fullResponse = "";
-    // If it's a tool output (depth > 0), we don't start with empty streaming content necessarily, 
-    // but the UI expects `streamingContent` to be the *current* generation.
-    // However, previous messages are already in `currentMessages`.
-    
+
     try {
       await AIService.sendMessage(selectedAgent!, currentMessages, {
         onToken: (token) => {
           fullResponse += token;
-          // If depth > 0, we might want to differentiate visually, but for now simple streaming check
-          setStreamingContent(prev => depth === 0 ? fullResponse : prev + token);
-          // Actually, setStreamingContent usually replaces the content of the "ghost" message being generated.
-          // In a recursive flow, the previous assistant message is already "committed" to the chat history.
-          // So we only stream the *current* response.
-          setStreamingContent(fullResponse);
+
+          // Detect <use_tool> during streaming so the UI transitions smoothly
+          // instead of flashing the raw XML + hallucinated data then replacing it.
+          const tagStart = fullResponse.indexOf('<use_tool');
+          if (tagStart >= 0) {
+            const preamble = fullResponse.substring(0, tagStart).trim();
+            const nameMatch = fullResponse.match(/<use_tool\s+server="[^"]*"\s+tool="([^"]*)"/);
+            const toolName = nameMatch ? nameMatch[1].replace(/_/g, ' ') : '';
+            const indicator = toolName ? `🛠️ Calling ${toolName}...` : '🛠️ Preparing tool call...';
+
+            // Hide preamble if it contains suspected hallucinated numbers
+            const hasNumbers = /\$[\d,.]+|\d+\.\d+%|\d{2,}[,.]\d/.test(preamble);
+            if (hasNumbers || !preamble) {
+              setStreamingContent(indicator);
+            } else {
+              const cleanLines = preamble.split('\n').filter(l => l.trim()).slice(0, 2).join('\n');
+              setStreamingContent(cleanLines ? `${cleanLines}\n\n${indicator}` : indicator);
+            }
+          } else if (selectedAgent?.richUI && fullResponse.indexOf('<mosaic_ui') >= 0) {
+            // Hide <mosaic_ui> JSON during streaming — only show text before the tag.
+            // The blocks will be parsed and rendered properly in onComplete.
+            const uiTagStart = fullResponse.indexOf('<mosaic_ui');
+            const textBefore = fullResponse.substring(0, uiTagStart).trim();
+            setStreamingContent(textBefore || '');
+          } else {
+            setStreamingContent(fullResponse);
+          }
         },
         onComplete: async (response) => {
-          // 1. Commit the Assistant's response to the session
           const assistantMsg: ChatMessage = {
             id: `msg-${Date.now()}`,
             role: "assistant",
@@ -442,80 +516,126 @@ export const ChatView: React.FC<ChatViewProps> = ({
             agentId: selectedAgent!.id,
           };
 
-          const messagesWithAssistant = [...currentMessages, assistantMsg];
+          // Check for tool call BEFORE committing — avoids the flash caused by
+          // committing the raw response then immediately replacing it.
+          const action = parseAction(response);
+
+          if (action.type === "TOOL_CALL") {
+             const toolLabel = action.params?.tool?.replace(/_/g, ' ') || 'tool';
+
+             // Use only text BEFORE the <use_tool> tag as preamble.
+             // cleanResponse includes text AFTER </use_tool> which often contains
+             // hallucinated data (e.g. "$97,336") that would poison the number check.
+             const tagIndex = response.indexOf('<use_tool');
+             const preToolText = tagIndex >= 0 ? response.substring(0, tagIndex).trim() : '';
+             const preambleLines = preToolText
+               .split('\n').filter(line => line.trim().length > 0).slice(0, 3).join('\n');
+             const hasHallucinatedData = /\$[\d,.]+|\d+\.\d+%|\d{2,}[,.]\d/.test(preambleLines);
+             const safeContent = hasHallucinatedData
+               ? `Checking ${toolLabel}...`
+               : (preambleLines || `Checking ${toolLabel}...`);
+
+             const cleanedAssistantMsg: ChatMessage = {
+               ...assistantMsg,
+               content: safeContent + '\n' + (action.rawTag || ''),
+             };
+
+             // Keep streaming indicator while tool executes
+             setStreamingContent(`🛠️ Executing ${toolLabel}...`);
+
+             const result = await executeToolCall(action, selectedAgent!.id);
+
+             // Fire any toast blocks from the tool response
+             const blocksAfterToast = result.uiBlocks
+               ? fireToolToasts(result.uiBlocks as import("./tool-ui/types").ToolUIBlock[])
+               : undefined;
+
+             // Check if the tool returned a confirm-modal block
+             const modalBlock = blocksAfterToast?.find(
+               (b: { type: string }) => b.type === "confirm-modal",
+             ) as ConfirmModalBlock | undefined;
+             if (modalBlock) {
+               setChatConfirmModal(modalBlock);
+             }
+
+             // Filter overlay blocks from inline rendering
+             const inlineBlocks = blocksAfterToast?.filter(
+               (b: { type: string }) => b.type !== "confirm-modal" && b.type !== "detail-panel",
+             );
+
+             // Create Tool Output message
+             const toolMsg: ChatMessage = {
+                 id: `msg-${Date.now() + 1}`,
+                 role: "user",
+                 content: `[Tool Output for ${action.params?.server}:${action.params?.tool}]\n${result.text}\n\n[Instruction: Use ONLY the data above. Respond in 1-2 sentences. Do not add data from your training — only from this tool output.]`,
+                 timestamp: Date.now(),
+                 agentId: selectedAgent!.id,
+                 uiBlocks: inlineBlocks,
+                 displayHint: result.displayHint,
+             };
+
+             // Commit cleaned assistant message + tool output together (single render)
+             const persistMessages = stripSystemContext(currentMessages);
+             const nextMessages = [...persistMessages, cleanedAssistantMsg, toolMsg];
+             const nextSession = {
+                 ...currentSession,
+                 messages: nextMessages,
+                 updatedAt: Date.now()
+             };
+
+             setSessions((prev) => prev.map(s => s.id === currentSession.id ? nextSession : s));
+             await saveSession(nextSession);
+
+             // "display" hint = UI is the answer, no agent follow-up needed
+             if (result.displayHint === "display") {
+               setStreamingContent("");
+               setIsGenerating(false);
+               return;
+             }
+
+             // "analyze" (default) = send data back to agent for commentary
+             // Keep system context for the AI on the recursive call
+             const aiMessages = [...currentMessages, cleanedAssistantMsg, toolMsg];
+             await processAIResponse(nextSession, aiMessages, depth + 1);
+             return;
+          }
+
+          // No tool call → check for <mosaic_ui> blocks if rich UI is enabled
+          let uiBlocks: import("../components/tool-ui/types").ToolUIBlock[] | undefined;
+          let finalContent = response;
+          let failedUIBlockCount: number | undefined;
+          let failedUIRawSnippets: string[] | undefined;
+
+          if (selectedAgent?.richUI) {
+            const uiResult = parseMosaicUI(response);
+            // Always use cleaned content — never show raw <mosaic_ui> tags
+            finalContent = uiResult.cleanContent;
+            if (uiResult.blocks.length > 0) {
+              uiBlocks = uiResult.blocks;
+            }
+            if (uiResult.failedBlockCount > 0) {
+              failedUIBlockCount = uiResult.failedBlockCount;
+              failedUIRawSnippets = uiResult.failedRawSnippets;
+            }
+          }
+
+          const persistMessages = stripSystemContext(currentMessages);
+          const messagesWithAssistant = [...persistMessages, {
+            ...assistantMsg,
+            content: finalContent,
+            uiBlocks,
+            failedUIBlockCount,
+            failedUIRawSnippets,
+          }];
           const sessionWithAssistant = {
             ...currentSession,
             messages: messagesWithAssistant,
             updatedAt: Date.now(),
           };
-
-          // Update state & save
           setSessions((prev) =>
             prev.map((s) => (s.id === currentSession.id ? sessionWithAssistant : s))
           );
           await saveSession(sessionWithAssistant);
-
-          // 2. Check for Actions
-          const action = parseAction(response);
-
-          if (action.type === "MCP_TOOL_CALL") {
-             setStreamingContent("🛠️ Executing " + action.params?.tool + "...");
-             
-             const result = await executeMCPAction(action, selectedAgent!.id);
-             
-             // Create User Message (Tool Output)
-             const toolMsg: ChatMessage = {
-                 id: `msg-${Date.now() + 1}`,
-                 role: "user",
-                 content: `[Tool Output for ${action.params?.tool}]\n${result}`,
-                 timestamp: Date.now(),
-                 agentId: selectedAgent!.id,
-             };
-             
-             const nextMessages = [...messagesWithAssistant, toolMsg];
-             const nextSession = {
-                 ...sessionWithAssistant,
-                 messages: nextMessages,
-                 updatedAt: Date.now()
-             };
-             
-             setSessions((prev) => prev.map(s => s.id === currentSession.id ? nextSession : s));
-             await saveSession(nextSession);
-             
-             // Recurse
-             await processAIResponse(nextSession, nextMessages, depth + 1);
-             return;
-          } 
-          
-          if (action.type !== "NONE") {
-             // Handle Gmail Actions (Legacy Logic adapted)
-             setStreamingContent(action.cleanResponse + "\n\n📧 Fetching emails...");
-             const emailData = await executeGmailAction(action);
-             
-             const analysisPrompt = action.type === "GMAIL_READ"
-                ? buildSingleEmailAnalysisPrompt("Summarize this email", emailData) // Context might be lost? Use "Summarize"
-                : buildEmailAnalysisPrompt("Analyze these emails", emailData);
-
-             const dataMessage: ChatMessage = {
-                 id: `msg-${Date.now() + 1}`,
-                 role: "user",
-                 content: analysisPrompt,
-                 timestamp: Date.now(),
-                 agentId: selectedAgent!.id,
-             };
-             
-             const nextMessages = [...messagesWithAssistant, dataMessage];
-             const nextSession = { ...sessionWithAssistant, messages: nextMessages, updatedAt: Date.now() };
-             
-             setSessions(prev => prev.map(s => s.id === currentSession.id ? nextSession : s));
-             await saveSession(nextSession);
-             
-             // Recurse for final analysis
-             await processAIResponse(nextSession, nextMessages, depth + 1);
-             return;
-          }
-
-          // No action -> Done
           setStreamingContent("");
           setIsGenerating(false);
           window.electronAPI.logInput(response.trim());
@@ -597,32 +717,29 @@ export const ChatView: React.FC<ChatViewProps> = ({
     try {
         await window.electronAPI.logInput(messageContent);
         
-        // Prepare context
-        const messagesForAI = updatedMessages.filter(m => m.role !== "system");
+        // Prepare context — strip any previously-persisted system context
+        const messagesForAI = updatedMessages.filter(m => m.role !== "system" && !m.content.startsWith("[System Context]"));
         
         // Inject System Prompts
         let idCounter = 0;
         const systemPrompts: string[] = [];
 
-        // 1. Gmail Context
-        const isEmailRelated = mightBeEmailRelated(messageContent);
-        let isGmailReady = gmailConnected;
-        if (!isGmailReady && isEmailRelated) {
-             isGmailReady = await isGmailAuthenticated();
-             if (isGmailReady) setGmailConnected(true);
-        }
-        if (isGmailReady && isEmailRelated) {
-            systemPrompts.push(getGmailSystemPrompt(true));
-        }
+        // 0. Universal anti-hallucination header
+        systemPrompts.push(
+          `IMPORTANT: Your training data is OUTDATED. For ANY question involving prices, balances, ` +
+          `exchange rates, availability, status, or any real-time/time-sensitive data, you MUST call ` +
+          `a tool FIRST. NEVER answer from memory or training data for factual claims. ` +
+          `If no tool is available for the request, say so — do not guess.`
+        );
 
-        // 2. MCP Context
+        // 1. MCP Context
         const mcpPrompt = getMCPSystemPrompt(mcpServers);
         if (mcpPrompt) {
             systemPrompts.push(mcpPrompt);
         }
 
-        // 3. Web3 / Built-in tools context — always inject so the AI can
-        //    intelligently decide when to use Web3 tools (balance, transfers, etc.)
+        // 2. Built-in tools context (Gmail, Web3, Vault, WASM) — the ToolRegistry
+        //    aggregates system prompts from all available modules.
         try {
             const toolsPrompt = await window.electronAPI?.tools?.getSystemPrompt?.();
             if (toolsPrompt) {
@@ -632,7 +749,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             console.error("Failed to get tools system prompt:", e);
         }
 
-        // 4. Vault context — tell the agent which boxes it can access
+        // 3. Vault context — tell the agent which boxes it can access
         try {
             const agentBoxes = await window.electronAPI?.vault?.getAgentBoxes(selectedAgent!.id);
             if (agentBoxes && agentBoxes.length > 0) {
@@ -646,6 +763,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
             }
         } catch (e) {
             console.error("Failed to get vault context:", e);
+        }
+
+        // 4. Agent Rich UI — teach agent about <mosaic_ui> if enabled
+        if (selectedAgent!.richUI) {
+            systemPrompts.push(getRichUISystemPrompt());
         }
 
         if (systemPrompts.length > 0) {
@@ -898,8 +1020,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   if (isToolOutput) {
                     return (
                       <div key={message.id} className="flex justify-center">
-                        <div className="max-w-[60%]">
+                        <div className="max-w-[90%]">
                           <RenderMessageContent content={message.content} role="user" />
+                          {message.uiBlocks && message.uiBlocks.length > 0 && (
+                            <ToolUIRenderer blocks={message.uiBlocks} />
+                          )}
                         </div>
                       </div>
                     );
@@ -955,6 +1080,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             <RenderMessageContent content={message.content} role="user" />
                           )}
                         </div>
+                        {message.role === "assistant" && message.uiBlocks && message.uiBlocks.length > 0 && (
+                          <ToolUIRenderer blocks={message.uiBlocks} />
+                        )}
+                        {message.role === "assistant" && message.failedUIBlockCount && message.failedUIBlockCount > 0 && !message.uiBlocks?.length && (
+                          <FailedBlockChip count={message.failedUIBlockCount} snippets={message.failedUIRawSnippets} />
+                        )}
                       </div>
 
                       {/* Message Actions */}
@@ -995,7 +1126,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     <div className="flex-1 max-w-[80%]">
                       <div className="inline-block px-4 py-3 rounded-2xl rounded-bl-md bg-gray-900 text-gray-200 border border-gray-800">
                         <div className="break-words text-[15px] leading-loose prose prose-invert prose-sm max-w-none prose-p:my-3 prose-headings:my-4 prose-ul:my-3 prose-li:my-2 prose-hr:my-4">
-                          <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkBreaks]}>{streamingContent}</ReactMarkdown>
                           <span className="inline-block w-2 h-4 bg-indigo-500 ml-0.5 animate-pulse" />
                         </div>
                       </div>
@@ -1098,6 +1229,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
         onNewChat={createNewSession}
         agentName={selectedAgent?.name}
       />
+
+      {/* Tool Confirmation Modal (triggered by tool responses in chat) */}
+      {chatConfirmModal && (
+        <ToolConfirmModal
+          modal={chatConfirmModal}
+          onClose={() => setChatConfirmModal(null)}
+        />
+      )}
     </div>
   );
 };

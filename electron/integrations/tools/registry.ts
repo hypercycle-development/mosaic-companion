@@ -95,7 +95,9 @@ export class ToolRegistry {
     args: Record<string, unknown>,
     context?: ExecutionContext,
   ): Promise<ToolResult> {
-    const colonIdx = fullName.indexOf(":");
+    // Split on the LAST colon to support namespaced modules like "ext:hello-world:greet"
+    // → moduleName = "ext:hello-world", toolName = "greet"
+    const colonIdx = fullName.lastIndexOf(":");
     if (colonIdx === -1) {
       return { success: false, error: `Invalid tool name "${fullName}". Expected "module:tool" format.` };
     }
@@ -105,6 +107,7 @@ export class ToolRegistry {
 
     const mod = this.modules.get(moduleName);
     if (!mod) {
+      console.log(`[ToolRegistry] Module "${moduleName}" not found. Available: [${Array.from(this.modules.keys()).join(", ")}]`);
       return { success: false, error: `Module "${moduleName}" not found` };
     }
 
@@ -173,11 +176,21 @@ export class ToolRegistry {
 
     return (
       `You have access to the following built-in tools. To use a tool, output its XML tag exactly as shown.\n\n` +
-      `CRITICAL RULES:\n` +
-      `1. When you want to use a tool, output ONLY a short intro sentence, then the <use_tool> XML tag.\n` +
-      `2. You MUST stop writing IMMEDIATELY after the closing </use_tool> tag. Do NOT continue with any text, answers, or guesses.\n` +
-      `3. NEVER guess or hallucinate tool results. Wait for the actual tool output before responding.\n` +
-      `4. After you receive the [Tool Output], use that data to write your final response to the user.\n\n` +
+      `RULES (STRICT — violations make the experience worse for users):\n` +
+      `1. BEFORE a tool call: Write ONLY a single short sentence like "Let me check that." then the <use_tool> tag. NOTHING ELSE. No explanations, no caveats, no disclaimers, no multi-sentence preambles. ONE sentence, then the tag.\n` +
+      `2. STOP after </use_tool>. Do not write anything after the closing tag. Not one word.\n` +
+      `3. ABSOLUTELY NEVER state prices, balances, numbers, or ANY data before receiving [Tool Output]. You do NOT know current prices, balances, or live data. Your training data is outdated. ANY number you write before a tool call is a hallucination and WILL be wrong. If you need data, call the tool FIRST, speak AFTER.\n` +
+      `4. AFTER receiving [Tool Output]: Respond in 1-2 sentences using ONLY the data from the tool output. A lookup = 1 sentence. Do not add paragraphs.\n` +
+      `5. Do NOT call a tool if its description says it cannot do what the user asked. Say in 1 sentence what you CAN do, then either call the tool for the partial result or stop.\n` +
+      `6. Do NOT suggest external services, websites, or alternatives unless the user asks.\n` +
+      `7. Do NOT repeat tool data in prose. The user already sees the tool output.\n` +
+      `8. NEVER explain a tool's limitations twice. Say it once, before or after — not both.\n\n` +
+      `BAD (HALLUCINATED DATA — worst possible violation):\n` +
+      `"Bitcoin is currently at $97,336.86, up 1.12%..." ← WRONG. You do NOT know the price. This number is from training data and is INCORRECT. The tool returned $70,366. You gave the user false information.\n\n` +
+      `BAD (too verbose):\n` +
+      `"I can only get the current BTC price, not historical data. Bitcoin is currently at $97,000..." [calls tool] "Bitcoin is at $70,078. However, I can only provide the current price..."\n\n` +
+      `GOOD (concise, no hallucination, no repetition):\n` +
+      `"Let me check the current BTC price." [calls tool] "Bitcoin: $70,366 (+0.64% 24h). I can only get the current price — historical data isn't available."\n\n` +
       sections.join("\n\n---\n\n")
     );
   }
