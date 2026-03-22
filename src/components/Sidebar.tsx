@@ -21,6 +21,7 @@ import {
   BrainCircuit,
   Plug,
   Lock,
+  Activity,
 } from "lucide-react";
 import {
   SidebarItem,
@@ -31,8 +32,10 @@ import {
   INTERNAL_CHAT_URL,
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
+  INTERNAL_HYPERINSIGHT_URL,
 } from "../types/types";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
+import { NodeDetailPanel } from "../../plugins/hyperinsight/renderer/components/NodeDetailPanel";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -51,6 +54,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   // Hypercycle nodes state
   const [nodes, setNodes] = useState<HypercycleNode[]>([]);
+
+  // Node detail panel state — when set, the NodeDetailPanel slides in
+  const [selectedNodeLicense, setSelectedNodeLicense] = useState<string | null>(null);
 
   // Live status tracking: { [nodeId]: { isLive, checking, lastChecked, latency } }
   const [nodeStatuses, setNodeStatuses] = useState<
@@ -161,6 +167,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "mcp", label: "MCP Servers", icon: "Plug", url: INTERNAL_MCP_URL },
     { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL },
     { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL },
+    { id: "hyperinsight", label: "HyperInsight", icon: "Activity", url: INTERNAL_HYPERINSIGHT_URL },
     {
       id: "bookmarks",
       label: "Bookmarks",
@@ -227,6 +234,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         );
       case "Lock":
         return <Lock className={className} />;
+      case "Activity":
+        return <Activity className={className} />;
       default:
         return <LayoutGrid className={className} />;
     }
@@ -445,7 +454,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 return (
                   <div
                     key={node.id}
-                    className="bg-gray-900/50 rounded-xl p-3 border border-gray-800"
+                    className={`bg-gray-900/50 rounded-xl p-3 border border-gray-800 transition-colors ${
+                      node.licenseKey ? "cursor-pointer hover:border-gray-600 hover:bg-gray-800/50" : ""
+                    }`}
+                    onClick={() => {
+                      if (node.licenseKey) {
+                        setSelectedNodeLicense(node.licenseKey);
+                      }
+                    }}
                   >
                     {/* Header row: status dot + name + toggle */}
                     <div className="flex items-center justify-between mb-2">
@@ -475,7 +491,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       </div>
                       {/* Toggle button */}
                       <button
-                        onClick={async () => {
+                        onClick={async (e) => {
+                          e.stopPropagation();
                           if (window.electronAPI?.nodes?.update) {
                             await window.electronAPI.nodes.update(node.id, {
                               isActive: !node.isActive,
@@ -539,6 +556,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </span>
         </button>
       </div>
+
+      {/* Node Detail Panel — slides in when a node card with a licenseKey is clicked */}
+      {selectedNodeLicense && (
+        <NodeDetailPanel
+          licenseKey={selectedNodeLicense}
+          sidebarOpen={isOpen}
+          onClose={() => setSelectedNodeLicense(null)}
+        />
+      )}
     </aside>
   );
 };

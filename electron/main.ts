@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent, powerMonitor } from "electron";
+import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent, powerMonitor, protocol, net } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -33,6 +33,10 @@ import {
 import { mcpClient, setMainWindow as mcpSetMainWindow, initPlugins } from "./integrations/mcp/index";
 import { initializeTools, cleanupTools } from "./integrations/tools";
 import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
+// Plugin IPC handler registrations
+import { registerHyperInsightIpc } from "../plugins/hyperinsight/main/index.js";
+import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
+import { registerPaymentsJitIpc } from "../plugins/payments-jit/main/index.ts";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
@@ -90,6 +94,8 @@ interface Node {
   adminHost: string;
   adminPort: string;
   isActive: boolean;
+  // Need licenseKey to connect to node manifests in hyperinsight-aims.json
+  licenseKey?: string;
 }
 
 interface AIAgent {
@@ -273,11 +279,32 @@ app.on("web-contents-created", (_event, contents) => {
   });
 });
 
+// Must be called before app is ready
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'mosaic-media', privileges: { bypassCSP: true, supportFetchAPI: true, corsEnabled: true } }
+]);
+
 app.whenReady().then(() => {
   console.log("App is packaged:", app.isPackaged);
   console.log("User data path:", app.getPath("userData"));
   console.log("__dirname:", __dirname);
   console.log("PROJECT_ROOT:", PROJECT_ROOT);
+
+  // Register custom protocol for safely serving local media files
+  protocol.handle('mosaic-media', (request) => {
+    // URL looks like: mosaic-media://generated_image_123.png
+    const urlStr = request.url.replace(/^mosaic-media:\/\//, '');
+    const mediaDir = path.join(app.getPath('userData'), 'mosaic-media');
+    // Ensure the requested file is safely resolved inside the media directory to prevent directory traversal attacks
+    const filePath = path.join(mediaDir, path.normalize(urlStr));
+    
+    // Only serve files that actually live inside the media directory
+    if (!filePath.startsWith(mediaDir)) {
+       return new Response('Access Denied', { status: 403 });
+    }
+    
+    return net.fetch(`file://${filePath}`);
+  });
 
   // Ensure agents history directory exists
   const agentsHistoryPathExist = getDirectoryStatus(agentsHistoryPath);
@@ -291,6 +318,19 @@ app.whenReady().then(() => {
 
   const win = createWindow();
   mcpSetMainWindow(win);
+
+  // ==========================================================================
+  // IMPORTANT: Register plugin IPC handlers BEFORE initPlugins().
+  // registerAimNodesIpc() reads the wallet key via getWalletKey() and writes
+  // it into the plugin's env config. initPlugins() then spawns the MCP child
+  // process using that env, so the key is available from process start.
+  // Reversing this order causes the MCP server to launch without WALLET_PRIVATE_KEY.
+  // ==========================================================================
+  registerHyperInsightIpc(ipcMain);
+  registerAimNodesIpc(ipcMain);
+  registerPaymentsJitIpc(ipcMain);
+
+  // Now auto-connect MCP plugins (with correct env already set)
   initPlugins().catch((e) => console.error("[MCP] Plugin init failed:", e));
 
   // Initialize tool registry

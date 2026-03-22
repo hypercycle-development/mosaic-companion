@@ -325,6 +325,36 @@ export async function executeMCPAction(action: ParsedAction, agentId?: string): 
    try {
        const result = await window.electronAPI.mcpAPI.callTool(server, tool, args);
        if (result.success) {
+           // Check if MCP server returned a __payment_required signal
+           // This happens when an AIM endpoint requires payment (HTTP 402).
+           // The mcp-server.js returns a structured JSON payload that we must
+           // intercept here and route to the JIT payment handler in the main process.
+           const firstContent = result.result?.content?.[0];
+           const resultText = typeof firstContent?.text === "string" ? firstContent.text : "";
+
+           if (resultText.includes('"__payment_required"')) {
+               try {
+                   const paymentData = JSON.parse(resultText);
+                   if (paymentData.__payment_required) {
+                       console.log("[ActionParser] Intercepted __payment_required signal. Routing to payment handler...");
+                       const paymentResult = await (window as any).electronAPI.hyperinsight.handlePayment(paymentData);
+                       if (paymentResult.success && paymentResult.result) {
+                           // Return the final tool output from the paid call (after JIT top-up + retry)
+                           const finalText = paymentResult.result.content?.[0]?.text;
+                           return finalText || JSON.stringify(paymentResult.result, null, 2);
+                       }
+                       // Payment failed or was rejected by the user
+                       if (paymentResult.result?.content?.[0]?.text) {
+                           return paymentResult.result.content[0].text;
+                       }
+                       return `Payment required but failed: ${paymentResult.error || "Unknown error"}`;
+                   }
+               } catch (parseErr) {
+                   // Not valid payment JSON — fall through to normal result handling
+                   console.warn("[ActionParser] Result contained __payment_required text but failed to parse:", parseErr);
+               }
+           }
+
            return JSON.stringify(result.result, null, 2);
        } else {
            return `Error calling tool ${tool}: ${result.error}`;

@@ -34,6 +34,7 @@ export const INTERNAL_MOSAICBOT_URL = 'browser://mosaicbot';
 export const INTERNAL_MCP_URL = 'browser://mcp';
 export const INTERNAL_WEB3_URL = 'browser://web3';
 export const INTERNAL_VAULT_URL = 'browser://vault';
+export const INTERNAL_HYPERINSIGHT_URL = 'browser://hyperinsight';
 export interface AppSettings {
     homeUrl: string;
     customGreeting: string;
