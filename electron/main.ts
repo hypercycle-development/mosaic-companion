@@ -20,6 +20,8 @@ import {
   getTitleBarStyle,
   getGmailAutoMarkRead,
   setGmailAutoMarkRead,
+  getAutoDisplayMedia,
+  setAutoDisplayMedia,
 } from "./settings";
 import {
   getDirectoryStatus,
@@ -861,3 +863,56 @@ ipcMain.handle(
     return deleteEntry(boxId, entryId);
   },
 );
+
+// =============================================================================
+// Media Handlers — safe base64 delivery for tool-generated media
+// =============================================================================
+
+/**
+ * Read a mosaic-media:// file from disk and return it as a data: URI.
+ * The renderer never gets raw filesystem access — only sanitized base64 data.
+ */
+ipcMain.handle("media:read-as-data-uri", async (_event, mediaUrl: string) => {
+  try {
+    // Strip protocol prefix  — "mosaic-media://filename.png" → "filename.png"
+    const filename = mediaUrl.replace(/^mosaic-media:\/\//, "");
+    const mediaDir = path.join(app.getPath("userData"), "mosaic-media");
+    const filePath = path.join(mediaDir, path.normalize(filename));
+
+    // Directory traversal guard
+    if (!filePath.startsWith(mediaDir + path.sep) && filePath !== mediaDir) {
+      console.error("[Media] Directory traversal attempt blocked:", filename);
+      return { success: false, error: "Access denied" };
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: "File not found" };
+    }
+
+    const buffer = fs.readFileSync(filePath);
+    const ext = path.extname(filename).toLowerCase().replace(".", "");
+    const mimeTypes: Record<string, string> = {
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      gif: "image/gif",
+      webp: "image/webp",
+      svg: "image/svg+xml",
+    };
+    const mimeType = mimeTypes[ext] ?? "image/png";
+    const dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
+    return { success: true, dataUri };
+  } catch (error: any) {
+    console.error("[Media] Failed to read media file:", error.message);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("media:get-auto-display", () => {
+  return { enabled: getAutoDisplayMedia() };
+});
+
+ipcMain.handle("media:set-auto-display", (_event, enabled: boolean) => {
+  const result = setAutoDisplayMedia(enabled);
+  return { ...result, enabled: getAutoDisplayMedia() };
+});
