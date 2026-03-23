@@ -27,6 +27,8 @@ export interface Room {
   id: string;
   name: string;
   members: Member[];
+  isPrivate?: boolean;
+  createdBy?: string;
 }
 
 export interface RoomDetail extends Room {
@@ -35,7 +37,7 @@ export interface RoomDetail extends Room {
 
 export type ClientMessage =
   | { type: "auth"; username: string; isAgent?: boolean }
-  | { type: "create-room"; name: string }
+  | { type: "create-room"; name: string; isPrivate?: boolean }
   | { type: "join-room"; roomId: string }
   | { type: "leave-room"; roomId: string }
   | { type: "send-message"; roomId: string; text: string }

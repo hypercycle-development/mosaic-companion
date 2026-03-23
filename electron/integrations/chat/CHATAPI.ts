@@ -39,8 +39,8 @@ export const chatAPI = {
   listRooms: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("chat:list-rooms"),
 
-  createRoom: (name: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke("chat:create-room", name),
+  createRoom: (name: string, isPrivate?: boolean): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke("chat:create-room", name, isPrivate),
 
   joinRoom: (roomId: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("chat:join-room", roomId),

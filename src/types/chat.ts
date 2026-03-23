@@ -27,6 +27,8 @@ export interface Room {
   id: string;
   name: string;
   members: Member[];
+  isPrivate?: boolean;
+  createdBy?: string;
 }
 
 export interface RoomDetail extends Room {
