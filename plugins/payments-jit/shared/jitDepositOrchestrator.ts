@@ -172,9 +172,9 @@ export async function callPaidAimWithJit(args: {
     }
 
     // Node managers require balance to be STRICTLY GREATER than the cost.
-    // We need a comfortable buffer above the cost to avoid "Insufficient balance" rejections.
-    // Use 2x the required cost as the target balance to cover the request + buffer for rounding/fees.
-    const targetBalance = requiredCost * 2n > policy.minTopUp ? requiredCost * 2n : policy.minTopUp;
+    // Use a 0.5% buffer above the exact cost — enough to satisfy "strictly greater" without over-depositing.
+    const buffered = requiredCost + (requiredCost * 5n / 1000n);
+    const targetBalance = buffered > policy.minTopUp ? buffered : policy.minTopUp;
 
     // If existing balance is well above the required cost (more than 2x), skip the transfer and retry directly
     if (existingBalance > targetBalance) {

@@ -395,16 +395,62 @@ export function registerAimNodesIpc(ipcMain) {
         }
       }
 
+      // Always use the REQUESTED currency's decimals — never derive decimals from a fallback currency
+      const decimals = currency === 'USDC' ? 6 : 18;
+      const decimalFmt = decimals > 6 ? 4 : 6;
+
       if (costValue > 0) {
         estimatedCostBaseUnits = String(costValue);
-        // Always use the REQUESTED currency's decimals — never derive decimals from a fallback currency
-        const decimals = currency === 'USDC' ? 6 : 18;
         const costNum = Number(costValue) / Math.pow(10, decimals);
         // Amount is a plain number — the modal's `token` field already displays the currency symbol
-        estimatedCostDisplay = costNum.toFixed(decimals > 6 ? 4 : 6);
+        estimatedCostDisplay = costNum.toFixed(decimalFmt);
       }
 
-      console.log(`[AimNodes:Payment] Estimated cost: ${estimatedCostDisplay} (${estimatedCostBaseUnits} base units)`);
+      // Compute deposit amount = cost + 0.5% buffer (mirrors jitDepositOrchestrator)
+      const depositBaseUnits = costValue > 0 ? costValue + Math.floor(costValue * 0.005) : 0;
+      const depositDisplay = depositBaseUnits > 0
+        ? (depositBaseUnits / Math.pow(10, decimals)).toFixed(decimalFmt)
+        : estimatedCostDisplay;
+
+      // Extract AIM tool name from nodeInfo
+      const aimInfoEntry = paymentData.nodeInfo?.aim?.aims?.find(a => a.slot === paymentData.slot);
+      const aimName = aimInfoEntry
+        ? `${aimInfoEntry.image_name}${aimInfoEntry.image_tag ? ':' + aimInfoEntry.image_tag : ''}`
+        : `Slot ${paymentData.slot}`;
+
+      // Map human-readable network name from nodeInfo.tm.network + driver
+      const nmNetwork = ((paymentData.nodeInfo?.tm?.network) || paymentData.nodeNetwork || 'mainnet').toLowerCase();
+      const nmDriver = ((paymentData.nodeInfo?.tm?.driver) || paymentData.txDriver || 'ethereum').toLowerCase();
+      let networkName = 'Ethereum';
+      if (nmDriver === 'ethereum') {
+        if (nmNetwork === 'base') networkName = 'Base';
+        else if (nmNetwork === 'sepolia') networkName = 'Sepolia (Testnet)';
+        else if (nmNetwork === 'base-sepolia' || nmNetwork === 'base_sepolia') networkName = 'Base Sepolia';
+        else networkName = 'Ethereum';
+      }
+
+      // Estimate gas cost for ERC20 transfer (~65,000 gas units)
+      let gasEstimate = '~65,000 gas';
+      try {
+        const rpcUrl = getActiveRpcUrl();
+        const gasPriceResp = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_gasPrice', params: [], id: 1 }),
+        });
+        const gasPriceData = await gasPriceResp.json();
+        if (gasPriceData.result) {
+          const gasPriceWei = BigInt(gasPriceData.result);
+          const gasLimit = 65000n;
+          const gasCostWei = gasPriceWei * gasLimit;
+          const gasCostEth = Number(gasCostWei) / 1e18;
+          gasEstimate = `~${gasCostEth.toFixed(6)} ETH`;
+        }
+      } catch (e) {
+        console.log('[AimNodes:Payment] Could not estimate gas:', e.message);
+      }
+
+      console.log(`[AimNodes:Payment] Estimated cost: ${estimatedCostDisplay} ${currency}, deposit: ${depositDisplay} ${currency} (${estimatedCostBaseUnits} base units)`);
 
       // Check the web3 safety config — "Require user confirmation for payments" toggle
       let approved = false;
@@ -446,6 +492,10 @@ export function registerAimNodesIpc(ipcMain) {
           to: paymentData.tmAddress || 'Unknown',
           token: paymentData.currencyType || 'USDC',
           amount: estimatedCostDisplay,
+          depositAmount: depositDisplay,
+          aimName,
+          networkName,
+          gasEstimate,
           chainId: paymentData.chainId || 1,
           reason: `AIM tool call requires payment. Endpoint: /aim/${paymentData.slot}/${paymentData.actionPath}`,
           policySnapshot: `Estimated: ${estimatedCostDisplay} ${currency}`,
