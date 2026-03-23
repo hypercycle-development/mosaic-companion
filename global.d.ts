@@ -336,7 +336,7 @@ declare global {
       disconnect: () => Promise<{ success: boolean }>;
       status: () => Promise<{ status: string }>;
       listRooms: () => Promise<{ success: boolean; error?: string }>;
-      createRoom: (name: string) => Promise<{ success: boolean; error?: string }>;
+      createRoom: (name: string, isPrivate?: boolean) => Promise<{ success: boolean; error?: string }>;
       joinRoom: (roomId: string) => Promise<{ success: boolean; error?: string }>;
       leaveRoom: (roomId: string) => Promise<{ success: boolean; error?: string }>;
       sendMessage: (roomId: string, text: string) => Promise<{ success: boolean; error?: string }>;

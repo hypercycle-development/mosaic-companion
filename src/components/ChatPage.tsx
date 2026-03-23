@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Bot, Plus, Send, MessageSquare, Users, X } from "lucide-react";
+import { Bot, Plus, Send, MessageSquare, Users, X, Lock, Globe } from "lucide-react";
 import type { AIAgentConfig } from "../types/ai";
 import type {
   ChatSettings,
@@ -28,10 +28,12 @@ export const ChatPage: React.FC = () => {
 
   // UI state
   const [newRoomName, setNewRoomName] = useState("");
+  const [newRoomPrivate, setNewRoomPrivate] = useState(false);
   const [showNewRoom, setShowNewRoom] = useState(false);
   const [messageInput, setMessageInput] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const autoJoinedRef = useRef(false);
 
   // Load settings and agents on mount
   useEffect(() => {
@@ -54,6 +56,7 @@ export const ChatPage: React.FC = () => {
         if (s === "disconnected") {
           setJoinedRoomIds(new Set());
           setActiveRoomId(null);
+          autoJoinedRef.current = false;
         }
       }) ?? (() => {}),
     );
@@ -61,6 +64,18 @@ export const ChatPage: React.FC = () => {
     cleanups.push(
       window.chatAPI?.onRoomsUpdated((updatedRooms) => {
         setRooms(updatedRooms);
+        // Auto-join or create the "General" room on first room list after connect
+        if (!autoJoinedRef.current && updatedRooms.length >= 0) {
+          autoJoinedRef.current = true;
+          const general = updatedRooms.find(
+            (r) => r.name.toLowerCase() === "general" && !r.isPrivate,
+          );
+          if (general) {
+            window.chatAPI?.joinRoom(general.id);
+          } else {
+            window.chatAPI?.createRoom("General");
+          }
+        }
       }) ?? (() => {}),
     );
 
@@ -78,6 +93,18 @@ export const ChatPage: React.FC = () => {
         window.chatAPI?.listAssignedAgents(room.id).then((agentIds) => {
           setAssignedAgents((prev) => ({ ...prev, [room.id]: agentIds }));
         });
+      }) ?? (() => {}),
+    );
+
+    // Auto-join rooms we create (including the default "General")
+    cleanups.push(
+      window.chatAPI?.onRoomCreated((room) => {
+        setRooms((prev) => {
+          if (prev.find((r) => r.id === room.id)) return prev;
+          return [...prev, room];
+        });
+        // Auto-join the room we just created
+        window.chatAPI?.joinRoom(room.id);
       }) ?? (() => {}),
     );
 
@@ -157,8 +184,9 @@ export const ChatPage: React.FC = () => {
 
   const handleCreateRoom = async () => {
     if (!newRoomName.trim()) return;
-    await window.chatAPI?.createRoom(newRoomName.trim());
+    await window.chatAPI?.createRoom(newRoomName.trim(), newRoomPrivate || undefined);
     setNewRoomName("");
+    setNewRoomPrivate(false);
     setShowNewRoom(false);
   };
 
@@ -283,8 +311,12 @@ export const ChatPage: React.FC = () => {
                 }`}
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-gray-200 truncate">
-                    <span className="text-gray-500 mr-1">#</span>
+                  <p className="text-sm text-gray-200 truncate flex items-center gap-1">
+                    {room.isPrivate ? (
+                      <Lock size={10} className="text-amber-500 flex-shrink-0" />
+                    ) : (
+                      <span className="text-gray-500 mr-0.5">#</span>
+                    )}
                     {room.name}
                   </p>
                   <p className="text-xs text-gray-600">{room.members.length} members</p>
@@ -324,6 +356,18 @@ export const ChatPage: React.FC = () => {
                 autoFocus
                 className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-gray-200 placeholder-gray-600"
               />
+              <button
+                type="button"
+                onClick={() => setNewRoomPrivate(!newRoomPrivate)}
+                className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                  newRoomPrivate
+                    ? "bg-amber-900/30 text-amber-300 border border-amber-500/20"
+                    : "bg-gray-900 text-gray-500 hover:text-gray-300 border border-gray-700"
+                }`}
+              >
+                {newRoomPrivate ? <Lock size={10} /> : <Globe size={10} />}
+                {newRoomPrivate ? "Private room" : "Public room"}
+              </button>
               <div className="flex gap-2">
                 <button
                   onClick={handleCreateRoom}
@@ -336,6 +380,7 @@ export const ChatPage: React.FC = () => {
                   onClick={() => {
                     setShowNewRoom(false);
                     setNewRoomName("");
+                    setNewRoomPrivate(false);
                   }}
                   className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg transition-colors"
                 >
@@ -365,11 +410,18 @@ export const ChatPage: React.FC = () => {
             {/* Room header */}
             <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between flex-shrink-0">
               <div>
-                <h1 className="text-base font-semibold text-white">
-                  <span className="text-gray-500 mr-1">#</span>
+                <h1 className="text-base font-semibold text-white flex items-center gap-1.5">
+                  {activeRoom.isPrivate ? (
+                    <Lock size={14} className="text-amber-500" />
+                  ) : (
+                    <span className="text-gray-500">#</span>
+                  )}
                   {activeRoom.name}
                 </h1>
-                <p className="text-xs text-gray-500">{activeRoom.members.length} members</p>
+                <p className="text-xs text-gray-500">
+                  {activeRoom.members.length} members
+                  {activeRoom.isPrivate && " \u00B7 Private"}
+                </p>
               </div>
               <button
                 onClick={handleLeave}
