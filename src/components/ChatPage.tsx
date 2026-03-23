@@ -5,6 +5,7 @@ import type {
   ChatSettings,
   ConnectionStatus,
   Room,
+  RoomVisibility,
   StoredMessage,
 } from "../types/chat";
 
@@ -28,7 +29,7 @@ export const ChatPage: React.FC = () => {
 
   // UI state
   const [newRoomName, setNewRoomName] = useState("");
-  const [newRoomPrivate, setNewRoomPrivate] = useState(false);
+  const [newRoomVisibility, setNewRoomVisibility] = useState<RoomVisibility>("public");
   const [showNewRoom, setShowNewRoom] = useState(false);
   const [messageInput, setMessageInput] = useState("");
 
@@ -68,7 +69,7 @@ export const ChatPage: React.FC = () => {
         if (!autoJoinedRef.current && updatedRooms.length >= 0) {
           autoJoinedRef.current = true;
           const general = updatedRooms.find(
-            (r) => r.name.toLowerCase() === "general" && !r.isPrivate,
+            (r) => r.name.toLowerCase() === "general" && (r.visibility === "public" || !r.visibility),
           );
           if (general) {
             window.chatAPI?.joinRoom(general.id);
@@ -184,9 +185,12 @@ export const ChatPage: React.FC = () => {
 
   const handleCreateRoom = async () => {
     if (!newRoomName.trim()) return;
-    await window.chatAPI?.createRoom(newRoomName.trim(), newRoomPrivate || undefined);
+    await window.chatAPI?.createRoom(
+      newRoomName.trim(),
+      newRoomVisibility !== "public" ? newRoomVisibility : undefined,
+    );
     setNewRoomName("");
-    setNewRoomPrivate(false);
+    setNewRoomVisibility("public");
     setShowNewRoom(false);
   };
 
@@ -312,7 +316,7 @@ export const ChatPage: React.FC = () => {
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-gray-200 truncate flex items-center gap-1">
-                    {room.isPrivate ? (
+                    {room.visibility === "private" || room.visibility === "invite-only" ? (
                       <Lock size={10} className="text-amber-500 flex-shrink-0" />
                     ) : (
                       <span className="text-gray-500 mr-0.5">#</span>
@@ -356,18 +360,25 @@ export const ChatPage: React.FC = () => {
                 autoFocus
                 className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-gray-200 placeholder-gray-600"
               />
-              <button
-                type="button"
-                onClick={() => setNewRoomPrivate(!newRoomPrivate)}
-                className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
-                  newRoomPrivate
-                    ? "bg-amber-900/30 text-amber-300 border border-amber-500/20"
-                    : "bg-gray-900 text-gray-500 hover:text-gray-300 border border-gray-700"
-                }`}
-              >
-                {newRoomPrivate ? <Lock size={10} /> : <Globe size={10} />}
-                {newRoomPrivate ? "Private room" : "Public room"}
-              </button>
+              <div className="flex gap-1">
+                {(["public", "private", "invite-only"] as RoomVisibility[]).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setNewRoomVisibility(v)}
+                    className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[10px] transition-colors ${
+                      newRoomVisibility === v
+                        ? v === "public"
+                          ? "bg-emerald-900/30 text-emerald-300 border border-emerald-500/20"
+                          : "bg-amber-900/30 text-amber-300 border border-amber-500/20"
+                        : "bg-gray-900 text-gray-500 hover:text-gray-300 border border-gray-700"
+                    }`}
+                  >
+                    {v === "public" ? <Globe size={9} /> : <Lock size={9} />}
+                    {v === "public" ? "Public" : v === "private" ? "Private" : "Invite"}
+                  </button>
+                ))}
+              </div>
               <div className="flex gap-2">
                 <button
                   onClick={handleCreateRoom}
@@ -380,7 +391,7 @@ export const ChatPage: React.FC = () => {
                   onClick={() => {
                     setShowNewRoom(false);
                     setNewRoomName("");
-                    setNewRoomPrivate(false);
+                    setNewRoomVisibility("public");
                   }}
                   className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg transition-colors"
                 >
@@ -411,7 +422,7 @@ export const ChatPage: React.FC = () => {
             <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between flex-shrink-0">
               <div>
                 <h1 className="text-base font-semibold text-white flex items-center gap-1.5">
-                  {activeRoom.isPrivate ? (
+                  {activeRoom.visibility === "private" || activeRoom.visibility === "invite-only" ? (
                     <Lock size={14} className="text-amber-500" />
                   ) : (
                     <span className="text-gray-500">#</span>
@@ -420,7 +431,7 @@ export const ChatPage: React.FC = () => {
                 </h1>
                 <p className="text-xs text-gray-500">
                   {activeRoom.members.length} members
-                  {activeRoom.isPrivate && " \u00B7 Private"}
+                  {activeRoom.visibility && activeRoom.visibility !== "public" && ` \u00B7 ${activeRoom.visibility}`}
                 </p>
               </div>
               <button

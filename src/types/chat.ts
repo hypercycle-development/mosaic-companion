@@ -7,10 +7,21 @@ export interface ChatSettings {
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
+export type RoomVisibility = "public" | "private" | "invite-only";
+
+export interface AgentMetadata {
+  model?: string;
+  capabilities?: string[];
+  avatar?: string;
+  description?: string;
+}
+
 export interface Member {
   id: string;
   username: string;
   isAgent: boolean;
+  metadata?: AgentMetadata | null;
+  publicKey?: string | null;
 }
 
 export interface StoredMessage {
@@ -26,9 +37,12 @@ export interface StoredMessage {
 export interface Room {
   id: string;
   name: string;
+  creatorId?: string;
   members: Member[];
-  isPrivate?: boolean;
-  createdBy?: string;
+  isProtected?: boolean;
+  isDm?: boolean;
+  visibility?: RoomVisibility;
+  allowedMemberIds?: string[];
 }
 
 export interface RoomDetail extends Room {
