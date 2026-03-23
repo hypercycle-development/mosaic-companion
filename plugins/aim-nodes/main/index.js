@@ -351,54 +351,57 @@ export function registerAimNodesIpc(ipcMain) {
       let estimatedCostDisplay = 'Unknown';
       let estimatedCostBaseUnits = '0';
 
-      // Source 1 (Primary): uri_cost from nodeInfo — most reliable, gives fixed cost per endpoint per currency
+      // Source 1 (Primary): uri_cost from nodeInfo — most reliable, gives fixed cost per endpoint per currency.
+      // Nodes may use the endpoint path ("/request") OR the catch-all key "default" in uri_cost.
       let costValue = 0;
-      let foundCurrency = currency;
 
       if (paymentData.nodeInfo?.aim?.aims) {
         const aim = paymentData.nodeInfo.aim.aims.find(a => a.slot === paymentData.slot);
         if (aim?.uri_cost) {
-          const endpointCost = aim.uri_cost[`/${paymentData.actionPath}`];
+          // Try endpoint-specific key first (with/without leading slash), then "default" catch-all
+          const endpointCost = aim.uri_cost[`/${paymentData.actionPath}`]
+            || aim.uri_cost[paymentData.actionPath]
+            || aim.uri_cost['default'];
+
           if (endpointCost) {
-            // Try preferred currency first, then fallbacks
-            const uriEntry = endpointCost[currency] || endpointCost['USDC'] || endpointCost['HyPC'] || Object.values(endpointCost)[0];
+            // Case-insensitive currency key lookup — find "USDC" even if stored as "usdc"
+            const matchKey = Object.keys(endpointCost).find(k => k.toLowerCase() === currency.toLowerCase());
+            const uriEntry = matchKey ? endpointCost[matchKey] : null;
             if (uriEntry) {
               costValue = uriEntry.fixed || uriEntry.estimated_cost || 0;
-              foundCurrency = uriEntry.currency || currency;
+              // foundCurrency stays as the requested `currency` — don't trust node's embedded string
             }
           }
         }
       }
 
-      // Source 2: cost_only response data (costData)
+      // Source 2: cost_only response data (costData) — only used if Source 1 found nothing.
+      // IMPORTANT: Only look up the requested currency. Never fall back to a different currency's
+      // base units (HyPC and USDC have different decimals, making the numbers meaningless across currencies).
       if (costValue === 0 && costData) {
-        // Format A: flat object keyed by currency name
-        const directEntry = costData[currency] || costData['USDC'] || costData['HyPC'];
-        if (directEntry && typeof directEntry === 'object') {
+        // Format A: flat object keyed by currency name (case-insensitive lookup)
+        const directKey = Object.keys(costData).find(k => k.toLowerCase() === currency.toLowerCase());
+        const directEntry = directKey ? costData[directKey] : null;
+        if (directEntry && typeof directEntry === 'object' && !Array.isArray(directEntry)) {
           costValue = directEntry.estimated_cost || directEntry.max || directEntry.used || directEntry.fixed || 0;
-          if (costValue > 0) {
-            foundCurrency = costData[currency] ? currency : (costData['USDC'] ? 'USDC' : 'HyPC');
-          }
         }
 
-        // Format B: costs array
-        if (costValue === 0 && costData.costs && Array.isArray(costData.costs)) {
-          const costEntry = costData.costs.find(c => c.currency === currency)
-            || costData.costs.find(c => c.currency === 'USDC')
-            || costData.costs.find(c => c.currency === 'HyPC')
-            || costData.costs[0];
+        // Format B: costs array — match only the requested currency
+        if (costValue === 0 && Array.isArray(costData.costs)) {
+          const costEntry = costData.costs.find(c => c.currency?.toLowerCase() === currency.toLowerCase());
           if (costEntry) {
             costValue = costEntry.estimated_cost || costEntry.max || costEntry.used || 0;
-            foundCurrency = costEntry.currency || currency;
           }
         }
       }
 
       if (costValue > 0) {
         estimatedCostBaseUnits = String(costValue);
-        const decimals = foundCurrency === 'USDC' ? 6 : 18;
+        // Always use the REQUESTED currency's decimals — never derive decimals from a fallback currency
+        const decimals = currency === 'USDC' ? 6 : 18;
         const costNum = Number(costValue) / Math.pow(10, decimals);
-        estimatedCostDisplay = `${costNum.toFixed(decimals > 6 ? 4 : 6)} ${foundCurrency}`;
+        // Amount is a plain number — the modal's `token` field already displays the currency symbol
+        estimatedCostDisplay = costNum.toFixed(decimals > 6 ? 4 : 6);
       }
 
       console.log(`[AimNodes:Payment] Estimated cost: ${estimatedCostDisplay} (${estimatedCostBaseUnits} base units)`);
@@ -445,7 +448,7 @@ export function registerAimNodesIpc(ipcMain) {
           amount: estimatedCostDisplay,
           chainId: paymentData.chainId || 1,
           reason: `AIM tool call requires payment. Endpoint: /aim/${paymentData.slot}/${paymentData.actionPath}`,
-          policySnapshot: `Estimated: ${estimatedCostDisplay}`,
+          policySnapshot: `Estimated: ${estimatedCostDisplay} ${currency}`,
           warning: paymentData.costEstimateFailed 
             ? 'Cost estimate could not be retrieved from the AIM. The displayed cost is based on the node\'s advertised fixed price.' 
             : undefined,
@@ -463,7 +466,7 @@ export function registerAimNodesIpc(ipcMain) {
           success: false, 
           error: 'Payment rejected by user.',
           result: {
-            content: [{ type: 'text', text: `Payment of ${estimatedCostDisplay} was rejected by the user. The AIM tool call was not executed.` }],
+            content: [{ type: 'text', text: `Payment of ${estimatedCostDisplay} ${currency} was rejected by the user. The AIM tool call was not executed.` }],
             isError: true,
           }
         };
