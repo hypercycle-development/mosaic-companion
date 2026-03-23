@@ -42,6 +42,7 @@ interface SettingsPageProps {
   aiAgents?: AIAgentConfig[];
   setAiAgents?: (agents: AIAgentConfig[]) => void;
   scrollSection?: string;
+  onReopenOnboarding?: () => void;
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
@@ -54,6 +55,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   aiAgents: externalAgents,
   setAiAgents: externalSetAiAgents,
   scrollSection,
+  onReopenOnboarding,
 }) => {
   // Ref for scrolling to sections
   const agentsSectionRef = useRef<HTMLElement>(null);
@@ -1302,6 +1304,23 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 placeholder="browser://home"
               />
             </label>
+
+            <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+              <div>
+                <span className="text-gray-200 font-medium block">
+                  Replay Onboarding
+                </span>
+                <p className="text-sm text-gray-500">
+                  Open the welcome flow again to review features and setup.
+                </p>
+              </div>
+              <button
+                onClick={() => onReopenOnboarding?.()}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+              >
+                Open Onboarding
+              </button>
+            </div>
           </div>
         </section>
 

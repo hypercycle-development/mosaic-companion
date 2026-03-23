@@ -371,6 +371,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
           showUrlBar={settings.showUrlBar}
           setShowUrlBar={settings.setShowUrlBar}
           scrollSection={scrollSection}
+          onReopenOnboarding={() => onNavigate(INTERNAL_ONBOARDING_URL)}
         />
       </div>
     );
