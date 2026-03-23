@@ -236,6 +236,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getSavedAims: (license?: string) => ipcRenderer.invoke("aimnodes:get-saved-aims", license),
     handlePayment: (paymentData: any) => ipcRenderer.invoke("aimnodes:handle-payment", paymentData),
   },
+  // Media — safe data: URI delivery for tool-generated media files
+  media: {
+    readAsDataUri: (mediaUrl: string) => ipcRenderer.invoke("media:read-as-data-uri", mediaUrl),
+    getAutoDisplay: () => ipcRenderer.invoke("media:get-auto-display"),
+    setAutoDisplay: (enabled: boolean) => ipcRenderer.invoke("media:set-auto-display", enabled),
+  },
   // JIT Payments plugin
   paymentsJit: {
     onRequestApproval: (handler: (data: any) => void) => {

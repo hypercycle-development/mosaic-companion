@@ -315,6 +315,16 @@ declare global {
         handlePayment: (paymentData: any) => Promise<{ success: boolean; error?: string; result?: any }>;
       };
 
+      // Media — safe data: URI delivery for tool-generated media
+      media: {
+        /** Read a mosaic-media:// file from disk and return it as a base64 data: URI */
+        readAsDataUri: (mediaUrl: string) => Promise<{ success: boolean; dataUri?: string; error?: string }>;
+        /** Get the auto-display-media setting */
+        getAutoDisplay: () => Promise<{ enabled: boolean }>;
+        /** Set the auto-display-media setting */
+        setAutoDisplay: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean; error?: string }>;
+      };
+
       // JIT Payments plugin
       paymentsJit: {
         onRequestApproval: (handler: (data: any) => void) => () => void;

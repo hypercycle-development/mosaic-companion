@@ -33,6 +33,11 @@ export interface ChatMessage {
   failedUIBlockCount?: number;
   /** Raw JSON snippets of failed blocks (for collapsed debug view) */
   failedUIRawSnippets?: string[];
+  /**
+   * mosaic-media:// URLs from tool results that need user approval before rendering.
+   * Stored so the blocked-media chip persists when sessions are reloaded.
+   */
+  mediaUrls?: string[];
 }
 
 export interface ChatSession {

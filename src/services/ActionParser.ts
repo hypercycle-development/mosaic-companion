@@ -49,6 +49,21 @@ export interface ToolCallOutput {
   uiBlocks?: import("../components/tool-ui/types").ToolUIBlock[];
   /** "display" = UI is the answer (skip agent recursion), "analyze" = agent comments (default) */
   displayHint?: "display" | "analyze";
+  /**
+   * mosaic-media:// URLs detected in the tool result text.
+   * These are tool-generated media files (images, etc.) saved to disk.
+   * The renderer loads them as data: URIs via IPC — never exposed directly.
+   */
+  mediaUrls?: string[];
+}
+
+/**
+ * Extract all mosaic-media:// URLs from a tool result string.
+ * Returns an array of URLs (e.g. ["mosaic-media://generated_image_123.png"]).
+ */
+function extractMosaicMediaUrls(text: string): string[] {
+  const matches = text.match(/mosaic-media:\/\/[^\s\]"')]+/g);
+  return matches ?? [];
 }
 
 /**
@@ -121,11 +136,14 @@ export async function executeToolCall(action: ParsedAction, agentId?: string): P
             console.log("[ActionParser] Intercepted __payment_required signal. Routing to payment handler...");
             const paymentResult = await (window as any).electronAPI.hyperinsight.handlePayment(paymentData);
             if (paymentResult.success && paymentResult.result) {
-              const finalText = paymentResult.result.content?.[0]?.text;
-              return { text: finalText || JSON.stringify(paymentResult.result, null, 2) };
+              const finalText = paymentResult.result.content?.[0]?.text ?? JSON.stringify(paymentResult.result, null, 2);
+              const mediaUrls = extractMosaicMediaUrls(finalText);
+              return { text: finalText, ...(mediaUrls.length > 0 ? { mediaUrls, displayHint: "display" as const } : {}) };
             }
             if (paymentResult.result?.content?.[0]?.text) {
-              return { text: paymentResult.result.content[0].text };
+              const finalText = paymentResult.result.content[0].text as string;
+              const mediaUrls = extractMosaicMediaUrls(finalText);
+              return { text: finalText, ...(mediaUrls.length > 0 ? { mediaUrls, displayHint: "display" as const } : {}) };
             }
             return { text: `Payment required but failed: ${paymentResult.error || "Unknown error"}` };
           }
@@ -134,7 +152,16 @@ export async function executeToolCall(action: ParsedAction, agentId?: string): P
         }
       }
 
-      return { text: JSON.stringify(result.result) };
+      // Extract direct text content if available (cleaner for LLM) and scan for media URLs
+      const directContent = result.result?.content?.[0];
+      const directText = typeof directContent?.text === "string"
+        ? directContent.text
+        : JSON.stringify(result.result);
+      const directMediaUrls = extractMosaicMediaUrls(directText);
+      return {
+        text: directText,
+        ...(directMediaUrls.length > 0 ? { mediaUrls: directMediaUrls, displayHint: "display" as const } : {}),
+      };
     } else {
       return { text: `Error calling tool ${tool}: ${result.error}` };
     }
