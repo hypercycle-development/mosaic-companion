@@ -44,6 +44,10 @@ export const ChatPage: React.FC = () => {
     window.electronAPI.aiAgents.get().then(setAllAgents);
     window.chatAPI?.status().then(({ status: s }) => {
       setStatus(s as ConnectionStatus);
+      if (s === "connected") {
+        autoJoinedRef.current = true;
+        window.chatAPI?.listRooms();
+      }
     });
   }, []);
 
@@ -58,6 +62,9 @@ export const ChatPage: React.FC = () => {
           setJoinedRoomIds(new Set());
           setActiveRoomId(null);
           autoJoinedRef.current = false;
+        } else if (s === "connected") {
+          autoJoinedRef.current = false;
+          window.chatAPI?.listRooms();
         }
       }) ?? (() => {}),
     );
