@@ -16,7 +16,7 @@ import type {
 export const ChatPage: React.FC = () => {
   // Core state
   const [settings, setSettings] = useState<ChatSettings>({
-    serverUrl: "ws://localhost:4242",
+    serverUrl: "wss://agents-chat.hyperpg.site",
     username: "",
   });
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
@@ -35,15 +35,27 @@ export const ChatPage: React.FC = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const autoJoinedRef = useRef(false);
+  const settingsLoadedRef = useRef(false);
+  const shouldAutoConnectRef = useRef(false);
+  const autoConnectInFlightRef = useRef(false);
+  const lastAutoConnectKeyRef = useRef<string | null>(null);
 
   // Load settings and agents on mount
   useEffect(() => {
     window.chatAPI?.getSettings().then((s) => {
-      if (s) setSettings(s);
+      if (s) {
+        setSettings(s);
+        shouldAutoConnectRef.current = Boolean(s.username?.trim());
+      }
+      settingsLoadedRef.current = true;
     });
     window.electronAPI.aiAgents.get().then(setAllAgents);
     window.chatAPI?.status().then(({ status: s }) => {
       setStatus(s as ConnectionStatus);
+      if (s === "connected") {
+        autoJoinedRef.current = true;
+        window.chatAPI?.listRooms();
+      }
     });
   }, []);
 
@@ -58,6 +70,9 @@ export const ChatPage: React.FC = () => {
           setJoinedRoomIds(new Set());
           setActiveRoomId(null);
           autoJoinedRef.current = false;
+        } else if (s === "connected") {
+          autoJoinedRef.current = false;
+          window.chatAPI?.listRooms();
         }
       }) ?? (() => {}),
     );
@@ -160,18 +175,45 @@ export const ChatPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, activeRoomId]);
 
+  // Auto-connect once when a cached username is available
+  useEffect(() => {
+    if (!settingsLoadedRef.current) return;
+    if (!shouldAutoConnectRef.current) return;
+    if (status !== "disconnected") return;
+
+    const username = settings.username.trim();
+    if (!username) return;
+
+    const connectKey = `${settings.serverUrl}|${username}`;
+    if (autoConnectInFlightRef.current) return;
+    if (lastAutoConnectKeyRef.current === connectKey) return;
+
+    autoConnectInFlightRef.current = true;
+    lastAutoConnectKeyRef.current = connectKey;
+
+    const run = async () => {
+      try {
+        await window.chatAPI?.saveSettings(settings);
+        await window.chatAPI?.connect();
+      } finally {
+        autoConnectInFlightRef.current = false;
+      }
+    };
+
+    run();
+  }, [settings, status]);
+
+  // Reset last attempt after successful connection so future reconnects can happen if needed
+  useEffect(() => {
+    if (status === "connected") {
+      lastAutoConnectKeyRef.current = null;
+    }
+  }, [status]);
+
   // Handlers
   const handleConnect = async () => {
     await window.chatAPI?.saveSettings(settings);
     await window.chatAPI?.connect();
-  };
-
-  const handleDisconnect = async () => {
-    await window.chatAPI?.disconnect();
-    setRooms([]);
-    setJoinedRoomIds(new Set());
-    setActiveRoomId(null);
-    setMessages({});
   };
 
   const handleJoin = async (roomId: string) => {
@@ -251,15 +293,20 @@ export const ChatPage: React.FC = () => {
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
             Chat Rooms
           </h2>
-          <input
+          {/* input disabled temporarily */}
+          {/* <input
             type="text"
             value={settings.serverUrl}
             onChange={(e) => setSettings((s) => ({ ...s, serverUrl: e.target.value }))}
             placeholder="ws://localhost:4242"
             disabled={status !== "disconnected"}
             className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-gray-200 placeholder-gray-600 disabled:opacity-50"
-          />
+          /> */}
+          <label htmlFor="chat-username" className="block text-xs text-gray-500 mt-2">
+            Display name
+          </label>
           <input
+            id="chat-username"
             type="text"
             value={settings.username}
             onChange={(e) => setSettings((s) => ({ ...s, username: e.target.value }))}
@@ -268,23 +315,16 @@ export const ChatPage: React.FC = () => {
             className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-gray-200 placeholder-gray-600 disabled:opacity-50"
           />
           <div className="flex items-center gap-2 pt-1">
-            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusColor}`} />
-            <span className="text-xs text-gray-500 flex-1">{statusLabel}</span>
-            {status === "disconnected" ? (
+            {/* <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusColor}`} />
+            <span className="text-xs text-gray-500 flex-1">{statusLabel}</span> */}
+            {status === "disconnected" && (
               <button
-                onClick={handleConnect}
-                disabled={!settings.username.trim()}
-                className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Connect
-              </button>
-            ) : (
-              <button
-                onClick={handleDisconnect}
-                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg transition-colors"
-              >
-                {status === "connecting" ? "Cancel" : "Disconnect"}
-              </button>
+                  onClick={handleConnect}
+                  disabled={!settings.username.trim()}
+                  className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Connect
+                </button>
             )}
           </div>
         </div>
