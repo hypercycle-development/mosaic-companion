@@ -50,6 +50,7 @@ export interface Web3ToolArgs {
   "web3:wallet-exists": Record<string, never>;
   "web3:transfer_eth": { to: string; amount: string };
   "web3:transfer_token": { to: string; amount: string; token: string };
+  "web3:transfer_toda": { to: string; amount: string; typeHash: string };
   "web3:lookup_saved_wallet": { name: string };
   "web3:save_wallet_contact": { name: string; address: string };
   "web3:delete_wallet_contact": { id: string };

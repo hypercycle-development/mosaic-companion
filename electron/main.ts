@@ -52,8 +52,16 @@ import {
   updateSafetySettings,
   type Web3Config,
   type NetworkId,
+  type NetworkConfig,
+  clearTodaTwinInfoAddress,
 } from "./integrations/web3/config";
 import { saveWalletKey } from "./integrations/web3/index";
+import {
+  saveTodaApiKey,
+  deleteTodaApiKey,
+  hasTodaConfig,
+  syncTodaTwinInfoAddressFromTwin,
+} from "./integrations/web3/toda";
 import {
   getBoxes,
   getBox,
@@ -705,16 +713,73 @@ ipcMain.handle("web3:get-config", async () => {
 ipcMain.handle("web3:update-config", async (_event, updates: Partial<Web3Config>) => {
   try {
     const config = loadConfig();
-    // Apply granular updates
+    const prevTodaHost = config.networks.toda?.twinHostname?.trim() ?? "";
     if (updates.activeNetwork) setActiveNetwork(updates.activeNetwork);
     if (updates.safety) updateSafetySettings(updates.safety);
-    // For full config replacement (tokens, limits, bans updated via their own tools/IPC)
-    const merged = { ...config, ...updates, safety: { ...config.safety, ...(updates.safety || {}) } };
+
+    const baseNetworks = config.networks;
+    const networks: Record<string, NetworkConfig> = updates.networks
+      ? Object.fromEntries(
+          Object.entries({ ...baseNetworks, ...updates.networks }).map(([k, v]) => [
+            k,
+            { ...baseNetworks[k as NetworkId], ...v } as NetworkConfig,
+          ]),
+        ) as Record<NetworkId, NetworkConfig>
+      : baseNetworks;
+
+    const merged: Web3Config = {
+      ...config,
+      ...updates,
+      networks,
+      safety: { ...config.safety, ...(updates.safety || {}) },
+    };
     saveConfig(merged);
+
+    const todaNet = merged.networks.toda;
+    const nextTodaHost = todaNet?.twinHostname?.trim() ?? "";
+    if (todaNet && !nextTodaHost) {
+      if (todaNet.twinInfoAddress) {
+        todaNet.twinInfoAddress = "";
+        saveConfig(merged);
+      }
+    } else if (hasTodaConfig() && prevTodaHost !== nextTodaHost) {
+      const sr = await syncTodaTwinInfoAddressFromTwin();
+      if (!sr.ok) {
+        console.warn("[Web3] TODA Twin /info sync after hostname change:", sr.error);
+      }
+    }
+
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+});
+
+// TODA Twin config (API key stored separately, encrypted)
+ipcMain.handle("web3:save-toda-api-key", async (_event, apiKey: string) => {
+  try {
+    if (!apiKey?.trim()) return { success: false, error: "API key is required." };
+    const saved = saveTodaApiKey(apiKey.trim());
+    if (saved && hasTodaConfig()) {
+      const sr = await syncTodaTwinInfoAddressFromTwin();
+      if (!sr.ok) {
+        console.warn("[Web3] TODA Twin /info sync after API key save:", sr.error);
+      }
+    }
+    return { success: saved };
+  } catch {
+    return { success: false, error: "Failed to save TODA API key." };
+  }
+});
+
+ipcMain.handle("web3:delete-toda-api-key", async () => {
+  const ok = deleteTodaApiKey();
+  if (ok) clearTodaTwinInfoAddress();
+  return { success: ok };
+});
+
+ipcMain.handle("web3:toda-has-config", async () => {
+  return { configured: hasTodaConfig() };
 });
 
 // Web3 wallet import (secure paths — key never passes through renderer IPC)

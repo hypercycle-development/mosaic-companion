@@ -220,6 +220,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("wallet:imported", handler);
       return () => ipcRenderer.removeListener("wallet:imported", handler);
     },
+    // TODA
+    saveTodaApiKey: (apiKey: string) =>
+      ipcRenderer.invoke("web3:save-toda-api-key", apiKey),
+    deleteTodaApiKey: () => ipcRenderer.invoke("web3:delete-toda-api-key"),
+    todaHasConfig: () => ipcRenderer.invoke("web3:toda-has-config"),
   },
   // Vault (named boxes & agent access)
   vault: {

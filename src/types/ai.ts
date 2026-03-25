@@ -1,14 +1,20 @@
 import { ToolUIBlock } from "../components/tool-ui";
 // AI Agent Types and Configuration
 
-export type AIProvider = "claude" | "openai" | "gemini" | "ollama" | "custom";
+export type AIProvider =
+  | "claude"
+  | "openai"
+  | "gemini"
+  | "ollama"
+  | "custom"
+  | "hypercycle";
 
 export interface AIAgentConfig {
   id: string;
   name: string;
   provider: AIProvider;
   apiKey: string;
-  baseUrl?: string; // For custom endpoints or Ollama
+  baseUrl?: string; // Custom/Ollama endpoint, or Hypercycle node base (http://host — no :8000)
   model: string;
   maxTokens?: number;
   temperature?: number;
@@ -16,6 +22,30 @@ export interface AIAgentConfig {
   createdAt: number;
   boxAccess?: string[]; // IDs of vault boxes this agent can access
   richUI?: boolean; // Allow agent to render charts, tables, cards inline via <mosaic_ui>
+  /**
+   * Hypercycle: optional override for `sender` on GET /nonce (TODA address).
+   * If omitted, uses the Twin GET /info `address` cached in Web3 config when TODA is saved.
+   */
+  hypercycleSender?: string;
+  /** Hypercycle node: `currency-type` header (default TDN) */
+  hypercycleCurrencyType?: string;
+  /**
+   * Hypercycle: AIM request base URL (port 8006), e.g. http://host:8006.
+   * If omitted, host is taken from `baseUrl` (nonce URL) with port 8006.
+   */
+  hypercycleAimBaseUrl?: string;
+  /** Hypercycle: `tx-signature` header until real signing exists (default placeholder) */
+  hypercycleTxSignature?: string;
+  /**
+   * Hypercycle: stream POST base URL (port 4001), e.g. http://host:4001.
+   * If omitted, same host as node `baseUrl` with port 4001.
+   */
+  hypercycleStreamBaseUrl?: string;
+  /**
+   * Hypercycle: optional `tx-sender` for POST /stream only (e.g. name.hypercycle.biz.todaq.net).
+   * If omitted, uses the same TODA address as nonce/AIM steps.
+   */
+  hypercycleStreamTxSender?: string;
 }
 
 export interface ChatMessage {
@@ -62,6 +92,7 @@ export const DEFAULT_MODELS: Record<AIProvider, string[]> = {
   gemini: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
   ollama: ["llama3.2", "mistral", "codellama", "deepseek-coder"],
   custom: [],
+  hypercycle: ["hypercycle-node"],
 };
 
 export const PROVIDER_INFO: Record<
@@ -92,5 +123,10 @@ export const PROVIDER_INFO: Record<
     name: "Custom Endpoint",
     color: "#6B7280",
     baseUrl: "",
+  },
+  hypercycle: {
+    name: "Hypercycle Node",
+    color: "#22D3EE",
+    baseUrl: "http://207.53.252.108",
   },
 };
