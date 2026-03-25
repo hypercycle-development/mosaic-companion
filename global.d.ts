@@ -254,6 +254,9 @@ declare global {
           saveTodaApiKey: (apiKey: string) => Promise<{ success: boolean; error?: string }>;
           deleteTodaApiKey: () => Promise<{ success: boolean }>;
           todaHasConfig: () => Promise<{ configured: boolean }>;
+          signHypercycleNonce: (
+            nonce: string,
+          ) => Promise<{ success: boolean; signature?: string; error?: string }>;
       };
 
       // Tools registry bridge

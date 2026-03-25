@@ -9,12 +9,15 @@ export type AIProvider =
   | "custom"
   | "hypercycle";
 
+/** Hypercycle routing: direct TODA node vs hyperpg forward (ports in URL path). */
+export type HypercycleBackend = "toda" | "basechain";
+
 export interface AIAgentConfig {
   id: string;
   name: string;
   provider: AIProvider;
   apiKey: string;
-  baseUrl?: string; // Custom/Ollama endpoint, or Hypercycle node base (http://host — no :8000)
+  baseUrl?: string; // Custom/Ollama endpoint, or Hypercycle node base (see hypercycleBackend)
   model: string;
   maxTokens?: number;
   temperature?: number;
@@ -23,19 +26,24 @@ export interface AIAgentConfig {
   boxAccess?: string[]; // IDs of vault boxes this agent can access
   richUI?: boolean; // Allow agent to render charts, tables, cards inline via <mosaic_ui>
   /**
-   * Hypercycle: optional override for `sender` on GET /nonce (TODA address).
-   * If omitted, uses the Twin GET /info `address` cached in Web3 config when TODA is saved.
+   * Hypercycle: `toda` (default) = direct node, host + ports 8000/8006/4001.
+   * `basechain` = hyperpg forward base, e.g. `https://hyperpg.site/forward/54.67.32.117` — ports are path segments.
    */
-  hypercycleSender?: string;
-  /** Hypercycle node: `currency-type` header (default TDN) */
+  hypercycleBackend?: HypercycleBackend;
+  /** Hypercycle TODA direct: `currency-type` header (default TDN). Omitted for Basechain. */
   hypercycleCurrencyType?: string;
   /**
    * Hypercycle: AIM request base URL (port 8006), e.g. http://host:8006.
    * If omitted, host is taken from `baseUrl` (nonce URL) with port 8006.
    */
   hypercycleAimBaseUrl?: string;
-  /** Hypercycle: `tx-signature` header until real signing exists (default placeholder) */
+  /**
+   * Hypercycle: optional `tx-signature` override.
+   * TODA: placeholder if unset. Basechain: wallet EIP-191 signs the nonce automatically if unset.
+   */
   hypercycleTxSignature?: string;
+  /** Hypercycle: override `tx-driver` header (default: toda_micropay / basechain). */
+  hypercycleTxDriver?: string;
   /**
    * Hypercycle: stream POST base URL (port 4001), e.g. http://host:4001.
    * If omitted, same host as node `baseUrl` with port 4001.
@@ -92,7 +100,7 @@ export const DEFAULT_MODELS: Record<AIProvider, string[]> = {
   gemini: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
   ollama: ["llama3.2", "mistral", "codellama", "deepseek-coder"],
   custom: [],
-  hypercycle: ["hypercycle-node"],
+  hypercycle: ["claude-sonnet-4-5-20250929"],
 };
 
 export const PROVIDER_INFO: Record<

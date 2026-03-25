@@ -56,6 +56,7 @@ import {
   clearTodaTwinInfoAddress,
 } from "./integrations/web3/config";
 import { saveWalletKey } from "./integrations/web3/index";
+import { signHypercycleNonceWithWallet } from "./integrations/web3/hypercycleSign";
 import {
   saveTodaApiKey,
   deleteTodaApiKey,
@@ -780,6 +781,10 @@ ipcMain.handle("web3:delete-toda-api-key", async () => {
 
 ipcMain.handle("web3:toda-has-config", async () => {
   return { configured: hasTodaConfig() };
+});
+
+ipcMain.handle("web3:sign-hypercycle-nonce", async (_event, nonce: string) => {
+  return signHypercycleNonceWithWallet(typeof nonce === "string" ? nonce : "");
 });
 
 // Web3 wallet import (secure paths — key never passes through renderer IPC)

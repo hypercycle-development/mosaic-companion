@@ -25,6 +25,7 @@ import {
   AIAgentConfig,
   AIProvider,
   DEFAULT_MODELS,
+  HypercycleBackend,
   PROVIDER_INFO,
 } from "../types/ai";
 import { AIService } from "../services/AIService";
@@ -448,8 +449,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       baseUrl: provider === "custom" ? "" : info.baseUrl,
     };
     if (provider === "hypercycle") {
+      patch.hypercycleBackend = "toda";
       patch.hypercycleCurrencyType = "TDN";
-      patch.hypercycleSender = "";
     }
     updateAgent(agentId, patch);
   };
@@ -708,13 +709,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                                   ? "Node base URL"
                                   : "Base URL"}
                               </span>
-                              {agent.provider === "hypercycle" && (
-                                <p className="text-xs text-gray-600 mb-1.5">
-                                  Scheme and host only (no port). Nonce uses port 8000, AIM 8006,
-                                  stream 4001 — added automatically unless you override AIM/stream
-                                  URLs below.
-                                </p>
-                              )}
+                              {agent.provider === "hypercycle" &&
+                                agent.hypercycleBackend !== "basechain" && (
+                                  <p className="text-xs text-gray-600 mb-1.5">
+                                    Scheme and host only (no port). Nonce uses port 8000, AIM 8006,
+                                    stream 4001 — added automatically unless you override AIM/stream
+                                    URLs below.
+                                  </p>
+                                )}
                               <input
                                 type="text"
                                 value={agent.baseUrl || ""}
@@ -726,7 +728,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                                 className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100 font-mono text-sm"
                                 placeholder={
                                   agent.provider === "hypercycle"
-                                    ? "http://207.53.252.108"
+                                    ? agent.hypercycleBackend === "basechain"
+                                      ? "http://207.53.252.108 or https://hyperpg.site/forward/…"
+                                      : "http://207.53.252.108"
                                     : "http://localhost:11434"
                                 }
                               />
@@ -737,43 +741,38 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                         {agent.provider === "hypercycle" && (
                           <div className="grid grid-cols-2 gap-4">
                             <label className="block col-span-2">
-                              <span className="text-sm text-gray-400 mb-1 block">
-                                Sender override (optional)
-                              </span>
-                              <p className="text-xs text-gray-600 mb-1.5">
-                                Leave empty to use the TODA address cached from your Twin&apos;s{" "}
-                                <code className="text-gray-500">GET /info</code> (saved when you
-                                configure Web3 → TODA). Falls back to the wallet tool on TODA or the
-                                hostname-derived address. Not a Twin URL — the plain address string.
-                              </p>
-                              <input
-                                type="text"
-                                value={agent.hypercycleSender || ""}
+                              <span className="text-sm text-gray-400 mb-1 block">Chain</span>
+                              <select
+                                value={agent.hypercycleBackend || "toda"}
                                 onChange={(e) =>
                                   updateAgent(agent.id, {
-                                    hypercycleSender: e.target.value.trim(),
+                                    hypercycleBackend: e.target.value as HypercycleBackend,
                                   })
                                 }
-                                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
-                                placeholder="Leave empty for cached Twin /info address"
-                              />
+                                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 text-sm"
+                              >
+                                <option value="toda">TODA</option>
+                                <option value="basechain">Basechain</option>
+                              </select>
                             </label>
-                            <label className="block">
-                              <span className="text-sm text-gray-400 mb-1 block">
-                                Currency type
-                              </span>
-                              <input
-                                type="text"
-                                value={agent.hypercycleCurrencyType || "TDN"}
-                                onChange={(e) =>
-                                  updateAgent(agent.id, {
-                                    hypercycleCurrencyType: e.target.value.trim() || "TDN",
-                                  })
-                                }
-                                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
-                                placeholder="TDN"
-                              />
-                            </label>
+                            {agent.hypercycleBackend !== "basechain" && (
+                              <label className="block">
+                                <span className="text-sm text-gray-400 mb-1 block">
+                                  Currency type
+                                </span>
+                                <input
+                                  type="text"
+                                  value={agent.hypercycleCurrencyType || "TDN"}
+                                  onChange={(e) =>
+                                    updateAgent(agent.id, {
+                                      hypercycleCurrencyType: e.target.value.trim() || "TDN",
+                                    })
+                                  }
+                                  className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+                                  placeholder="TDN"
+                                />
+                              </label>
+                            )}
                             <label className="block col-span-2">
                               <span className="text-sm text-gray-400 mb-1 block">
                                 AIM API base URL (optional)
@@ -800,7 +799,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               </span>
                               <p className="text-xs text-gray-600 mb-1">
                                 POST /stream uses port 4001. Leave empty to use the same host as node
-                                base URL with port 4001.
+                                base URL with port 4001 (or Basechain: …/4001).
                               </p>
                               <input
                                 type="text"
@@ -840,9 +839,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               <span className="text-sm text-gray-400 mb-1 block">
                                 tx-signature (optional)
                               </span>
-                              <p className="text-xs text-gray-600 mb-1">
-                                Placeholder until micropay signing is wired; default is a stub value.
-                              </p>
+                              {agent.hypercycleBackend === "basechain" ? (
+                                <p className="text-xs text-gray-600 mb-1">
+                                  Default: EIP-191 signature of the nonce with your Mosaic wallet
+                                  private key. Set this field only to override (e.g. debugging).
+                                </p>
+                              ) : (
+                                <p className="text-xs text-gray-600 mb-1">
+                                  TODA micropay: placeholder until gateway requires real signing;
+                                  default is a stub value.
+                                </p>
+                              )}
                               <input
                                 type="text"
                                 value={agent.hypercycleTxSignature || ""}
@@ -852,7 +859,32 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                                   })
                                 }
                                 className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
-                                placeholder="Leave empty for built-in placeholder"
+                                placeholder={
+                                  agent.hypercycleBackend === "basechain"
+                                    ? "Leave empty — wallet signs nonce"
+                                    : "Leave empty for built-in placeholder"
+                                }
+                              />
+                            </label>
+                            <label className="block col-span-2">
+                              <span className="text-sm text-gray-400 mb-1 block">
+                                tx-driver (optional)
+                              </span>
+                              <p className="text-xs text-gray-600 mb-1">
+                                Default: <code className="text-gray-500">toda_micropay</code> (TODA) or{" "}
+                                <code className="text-gray-500">basechain</code> (Basechain). Override
+                                if your gateway expects a different value.
+                              </p>
+                              <input
+                                type="text"
+                                value={agent.hypercycleTxDriver || ""}
+                                onChange={(e) =>
+                                  updateAgent(agent.id, {
+                                    hypercycleTxDriver: e.target.value.trim(),
+                                  })
+                                }
+                                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+                                placeholder="Leave empty for default"
                               />
                             </label>
                           </div>
