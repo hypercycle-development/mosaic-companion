@@ -7,12 +7,16 @@ import {
   extractTokenFromAimResponse,
   probeHypercycleStream,
   fetchHypercycleNonce,
+  getHypercycleTxDriver,
   HYPERCYCLE_AIM_PATH,
   HYPERCYCLE_STREAM_PATH,
+  isHypercycleBasechainConfig,
   postHypercycleAimRequest,
   resolveHypercycleAimBaseUrl,
+  resolveHypercycleNonceServiceBaseUrlForConfig,
   resolveHypercycleSender,
   resolveHypercycleStreamBaseUrl,
+  resolveHypercycleTxSignature,
   txSenderForHypercycleStream,
   type HypercycleStreamCallbacks,
 } from "./hypercycleAgent";
@@ -292,16 +296,23 @@ export class AIService {
     const baseUrl = config.baseUrl?.trim();
     if (!baseUrl) {
       throw new Error(
-        "Hypercycle node base URL is required (e.g. http://host — port 8000 is used for /nonce).",
+        isHypercycleBasechainConfig(config)
+          ? "Hypercycle Basechain base URL is required (e.g. https://hyperpg.site/forward/54.67.32.117)."
+          : "Hypercycle node base URL is required (e.g. http://host — port 8000 is used for /nonce).",
       );
     }
 
     const sender = await resolveHypercycleSender(config);
+    const nonceServiceBase = resolveHypercycleNonceServiceBaseUrlForConfig(config);
     const { nonce } = await fetchHypercycleNonce({
-      baseUrl,
+      nonceServiceBaseUrl: nonceServiceBase,
       sender,
       currencyType: config.hypercycleCurrencyType || "TDN",
+      sendCurrencyType: !isHypercycleBasechainConfig(config),
     });
+
+    const txDriver = getHypercycleTxDriver(config);
+    const txSignature = await resolveHypercycleTxSignature(config, nonce);
 
     const aimBase = resolveHypercycleAimBaseUrl(config);
     const aimMessages = chatMessagesToHypercycleAimMessages(messages);
@@ -315,7 +326,8 @@ export class AIService {
       nonce,
       messages: aimMessages,
       model: config.model?.trim() || "claude-sonnet-4-5-20250929",
-      txSignature: config.hypercycleTxSignature,
+      txSignature,
+      txDriver,
     });
 
     if (!aim.ok) {
@@ -355,7 +367,8 @@ export class AIService {
       sender: streamSender,
       nonce,
       token,
-      txSignature: config.hypercycleTxSignature,
+      txSignature,
+      txDriver,
       callbacks: streamCallbacks,
     });
   }
@@ -395,16 +408,31 @@ export class AIService {
         if (!baseUrl) {
           return {
             success: false,
-            message:
-              "Set node base URL (e.g. http://207.53.252.108 — port 8000 is added for /nonce).",
+            message: isHypercycleBasechainConfig(config)
+              ? "Set Basechain forward base URL (e.g. https://hyperpg.site/forward/54.67.32.117)."
+              : "Set node base URL (e.g. http://207.53.252.108 — port 8000 is added for /nonce).",
           };
         }
         const sender = await resolveHypercycleSender(config);
+        const nonceServiceBase =
+          resolveHypercycleNonceServiceBaseUrlForConfig(config);
         const { nonce } = await fetchHypercycleNonce({
-          baseUrl,
+          nonceServiceBaseUrl: nonceServiceBase,
           sender,
           currencyType: config.hypercycleCurrencyType || "TDN",
+          sendCurrencyType: !isHypercycleBasechainConfig(config),
         });
+
+        const txDriver = getHypercycleTxDriver(config);
+        let txSignature: string;
+        try {
+          txSignature = await resolveHypercycleTxSignature(config, nonce);
+        } catch (e) {
+          return {
+            success: false,
+            message: e instanceof Error ? e.message : String(e),
+          };
+        }
 
         const aimBase = resolveHypercycleAimBaseUrl(config);
         const testUserMsg: ChatMessage = {
@@ -421,7 +449,8 @@ export class AIService {
           nonce,
           messages: aimMessages,
           model: config.model?.trim() || "claude-sonnet-4-5-20250929",
-          txSignature: config.hypercycleTxSignature,
+          txSignature,
+          txDriver,
         });
 
         if (!aim.ok) {
@@ -451,7 +480,8 @@ export class AIService {
             sender: streamSender,
             nonce,
             token,
-            txSignature: config.hypercycleTxSignature,
+            txSignature,
+            txDriver,
           });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);

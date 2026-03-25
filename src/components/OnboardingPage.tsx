@@ -126,7 +126,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
       model: DEFAULT_MODELS[provider][0] || "",
       baseUrl: provider === "custom" ? "" : PROVIDER_INFO[provider].baseUrl,
       ...(provider === "hypercycle"
-        ? { hypercycleCurrencyType: "TDN", hypercycleSender: "" }
+        ? { hypercycleCurrencyType: "TDN" }
         : {}),
     });
     setTestStatus({ status: "idle" });
@@ -153,7 +153,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
         temperature: agentConfig.temperature,
         isActive: true,
         createdAt: Date.now(),
-        hypercycleSender: agentConfig.hypercycleSender,
         hypercycleCurrencyType: agentConfig.hypercycleCurrencyType,
       };
       const result = await AIService.testConnection(config);
@@ -182,7 +181,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
       temperature: agentConfig.temperature ?? 0.7,
       isActive: true,
       createdAt: Date.now(),
-      hypercycleSender: agentConfig.hypercycleSender,
       hypercycleCurrencyType: agentConfig.hypercycleCurrencyType,
     };
 
@@ -467,27 +465,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
 
               {agentConfig.provider === "hypercycle" && (
                 <>
-                  <label className="block">
-                    <span className="text-sm text-gray-400 mb-1 block">
-                      Sender override (optional)
-                    </span>
-                    <p className="text-xs text-gray-600 mb-1">
-                      Empty = TODA address from Twin GET /info (cached in Web3 when you save TODA
-                      config). Not a Twin URL.
-                    </p>
-                    <input
-                      type="text"
-                      value={agentConfig.hypercycleSender || ""}
-                      onChange={(e) =>
-                        setAgentConfig({
-                          ...agentConfig,
-                          hypercycleSender: e.target.value.trim(),
-                        })
-                      }
-                      className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
-                      placeholder="Leave empty for Mosaic TODA address"
-                    />
-                  </label>
                   <label className="block">
                     <span className="text-sm text-gray-400 mb-1 block">
                       Currency type

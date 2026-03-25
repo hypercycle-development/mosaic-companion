@@ -225,6 +225,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("web3:save-toda-api-key", apiKey),
     deleteTodaApiKey: () => ipcRenderer.invoke("web3:delete-toda-api-key"),
     todaHasConfig: () => ipcRenderer.invoke("web3:toda-has-config"),
+    signHypercycleNonce: (nonce: string) =>
+      ipcRenderer.invoke("web3:sign-hypercycle-nonce", nonce),
   },
   // Vault (named boxes & agent access)
   vault: {

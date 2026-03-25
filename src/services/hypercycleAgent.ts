@@ -1,12 +1,15 @@
 /**
  * Hypercycle node LLM gateway
  *
- * Step 1: GET {node}:8000/nonce — currency-type, sender (TODA address)
- * Step 2: POST {aimBaseUrl}/api/aim/0/request — tx-driver, tx-sender, tx-nonce, tx-signature;
+ * Step 1: GET …/nonce — sender (+ TODA `currency-type` on direct node).
+ * Step 2: POST …/api/aim/0/request — tx-driver, tx-sender, tx-nonce, tx-signature;
  *   JSON body: { messages: [{ role, content }], model }
- * Step 3: POST {streamBaseUrl}/stream — same tx-* headers; JSON body: { token } from step 2 response.
+ * Step 3: POST …/stream — same tx-* headers; JSON body: { token } from step 2 response.
  *
- * Ports: nonce 8000, AIM 8006, stream 4001 (same host as configured node base unless overridden).
+ * **TODA (direct):** node base `http://host` → ports 8000 / 8006 / 4001 on host.
+ * **Basechain (hyperpg):** requests go through `https://hyperpg.site/forward/{targetHost}/8000|8006|4001/…`.
+ * If you enter only a bare node host (e.g. `http://207.53.252.108`), it is rewritten to that forward
+ * form automatically. If you already paste the full `…/forward/IP` URL, it is left as-is.
  */
 
 import type { AIAgentConfig, ChatMessage } from '../types/ai';
@@ -29,16 +32,58 @@ export const HYPERCYCLE_TX_DRIVER_DEFAULT = 'toda_micropay';
 /** Placeholder until TODA micropay signing is wired */
 export const HYPERCYCLE_TX_SIGNATURE_PLACEHOLDER = 'ndfndsofdn';
 
+/** `tx-driver` for Basechain / hyperpg (EVM-signed nonce). */
+export const HYPERCYCLE_TX_DRIVER_BASECHAIN = 'basechain';
+
+export function isHypercycleBasechainConfig(
+    config: Pick<AIAgentConfig, 'hypercycleBackend'>
+): boolean {
+    return config.hypercycleBackend === 'basechain';
+}
+
+/** Public hyperpg reverse-proxy origin (path continues with `/forward/{target}/8000` …). */
+export const HYPERPG_FORWARD_ORIGIN = 'https://hyperpg.site';
+
+/**
+ * Basechain forward root: `https://hyperpg.site/forward/{targetHost}` (no trailing service port).
+ * - Full forward URL in settings → returned unchanged (minus trailing slash).
+ * - Bare `http(s)://target` or `target` → wrapped so traffic uses hyperpg, not direct `host/8000`.
+ */
+export function resolveHypercycleBasechainForwardRoot(raw: string): string {
+    const t = raw.trim().replace(/\/$/, '');
+    if (!t) {
+        throw new Error('Hypercycle base URL is required.');
+    }
+    if (/\/forward\//i.test(t)) {
+        return t;
+    }
+    const href = t.includes('://') ? t : `http://${t}`;
+    let u: URL;
+    try {
+        u = new URL(href);
+    } catch {
+        throw new Error('Invalid Hypercycle Basechain base URL.');
+    }
+    if (!u.hostname) {
+        throw new Error(
+            'Basechain: use a target host/IP, or the full hyperpg URL including /forward/…'
+        );
+    }
+    return `${HYPERPG_FORWARD_ORIGIN}/forward/${u.hostname}`;
+}
+
 export interface FetchHypercycleNonceOptions {
     /**
-     * Hypercycle node base: scheme + host only (no nonce port), e.g. `http://207.53.252.108`.
-     * Port {@link HYPERCYCLE_NONCE_PORT} is appended for GET /nonce.
+     * Resolved service base for GET /nonce (no `/nonce` suffix).
+     * TODA: `http://host:8000`. Basechain: `https://hyperpg.site/forward/ip/8000`.
      */
-    baseUrl: string;
-    /** TODA address for `sender` header */
+    nonceServiceBaseUrl: string;
+    /** TODA address or `0x` sender for `sender` header */
     sender: string;
-    /** Value for `currency-type` header (default TDN) */
+    /** Value for `currency-type` when {@link sendCurrencyType} is true (default TDN). */
     currencyType?: string;
+    /** When false, omit `currency-type` (Basechain). @default true */
+    sendCurrencyType?: boolean;
 }
 
 export interface HypercycleNonceResult {
@@ -74,6 +119,28 @@ export function normalizeTodaAddressForHypercycleSender(value: string): string {
     return trimmed;
 }
 
+const ETH_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+
+async function resolveHypercycleBasechainSender(): Promise<string> {
+    if (typeof window === 'undefined' || !window.electronAPI?.tools?.execute) {
+        throw new Error(
+            'Cannot resolve Basechain sender outside the Mosaic app.'
+        );
+    }
+    const r = await window.electronAPI.tools.execute(
+        'web3:get_wallet_address',
+        {}
+    );
+    if (r?.success && r.data != null) {
+        const d = r.data as { address?: string };
+        const a = d.address?.trim();
+        if (a && ETH_ADDRESS_RE.test(a)) return a;
+    }
+    throw new Error(
+        'Basechain Hypercycle needs an Ethereum address. Import a Base wallet in Web3 and use Base or Base Sepolia as the active network.'
+    );
+}
+
 /** Cached Twin GET /info `address` from Web3 config (no /info call). */
 async function getTwinInfoAddressFromWeb3Config(): Promise<string | null> {
     const cfg = await window.electronAPI?.web3?.getConfig?.();
@@ -99,19 +166,20 @@ async function tryResolveTodaAddressFromTwinHostname(): Promise<string | null> {
 }
 
 /**
- * Resolve `sender` for GET /nonce: optional manual override, else cached Twin /info address,
- * else get_wallet_address on TODA, else hostname-derived TODA address.
+ * Resolve `sender` for GET /nonce: Basechain = 0x wallet; TODA = Twin /info cache or TODA tool path.
  */
 export async function resolveHypercycleSender(
     config: AIAgentConfig
 ): Promise<string> {
-    const manual = config.hypercycleSender?.trim();
-    if (manual) return normalizeTodaAddressForHypercycleSender(manual);
+    if (isHypercycleBasechainConfig(config)) {
+        return resolveHypercycleBasechainSender();
+    }
+    return resolveHypercycleTodaSender();
+}
 
+async function resolveHypercycleTodaSender(): Promise<string> {
     if (typeof window === 'undefined' || !window.electronAPI?.tools?.execute) {
-        throw new Error(
-            'Cannot resolve TODA address outside the app. Set Sender override in agent settings.'
-        );
+        throw new Error('Cannot resolve TODA address outside the Mosaic app.');
     }
 
     const fromTwinInfo = await getTwinInfoAddressFromWeb3Config();
@@ -136,8 +204,8 @@ export async function resolveHypercycleSender(
             ? r.error
             : 'Could not read TODA address from Web3.';
     throw new Error(
-        `${err} Set a Sender override, or save Web3 → TODA (Twin hostname + API key) so the Twin /info address is cached. ` +
-            `Hypercycle expects the TODA address, not a Twin URL.`
+        `${err} Save Web3 → TODA (Twin hostname + API key) so the Twin /info address is cached, ` +
+            `or switch the active network to TODA. Hypercycle expects the TODA address, not a Twin URL.`
     );
 }
 
@@ -172,9 +240,24 @@ export function resolveHypercycleNonceServiceBaseUrl(nodeBase: string): string {
     return `${protocol}//${hostname}:${HYPERCYCLE_NONCE_PORT}`;
 }
 
+/** Resolved GET /nonce service base from agent config (TODA vs Basechain). */
+export function resolveHypercycleNonceServiceBaseUrlForConfig(
+    config: AIAgentConfig
+): string {
+    const raw = config.baseUrl?.trim();
+    if (!raw) {
+        throw new Error('Hypercycle base URL is required.');
+    }
+    if (isHypercycleBasechainConfig(config)) {
+        const root = resolveHypercycleBasechainForwardRoot(raw);
+        return `${root}/${HYPERCYCLE_NONCE_PORT}`;
+    }
+    return resolveHypercycleNonceServiceBaseUrl(raw);
+}
+
 /**
- * Base URL for AIM requests (port 8006). Uses `hypercycleAimBaseUrl` if set, else same host as
- * node `baseUrl` with port 8006.
+ * Base URL for AIM requests (port 8006). Uses `hypercycleAimBaseUrl` if set, else derived from
+ * `baseUrl` and backend.
  */
 export function resolveHypercycleAimBaseUrl(config: AIAgentConfig): string {
     const override = config.hypercycleAimBaseUrl?.trim();
@@ -182,8 +265,12 @@ export function resolveHypercycleAimBaseUrl(config: AIAgentConfig): string {
     const nodeBase = config.baseUrl?.trim();
     if (!nodeBase) {
         throw new Error(
-            'Hypercycle node base URL is required to derive the AIM endpoint (host:8006).'
+            'Hypercycle base URL is required to derive the AIM endpoint (port 8006).'
         );
+    }
+    if (isHypercycleBasechainConfig(config)) {
+        const root = resolveHypercycleBasechainForwardRoot(nodeBase);
+        return `${root}/${HYPERCYCLE_AIM_PORT}`;
     }
     try {
         const { protocol, hostname } = parseHypercycleNodeBase(nodeBase);
@@ -225,12 +312,13 @@ export function chatMessagesToHypercycleAimMessages(
 
 export interface PostHypercycleAimRequestOptions {
     aimBaseUrl: string;
-    /** TODA address — same as nonce `sender` / tx-sender */
+    /** TODA address or 0x — same as nonce `sender` / tx-sender */
     sender: string;
     nonce: string;
     messages: HypercycleAimMessage[];
     model: string;
     txSignature?: string;
+    /** @default from {@link getHypercycleTxDriver} at call site */
     txDriver?: string;
 }
 
@@ -260,7 +348,8 @@ export async function postHypercycleAimRequest(
         headers: {
             Accept: '*/*',
             'Content-Type': 'application/json',
-            'tx-driver': options.txDriver ?? HYPERCYCLE_TX_DRIVER_DEFAULT,
+            'tx-driver':
+                options.txDriver?.trim() ?? HYPERCYCLE_TX_DRIVER_DEFAULT,
             'tx-sender': options.sender.trim(),
             'tx-nonce': options.nonce.trim(),
             'tx-signature':
@@ -293,31 +382,71 @@ export async function postHypercycleAimRequest(
 }
 
 /**
- * Base URL for POST /stream (port 4001). Override with `hypercycleStreamBaseUrl`, else host from
- * nonce Base URL + port 4001.
+ * Base URL for POST /stream (port 4001). Override with `hypercycleStreamBaseUrl`, else derived
+ * from `baseUrl` and backend.
  */
 export function resolveHypercycleStreamBaseUrl(config: AIAgentConfig): string {
     const override = config.hypercycleStreamBaseUrl?.trim();
     if (override) return override.replace(/\/$/, '');
-    const nonceBase = config.baseUrl?.trim();
-    if (!nonceBase) {
+    const nodeBase = config.baseUrl?.trim();
+    if (!nodeBase) {
         throw new Error(
-            'Hypercycle nonce Base URL is required to derive the stream endpoint (host:4001).'
+            'Hypercycle base URL is required to derive the stream endpoint (port 4001).'
         );
     }
+    if (isHypercycleBasechainConfig(config)) {
+        const root = resolveHypercycleBasechainForwardRoot(nodeBase);
+        return `${root}/${HYPERCYCLE_STREAM_PORT}`;
+    }
     try {
-        const u = new URL(
-            nonceBase.includes('://') ? nonceBase : `http://${nonceBase}`
-        );
-        return `${u.protocol}//${u.hostname}:${HYPERCYCLE_STREAM_PORT}`.replace(
+        const { protocol, hostname } = parseHypercycleNodeBase(nodeBase);
+        return `${protocol}//${hostname}:${HYPERCYCLE_STREAM_PORT}`.replace(
             /\/$/,
             ''
         );
-    } catch {
-        throw new Error(
-            'Invalid Hypercycle nonce Base URL for deriving stream host.'
-        );
+    } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Invalid URL.';
+        throw new Error(`${msg} (stream host)`);
     }
+}
+
+export function getHypercycleTxDriver(config: AIAgentConfig): string {
+    const o = config.hypercycleTxDriver?.trim();
+    if (o) return o;
+    return isHypercycleBasechainConfig(config)
+        ? HYPERCYCLE_TX_DRIVER_BASECHAIN
+        : HYPERCYCLE_TX_DRIVER_DEFAULT;
+}
+
+/**
+ * `tx-signature` header: manual override, else Basechain EIP-191 sign(nonce), else TODA placeholder.
+ */
+export async function resolveHypercycleTxSignature(
+    config: AIAgentConfig,
+    nonce: string
+): Promise<string> {
+    const manual = config.hypercycleTxSignature?.trim();
+    if (manual) return manual;
+    if (isHypercycleBasechainConfig(config)) {
+        const sign = window.electronAPI?.web3?.signHypercycleNonce;
+        if (typeof window === 'undefined' || typeof sign !== 'function') {
+            throw new Error(
+                'Basechain Hypercycle requires signing the nonce in the Mosaic app with your imported wallet.'
+            );
+        }
+        const r = (await sign(nonce)) as {
+            success?: boolean;
+            signature?: string;
+            error?: string;
+        };
+        if (!r?.success || !r.signature?.trim()) {
+            throw new Error(
+                r?.error || 'Failed to sign Hypercycle nonce with wallet.'
+            );
+        }
+        return r.signature.trim();
+    }
+    return HYPERCYCLE_TX_SIGNATURE_PLACEHOLDER;
 }
 
 /** `tx-sender` for /stream when it differs from nonce/AIM (e.g. *.hypercycle.biz.todaq.net). */
@@ -648,26 +777,27 @@ function extractNonce(data: unknown): string | null {
 export async function fetchHypercycleNonce(
     options: FetchHypercycleNonceOptions
 ): Promise<HypercycleNonceResult> {
-    const base = resolveHypercycleNonceServiceBaseUrl(options.baseUrl).replace(
-        /\/$/,
-        ''
-    );
+    const base = options.nonceServiceBaseUrl.trim().replace(/\/$/, '');
     const url = `${base}/nonce`;
     const sender = options.sender.trim();
     if (!sender) {
         throw new Error('Hypercycle sender header is required.');
     }
 
+    const sendCurrencyType = options.sendCurrencyType !== false;
+    const headers: Record<string, string> = {
+        Accept: '*/*',
+        'Content-Type': 'application/json',
+        sender,
+        'User-Agent': 'MosaicCompanion/1.0'
+    };
+    if (sendCurrencyType) {
+        headers['currency-type'] = options.currencyType?.trim() || 'TDN';
+    }
+
     const resp = await fetch(url, {
         method: 'GET',
-        headers: {
-            Accept: '*/*',
-            'Content-Type': 'application/json',
-            'currency-type': options.currencyType?.trim() || 'TDN',
-            sender,
-            // Some clients send a custom UA; browsers may ignore or override.
-            'User-Agent': 'MosaicCompanion/1.0'
-        }
+        headers
     });
 
     const text = await resp.text();
