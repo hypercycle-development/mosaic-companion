@@ -19,7 +19,7 @@ import path from "path";
 interface AgentConfig {
   id: string;
   name: string;
-  provider: "claude" | "openai" | "gemini" | "ollama" | "custom";
+  provider: "claude" | "openai" | "gemini" | "ollama" | "custom" | "hypercycle";
   apiKey: string;
   baseUrl?: string;
   model: string;
@@ -86,6 +86,11 @@ export async function callActiveLLM(
         return await callGemini(agent, [{ role: "user", content: prompt }]);
       case "ollama":
         return await callOllama(agent, [{ role: "user", content: prompt }], systemPrompt);
+      case "hypercycle":
+        console.warn(
+          "[MosaicBot/LLM] Hypercycle provider needs token + stream steps; skipping LLM call.",
+        );
+        return null;
       default:
         throw new Error(`Unknown provider: ${(agent as AgentConfig).provider}`);
     }
