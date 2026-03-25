@@ -180,9 +180,9 @@ export function initChat(): void {
     return { success: true };
   });
 
-  ipcMain.handle("chat:create-room", async (_e: IpcMainInvokeEvent, name: string) => {
+  ipcMain.handle("chat:create-room", async (_e: IpcMainInvokeEvent, name: string, visibility?: string) => {
     if (!chatClient?.isConnected()) return { success: false, error: "Not connected" };
-    chatClient.send({ type: "create-room", name });
+    chatClient.send({ type: "create-room", name, visibility: visibility as any });
     return { success: true };
   });
 
