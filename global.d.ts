@@ -251,6 +251,9 @@ declare global {
           importFromClipboard: () => Promise<{ success: boolean; error?: string }>;
           openSecureImportWindow: () => Promise<void>;
           onWalletImported: (callback: () => void) => () => void;
+          saveTodaApiKey: (apiKey: string) => Promise<{ success: boolean; error?: string }>;
+          deleteTodaApiKey: () => Promise<{ success: boolean }>;
+          todaHasConfig: () => Promise<{ configured: boolean }>;
       };
 
       // Tools registry bridge

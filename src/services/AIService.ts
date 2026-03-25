@@ -1,6 +1,21 @@
 // AI Service - Handles API calls to different AI providers
 
 import { AIAgentConfig, ChatMessage, AIProvider } from "../types/ai";
+import {
+  chatMessagesToHypercycleAimMessages,
+  consumeHypercycleStream,
+  extractTokenFromAimResponse,
+  probeHypercycleStream,
+  fetchHypercycleNonce,
+  HYPERCYCLE_AIM_PATH,
+  HYPERCYCLE_STREAM_PATH,
+  postHypercycleAimRequest,
+  resolveHypercycleAimBaseUrl,
+  resolveHypercycleSender,
+  resolveHypercycleStreamBaseUrl,
+  txSenderForHypercycleStream,
+  type HypercycleStreamCallbacks,
+} from "./hypercycleAgent";
 
 interface StreamCallbacks {
   onToken: (token: string) => void;
@@ -268,6 +283,83 @@ export class AIService {
     }
   }
 
+  /** Hypercycle: GET /nonce → POST /api/aim/0/request → POST /stream with `{ token }`. */
+  static async sendToHypercycle(
+    config: AIAgentConfig,
+    messages: ChatMessage[],
+    callbacks?: StreamCallbacks,
+  ): Promise<string> {
+    const baseUrl = config.baseUrl?.trim();
+    if (!baseUrl) {
+      throw new Error(
+        "Hypercycle node base URL is required (e.g. http://host — port 8000 is used for /nonce).",
+      );
+    }
+
+    const sender = await resolveHypercycleSender(config);
+    const { nonce } = await fetchHypercycleNonce({
+      baseUrl,
+      sender,
+      currencyType: config.hypercycleCurrencyType || "TDN",
+    });
+
+    const aimBase = resolveHypercycleAimBaseUrl(config);
+    const aimMessages = chatMessagesToHypercycleAimMessages(messages);
+    if (aimMessages.length === 0) {
+      throw new Error("Hypercycle requires at least one user or assistant message.");
+    }
+
+    const aim = await postHypercycleAimRequest({
+      aimBaseUrl: aimBase,
+      sender,
+      nonce,
+      messages: aimMessages,
+      model: config.model?.trim() || "claude-sonnet-4-5-20250929",
+      txSignature: config.hypercycleTxSignature,
+    });
+
+    if (!aim.ok) {
+      throw new Error(
+        `Hypercycle AIM failed (${aim.status}): ${aim.rawText || "request error"}`,
+      );
+    }
+
+    const token = extractTokenFromAimResponse(aim.body);
+    if (!token) {
+      const preview =
+        aim.rawText.length > 280 ? `${aim.rawText.slice(0, 280)}…` : aim.rawText;
+      throw new Error(
+        `Hypercycle AIM did not return a stream token. Response: ${preview}`,
+      );
+    }
+
+    const streamBase = resolveHypercycleStreamBaseUrl(config);
+    const streamSender = txSenderForHypercycleStream(config, sender);
+
+    const streamCallbacks: HypercycleStreamCallbacks = callbacks
+      ? {
+          onToken: callbacks.onToken,
+          onComplete: callbacks.onComplete,
+          onError: callbacks.onError,
+        }
+      : {
+          onToken: () => {},
+          onComplete: () => {},
+          onError: (e) => {
+            throw e;
+          },
+        };
+
+    return consumeHypercycleStream({
+      streamBaseUrl: streamBase,
+      sender: streamSender,
+      nonce,
+      token,
+      txSignature: config.hypercycleTxSignature,
+      callbacks: streamCallbacks,
+    });
+  }
+
   // Main send method - routes to appropriate provider
   static async sendMessage(
     config: AIAgentConfig,
@@ -286,6 +378,8 @@ export class AIService {
       case "custom":
         // Custom endpoints assume OpenAI-compatible API
         return this.sendToOpenAI(config, messages, callbacks);
+      case "hypercycle":
+        return this.sendToHypercycle(config, messages, callbacks);
       default:
         throw new Error(`Unknown provider: ${config.provider}`);
     }
@@ -296,6 +390,85 @@ export class AIService {
     config: AIAgentConfig
   ): Promise<{ success: boolean; message: string }> {
     try {
+      if (config.provider === "hypercycle") {
+        const baseUrl = config.baseUrl?.trim();
+        if (!baseUrl) {
+          return {
+            success: false,
+            message:
+              "Set node base URL (e.g. http://207.53.252.108 — port 8000 is added for /nonce).",
+          };
+        }
+        const sender = await resolveHypercycleSender(config);
+        const { nonce } = await fetchHypercycleNonce({
+          baseUrl,
+          sender,
+          currencyType: config.hypercycleCurrencyType || "TDN",
+        });
+
+        const aimBase = resolveHypercycleAimBaseUrl(config);
+        const testUserMsg: ChatMessage = {
+          id: "hypercycle-test",
+          role: "user",
+          content: "Connection test from Mosaic.",
+          timestamp: Date.now(),
+          agentId: config.id,
+        };
+        const aimMessages = chatMessagesToHypercycleAimMessages([testUserMsg]);
+        const aim = await postHypercycleAimRequest({
+          aimBaseUrl: aimBase,
+          sender,
+          nonce,
+          messages: aimMessages,
+          model: config.model?.trim() || "claude-sonnet-4-5-20250929",
+          txSignature: config.hypercycleTxSignature,
+        });
+
+        if (!aim.ok) {
+          const bit =
+            aim.rawText.length > 180 ? `${aim.rawText.slice(0, 180)}…` : aim.rawText;
+          return {
+            success: false,
+            message: `Nonce OK, but AIM request failed (${aim.status}): ${bit}`,
+          };
+        }
+
+        const token = extractTokenFromAimResponse(aim.body);
+        if (!token) {
+          const bit =
+            aim.rawText.length > 160 ? `${aim.rawText.slice(0, 160)}…` : aim.rawText;
+          return {
+            success: false,
+            message: `Nonce + AIM OK, but no stream token in response (POST ${HYPERCYCLE_STREAM_PATH} needs it). Body: ${bit}`,
+          };
+        }
+
+        const streamBase = resolveHypercycleStreamBaseUrl(config);
+        const streamSender = txSenderForHypercycleStream(config, sender);
+        try {
+          await probeHypercycleStream({
+            streamBaseUrl: streamBase,
+            sender: streamSender,
+            nonce,
+            token,
+            txSignature: config.hypercycleTxSignature,
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          return {
+            success: false,
+            message: `Nonce + AIM OK, stream token parsed, but POST ${streamBase}${HYPERCYCLE_STREAM_PATH} failed: ${msg}`,
+          };
+        }
+
+        const noncePreview =
+          nonce.length > 20 ? `${nonce.slice(0, 20)}…` : nonce;
+        return {
+          success: true,
+          message: `Hypercycle OK: nonce + AIM + stream (${streamBase}${HYPERCYCLE_STREAM_PATH}). Nonce: ${noncePreview}`,
+        };
+      }
+
       const testMessages: ChatMessage[] = [
         {
           id: "test",

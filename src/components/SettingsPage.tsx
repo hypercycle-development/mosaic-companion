@@ -32,6 +32,11 @@ import GmailClient from "./GmailClient";
 import { useTheme } from "../ThemeProvider";
 import { ThemeKey } from "../themes";
 
+/** AIService.testConnection only needs an API key for cloud/custom providers. */
+function providerRequiresApiKeyForConnectionTest(p: AIProvider): boolean {
+  return p !== "ollama" && p !== "hypercycle";
+}
+
 interface SettingsPageProps {
   homeUrl: string;
   setHomeUrl: (url: string) => void;
@@ -409,17 +414,26 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const testConnection = async (agent: AIAgentConfig) => {
     setTestResults((prev) => ({ ...prev, [agent.id]: { status: "testing" } }));
 
-    const result = await AIService.testConnection(agent);
+    try {
+      const result = await AIService.testConnection(agent);
+      setTestResults((prev) => ({
+        ...prev,
+        [agent.id]: {
+          status: result.success ? "success" : "error",
+          message: result.message,
+        },
+      }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        [agent.id]: {
+          status: "error",
+          message: e instanceof Error ? e.message : String(e),
+        },
+      }));
+    }
 
-    setTestResults((prev) => ({
-      ...prev,
-      [agent.id]: {
-        status: result.success ? "success" : "error",
-        message: result.message,
-      },
-    }));
-
-    // Clear result after 5 seconds
+    // Clear result after 15 seconds
     setTimeout(() => {
       setTestResults((prev) => ({ ...prev, [agent.id]: { status: "idle" } }));
     }, 15000);
@@ -427,12 +441,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   const handleProviderChange = (agentId: string, provider: AIProvider) => {
     const defaultModel = DEFAULT_MODELS[provider][0] || "";
-    const baseUrl = PROVIDER_INFO[provider].baseUrl;
-    updateAgent(agentId, {
+    const info = PROVIDER_INFO[provider];
+    const patch: Partial<AIAgentConfig> = {
       provider,
       model: defaultModel,
-      baseUrl: provider === "custom" ? "" : baseUrl,
-    });
+      baseUrl: provider === "custom" ? "" : info.baseUrl,
+    };
+    if (provider === "hypercycle") {
+      patch.hypercycleCurrencyType = "TDN";
+      patch.hypercycleSender = "";
+    }
+    updateAgent(agentId, patch);
   };
   useEffect(() => {
     // Set initial array of agents
@@ -608,37 +627,39 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                           </label>
                         </div>
 
-                        {/* API Key */}
-                        <label className="block">
-                          <span className="text-sm text-gray-400 mb-1 block flex items-center gap-1">
-                            <Key size={12} />
-                            API Key
-                          </span>
-                          <div className="relative">
-                            <input
-                              type={showApiKeys[agent.id] ? "text" : "password"}
-                              value={agent.apiKey}
-                              onChange={(e) =>
-                                updateAgent(agent.id, {
-                                  apiKey: e.target.value,
-                                })
-                              }
-                              className="w-full px-3 py-2 pr-10 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100 font-mono text-sm"
-                              placeholder="sk-... or API key"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => toggleApiKeyVisibility(agent.id)}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-300"
-                            >
-                              {showApiKeys[agent.id] ? (
-                                <EyeOff size={16} />
-                              ) : (
-                                <Eye size={16} />
-                              )}
-                            </button>
-                          </div>
-                        </label>
+                        {/* API Key (not used for Hypercycle node nonce flow) */}
+                        {agent.provider !== "hypercycle" && (
+                          <label className="block">
+                            <span className="text-sm text-gray-400 mb-1 block flex items-center gap-1">
+                              <Key size={12} />
+                              API Key
+                            </span>
+                            <div className="relative">
+                              <input
+                                type={showApiKeys[agent.id] ? "text" : "password"}
+                                value={agent.apiKey}
+                                onChange={(e) =>
+                                  updateAgent(agent.id, {
+                                    apiKey: e.target.value,
+                                  })
+                                }
+                                className="w-full px-3 py-2 pr-10 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100 font-mono text-sm"
+                                placeholder="sk-... or API key"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => toggleApiKeyVisibility(agent.id)}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-300"
+                              >
+                                {showApiKeys[agent.id] ? (
+                                  <EyeOff size={16} />
+                                ) : (
+                                  <Eye size={16} />
+                                )}
+                              </button>
+                            </div>
+                          </label>
+                        )}
 
                         {/* Model & Base URL */}
                         <div className="grid grid-cols-2 gap-4">
@@ -679,11 +700,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                           </label>
 
                           {(agent.provider === "custom" ||
-                            agent.provider === "ollama") && (
+                            agent.provider === "ollama" ||
+                            agent.provider === "hypercycle") && (
                             <label className="block">
                               <span className="text-sm text-gray-400 mb-1 block">
-                                Base URL
+                                {agent.provider === "hypercycle"
+                                  ? "Node base URL"
+                                  : "Base URL"}
                               </span>
+                              {agent.provider === "hypercycle" && (
+                                <p className="text-xs text-gray-600 mb-1.5">
+                                  Scheme and host only (no port). Nonce uses port 8000, AIM 8006,
+                                  stream 4001 — added automatically unless you override AIM/stream
+                                  URLs below.
+                                </p>
+                              )}
                               <input
                                 type="text"
                                 value={agent.baseUrl || ""}
@@ -693,11 +724,139 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                                   })
                                 }
                                 className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100 font-mono text-sm"
-                                placeholder="http://localhost:11434"
+                                placeholder={
+                                  agent.provider === "hypercycle"
+                                    ? "http://207.53.252.108"
+                                    : "http://localhost:11434"
+                                }
                               />
                             </label>
                           )}
                         </div>
+
+                        {agent.provider === "hypercycle" && (
+                          <div className="grid grid-cols-2 gap-4">
+                            <label className="block col-span-2">
+                              <span className="text-sm text-gray-400 mb-1 block">
+                                Sender override (optional)
+                              </span>
+                              <p className="text-xs text-gray-600 mb-1.5">
+                                Leave empty to use the TODA address cached from your Twin&apos;s{" "}
+                                <code className="text-gray-500">GET /info</code> (saved when you
+                                configure Web3 → TODA). Falls back to the wallet tool on TODA or the
+                                hostname-derived address. Not a Twin URL — the plain address string.
+                              </p>
+                              <input
+                                type="text"
+                                value={agent.hypercycleSender || ""}
+                                onChange={(e) =>
+                                  updateAgent(agent.id, {
+                                    hypercycleSender: e.target.value.trim(),
+                                  })
+                                }
+                                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+                                placeholder="Leave empty for cached Twin /info address"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="text-sm text-gray-400 mb-1 block">
+                                Currency type
+                              </span>
+                              <input
+                                type="text"
+                                value={agent.hypercycleCurrencyType || "TDN"}
+                                onChange={(e) =>
+                                  updateAgent(agent.id, {
+                                    hypercycleCurrencyType: e.target.value.trim() || "TDN",
+                                  })
+                                }
+                                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+                                placeholder="TDN"
+                              />
+                            </label>
+                            <label className="block col-span-2">
+                              <span className="text-sm text-gray-400 mb-1 block">
+                                AIM API base URL (optional)
+                              </span>
+                              <p className="text-xs text-gray-600 mb-1">
+                                POST /api/aim/0/request uses port 8006. Leave empty to use the same
+                                host as node base URL above with port 8006.
+                              </p>
+                              <input
+                                type="text"
+                                value={agent.hypercycleAimBaseUrl || ""}
+                                onChange={(e) =>
+                                  updateAgent(agent.id, {
+                                    hypercycleAimBaseUrl: e.target.value.trim(),
+                                  })
+                                }
+                                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+                                placeholder="http://207.53.252.108:8006"
+                              />
+                            </label>
+                            <label className="block col-span-2">
+                              <span className="text-sm text-gray-400 mb-1 block">
+                                Stream base URL (optional)
+                              </span>
+                              <p className="text-xs text-gray-600 mb-1">
+                                POST /stream uses port 4001. Leave empty to use the same host as node
+                                base URL with port 4001.
+                              </p>
+                              <input
+                                type="text"
+                                value={agent.hypercycleStreamBaseUrl || ""}
+                                onChange={(e) =>
+                                  updateAgent(agent.id, {
+                                    hypercycleStreamBaseUrl: e.target.value.trim(),
+                                  })
+                                }
+                                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+                                placeholder="http://207.53.252.108:4001"
+                              />
+                            </label>
+                            <label className="block col-span-2">
+                              <span className="text-sm text-gray-400 mb-1 block">
+                                Stream tx-sender override (optional)
+                              </span>
+                              <p className="text-xs text-gray-600 mb-1">
+                                If POST /stream must use a different{" "}
+                                <code className="text-gray-500">tx-sender</code> than nonce/AIM (e.g.{" "}
+                                <code className="text-gray-500">*.hypercycle.biz.todaq.net</code>
+                                ), set it here. Leave empty to reuse the TODA address above.
+                              </p>
+                              <input
+                                type="text"
+                                value={agent.hypercycleStreamTxSender || ""}
+                                onChange={(e) =>
+                                  updateAgent(agent.id, {
+                                    hypercycleStreamTxSender: e.target.value.trim(),
+                                  })
+                                }
+                                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+                                placeholder="Leave empty — same as nonce/AIM sender"
+                              />
+                            </label>
+                            <label className="block col-span-2">
+                              <span className="text-sm text-gray-400 mb-1 block">
+                                tx-signature (optional)
+                              </span>
+                              <p className="text-xs text-gray-600 mb-1">
+                                Placeholder until micropay signing is wired; default is a stub value.
+                              </p>
+                              <input
+                                type="text"
+                                value={agent.hypercycleTxSignature || ""}
+                                onChange={(e) =>
+                                  updateAgent(agent.id, {
+                                    hypercycleTxSignature: e.target.value.trim(),
+                                  })
+                                }
+                                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+                                placeholder="Leave empty for built-in placeholder"
+                              />
+                            </label>
+                          </div>
+                        )}
 
                         {/* Advanced Settings */}
                         <div className="grid grid-cols-2 gap-4">
@@ -814,7 +973,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                           <button
                             onClick={() => testConnection(agent)}
                             disabled={
-                              !agent.apiKey || testResult.status === "testing"
+                              testResult.status === "testing" ||
+                              (providerRequiresApiKeyForConnectionTest(
+                                agent.provider,
+                              ) &&
+                                !agent.apiKey?.trim())
                             }
                             className={`
                               flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium
