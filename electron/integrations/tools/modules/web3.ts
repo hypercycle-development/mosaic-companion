@@ -25,7 +25,9 @@ import {
   saveAddressBookContact,
   deleteAddressBookContact,
   lookupContact,
+  withWalletKey,
 } from "../../web3/index";
+import { PRIVATE_KEY_GENERATION_PLACEHOLDER } from "../../web3/constants";
 import {
   loadConfig,
   getActiveRpcUrl,
@@ -48,9 +50,18 @@ import {
   preFlightCheck,
   recordSpend,
   lookupTokenOnChain,
+  getTodaTwinHostname,
+  getTodaTwinInfoAddress,
   type NetworkId,
   type TokenConfig,
 } from "../../web3/config";
+import {
+  getTodaAddress,
+  fetchTodaBalance,
+  executeTodaTransfer,
+  hasTodaConfig,
+  type TodaDqEntry,
+} from "../../web3/toda";
 
 // =============================================================================
 // Symbol Mapping (for CoinGecko)
@@ -95,7 +106,7 @@ export async function fetchCryptoPrice(symbol: string): Promise<string> {
 }
 
 /**
- * Resolve an address or contact name to a wallet address.
+ * Resolve an address or contact name to a wallet address (0x for Base).
  */
 export function resolveAddress(
   addressOrName: string,
@@ -107,6 +118,29 @@ export function resolveAddress(
   if (contact) {
     return { address: contact.address, resolvedName: contact.name };
   }
+  return null;
+}
+
+/** Check if string looks like a TODA Twin URL */
+function isTwinUrl(s: string): boolean {
+  const t = s.trim();
+  return (t.startsWith("https://") || t.startsWith("http://")) && t.includes(".todaq.net");
+}
+
+/**
+ * Resolve an address or contact name to a TODA Twin URL.
+ */
+export function resolveTodaAddress(
+  addressOrName: string,
+): { address: string; resolvedName?: string } | null {
+  if (isTwinUrl(addressOrName)) {
+    return { address: addressOrName.trim() };
+  }
+  const contact = lookupContact(addressOrName);
+  if (contact && isTwinUrl(contact.address)) {
+    return { address: contact.address, resolvedName: contact.name };
+  }
+  if (contact) return { address: contact.address, resolvedName: contact.name };
   return null;
 }
 
@@ -206,34 +240,30 @@ export async function executeNativeTransfer(
   to: string,
   amountEth: number,
 ): Promise<{ txHash: string }> {
-  // Dynamic import viem to create wallet client
-  const { createWalletClient, http, parseEther } = await import("viem");
-  const { base, baseSepolia } = await import("viem/chains");
-  const { privateKeyToAccount } = await import("viem/accounts");
+  return withWalletKey(async (formattedKey) => {
+    const { createWalletClient, http, parseEther } = await import("viem");
+    const { base, baseSepolia } = await import("viem/chains");
+    const { privateKeyToAccount } = await import("viem/accounts");
 
-  const key = getWalletKey();
-  if (!key) throw new Error("No wallet configured");
+    const account = privateKeyToAccount(formattedKey);
+    const network = getActiveNetwork();
+    const chain = network.id === "base" ? base : baseSepolia;
+    const rpcUrl = network.customRpcUrl || network.rpcUrl;
 
-  const formattedKey = key.startsWith("0x") ? key : `0x${key}`;
-  const account = privateKeyToAccount(formattedKey as `0x${string}`);
+    const client = createWalletClient({
+      account,
+      chain,
+      transport: http(rpcUrl),
+    });
 
-  const network = getActiveNetwork();
-  const chain = network.id === "base" ? base : baseSepolia;
-  const rpcUrl = network.customRpcUrl || network.rpcUrl;
+    const hash = await client.sendTransaction({
+      to: to as `0x${string}`,
+      value: parseEther(amountEth.toString()),
+      chain,
+    } as any);
 
-  const client = createWalletClient({
-    account,
-    chain,
-    transport: http(rpcUrl),
+    return { txHash: hash };
   });
-
-  const hash = await client.sendTransaction({
-    to: to as `0x${string}`,
-    value: parseEther(amountEth.toString()),
-    chain,
-  } as any);
-
-  return { txHash: hash };
 }
 
 /** Execute a real ERC20 transfer via JSON-RPC */
@@ -242,52 +272,48 @@ export async function executeTokenTransfer(
   amount: number,
   token: TokenConfig,
 ): Promise<{ txHash: string }> {
-  const { createWalletClient, http } = await import("viem");
-  const { base, baseSepolia } = await import("viem/chains");
-  const { privateKeyToAccount } = await import("viem/accounts");
+  return withWalletKey(async (formattedKey) => {
+    const { createWalletClient, http } = await import("viem");
+    const { base, baseSepolia } = await import("viem/chains");
+    const { privateKeyToAccount } = await import("viem/accounts");
 
-  const key = getWalletKey();
-  if (!key) throw new Error("No wallet configured");
+    const account = privateKeyToAccount(formattedKey);
+    const network = getActiveNetwork();
+    const chain = network.id === "base" ? base : baseSepolia;
+    const rpcUrl = network.customRpcUrl || network.rpcUrl;
 
-  const formattedKey = key.startsWith("0x") ? key : `0x${key}`;
-  const account = privateKeyToAccount(formattedKey as `0x${string}`);
+    const client = createWalletClient({
+      account,
+      chain,
+      transport: http(rpcUrl),
+    });
 
-  const network = getActiveNetwork();
-  const chain = network.id === "base" ? base : baseSepolia;
-  const rpcUrl = network.customRpcUrl || network.rpcUrl;
+    const rawAmount = BigInt(Math.round(amount * Math.pow(10, token.decimals)));
 
-  const client = createWalletClient({
-    account,
-    chain,
-    transport: http(rpcUrl),
+    const erc20Abi = [
+      {
+        name: "transfer",
+        type: "function" as const,
+        inputs: [
+          { name: "to", type: "address" },
+          { name: "amount", type: "uint256" },
+        ],
+        outputs: [{ name: "", type: "bool" }],
+        stateMutability: "nonpayable" as const,
+      },
+    ];
+
+    const hash = await client.writeContract({
+      account,
+      address: token.contractAddress! as `0x${string}`,
+      abi: erc20Abi,
+      functionName: "transfer",
+      args: [to as `0x${string}`, rawAmount],
+      chain,
+    });
+
+    return { txHash: hash };
   });
-
-  // Convert amount to raw units
-  const rawAmount = BigInt(Math.round(amount * Math.pow(10, token.decimals)));
-
-  // ERC20 transfer(address,uint256) ABI
-  const erc20Abi = [
-    {
-      name: "transfer",
-      type: "function" as const,
-      inputs: [
-        { name: "to", type: "address" },
-        { name: "amount", type: "uint256" },
-      ],
-      outputs: [{ name: "", type: "bool" }],
-      stateMutability: "nonpayable" as const,
-    },
-  ];
-
-  const hash = await client.writeContract({
-    address: token.contractAddress as `0x${string}`,
-    abi: erc20Abi,
-    functionName: "transfer",
-    args: [to as `0x${string}`, rawAmount],
-    chain,
-  } as any);
-
-  return { txHash: hash };
 }
 
 // =============================================================================
@@ -336,31 +362,71 @@ const web3Tools: ToolDefinition[] = [
   // =========================================================================
   {
     name: "get_wallet_address",
-    description: "Get the public address of the configured wallet.",
+    description: "Get the public address of the configured wallet (Base: 0x address, TODA: Twin URL).",
     handler: async () => {
+      const network = getActiveNetwork();
+      if (network.id === "toda") {
+        const cached = getTodaTwinInfoAddress();
+        if (cached) {
+          return {
+            success: true,
+            data: { address: cached, network: network.name, chainId: 0 },
+          };
+        }
+        if (!hasTodaConfig()) {
+          return {
+            success: false,
+            error: "TODA Twin not configured. Set hostname and API key in Web3 settings.",
+          };
+        }
+        const address = await getTodaAddress();
+        if (!address) {
+          return {
+            success: false,
+            error: "Failed to fetch TODA Twin address. Check hostname and API key.",
+          };
+        }
+        return { success: true, data: { address, network: network.name, chainId: 0 } };
+      }
       const address = getWalletAddress();
       if (!address) return { success: false, error: "No wallet configured." };
-      const network = getActiveNetwork();
       return { success: true, data: { address, network: network.name, chainId: network.chainId } };
     },
   },
   {
     name: "get_wallet_balance",
-    description: "Get current native ETH and configured token balances for the wallet or a specific address. Returns balances only — not transaction history or past balances.",
+    description: "Get current native ETH and configured token balances for the wallet or a specific address. Returns balances only — not transaction history or past balances. On TODA, fetches DQ balances from Twin.",
     inputSchema: {
       type: "object",
       properties: {
-        address: { type: "string", description: "Optional: address or contact name. If omitted, uses the configured wallet." },
+        address: { type: "string", description: "Optional: address or contact name. If omitted, uses the configured wallet/Twin." },
       },
     },
     handler: async (args) => {
-      let targetAddress: string;
+      const network = getActiveNetwork();
 
+      if (network.id === "toda") {
+        if (!hasTodaConfig()) return { success: false, error: "TODA Twin not configured." };
+        try {
+          const [info, dqEntries] = await Promise.all([getTodaAddress(), fetchTodaBalance()]);
+          const address = info || "Unknown";
+          const lines: string[] = [`Address: ${address}`, `Network: ${network.name}`];
+          for (const entry of dqEntries as TodaDqEntry[]) {
+            const bal = entry.balance ?? entry.quantity ?? 0;
+            const typeLabel = entry.type ? ` (${entry.type.slice(0, 8)}...)` : "";
+            lines.push(`${entry.type || "DQ"}${typeLabel}: ${bal}`);
+          }
+          if (dqEntries.length === 0) lines.push("No DQ balances");
+          return { success: true, data: lines.join("\n") };
+        } catch (err) {
+          return { success: false, error: `Failed to fetch TODA balance: ${(err as Error).message}` };
+        }
+      }
+
+      let targetAddress: string;
       if (args.address) {
         const resolved = resolveAddress(args.address as string);
-        if (!resolved) {
-          return { success: false, error: `Could not resolve "${args.address}".` };
-        }
+        if (!resolved) return { success: false, error: `Could not resolve "${args.address}".` };
         targetAddress = resolved.address;
       } else {
         const walletAddr = getWalletAddress();
@@ -369,15 +435,10 @@ const web3Tools: ToolDefinition[] = [
       }
 
       try {
-        const network = getActiveNetwork();
         const tokens = getTokens();
         const lines: string[] = [`Address: ${targetAddress}`, `Network: ${network.name}`];
-
-        // Native ETH balance
         const ethBal = await fetchNativeBalance(targetAddress);
         lines.push(`ETH: ${ethBal.balance}`);
-
-        // ERC20 balances
         for (const token of tokens) {
           if (token.isNative) continue;
           try {
@@ -387,7 +448,6 @@ const web3Tools: ToolDefinition[] = [
             lines.push(`${token.symbol}: (error fetching)`);
           }
         }
-
         return { success: true, data: lines.join("\n") };
       } catch (err) {
         return { success: false, error: `Failed to fetch balance: ${(err as Error).message}` };
@@ -410,6 +470,11 @@ const web3Tools: ToolDefinition[] = [
       required: ["to", "amount"],
     },
     handler: async (args) => {
+      const network = getActiveNetwork();
+      if (network.id === "toda") {
+        return { success: false, error: "Use transfer_toda for TODA DQ transfers. Switch to Base network for ETH transfers." };
+      }
+
       if (!getWalletKey()) return { success: false, error: "Wallet not configured." };
 
       const resolved = resolveAddress(args.to as string);
@@ -424,7 +489,6 @@ const web3Tools: ToolDefinition[] = [
 
       const safety = getSafetySettings();
       const fromAddr = getWalletAddress();
-      const network = getActiveNetwork();
       const label = resolved.resolvedName ? `${resolved.resolvedName} (${resolved.address})` : resolved.address;
 
       // Confirmation required?
@@ -468,7 +532,7 @@ const web3Tools: ToolDefinition[] = [
   },
   {
     name: "transfer_token",
-    description: "Transfer an ERC20 token (e.g. USDC) to an address or saved contact on Base. Runs pre-flight safety checks.",
+    description: "Transfer an ERC20 token (e.g. USDC) to an address or saved contact on Base. Runs pre-flight safety checks. On TODA network, use transfer_toda instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -480,6 +544,11 @@ const web3Tools: ToolDefinition[] = [
       required: ["to", "amount", "token"],
     },
     handler: async (args) => {
+      const network = getActiveNetwork();
+      if (network.id === "toda") {
+        return { success: false, error: "Use transfer_toda for TODA DQ transfers. Switch to Base network for ERC20 transfers." };
+      }
+
       if (!getWalletKey()) return { success: false, error: "Wallet not configured." };
 
       const resolved = resolveAddress(args.to as string);
@@ -499,7 +568,6 @@ const web3Tools: ToolDefinition[] = [
 
       const safety = getSafetySettings();
       const fromAddr = getWalletAddress();
-      const network = getActiveNetwork();
       const label = resolved.resolvedName ? `${resolved.resolvedName} (${resolved.address})` : resolved.address;
 
       if (safety.requireConfirmation && !args.confirmed) {
@@ -534,11 +602,82 @@ const web3Tools: ToolDefinition[] = [
     },
   },
   // =========================================================================
+  // TODA Transfer
+  // =========================================================================
+  {
+    name: "transfer_toda",
+    description: "Transfer TODA DQ (digital quantity) to a Twin URL or saved contact. Only available when TODA network is active. Runs pre-flight safety checks.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        to: { type: "string", description: "Recipient: Twin URL (https://...todaq.net) or saved contact name" },
+        amount: { type: "string", description: "Amount to transfer" },
+        typeHash: { type: "string", description: "DQ type hash (e.g. from GET /dq response). Use token symbol if configured (e.g. TDN)." },
+        confirmed: { type: "boolean", description: "Set to true to bypass confirmation prompt" },
+      },
+      required: ["to", "amount", "typeHash"],
+    },
+    handler: async (args) => {
+      const network = getActiveNetwork();
+      if (network.id !== "toda") {
+        return { success: false, error: "Switch to TODA network first. Use switch_network with network: 'toda'." };
+      }
+      if (!hasTodaConfig()) return { success: false, error: "TODA Twin not configured. Set hostname and API key in Web3 settings." };
+
+      const resolved = resolveTodaAddress(args.to as string);
+      if (!resolved) return { success: false, error: `Could not resolve "${args.to}". Use a Twin URL (https://...todaq.net) or saved contact name.` };
+
+      const amount = parseFloat(args.amount as string);
+      if (isNaN(amount) || amount <= 0) return { success: false, error: "Invalid amount." };
+
+      let typeHash = (args.typeHash as string).trim();
+      const token = findToken(args.typeHash as string);
+      if (token?.contractAddress) typeHash = token.contractAddress;
+
+      const contacts = getAddressBookContacts();
+      const check = preFlightCheck(resolved.address, amount, typeHash.slice(0, 8), contacts);
+      if (!check.ok) return { success: false, error: check.error };
+
+      const safety = getSafetySettings();
+      const fromAddr = await getTodaAddress();
+      const label = resolved.resolvedName ? `${resolved.resolvedName} (${resolved.address})` : resolved.address;
+
+      if (safety.requireConfirmation && !args.confirmed) {
+        return {
+          success: true,
+          data: `🔐 CONFIRMATION REQUIRED\n\n` +
+            `From: ${fromAddr}\n` +
+            `To: ${label}\n` +
+            `Amount: ${amount} (type: ${typeHash.slice(0, 12)}...)\n` +
+            `Network: ${network.name}\n` +
+            `${check.warning || ""}\n\n` +
+            `Please confirm this transfer. To proceed, call transfer_toda again with confirmed: true.`,
+        };
+      }
+
+      try {
+        const result = await executeTodaTransfer(typeHash, amount, resolved.address);
+        if (!result.success) return { success: false, error: result.error };
+        recordSpend(typeHash.slice(0, 8), amount);
+        return {
+          success: true,
+          data: `✅ Transfer successful!\n\n` +
+            `From: ${fromAddr}\n` +
+            `To: ${label}\n` +
+            `Amount: ${amount}\n` +
+            `Transfer ID: ${result.transferId || "N/A"}`,
+        };
+      } catch (err) {
+        return { success: false, error: `TODA transfer failed: ${(err as Error).message}` };
+      }
+    },
+  },
+  // =========================================================================
   // Gas Estimation
   // =========================================================================
   {
     name: "estimate_gas",
-    description: "Estimate gas cost for an ETH transfer on the current network. Only for ETH transfers — not ERC20 tokens.",
+    description: "Estimate gas cost for an ETH transfer on Base. Only for ETH transfers — not ERC20 tokens. Not applicable on TODA.",
     inputSchema: {
       type: "object",
       properties: {
@@ -548,6 +687,10 @@ const web3Tools: ToolDefinition[] = [
       required: ["to", "amount"],
     },
     handler: async (args) => {
+      const network = getActiveNetwork();
+      if (network.id === "toda") {
+        return { success: true, data: "TODA does not use gas. Transfers are fee-free at the protocol level." };
+      }
       if (!getWalletAddress()) return { success: false, error: "No wallet configured." };
       const resolved = resolveAddress(args.to as string);
       if (!resolved) return { success: false, error: `Could not resolve "${args.to}".` };
@@ -556,7 +699,6 @@ const web3Tools: ToolDefinition[] = [
         const amount = parseFloat(args.amount as string);
         const valueHex = `0x${BigInt(Math.round(amount * 1e18)).toString(16)}`;
         const gas = await estimateGas(resolved.address, valueHex);
-        const network = getActiveNetwork();
         return {
           success: true,
           data: `Gas estimate (${network.name}):\n` +
@@ -574,9 +716,17 @@ const web3Tools: ToolDefinition[] = [
   // =========================================================================
   {
     name: "get_network_info",
-    description: "Get the current active network (Base mainnet or testnet), RPC, and chain ID.",
+    description: "Get the current active network (Base mainnet, testnet, or TODA), RPC/endpoint, and chain ID.",
     handler: async () => {
       const network = getActiveNetwork();
+      if (network.id === "toda") {
+        const twinHost = getTodaTwinHostname();
+        const configured = hasTodaConfig() ? "Yes" : "No (set Twin hostname and API key)";
+        return {
+          success: true,
+          data: `Network: ${network.name}\nTwin Hostname: ${twinHost || "(not set)"}\nConfigured: ${configured}\nExplorer: ${network.explorerUrl}`,
+        };
+      }
       return {
         success: true,
         data: `Network: ${network.name}\nChain ID: ${network.chainId}\nRPC: ${network.customRpcUrl || network.rpcUrl}\nExplorer: ${network.explorerUrl}`,
@@ -585,23 +735,24 @@ const web3Tools: ToolDefinition[] = [
   },
   {
     name: "switch_network",
-    description: "Switch between Base mainnet and Base testnet.",
+    description: "Switch between Base mainnet, Base testnet, and TODA.",
     inputSchema: {
       type: "object",
       properties: {
-        network: { type: "string", description: "'base' for mainnet or 'base-testnet' for testnet" },
+        network: { type: "string", description: "'base', 'base-testnet', or 'toda'" },
       },
       required: ["network"],
     },
     handler: async (args) => {
       const networkId = args.network as NetworkId;
-      if (networkId !== "base" && networkId !== "base-testnet") {
-        return { success: false, error: "Invalid network. Use 'base' or 'base-testnet'." };
+      if (networkId !== "base" && networkId !== "base-testnet" && networkId !== "toda") {
+        return { success: false, error: "Invalid network. Use 'base', 'base-testnet', or 'toda'." };
       }
       const ok = setActiveNetwork(networkId);
       if (!ok) return { success: false, error: "Failed to switch network." };
       const net = getActiveNetwork();
-      return { success: true, data: `Switched to ${net.name} (Chain ID: ${net.chainId})` };
+      const extra = net.id === "toda" && getTodaTwinHostname() ? ` (Twin: ${getTodaTwinHostname().slice(0, 16)}...)` : "";
+      return { success: true, data: `Switched to ${net.name}${extra}` };
     },
   },
   {
@@ -688,13 +839,24 @@ const web3Tools: ToolDefinition[] = [
   // =========================================================================
   {
     name: "save-wallet",
-    description: "Securely store an Ethereum private key using OS encryption.",
+    description: "Generate and store a new Ethereum wallet. Only creates a new key — never accepts or imports an existing private key. Use empty/placeholder to generate.",
     inputSchema: {
       type: "object",
-      properties: { privateKey: { type: "string", description: "The private key" } },
+      properties: {
+        privateKey: {
+          type: "string",
+          description: "Must be empty or the generation placeholder. Raw private keys are rejected for security.",
+        },
+      },
       required: ["privateKey"],
     },
-    handler: async (args) => ({ success: saveWalletKey(args.privateKey as string) }),
+    handler: async (args) => {
+      const pk = args.privateKey as string;
+      if (pk && pk !== PRIVATE_KEY_GENERATION_PLACEHOLDER) {
+        return { success: false, error: "Import via tool is disabled. Use the Web3 settings UI to import a wallet." };
+      }
+      return { success: saveWalletKey(PRIVATE_KEY_GENERATION_PLACEHOLDER) };
+    },
   },
   {
     name: "delete-wallet",
@@ -737,9 +899,14 @@ export class Web3Module implements ToolModule {
     const config = loadConfig();
     const safety = config.safety;
 
-    return `You have Web3/crypto tools on Base blockchain.
+    const todaStatus = network.id === "toda"
+      ? (hasTodaConfig() ? "TODA Twin configured." : "TODA Twin not configured — set hostname and API key in Web3 settings.")
+      : "";
+
+    return `You have Web3/crypto tools on Base and TODA.
 ${walletStatus}
-Network: ${network.name} (Chain ID: ${network.chainId})
+${network.id === "toda" ? todaStatus : ""}
+Network: ${network.name}${network.id === "toda" ? "" : ` (Chain ID: ${network.chainId})`}
 
 Configured tokens:
 ${tokenList}
@@ -752,12 +919,11 @@ Safety: confirmation=${safety.requireConfirmation}, whitelistOnly=${safety.white
 You can:
 - Check crypto prices (get_crypto_price)
 - Check all token balances (get_wallet_balance)
-- Transfer ETH (transfer_eth) — real on-chain, runs safety checks
-- Transfer ERC20 tokens (transfer_token) — real on-chain, runs safety checks
-- Estimate gas (estimate_gas)
-- Manage contacts (lookup/save/delete/list)
-- Switch network (switch_network)
-- Look up token info on-chain (lookup_token_onchain)
+- On Base: Transfer ETH (transfer_eth), ERC20 (transfer_token), estimate gas (estimate_gas)
+- On TODA: Transfer DQ (transfer_toda) — destination must be Twin URL
+- Manage contacts (lookup/save/delete/list) — Base uses 0x addresses, TODA uses Twin URLs
+- Switch network (switch_network) — 'base', 'base-testnet', or 'toda'
+- Look up token info on-chain (lookup_token_onchain) — Base only
 
 When a user mentions a name for transfers, use lookup_saved_wallet first.
 Transfers run pre-flight checks (banned addresses, limits, whitelist, cooldown).
