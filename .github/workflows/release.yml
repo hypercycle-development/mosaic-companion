@@ -172,7 +172,7 @@ jobs:
 
           aws s3 cp tmp_static/index.html s3://mosaic-release/index.html --content-type "text/html"
           aws s3 cp static/install-page/style.css s3://mosaic-release/style.css --content-type "text/css"
-          aws s3 cp tmp_static/latest.json s3://mosaic-release/latest.json --content-type "application/json"
+          aws s3 cp tmp_static/latest.json s3://mosaic-release/releases/latest.json --content-type "application/json"
 
           rm -rf tmp_static
           echo "✓ Static page and latest.json uploaded"
