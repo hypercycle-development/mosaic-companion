@@ -48,6 +48,7 @@ declare global {
     adminHost?: string;
     adminPort?: string;
     isActive: boolean;
+    licenseKey?: string;
   }
 
   interface Window {
@@ -296,6 +297,47 @@ declare global {
           error?: string;
         }>;
         deleteEntry: (boxId: string, entryId: string) => Promise<{ success: boolean; error?: string }>;
+      };
+
+      // HyperInsight plugin
+      hyperinsight: {
+        getStatus: () => Promise<{ registered: boolean; tier?: string; clientId?: string }>;
+        ensureKey: () => Promise<{ success: boolean; clientId?: string; error?: string }>;
+        resetKey: () => Promise<{ success: boolean; error?: string }>;
+        getAims: () => Promise<any>;
+        getLeaderboard: () => Promise<any>;
+        getNodes: (params?: any) => Promise<any>;
+        getNodeDetail: (license: string) => Promise<any>;
+        getAimManifest: (license: string, aimName: string) => Promise<any>;
+        getNetworkStats: () => Promise<any>;
+        getNetworkHistory: () => Promise<any>;
+        getAimStats: (name: string, range?: string) => Promise<any>;
+        getAimStatsCurrent: (name: string) => Promise<any>;
+        getAimDetails: (name: string) => Promise<any>;
+        getAimReleases: (name: string) => Promise<any>;
+        getAimReleaseDetail: (name: string, tag: string) => Promise<any>;
+        saveGeneratedImage: (base64Data: string) => Promise<{ success: boolean; url?: string; error?: string }>;
+        // AIM Nodes data
+        saveNodeData: (license: string, data: any) => Promise<{ success: boolean; error?: string }>;
+        deleteNodeData: (license: string) => Promise<{ success: boolean; error?: string }>;
+        getSavedAims: (license?: string) => Promise<any>;
+        handlePayment: (paymentData: any) => Promise<{ success: boolean; error?: string; result?: any }>;
+      };
+
+      // Media — safe data: URI delivery for tool-generated media
+      media: {
+        /** Read a mosaic-media:// file from disk and return it as a base64 data: URI */
+        readAsDataUri: (mediaUrl: string) => Promise<{ success: boolean; dataUri?: string; error?: string }>;
+        /** Get the auto-display-media setting */
+        getAutoDisplay: () => Promise<{ enabled: boolean }>;
+        /** Set the auto-display-media setting */
+        setAutoDisplay: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean; error?: string }>;
+      };
+
+      // JIT Payments plugin
+      paymentsJit: {
+        onRequestApproval: (handler: (data: any) => void) => () => void;
+        approveResult: (requestId: string, approved: boolean) => Promise<{ success: boolean }>;
       };
 
       // MCP API

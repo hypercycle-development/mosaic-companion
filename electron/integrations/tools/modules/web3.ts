@@ -235,6 +235,14 @@ export async function estimateGas(to: string, valueHex: string): Promise<{ gasLi
   };
 }
 
+/** Resolve the viem chain object for the active network */
+async function getViemChain(networkId: string) {
+  const { base, baseSepolia, mainnet } = await import("viem/chains");
+  if (networkId === "ethereum") return mainnet;
+  if (networkId === "base") return base;
+  return baseSepolia; // base-testnet fallback
+}
+
 /** Execute a real native ETH transfer via JSON-RPC */
 export async function executeNativeTransfer(
   to: string,
@@ -242,12 +250,11 @@ export async function executeNativeTransfer(
 ): Promise<{ txHash: string }> {
   return withWalletKey(async (formattedKey) => {
     const { createWalletClient, http, parseEther } = await import("viem");
-    const { base, baseSepolia } = await import("viem/chains");
     const { privateKeyToAccount } = await import("viem/accounts");
 
     const account = privateKeyToAccount(formattedKey);
     const network = getActiveNetwork();
-    const chain = network.id === "base" ? base : baseSepolia;
+    const chain = await getViemChain(network.id);
     const rpcUrl = network.customRpcUrl || network.rpcUrl;
 
     const client = createWalletClient({
@@ -274,12 +281,11 @@ export async function executeTokenTransfer(
 ): Promise<{ txHash: string }> {
   return withWalletKey(async (formattedKey) => {
     const { createWalletClient, http } = await import("viem");
-    const { base, baseSepolia } = await import("viem/chains");
     const { privateKeyToAccount } = await import("viem/accounts");
 
     const account = privateKeyToAccount(formattedKey);
     const network = getActiveNetwork();
-    const chain = network.id === "base" ? base : baseSepolia;
+    const chain = await getViemChain(network.id);
     const rpcUrl = network.customRpcUrl || network.rpcUrl;
 
     const client = createWalletClient({

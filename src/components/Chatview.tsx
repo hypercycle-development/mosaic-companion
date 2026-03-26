@@ -18,6 +18,7 @@ import {
   Mail,
   Wrench,
   ChevronRight,
+  Image as ImageIcon,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -105,6 +106,90 @@ const FailedBlockChip: React.FC<{ count: number; snippets?: string[] }> = ({ cou
       )}
     </div>
   );
+};
+
+/**
+ * Renders tool-generated media (images) with a security gate.
+ * When autoDisplay is false (default), shows a confirmation chip before revealing.
+ * When autoDisplay is true, loads and shows the image immediately.
+ * Images are always loaded as data: URIs via IPC — never rendered as mosaic-media:// directly.
+ */
+const MediaDisplay: React.FC<{ mediaUrls: string[]; autoDisplay: boolean }> = ({
+  mediaUrls,
+  autoDisplay,
+}) => {
+  const [dataUris, setDataUris] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+
+  const loadMedia = useCallback(async () => {
+    setLoading(true);
+    const uris: string[] = [];
+    for (const url of mediaUrls) {
+      try {
+        const result = await (window as any).electronAPI?.media?.readAsDataUri?.(url);
+        if (result?.success && result.dataUri) {
+          uris.push(result.dataUri);
+        }
+      } catch (e) {
+        console.error("[MediaDisplay] Failed to load media:", e);
+      }
+    }
+    setDataUris(uris);
+    setLoading(false);
+  }, [mediaUrls]);
+
+  useEffect(() => {
+    if (autoDisplay) {
+      setRevealed(true);
+      loadMedia();
+    }
+  }, [autoDisplay, loadMedia]);
+
+  if (dataUris.length > 0) {
+    return (
+      <div className="mt-2 space-y-2">
+        {dataUris.map((uri, i) => (
+          <img
+            key={i}
+            src={uri}
+            alt="Generated media"
+            className="rounded-lg max-w-full max-h-96 object-contain border border-gray-700"
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+        <Loader2 size={12} className="animate-spin" />
+        <span>Loading generated media...</span>
+      </div>
+    );
+  }
+
+  if (!revealed) {
+    return (
+      <div className="my-2">
+        <div className="inline-flex flex-wrap items-start gap-2 px-3 py-2 bg-amber-900/20 border border-amber-700/30 rounded-lg text-xs text-amber-400/80 max-w-full">
+          <ImageIcon size={12} className="shrink-0 mt-0.5" />
+          <span className="flex-1 min-w-0">
+            Media from tool is blocked from displaying by default. You can change this in your configuration settings tab.
+          </span>
+          <button
+            onClick={() => { setRevealed(true); loadMedia(); }}
+            className="shrink-0 px-2.5 py-1 bg-amber-700/40 hover:bg-amber-600/40 text-amber-200 rounded text-xs font-medium transition-colors whitespace-nowrap"
+          >
+            Display generated media?
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 };
 
 /**
@@ -203,6 +288,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   /** Confirmation modal triggered by a tool response in chat */
   const [chatConfirmModal, setChatConfirmModal] = useState<ConfirmModalBlock | null>(null);
+  /** Whether to auto-display media from tool calls (loaded from settings) */
+  const [autoDisplayMedia, setAutoDisplayMedia] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -221,6 +308,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
       }
     };
     getAgents();
+  }, []);
+
+  // Load autoDisplayMedia setting on mount
+  useEffect(() => {
+    const loadMediaSetting = async () => {
+      try {
+        const result = await (window as any).electronAPI?.media?.getAutoDisplay?.();
+        if (result?.enabled !== undefined) {
+          setAutoDisplayMedia(result.enabled);
+        }
+      } catch (e) {
+        console.warn("[ChatView] Failed to load autoDisplayMedia setting:", e);
+      }
+    };
+    loadMediaSetting();
   }, []);
 
   // Auto-select first active agent
@@ -572,6 +674,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                  agentId: selectedAgent!.id,
                  uiBlocks: inlineBlocks,
                  displayHint: result.displayHint,
+                 mediaUrls: result.mediaUrls,
              };
 
              // Commit cleaned assistant message + tool output together (single render)
@@ -1033,6 +1136,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           <RenderMessageContent content={message.content} role="user" />
                           {message.uiBlocks && message.uiBlocks.length > 0 && (
                             <ToolUIRenderer blocks={message.uiBlocks} />
+                          )}
+                          {message.mediaUrls && message.mediaUrls.length > 0 && (
+                            <MediaDisplay mediaUrls={message.mediaUrls} autoDisplay={autoDisplayMedia} />
                           )}
                         </div>
                       </div>

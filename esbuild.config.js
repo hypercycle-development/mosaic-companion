@@ -38,8 +38,24 @@ await esbuild.build({
     "better-sqlite3",
     "sqlite-vec",
     "chokidar",
+    // Other unresolved dependencies
+    "xtend",
+    "encode-utf8",
   ],
 
+});
+
+// Build the standalone MCP server script for plugins
+await esbuild.build({
+  entryPoints: ["plugins/aim-nodes/main/mcp-server.js"],
+  bundle: true,
+  platform: "node",
+  outfile: "dist/main/mcp-server.js",
+  format: "cjs",
+  external: [
+    // Don't bundle electron or heavy natives
+    "electron",
+  ],
 });
 
 console.log("✅ Electron build complete");

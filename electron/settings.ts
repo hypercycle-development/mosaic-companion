@@ -22,13 +22,16 @@ interface Node {
   adminHost: string;
   adminPort: string;
   isActive: boolean;
+  licenseKey?: string;
 }
 
 interface Settings {
   autoDownload: boolean;
   titleBarStyle: string;
   nodes: Node[];
-  gmailAutoMarkRead: boolean
+  gmailAutoMarkRead: boolean;
+  /** When true, media returned by tool calls is displayed inline without confirmation */
+  autoDisplayMedia: boolean;
 }
 
 // =============================================================================
@@ -43,6 +46,7 @@ const DEFAULT_SETTINGS: Settings = {
   titleBarStyle: process.platform === "darwin" ? "default" : "hidden",
   nodes: [],
   gmailAutoMarkRead: false, // Auto-mark emails as read when viewed
+  autoDisplayMedia: false, // Media from tool calls is blocked by default (requires user confirmation)
 };
 
 // Current settings (loaded from file or defaults)
@@ -167,6 +171,27 @@ export function setGmailAutoMarkRead(value) {
 }
 
 // =============================================================================
+// Media Display Settings
+// =============================================================================
+
+/**
+ * Get auto-display-media setting.
+ * When false (default), media from tool calls shows a confirmation prompt before rendering.
+ */
+export function getAutoDisplayMedia(): boolean {
+  return settings.autoDisplayMedia ?? false;
+}
+
+/**
+ * Set auto-display-media setting.
+ * @param {boolean} value
+ */
+export function setAutoDisplayMedia(value: boolean): { success: boolean; error?: string } {
+  settings.autoDisplayMedia = !!value;
+  return saveSettings();
+}
+
+// =============================================================================
 // =============================================================================
 // Hypercycle Nodes Management
 // =============================================================================
@@ -201,6 +226,7 @@ export function addNode(node: Partial<Omit<Node, "id">>): {
     adminHost: node.adminHost || "",
     adminPort: node.adminPort || "8006",
     isActive: node.isActive !== undefined ? node.isActive : true,
+    licenseKey: node.licenseKey,
   };
 
   settings.nodes.push(newNode);

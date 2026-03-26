@@ -4,7 +4,7 @@
  */
 
 import { privateKeyToAccount } from "viem/accounts";
-import { getWalletKey } from "./index";
+import { withWalletKey } from "./index";
 
 export async function signHypercycleNonceWithWallet(
   nonce: string,
@@ -13,20 +13,21 @@ export async function signHypercycleNonceWithWallet(
   if (!trimmed) {
     return { success: false, error: "Nonce is empty." };
   }
-  const key = getWalletKey();
-  if (!key) {
-    return {
-      success: false,
-      error:
-        "No wallet private key in Mosaic. Import a Base wallet in Web3 settings to sign Hypercycle requests.",
-    };
-  }
   try {
-    const formattedKey = (key.startsWith("0x") ? key : `0x${key}`) as `0x${string}`;
-    const account = privateKeyToAccount(formattedKey);
-    const signature = await account.signMessage({ message: trimmed });
+    const signature = await withWalletKey(async (formattedKey) => {
+      const account = privateKeyToAccount(formattedKey);
+      return account.signMessage({ message: trimmed });
+    });
     return { success: true, signature };
   } catch (e) {
-    return { success: false, error: (e as Error).message };
+    const msg = (e as Error).message;
+    if (msg === "No wallet configured") {
+      return {
+        success: false,
+        error:
+          "No wallet private key in Mosaic. Import a Base wallet in Web3 settings to sign Hypercycle requests.",
+      };
+    }
+    return { success: false, error: msg };
   }
 }

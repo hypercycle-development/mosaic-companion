@@ -22,7 +22,7 @@ import fs from "fs";
 // Types
 // =============================================================================
 
-export type NetworkId = "base" | "base-testnet" | "toda";
+export type NetworkId = "ethereum" | "base" | "base-testnet" | "toda";
 
 export interface NetworkConfig {
   id: NetworkId;
@@ -120,6 +120,14 @@ export interface Web3Config {
 // =============================================================================
 
 const DEFAULT_NETWORKS: Record<NetworkId, NetworkConfig> = {
+  ethereum: {
+    id: "ethereum",
+    name: "Ethereum",
+    chainId: 1,
+    rpcUrl: "https://eth.llamarpc.com",
+    explorerUrl: "https://etherscan.io",
+    customRpcUrl: "",
+  },
   base: {
     id: "base",
     name: "Base",
@@ -149,6 +157,25 @@ const DEFAULT_NETWORKS: Record<NetworkId, NetworkConfig> = {
 };
 
 const DEFAULT_TOKENS: TokenConfig[] = [
+  // Ethereum mainnet
+  {
+    id: "eth-ethereum",
+    symbol: "ETH",
+    name: "Ether",
+    decimals: 18,
+    isNative: true,
+    network: "ethereum",
+  },
+  {
+    id: "usdc-ethereum",
+    symbol: "USDC",
+    name: "USD Coin",
+    contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    decimals: 6,
+    isNative: false,
+    network: "ethereum",
+  },
+  // Base mainnet
   {
     id: "eth-base",
     symbol: "ETH",
@@ -166,6 +193,7 @@ const DEFAULT_TOKENS: TokenConfig[] = [
     isNative: false,
     network: "base",
   },
+  // Base Sepolia testnet
   {
     id: "eth-base-testnet",
     symbol: "ETH",
@@ -219,6 +247,22 @@ function getConfigPath(): string {
   return path.join(app.getPath("userData"), CONFIG_FILE);
 }
 
+/**
+ * Ensures all default tokens are present in the saved tokens array.
+ * Adds any missing defaults (by ID) while preserving user-added tokens.
+ * This guarantees USDC and native ETH are always available even for users
+ * whose config predates the token being added to DEFAULT_TOKENS.
+ */
+function mergeDefaultTokens(saved: TokenConfig[]): TokenConfig[] {
+  const merged = [...saved];
+  for (const defaultToken of DEFAULT_TOKENS) {
+    if (!merged.find((t) => t.id === defaultToken.id)) {
+      merged.push(defaultToken);
+    }
+  }
+  return merged;
+}
+
 export function loadConfig(): Web3Config {
   try {
     const configPath = getConfigPath();
@@ -232,6 +276,7 @@ export function loadConfig(): Web3Config {
       ...DEFAULT_CONFIG,
       ...raw,
       networks: { ...DEFAULT_NETWORKS, ...(raw.networks || {}) },
+      tokens: mergeDefaultTokens(raw.tokens || []),
       safety: { ...DEFAULT_CONFIG.safety, ...(raw.safety || {}) },
     };
   } catch (error) {
