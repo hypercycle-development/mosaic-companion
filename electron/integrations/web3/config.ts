@@ -22,7 +22,7 @@ import fs from "fs";
 // Types
 // =============================================================================
 
-export type NetworkId = "ethereum" | "base" | "base-testnet";
+export type NetworkId = "ethereum" | "base" | "base-testnet" | "toda";
 
 export interface NetworkConfig {
   id: NetworkId;
@@ -32,18 +32,42 @@ export interface NetworkConfig {
   explorerUrl: string;
   /** User-provided custom RPC override (empty = use default) */
   customRpcUrl: string;
+  /** TODA only: Twin hostname, e.g. 41ef9f65233cd44bd0fff624744e2237.tq.biz.todaq.net */
+  twinHostname?: string;
+  /**
+   * TODA only: `address` from Twin GET /info, cached when the user saves Twin hostname + API key
+   * so callers (Hypercycle sender, get_wallet_address) avoid extra /info requests.
+   */
+  twinInfoAddress?: string;
+}
+
+/** TODA-specific config: Twin hostname + API key (stored separately, encrypted) */
+export interface TodaNetworkConfig extends NetworkConfig {
+  id: "toda";
+  /** Twin hostname, e.g. 41ef9f65233cd44bd0fff624744e2237.tq.biz.todaq.net */
+  twinHostname: string;
+  /** Cached Twin GET /info `address` */
+  twinInfoAddress?: string;
 }
 
 export interface TokenConfig {
   id: string;
   symbol: string;
   name: string;
-  /** Contract address for ERC20 tokens; null/undefined for native ETH */
+  /** Contract address for ERC20 tokens; null/undefined for native ETH. For TODA: DQ type hash. */
   contractAddress?: string;
   decimals: number;
   isNative: boolean;
   /** Which network this token belongs to */
   network: NetworkId;
+}
+
+/** TODA DQ asset type — identified by hash instead of contract address */
+export interface TodaAssetType {
+  typeHash: string;
+  symbol: string;
+  name: string;
+  decimals: number;
 }
 
 export interface TransferLimit {
@@ -120,6 +144,16 @@ const DEFAULT_NETWORKS: Record<NetworkId, NetworkConfig> = {
     explorerUrl: "https://sepolia.basescan.org",
     customRpcUrl: "",
   },
+  toda: {
+    id: "toda",
+    name: "TODA",
+    chainId: 0,
+    rpcUrl: "",
+    explorerUrl: "https://engineering.todaq.net",
+    customRpcUrl: "",
+    twinHostname: "",
+    twinInfoAddress: "",
+  },
 };
 
 const DEFAULT_TOKENS: TokenConfig[] = [
@@ -176,6 +210,15 @@ const DEFAULT_TOKENS: TokenConfig[] = [
     decimals: 6,
     isNative: false,
     network: "base-testnet",
+  },
+  {
+    id: "tdn-toda",
+    symbol: "TDN",
+    name: "TODA Digital Note",
+    contractAddress: "tdn",
+    decimals: 0,
+    isNative: true,
+    network: "toda",
   },
 ];
 
@@ -280,6 +323,35 @@ export function setCustomRpc(networkId: NetworkId, rpcUrl: string): boolean {
   return saveConfig(config);
 }
 
+/** TODA: Set Twin hostname (e.g. 41ef9f65233cd44bd0fff624744e2237.tq.biz.todaq.net) */
+export function setTodaTwinHostname(twinHostname: string): boolean {
+  const config = loadConfig();
+  if (!config.networks.toda) return false;
+  config.networks.toda.twinHostname = twinHostname.trim();
+  return saveConfig(config);
+}
+
+/** TODA: Get Twin hostname from config */
+export function getTodaTwinHostname(): string {
+  const config = loadConfig();
+  return config.networks.toda?.twinHostname || "";
+}
+
+/** TODA: Cached `address` from Twin GET /info (empty if not yet synced). */
+export function getTodaTwinInfoAddress(): string {
+  const config = loadConfig();
+  return config.networks.toda?.twinInfoAddress?.trim() || "";
+}
+
+/** Clear cached Twin /info address (e.g. when API key is removed). */
+export function clearTodaTwinInfoAddress(): boolean {
+  const config = loadConfig();
+  if (!config.networks.toda) return false;
+  if (!config.networks.toda.twinInfoAddress) return true;
+  config.networks.toda.twinInfoAddress = "";
+  return saveConfig(config);
+}
+
 // =============================================================================
 // Token Registry
 // =============================================================================
@@ -305,9 +377,17 @@ export function addToken(
 
   // Validate
   if (!token.symbol?.trim()) return { success: false, error: "Symbol is required" };
-  if (!token.contractAddress?.trim()) return { success: false, error: "Contract address is required for ERC20 tokens" };
-  if (!token.contractAddress.startsWith("0x") || token.contractAddress.length !== 42) {
-    return { success: false, error: "Invalid contract address format" };
+  if (!token.contractAddress?.trim()) return { success: false, error: "Contract address or type hash is required" };
+  if (token.network === "toda") {
+    // TODA: type hash (any non-empty string)
+    if (token.contractAddress.length < 2) {
+      return { success: false, error: "TODA type hash is required" };
+    }
+  } else {
+    // Base: 0x + 64 hex chars
+    if (!token.contractAddress.startsWith("0x") || token.contractAddress.length !== 42) {
+      return { success: false, error: "Invalid contract address format (0x + 40 hex chars)" };
+    }
   }
 
   // Check duplicate on same network

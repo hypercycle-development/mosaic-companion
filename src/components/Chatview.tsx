@@ -823,54 +823,63 @@ export const ChatView: React.FC<ChatViewProps> = ({
         // Prepare context — strip any previously-persisted system context
         const messagesForAI = updatedMessages.filter(m => m.role !== "system" && !m.content.startsWith("[System Context]"));
         
-        // Inject System Prompts
+        // Inject System Prompts (Mosaic tool/MCP/vault context).
+        // Hypercycle agents talk to a remote gateway with plain chat — same as curl without our
+        // prompts. If we inject Web3 + "must use tools / say if none" rules, the model refuses
+        // general questions (e.g. weather) because no weather tool exists.
         let idCounter = 0;
         const systemPrompts: string[] = [];
+        const useMosaicAgentContext = selectedAgent.provider !== "hypercycle";
 
-        // 0. Universal anti-hallucination header
-        systemPrompts.push(
-          `IMPORTANT: Your training data is OUTDATED. For ANY question involving prices, balances, ` +
-          `exchange rates, availability, status, or any real-time/time-sensitive data, you MUST call ` +
-          `a tool FIRST. NEVER answer from memory or training data for factual claims. ` +
-          `If no tool is available for the request, say so — do not guess.`
-        );
+        if (useMosaicAgentContext) {
+          // 0. Universal anti-hallucination header
+          systemPrompts.push(
+            `IMPORTANT: Your training data is OUTDATED. For ANY question involving prices, balances, ` +
+              `exchange rates, availability, status, or any real-time/time-sensitive data, you MUST call ` +
+              `a tool FIRST. NEVER answer from memory or training data for factual claims. ` +
+              `If no tool is available for the request, say so — do not guess.`,
+          );
 
-        // 1. MCP Context
-        const mcpPrompt = getMCPSystemPrompt(mcpServers);
-        if (mcpPrompt) {
+          // 1. MCP Context
+          const mcpPrompt = getMCPSystemPrompt(mcpServers);
+          if (mcpPrompt) {
             systemPrompts.push(mcpPrompt);
-        }
+          }
 
-        // 2. Built-in tools context (Gmail, Web3, Vault, WASM) — the ToolRegistry
-        //    aggregates system prompts from all available modules.
-        try {
+          // 2. Built-in tools context (Gmail, Web3, Vault, WASM) — the ToolRegistry
+          //    aggregates system prompts from all available modules.
+          try {
             const toolsPrompt = await window.electronAPI?.tools?.getSystemPrompt?.();
             if (toolsPrompt) {
-                systemPrompts.push(toolsPrompt);
+              systemPrompts.push(toolsPrompt);
             }
-        } catch (e) {
+          } catch (e) {
             console.error("Failed to get tools system prompt:", e);
-        }
+          }
 
-        // 3. Vault context — tell the agent which boxes it can access
-        try {
+          // 3. Vault context — tell the agent which boxes it can access
+          try {
             const agentBoxes = await window.electronAPI?.vault?.getAgentBoxes(selectedAgent!.id);
             if (agentBoxes && agentBoxes.length > 0) {
-                const boxList = agentBoxes
-                  .map((b: any) => `- "${b.name}" (ID: ${b.id})${b.description ? ` — ${b.description}` : ""}`)
-                  .join("\n");
-                systemPrompts.push(
-                  `You have access to the following Vault boxes:\n${boxList}\n\n` +
-                  `Use the vault tools (vault:list_boxes, vault:read_box) to retrieve data from these boxes when relevant to the user's query.`
-                );
+              const boxList = agentBoxes
+                .map(
+                  (b: any) =>
+                    `- "${b.name}" (ID: ${b.id})${b.description ? ` — ${b.description}` : ""}`,
+                )
+                .join("\n");
+              systemPrompts.push(
+                `You have access to the following Vault boxes:\n${boxList}\n\n` +
+                  `Use the vault tools (vault:list_boxes, vault:read_box) to retrieve data from these boxes when relevant to the user's query.`,
+              );
             }
-        } catch (e) {
+          } catch (e) {
             console.error("Failed to get vault context:", e);
-        }
+          }
 
-        // 4. Agent Rich UI — teach agent about <mosaic_ui> if enabled
-        if (selectedAgent!.richUI) {
+          // 4. Agent Rich UI — teach agent about <mosaic_ui> if enabled
+          if (selectedAgent!.richUI) {
             systemPrompts.push(getRichUISystemPrompt());
+          }
         }
 
         if (systemPrompts.length > 0) {

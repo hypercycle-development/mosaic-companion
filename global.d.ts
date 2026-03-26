@@ -249,6 +249,15 @@ declare global {
           lookupToken: (contractAddress: string) => Promise<{ success: boolean; data?: string; error?: string }>;
           getConfig: () => Promise<any>;
           updateConfig: (updates: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
+          importFromClipboard: () => Promise<{ success: boolean; error?: string }>;
+          openSecureImportWindow: () => Promise<void>;
+          onWalletImported: (callback: () => void) => () => void;
+          saveTodaApiKey: (apiKey: string) => Promise<{ success: boolean; error?: string }>;
+          deleteTodaApiKey: () => Promise<{ success: boolean }>;
+          todaHasConfig: () => Promise<{ configured: boolean }>;
+          signHypercycleNonce: (
+            nonce: string,
+          ) => Promise<{ success: boolean; signature?: string; error?: string }>;
       };
 
       // Tools registry bridge
@@ -378,7 +387,7 @@ declare global {
       disconnect: () => Promise<{ success: boolean }>;
       status: () => Promise<{ status: string }>;
       listRooms: () => Promise<{ success: boolean; error?: string }>;
-      createRoom: (name: string) => Promise<{ success: boolean; error?: string }>;
+      createRoom: (name: string, visibility?: string) => Promise<{ success: boolean; error?: string }>;
       joinRoom: (roomId: string) => Promise<{ success: boolean; error?: string }>;
       leaveRoom: (roomId: string) => Promise<{ success: boolean; error?: string }>;
       sendMessage: (roomId: string, text: string) => Promise<{ success: boolean; error?: string }>;

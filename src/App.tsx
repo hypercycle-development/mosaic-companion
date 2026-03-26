@@ -8,7 +8,13 @@ import { DemoOverlay } from "./components/DemoOverlay";
 import { CommandPalette } from "./components/CommandPalette";
 import { SandboxWarningBanner } from "./components/SandboxWarningBanner";
 import { TransactionApprovalModal } from "../plugins/payments-jit/renderer/components/TransactionApprovalModal";
-import { INTERNAL_HOME_URL, INTERNAL_CHAT_URL, INTERNAL_ONBOARDING_URL, Tab } from "./types/types";
+import {
+  INTERNAL_HOME_URL,
+  INTERNAL_CHAT_URL,
+  INTERNAL_MULTI_CHAT_URL,
+  INTERNAL_ONBOARDING_URL,
+  Tab,
+} from "./types/types";
 import { useTheme } from "./ThemeProvider";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -263,6 +269,10 @@ function App() {
     setHasAgents(true);
   };
 
+  const isChatPage =
+    activeTab.history.present === INTERNAL_CHAT_URL ||
+    activeTab.history.present === INTERNAL_MULTI_CHAT_URL;
+
   const handleRefresh = () => {
     const current = activeTab.history.present;
     updateActiveTabHistory({ ...activeTab.history, present: "" });
@@ -501,7 +511,7 @@ function App() {
         </div>
 
         {/* Bottom AI Input Bar - hide during onboarding and on AI Chat page */}
-        {!isDemoActive && activeTab.history.present !== INTERNAL_CHAT_URL && activeTab.history.present !== INTERNAL_ONBOARDING_URL && (
+        {!isDemoActive && !isChatPage && activeTab.history.present !== INTERNAL_ONBOARDING_URL && (
           <BottomBar
             onSubmit={handleBottomBarSubmit}
             hasAgents={hasAgents}

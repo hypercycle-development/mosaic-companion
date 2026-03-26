@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent, powerMonitor, protocol, net } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain, IpcMainInvokeEvent, powerMonitor, protocol, net } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -58,7 +58,17 @@ import {
   updateSafetySettings,
   type Web3Config,
   type NetworkId,
+  type NetworkConfig,
+  clearTodaTwinInfoAddress,
 } from "./integrations/web3/config";
+import { saveWalletKey } from "./integrations/web3/index";
+import { signHypercycleNonceWithWallet } from "./integrations/web3/hypercycleSign";
+import {
+  saveTodaApiKey,
+  deleteTodaApiKey,
+  hasTodaConfig,
+  syncTodaTwinInfoAddressFromTwin,
+} from "./integrations/web3/toda";
 import {
   getBoxes,
   getBox,
@@ -746,16 +756,135 @@ ipcMain.handle("web3:get-config", async () => {
 ipcMain.handle("web3:update-config", async (_event, updates: Partial<Web3Config>) => {
   try {
     const config = loadConfig();
-    // Apply granular updates
+    const prevTodaHost = config.networks.toda?.twinHostname?.trim() ?? "";
     if (updates.activeNetwork) setActiveNetwork(updates.activeNetwork);
     if (updates.safety) updateSafetySettings(updates.safety);
-    // For full config replacement (tokens, limits, bans updated via their own tools/IPC)
-    const merged = { ...config, ...updates, safety: { ...config.safety, ...(updates.safety || {}) } };
+
+    const baseNetworks = config.networks;
+    const networks: Record<string, NetworkConfig> = updates.networks
+      ? Object.fromEntries(
+          Object.entries({ ...baseNetworks, ...updates.networks }).map(([k, v]) => [
+            k,
+            { ...baseNetworks[k as NetworkId], ...v } as NetworkConfig,
+          ]),
+        ) as Record<NetworkId, NetworkConfig>
+      : baseNetworks;
+
+    const merged: Web3Config = {
+      ...config,
+      ...updates,
+      networks,
+      safety: { ...config.safety, ...(updates.safety || {}) },
+    };
     saveConfig(merged);
+
+    const todaNet = merged.networks.toda;
+    const nextTodaHost = todaNet?.twinHostname?.trim() ?? "";
+    if (todaNet && !nextTodaHost) {
+      if (todaNet.twinInfoAddress) {
+        todaNet.twinInfoAddress = "";
+        saveConfig(merged);
+      }
+    } else if (hasTodaConfig() && prevTodaHost !== nextTodaHost) {
+      const sr = await syncTodaTwinInfoAddressFromTwin();
+      if (!sr.ok) {
+        console.warn("[Web3] TODA Twin /info sync after hostname change:", sr.error);
+      }
+    }
+
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+});
+
+// TODA Twin config (API key stored separately, encrypted)
+ipcMain.handle("web3:save-toda-api-key", async (_event, apiKey: string) => {
+  try {
+    if (!apiKey?.trim()) return { success: false, error: "API key is required." };
+    const saved = saveTodaApiKey(apiKey.trim());
+    if (saved && hasTodaConfig()) {
+      const sr = await syncTodaTwinInfoAddressFromTwin();
+      if (!sr.ok) {
+        console.warn("[Web3] TODA Twin /info sync after API key save:", sr.error);
+      }
+    }
+    return { success: saved };
+  } catch {
+    return { success: false, error: "Failed to save TODA API key." };
+  }
+});
+
+ipcMain.handle("web3:delete-toda-api-key", async () => {
+  const ok = deleteTodaApiKey();
+  if (ok) clearTodaTwinInfoAddress();
+  return { success: ok };
+});
+
+ipcMain.handle("web3:toda-has-config", async () => {
+  return { configured: hasTodaConfig() };
+});
+
+ipcMain.handle("web3:sign-hypercycle-nonce", async (_event, nonce: string) => {
+  return signHypercycleNonceWithWallet(typeof nonce === "string" ? nonce : "");
+});
+
+// Web3 wallet import (secure paths — key never passes through renderer IPC)
+function isValidPrivateKey(key: string): boolean {
+  const trimmed = key.trim();
+  if (!trimmed) return false;
+  const hex = trimmed.startsWith("0x") ? trimmed.slice(2) : trimmed;
+  return /^[a-fA-F0-9]{64}$/.test(hex);
+}
+
+ipcMain.handle("web3:import-from-clipboard", async () => {
+  try {
+    const text = clipboard.readText();
+    if (!isValidPrivateKey(text)) {
+      return { success: false, error: "Clipboard does not contain a valid Ethereum private key (64 hex chars, optional 0x prefix)." };
+    }
+    const ok = saveWalletKey(text.trim());
+    if (ok) clipboard.clear();
+    return { success: ok };
+  } catch {
+    return { success: false, error: "Failed to import from clipboard." };
+  }
+});
+
+ipcMain.handle("web3:import-wallet-secure", async (_event, privateKey: string) => {
+  try {
+    if (!isValidPrivateKey(privateKey)) {
+      return { success: false, error: "Invalid private key format." };
+    }
+    return { success: saveWalletKey(privateKey.trim()) };
+  } catch {
+    return { success: false, error: "Failed to save wallet." };
+  }
+});
+
+const SECURE_IMPORT_HTML = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Import Wallet</title><style>*{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#0f0f0f;color:#e5e5e5;padding:24px;margin:0;min-width:360px}h2{font-size:1rem;margin:0 0 16px;color:#a3a3a3}input{width:100%;padding:12px;background:#171717;border:1px solid #404040;border-radius:8px;color:#e5e5e5;font-family:monospace;font-size:13px;margin-bottom:12px}input:focus{outline:none;border-color:#6366f1}button{width:100%;padding:12px;background:#6366f1;border:none;border-radius:8px;color:#fff;font-weight:600;cursor:pointer}button:hover{background:#4f46e5}.hint{font-size:11px;color:#737373;margin-top:8px}</style></head><body><h2>Import private key</h2><p class="hint">Paste your key here. It is sent directly to the main process.</p><input type="password" id="key" placeholder="0x..." autocomplete="off"/><button id="submit">Import</button><script>document.getElementById("submit").onclick=async()=>{const k=document.getElementById("key").value.trim();if(!k)return;const b=document.getElementById("submit");b.disabled=true;try{const r=await window.secureWalletImport.submit(k);r.success?window.close():alert(r.error||"Import failed")}catch{alert("Import failed")}b.disabled=false}<\/script></body></html>`;
+
+ipcMain.on("web3:wallet-imported", () => {
+  mainWindow?.webContents.send("wallet:imported");
+});
+
+ipcMain.handle("web3:open-secure-import-window", async () => {
+  const preloadPath = path.join(__dirname, "secure-wallet-import-preload.js");
+  const win = new BrowserWindow({
+    width: 420,
+    height: 280,
+    title: "Import Wallet",
+    parent: mainWindow ?? undefined,
+    modal: !!mainWindow,
+    webPreferences: {
+      preload: preloadPath,
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+  win.setMenuBarVisibility(false);
+  win.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(SECURE_IMPORT_HTML));
 });
 
 // Theme Handlers
