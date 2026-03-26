@@ -21,7 +21,6 @@ import {
   Search,
   Gauge,
 } from "lucide-react";
-import { PRIVATE_KEY_GENERATION_PLACEHOLDER } from "../../electron/integrations/web3/constants";
 
 // =============================================================================
 // Types
@@ -77,6 +76,9 @@ interface NetworkConfig {
   rpcUrl: string;
   explorerUrl: string;
   customRpcUrl: string;
+  twinHostname?: string;
+  /** Cached Twin GET /info `address` */
+  twinInfoAddress?: string;
 }
 
 interface Web3Config {
@@ -132,8 +134,15 @@ const WalletOverview: React.FC<{ config: Web3Config | null; onConfigChanged: () 
   const loadWallet = async () => {
     setIsLoading(true);
     try {
-      const existsResult = (await window.electronAPI?.trading?.walletExists()) as any;
-      const exists = existsResult?.exists ?? existsResult?.data?.exists ?? false;
+      const isToda = config?.activeNetwork === "toda";
+      let exists = false;
+      if (isToda) {
+        const r = (await window.electronAPI?.web3?.todaHasConfig?.()) as { configured?: boolean };
+        exists = r?.configured ?? false;
+      } else {
+        const existsResult = (await window.electronAPI?.trading?.walletExists()) as any;
+        exists = existsResult?.exists ?? existsResult?.data?.exists ?? false;
+      }
       if (exists) {
         setHasWallet(true);
         const addrResult = await window.electronAPI?.web3?.getAddress();
@@ -151,6 +160,7 @@ const WalletOverview: React.FC<{ config: Web3Config | null; onConfigChanged: () 
       } else {
         setHasWallet(false);
         setWalletAddress(null);
+        setBalances(null);
       }
     } catch (error) {
       console.error("Failed to load wallet:", error);
@@ -175,17 +185,30 @@ const WalletOverview: React.FC<{ config: Web3Config | null; onConfigChanged: () 
   }
 
   if (!hasWallet) {
+    const isToda = config?.activeNetwork === "toda";
     return (
       <div className="text-center py-8 border border-dashed border-gray-700 rounded-xl">
         <Wallet className="mx-auto size-12 text-gray-600 mb-4" />
-        <p className="text-gray-500 mb-2">No wallet configured</p>
-        <p className="text-sm text-gray-600">Add a private key below to get started</p>
+        <p className="text-gray-500 mb-2">
+          {isToda ? "No TODA Twin configured" : "No wallet configured"}
+        </p>
+        <p className="text-sm text-gray-600">
+          {isToda
+            ? "Set Twin hostname and API key in the Network section"
+            : "Add a private key below to get started"}
+        </p>
       </div>
     );
   }
 
   const network = config?.networks?.[config.activeNetwork];
-  const explorerUrl = network?.explorerUrl || "https://basescan.org";
+  const isToda = config?.activeNetwork === "toda";
+  const explorerUrl = isToda && walletAddress?.startsWith("http")
+    ? walletAddress
+    : network?.explorerUrl || "https://basescan.org";
+  const explorerHref = isToda && walletAddress?.startsWith("http")
+    ? walletAddress
+    : `${network?.explorerUrl || "https://basescan.org"}/address/${walletAddress}`;
 
   return (
     <div className="space-y-4">
@@ -199,8 +222,10 @@ const WalletOverview: React.FC<{ config: Web3Config | null; onConfigChanged: () 
               <p className="text-sm text-gray-400">Wallet Address</p>
               <p className="text-white font-mono text-sm">
                 {walletAddress
-                  ? `${walletAddress.slice(0, 8)}...${walletAddress.slice(-6)}`
-                  : "Deriving..."}
+                  ? walletAddress.startsWith("http")
+                    ? walletAddress.replace(/^https?:\/\//, "").slice(0, 20) + "..."
+                    : `${walletAddress.slice(0, 8)}...${walletAddress.slice(-6)}`
+                  : "Loading..."}
               </p>
               {config && Object.keys(config.networks).length > 0 ? (
                 <div className="flex items-center gap-1 mt-0.5">
@@ -243,14 +268,14 @@ const WalletOverview: React.FC<{ config: Web3Config | null; onConfigChanged: () 
             </button>
             {walletAddress && (
               <a
-                href={`${explorerUrl}/address/${walletAddress}`}
+                href={explorerHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                title="View on Explorer"
+                title={isToda ? "Open Twin URL" : "View on Explorer"}
                 onClick={(e) => {
                   e.preventDefault();
-                  window.open(`${explorerUrl}/address/${walletAddress}`, "_blank");
+                  window.open(explorerHref, "_blank");
                 }}
               >
                 <ExternalLink size={16} />
@@ -292,10 +317,11 @@ const WalletOverview: React.FC<{ config: Web3Config | null; onConfigChanged: () 
 // Private Key Manager
 // =============================================================================
 
-const PrivateKeyManager: React.FC<{ onWalletChanged: () => void }> = ({ onWalletChanged }) => {
+const PrivateKeyManager: React.FC<{
+  onWalletChanged: () => void;
+  config: Web3Config | null;
+}> = ({ onWalletChanged, config }) => {
   const [hasWallet, setHasWallet] = useState(false);
-  const [privateKey, setPrivateKey] = useState("");
-  const [showKey, setShowKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -309,26 +335,58 @@ const PrivateKeyManager: React.FC<{ onWalletChanged: () => void }> = ({ onWallet
     }
   };
 
-  const handleSave = async () => {
-    let keyToSave = privateKey;
-    if (!privateKey) {
-      keyToSave = PRIVATE_KEY_GENERATION_PLACEHOLDER;
-      toast.info("No private key entered. Requesting backend to generate a new key.");
-    }
+  const handleGenerate = async () => {
     setIsSaving(true);
-    if (window.electronAPI?.trading?.saveWallet) {
-      const result = await window.electronAPI.trading.saveWallet(keyToSave);
-      if (result.success) {
-        toast.success("Private key saved securely.");
-        setPrivateKey("");
+    try {
+      const result = (await window.electronAPI?.trading?.saveWallet?.(
+        "PRIVATE_KEY_TO_BE_GENERATED",
+      )) as { success?: boolean };
+      if (result?.success) {
+        toast.success("New wallet generated and saved securely.");
         setHasWallet(true);
         onWalletChanged();
       } else {
-        toast.error("Failed to save wallet.");
+        toast.error("Failed to generate wallet.");
       }
+    } catch {
+      toast.error("Failed to generate wallet.");
     }
     setIsSaving(false);
   };
+
+  const handleImportFromClipboard = async () => {
+    setIsSaving(true);
+    try {
+      const result = (await window.electronAPI?.web3?.importFromClipboard?.()) as {
+        success?: boolean;
+        error?: string;
+      };
+      if (result?.success) {
+        toast.success("Wallet imported. Clipboard cleared.");
+        setHasWallet(true);
+        onWalletChanged();
+      } else {
+        toast.error(result?.error ?? "Failed to import. Copy a valid private key (0x + 64 hex chars) first.");
+      }
+    } catch {
+      toast.error("Failed to import from clipboard.");
+    }
+    setIsSaving(false);
+  };
+
+  const handleOpenSecureImport = () => {
+    window.electronAPI?.web3?.openSecureImportWindow?.();
+    toast.info("Paste your key in the secure window.");
+  };
+
+  useEffect(() => {
+    const unsub = window.electronAPI?.web3?.onWalletImported?.(() => {
+      checkWallet();
+      onWalletChanged();
+      toast.success("Wallet imported.");
+    });
+    return () => unsub?.();
+  }, [onWalletChanged]);
 
   const handleDelete = async () => {
     if (!window.confirm("Are you sure you want to delete the wallet? This cannot be undone.")) return;
@@ -343,6 +401,18 @@ const PrivateKeyManager: React.FC<{ onWalletChanged: () => void }> = ({ onWallet
       }
     }
   };
+
+  const isToda = config?.activeNetwork === "toda";
+
+  if (isToda) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-gray-500">
+          TODA uses an API key instead of a private key. Configure your Twin hostname and API key in the Network section above.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -374,36 +444,36 @@ const PrivateKeyManager: React.FC<{ onWalletChanged: () => void }> = ({ onWallet
         </div>
       ) : (
         <div className="space-y-3">
-          <label className="block">
-            <span className="text-sm text-gray-400 mb-1 block">Private Key (0x...)</span>
-            <div className="relative">
-              <input
-                type={showKey ? "text" : "password"}
-                value={privateKey}
-                onChange={(e) => setPrivateKey(e.target.value)}
-                className="w-full px-4 py-2 pr-10 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100 font-mono text-sm"
-                placeholder="0x..."
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey(!showKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
-              >
-                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            <span className="block text-xs text-gray-500 mt-2">
-              Leave empty to generate a new random private key automatically.
-            </span>
-          </label>
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-          >
-            {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            Save Private Key
-          </button>
+          <p className="text-xs text-gray-500">
+            Create a new wallet or import an existing one. Keys never pass through the main app UI.
+          </p>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleGenerate}
+              disabled={isSaving}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              {isSaving ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Save size={16} />
+              )}
+              Generate new wallet
+            </button>
+            <button
+              onClick={handleImportFromClipboard}
+              disabled={isSaving}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-gray-200 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              Import from clipboard
+            </button>
+            <button
+              onClick={handleOpenSecureImport}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              Import in secure window
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -416,14 +486,24 @@ const PrivateKeyManager: React.FC<{ onWalletChanged: () => void }> = ({ onWallet
 
 const NetworkSettings: React.FC<{ config: Web3Config | null; onConfigChanged: () => void }> = ({ config, onConfigChanged }) => {
   const [customRpc, setCustomRpc] = useState("");
+  const [twinHostname, setTwinHostname] = useState("");
+  const [todaApiKey, setTodaApiKey] = useState("");
+  const [todaHasConfig, setTodaHasConfig] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
 
   useEffect(() => {
     if (config) {
       const net = config.networks[config.activeNetwork];
       setCustomRpc(net?.customRpcUrl || "");
+      setTwinHostname((net as { twinHostname?: string })?.twinHostname || "");
     }
   }, [config]);
+
+  useEffect(() => {
+    window.electronAPI?.web3?.todaHasConfig?.().then((r: { configured?: boolean }) => {
+      setTodaHasConfig(r?.configured ?? false);
+    });
+  }, [config?.activeNetwork]);
 
   const handleNetworkSwitch = async (networkId: string) => {
     setIsSwitching(true);
@@ -451,17 +531,60 @@ const NetworkSettings: React.FC<{ config: Web3Config | null; onConfigChanged: ()
     }
   };
 
+  const handleSaveTodaConfig = async () => {
+    if (!config) return;
+    try {
+      const networks = { ...config.networks };
+      networks.toda = {
+        ...networks.toda,
+        twinHostname: twinHostname.trim(),
+      };
+      await window.electronAPI?.web3?.updateConfig({
+        ...config,
+        networks,
+      } as any);
+      if (todaApiKey.trim()) {
+        const ok = await window.electronAPI?.web3?.saveTodaApiKey?.(todaApiKey.trim());
+        if (ok?.success) {
+          setTodaApiKey("");
+          setTodaHasConfig(true);
+        } else {
+          toast.error(ok?.error ?? "Failed to save API key.");
+          return;
+        }
+      }
+      toast.success("TODA Twin config saved.");
+      onConfigChanged();
+    } catch {
+      toast.error("Failed to save TODA config.");
+    }
+  };
+
+  const handleDeleteTodaApiKey = async () => {
+    try {
+      const ok = await window.electronAPI?.web3?.deleteTodaApiKey?.();
+      if (ok?.success) {
+        setTodaHasConfig(false);
+        toast.success("TODA API key removed.");
+        onConfigChanged();
+      }
+    } catch {
+      toast.error("Failed to remove API key.");
+    }
+  };
+
   if (!config) return null;
 
   const activeNet = config.networks[config.activeNetwork];
+  const isToda = config.activeNetwork === "toda";
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
-        Select your Base chain network. Use testnet for development and testing.
+        Select your network. Base for Ethereum L2, TODA for Twin Container assets.
       </p>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {Object.entries(config.networks).map(([id, net]) => (
           <button
             key={id}
@@ -474,7 +597,9 @@ const NetworkSettings: React.FC<{ config: Web3Config | null; onConfigChanged: ()
             }`}
           >
             <p className="font-medium text-sm text-gray-200">{net.name}</p>
-            <p className="text-xs text-gray-500 mt-1">Chain ID: {net.chainId}</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {id === "toda" ? "Twin Container" : `Chain ID: ${net.chainId}`}
+            </p>
             {config.activeNetwork === id && (
               <span className="inline-block mt-2 text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">Active</span>
             )}
@@ -482,27 +607,83 @@ const NetworkSettings: React.FC<{ config: Web3Config | null; onConfigChanged: ()
         ))}
       </div>
 
-      <div className="space-y-2">
-        <label className="block text-sm text-gray-400">
-          Custom RPC URL (optional, overrides default for {activeNet.name})
-        </label>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={customRpc}
-            onChange={(e) => setCustomRpc(e.target.value)}
-            className="flex-1 px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
-            placeholder={activeNet.rpcUrl}
-          />
+      {isToda ? (
+        <div className="space-y-3 p-4 bg-gray-950/50 rounded-lg border border-gray-800">
+          <p className="text-sm text-gray-400 font-medium">TODA Twin Configuration</p>
+          <label className="block">
+            <span className="text-xs text-gray-500 mb-1 block">Twin Hostname</span>
+            <input
+              type="text"
+              value={twinHostname}
+              onChange={(e) => setTwinHostname(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+              placeholder="41ef9f65233cd44bd0fff624744e2237.tq.biz.todaq.net"
+            />
+          </label>
+          {config.networks.toda?.twinInfoAddress?.trim() ? (
+            <div className="rounded-lg border border-gray-800 bg-gray-900/40 px-3 py-2">
+              <p className="text-xs text-gray-500 mb-0.5">TODA address (from Twin /info, cached)</p>
+              <p className="text-sm text-emerald-400/90 font-mono break-all">
+                {config.networks.toda.twinInfoAddress.trim()}
+              </p>
+              <p className="text-[11px] text-gray-600 mt-1">
+                Refreshed when you save this page with hostname + API key. Used for Hypercycle and
+                wallet display without extra /info calls.
+              </p>
+            </div>
+          ) : null}
+          <label className="block">
+            <span className="text-xs text-gray-500 mb-1 block">API Key</span>
+            {todaHasConfig ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-emerald-400">API key configured</span>
+                <button
+                  onClick={handleDeleteTodaApiKey}
+                  className="text-xs text-red-400 hover:text-red-300"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <input
+                type="password"
+                value={todaApiKey}
+                onChange={(e) => setTodaApiKey(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+                placeholder="Paste API key"
+              />
+            )}
+          </label>
           <button
-            onClick={handleSaveRpc}
-            className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
+            onClick={handleSaveTodaConfig}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium"
           >
-            Save
+            Save TODA Config
           </button>
         </div>
-        <p className="text-xs text-gray-600">Default: {activeNet.rpcUrl}</p>
-      </div>
+      ) : (
+        <div className="space-y-2">
+          <label className="block text-sm text-gray-400">
+            Custom RPC URL (optional, overrides default for {activeNet.name})
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={customRpc}
+              onChange={(e) => setCustomRpc(e.target.value)}
+              className="flex-1 px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+              placeholder={activeNet.rpcUrl}
+            />
+            <button
+              onClick={handleSaveRpc}
+              className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
+            >
+              Save
+            </button>
+          </div>
+          <p className="text-xs text-gray-600">Default: {activeNet.rpcUrl}</p>
+        </div>
+      )}
     </div>
   );
 };
@@ -517,12 +698,19 @@ const CurrencyManager: React.FC<{ config: Web3Config | null; onConfigChanged: ()
   const [lookupResult, setLookupResult] = useState<{ name: string; symbol: string; decimals: number } | null>(null);
   const [isLooking, setIsLooking] = useState(false);
   const [lookupError, setLookupError] = useState("");
+  const [todaSymbol, setTodaSymbol] = useState("");
+  const [todaName, setTodaName] = useState("");
+  const [todaDecimals, setTodaDecimals] = useState("0");
 
   if (!config) return null;
 
-  const activeTokens = config.tokens.filter((t) => t.network === config.activeNetwork);
+  const isToda = config.activeNetwork === "toda";
+  const activeTokens = config.tokens.filter(
+    (t) => t.network === config.activeNetwork,
+  );
 
   const handleLookup = async () => {
+    if (isToda) return; // No on-chain lookup for TODA
     if (!contractInput.trim()) return;
     setIsLooking(true);
     setLookupError("");
@@ -544,7 +732,40 @@ const CurrencyManager: React.FC<{ config: Web3Config | null; onConfigChanged: ()
     setIsLooking(false);
   };
 
+  const handleAddTodaAsset = async () => {
+    if (!contractInput.trim() || !todaSymbol.trim()) return;
+    try {
+      const newToken: TokenConfig = {
+        id: `${todaSymbol.toLowerCase()}-${config.activeNetwork}-${Date.now()}`,
+        symbol: todaSymbol.trim().toUpperCase(),
+        name: todaName.trim() || todaSymbol.trim(),
+        contractAddress: contractInput.trim(),
+        decimals: parseInt(todaDecimals) || 0,
+        isNative: false,
+        network: config.activeNetwork,
+      };
+      const updatedTokens = [...config.tokens, newToken];
+      await window.electronAPI?.web3?.updateConfig({
+        ...config,
+        tokens: updatedTokens,
+      } as any);
+      toast.success(`TODA asset ${newToken.symbol} added!`);
+      setContractInput("");
+      setTodaSymbol("");
+      setTodaName("");
+      setTodaDecimals("0");
+      setShowAddForm(false);
+      onConfigChanged();
+    } catch {
+      toast.error("Failed to add TODA asset.");
+    }
+  };
+
   const handleAddToken = async () => {
+    if (isToda) {
+      await handleAddTodaAsset();
+      return;
+    }
     if (!lookupResult || !contractInput) return;
     try {
       const newToken: TokenConfig = {
@@ -613,51 +834,168 @@ const CurrencyManager: React.FC<{ config: Web3Config | null; onConfigChanged: ()
 
       {showAddForm ? (
         <div className="p-4 bg-gray-900/50 border border-gray-700 rounded-xl space-y-3">
-          <div className="p-3 bg-yellow-900/10 border border-yellow-800/30 rounded-lg">
-            <p className="text-xs text-yellow-400 flex items-center gap-1">
-              <AlertTriangle size={12} />
-              Always verify the contract address on the block explorer before adding a token.
-            </p>
-          </div>
-          <label className="block">
-            <span className="text-sm text-gray-400 mb-1 block">Contract Address</span>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={contractInput}
-                onChange={(e) => { setContractInput(e.target.value); setLookupResult(null); setLookupError(""); }}
-                className="flex-1 px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
-                placeholder="0x..."
-              />
-              <button onClick={handleLookup} disabled={!contractInput.trim() || isLooking} className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 text-white rounded-lg text-sm transition-colors flex items-center gap-1.5">
-                {isLooking ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-                Lookup
-              </button>
-            </div>
-          </label>
-          {lookupError && <p className="text-sm text-red-400">{lookupError}</p>}
-          {lookupResult && (
-            <div className="p-3 bg-emerald-900/10 border border-emerald-800/30 rounded-lg space-y-2">
-              <p className="text-sm text-emerald-400 font-medium">Token found on-chain:</p>
-              <div className="grid grid-cols-3 gap-2 text-sm">
-                <div><p className="text-gray-500 text-xs">Name</p><p className="text-gray-200">{lookupResult.name}</p></div>
-                <div><p className="text-gray-500 text-xs">Symbol</p><p className="text-gray-200">{lookupResult.symbol}</p></div>
-                <div><p className="text-gray-500 text-xs">Decimals</p><p className="text-gray-200">{lookupResult.decimals}</p></div>
+          {isToda ? (
+            <>
+              <p className="text-xs text-gray-500">
+                Add a TODA DQ asset by type hash from your GET /dq response.
+              </p>
+              <label className="block">
+                <span className="text-sm text-gray-400 mb-1 block">Type Hash</span>
+                <input
+                  type="text"
+                  value={contractInput}
+                  onChange={(e) => setContractInput(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+                  placeholder="e.g. tdn or full type hash"
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm text-gray-400 mb-1 block">Symbol</span>
+                <input
+                  type="text"
+                  value={todaSymbol}
+                  onChange={(e) => setTodaSymbol(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 text-sm"
+                  placeholder="e.g. TDN"
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm text-gray-400 mb-1 block">Name (optional)</span>
+                <input
+                  type="text"
+                  value={todaName}
+                  onChange={(e) => setTodaName(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 text-sm"
+                  placeholder="e.g. TODA Digital Note"
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm text-gray-400 mb-1 block">Decimals</span>
+                <input
+                  type="text"
+                  value={todaDecimals}
+                  onChange={(e) => setTodaDecimals(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 text-sm"
+                  placeholder="0"
+                />
+              </label>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setContractInput("");
+                    setTodaSymbol("");
+                    setTodaName("");
+                    setTodaDecimals("0");
+                  }}
+                  className="px-3 py-1.5 text-gray-400 hover:text-gray-200 rounded-lg transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddTodaAsset}
+                  disabled={!contractInput.trim() || !todaSymbol.trim()}
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 text-white rounded-lg font-medium transition-colors text-sm"
+                >
+                  Add TODA Asset
+                </button>
               </div>
-              <button onClick={handleAddToken} className="mt-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors text-sm flex items-center gap-1.5">
-                <Plus size={14} /> Add {lookupResult.symbol}
-              </button>
-            </div>
+            </>
+          ) : (
+            <>
+              <div className="p-3 bg-yellow-900/10 border border-yellow-800/30 rounded-lg">
+                <p className="text-xs text-yellow-400 flex items-center gap-1">
+                  <AlertTriangle size={12} />
+                  Always verify the contract address on the block explorer before
+                  adding a token.
+                </p>
+              </div>
+
+              <label className="block">
+                <span className="text-sm text-gray-400 mb-1 block">
+                  Contract Address
+                </span>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={contractInput}
+                    onChange={(e) => {
+                      setContractInput(e.target.value);
+                      setLookupResult(null);
+                      setLookupError("");
+                    }}
+                    className="flex-1 px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+                    placeholder="0x..."
+                  />
+                  <button
+                    onClick={handleLookup}
+                    disabled={!contractInput.trim() || isLooking}
+                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 text-white rounded-lg text-sm transition-colors flex items-center gap-1.5"
+                  >
+                    {isLooking ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Search size={14} />
+                    )}
+                    Lookup
+                  </button>
+                </div>
+              </label>
+
+              {lookupError && <p className="text-sm text-red-400">{lookupError}</p>}
+
+              {lookupResult && (
+                <div className="p-3 bg-emerald-900/10 border border-emerald-800/30 rounded-lg space-y-2">
+                  <p className="text-sm text-emerald-400 font-medium">
+                    Token found on-chain:
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <p className="text-gray-500 text-xs">Name</p>
+                      <p className="text-gray-200">{lookupResult.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs">Symbol</p>
+                      <p className="text-gray-200">{lookupResult.symbol}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs">Decimals</p>
+                      <p className="text-gray-200">{lookupResult.decimals}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleAddToken}
+                    className="mt-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors text-sm flex items-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    Add {lookupResult.symbol}
+                  </button>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setContractInput("");
+                    setLookupResult(null);
+                    setLookupError("");
+                  }}
+                  className="px-3 py-1.5 text-gray-400 hover:text-gray-200 rounded-lg transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
           )}
-          <div className="flex justify-end">
-            <button onClick={() => { setShowAddForm(false); setContractInput(""); setLookupResult(null); setLookupError(""); }} className="px-3 py-1.5 text-gray-400 hover:text-gray-200 rounded-lg transition-colors text-sm">
-              Cancel
-            </button>
-          </div>
         </div>
       ) : (
-        <button onClick={() => setShowAddForm(true)} className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 hover:bg-gray-800/50 text-gray-400 hover:text-gray-200 border border-gray-800 rounded-lg transition-all text-sm w-full justify-center">
-          <Plus size={16} /> Add ERC20 Token
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 hover:bg-gray-800/50 text-gray-400 hover:text-gray-200 border border-gray-800 rounded-lg transition-all text-sm w-full justify-center"
+        >
+          <Plus size={16} />
+          {isToda ? "Add TODA DQ Asset" : "Add ERC20 Token"}
         </button>
       )}
     </div>
@@ -890,13 +1228,14 @@ const SafetySettingsSection: React.FC<{ config: Web3Config | null; onConfigChang
 // Address Book Section
 // =============================================================================
 
-const AddressBook: React.FC = () => {
+const AddressBook: React.FC<{ config: Web3Config | null }> = ({ config }) => {
   const [contacts, setContacts] = useState<WalletContact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAddress, setNewAddress] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const isToda = config?.activeNetwork === "toda";
 
   const loadContacts = useCallback(async () => {
     setIsLoading(true);
@@ -906,8 +1245,15 @@ const AddressBook: React.FC = () => {
         const lines = result.data.split("\n").filter((l: string) => l.startsWith("•"));
         const parsed: WalletContact[] = lines
           .map((line: string, i: number) => {
-            const match = line.match(/• (.+?): (0x[a-fA-F0-9]+)/);
-            if (match) return { id: `contact-${i}`, name: match[1], address: match[2], createdAt: Date.now() };
+            const match = line.match(/• (.+?): (.+)$/);
+            if (match) {
+              return {
+                id: `contact-${i}`,
+                name: match[1],
+                address: match[2].trim(),
+                createdAt: Date.now(),
+              };
+            }
             return null;
           })
           .filter(Boolean) as WalletContact[];
@@ -997,8 +1343,16 @@ const AddressBook: React.FC = () => {
             <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 text-sm" placeholder="e.g. John, My Exchange" />
           </label>
           <label className="block">
-            <span className="text-sm text-gray-400 mb-1 block">Wallet Address</span>
-            <input type="text" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm" placeholder="0x..." />
+            <span className="text-sm text-gray-400 mb-1 block">
+              {isToda ? "Twin URL" : "Wallet Address"}
+            </span>
+            <input
+              type="text"
+              value={newAddress}
+              onChange={(e) => setNewAddress(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+              placeholder={isToda ? "https://...todaq.net" : "0x..."}
+            />
           </label>
           <div className="flex gap-2 justify-end">
             <button onClick={() => { setShowAddForm(false); setNewName(""); setNewAddress(""); }} className="px-3 py-1.5 text-gray-400 hover:text-gray-200 rounded-lg text-sm">Cancel</button>
@@ -1094,8 +1448,15 @@ export const Web3Page: React.FC = () => {
           <NetworkSettings config={config} onConfigChanged={handleConfigChanged} />
         </section>
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2"><Eye size={20} />Private Key</h2>
-          <PrivateKeyManager key={`key-${walletKey}`} onWalletChanged={handleWalletChanged} />
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
+            <Eye size={20} />
+            Private Key
+          </h2>
+          <PrivateKeyManager
+            key={`key-${walletKey}`}
+            onWalletChanged={handleWalletChanged}
+            config={config}
+          />
         </section>
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
           <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2"><Coins size={20} />Currencies</h2>
@@ -1114,8 +1475,11 @@ export const Web3Page: React.FC = () => {
           <SafetySettingsSection config={config} onConfigChanged={handleConfigChanged} />
         </section>
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2"><BookUser size={20} />Address Book</h2>
-          <AddressBook key={`book-${walletKey}`} />
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
+            <BookUser size={20} />
+            Address Book
+          </h2>
+          <AddressBook key={`book-${walletKey}`} config={config} />
         </section>
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
           <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2"><Clock size={20} />Recent Actions</h2>

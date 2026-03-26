@@ -125,12 +125,21 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
       provider,
       model: DEFAULT_MODELS[provider][0] || "",
       baseUrl: provider === "custom" ? "" : PROVIDER_INFO[provider].baseUrl,
+      ...(provider === "hypercycle"
+        ? { hypercycleCurrencyType: "TDN" }
+        : {}),
     });
     setTestStatus({ status: "idle" });
   };
 
   const handleTestConnection = async () => {
-    if (!agentConfig.apiKey && agentConfig.provider !== "ollama") return;
+    if (
+      !agentConfig.apiKey &&
+      agentConfig.provider !== "ollama" &&
+      agentConfig.provider !== "hypercycle"
+    ) {
+      return;
+    }
     setTestStatus({ status: "testing" });
     try {
       const config: AIAgentConfig = {
@@ -144,6 +153,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
         temperature: agentConfig.temperature,
         isActive: true,
         createdAt: Date.now(),
+        hypercycleCurrencyType: agentConfig.hypercycleCurrencyType,
       };
       const result = await AIService.testConnection(config);
       setTestStatus({
@@ -171,6 +181,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
       temperature: agentConfig.temperature ?? 0.7,
       isActive: true,
       createdAt: Date.now(),
+      hypercycleCurrencyType: agentConfig.hypercycleCurrencyType,
     };
 
     try {
@@ -307,7 +318,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                 <span className="text-sm text-gray-400 mb-1 block">
                   Provider
                 </span>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                   {(
                     Object.entries(PROVIDER_INFO) as [
                       AIProvider,
@@ -335,14 +346,17 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                             ? "Gemini"
                             : key === "ollama"
                               ? "Ollama"
-                              : "Custom"}
+                              : key === "hypercycle"
+                                ? "Hypercycle"
+                                : "Custom"}
                     </button>
                   ))}
                 </div>
               </label>
 
               {/* API Key */}
-              {agentConfig.provider !== "ollama" && (
+              {agentConfig.provider !== "ollama" &&
+                agentConfig.provider !== "hypercycle" && (
                 <label className="block">
                   <span className="text-sm text-gray-400 mb-1 block flex items-center gap-1">
                     <Key size={12} />
@@ -411,13 +425,21 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                 )}
               </label>
 
-              {/* Base URL for custom/ollama */}
+              {/* Base URL for custom/ollama/hypercycle */}
               {(agentConfig.provider === "custom" ||
-                agentConfig.provider === "ollama") && (
+                agentConfig.provider === "ollama" ||
+                agentConfig.provider === "hypercycle") && (
                 <label className="block">
                   <span className="text-sm text-gray-400 mb-1 block">
-                    Base URL
+                    {agentConfig.provider === "hypercycle"
+                      ? "Node base URL"
+                      : "Base URL"}
                   </span>
+                  {agentConfig.provider === "hypercycle" && (
+                    <p className="text-xs text-gray-600 mb-1">
+                      Host only (no :8000). Nonce, AIM, and stream ports are added automatically.
+                    </p>
+                  )}
                   <input
                     type="text"
                     value={
@@ -432,9 +454,35 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                       })
                     }
                     className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-100 text-sm"
-                    placeholder="http://localhost:11434"
+                    placeholder={
+                      agentConfig.provider === "hypercycle"
+                        ? "http://207.53.252.108"
+                        : "http://localhost:11434"
+                    }
                   />
                 </label>
+              )}
+
+              {agentConfig.provider === "hypercycle" && (
+                <>
+                  <label className="block">
+                    <span className="text-sm text-gray-400 mb-1 block">
+                      Currency type
+                    </span>
+                    <input
+                      type="text"
+                      value={agentConfig.hypercycleCurrencyType || "TDN"}
+                      onChange={(e) =>
+                        setAgentConfig({
+                          ...agentConfig,
+                          hypercycleCurrencyType: e.target.value.trim() || "TDN",
+                        })
+                      }
+                      className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 text-sm"
+                      placeholder="TDN"
+                    />
+                  </label>
+                </>
               )}
 
               {/* Test Connection */}
@@ -443,7 +491,9 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                   onClick={handleTestConnection}
                   disabled={
                     testStatus.status === "testing" ||
-                    (!agentConfig.apiKey && agentConfig.provider !== "ollama")
+                    (!agentConfig.apiKey &&
+                      agentConfig.provider !== "ollama" &&
+                      agentConfig.provider !== "hypercycle")
                   }
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
                     testStatus.status === "success"
@@ -500,7 +550,9 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                 <button
                   onClick={goNext}
                   disabled={
-                    !agentConfig.apiKey && agentConfig.provider !== "ollama"
+                    !agentConfig.apiKey &&
+                    agentConfig.provider !== "ollama" &&
+                    agentConfig.provider !== "hypercycle"
                   }
                   className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 rounded-xl text-white font-medium transition-all flex items-center gap-2"
                 >

@@ -170,6 +170,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("tools:execute", "web3:save-wallet", {
         privateKey: key,
       }),
+    importFromClipboard: () =>
+      ipcRenderer.invoke("web3:import-from-clipboard"),
     deleteWallet: () =>
       ipcRenderer.invoke("tools:execute", "web3:delete-wallet", {}),
     walletExists: () =>
@@ -211,6 +213,22 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getConfig: () => ipcRenderer.invoke("web3:get-config"),
     updateConfig: (updates: Record<string, unknown>) =>
       ipcRenderer.invoke("web3:update-config", updates),
+    importFromClipboard: () =>
+      ipcRenderer.invoke("web3:import-from-clipboard"),
+    openSecureImportWindow: () =>
+      ipcRenderer.invoke("web3:open-secure-import-window"),
+    onWalletImported: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on("wallet:imported", handler);
+      return () => ipcRenderer.removeListener("wallet:imported", handler);
+    },
+    // TODA
+    saveTodaApiKey: (apiKey: string) =>
+      ipcRenderer.invoke("web3:save-toda-api-key", apiKey),
+    deleteTodaApiKey: () => ipcRenderer.invoke("web3:delete-toda-api-key"),
+    todaHasConfig: () => ipcRenderer.invoke("web3:toda-has-config"),
+    signHypercycleNonce: (nonce: string) =>
+      ipcRenderer.invoke("web3:sign-hypercycle-nonce", nonce),
   },
   // HyperInsight plugin
   hyperinsight: {
