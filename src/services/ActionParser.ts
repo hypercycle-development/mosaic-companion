@@ -43,20 +43,35 @@ export function parseAction(response: string): ParsedAction {
   return { type: "NONE", cleanResponse: response };
 }
 
-/**
- * Execute a tool call.
- *
- * Routes to the built-in ToolRegistry first (Gmail, Web3, Vault, WASM tools).
- * Falls back to MCP servers if the module isn't found in the registry.
- */
 /** Structured result from executeToolCall — text for the agent + optional UI blocks */
 export interface ToolCallOutput {
   text: string;
   uiBlocks?: import("../components/tool-ui/types").ToolUIBlock[];
   /** "display" = UI is the answer (skip agent recursion), "analyze" = agent comments (default) */
   displayHint?: "display" | "analyze";
+  /**
+   * mosaic-media:// URLs detected in the tool result text.
+   * These are tool-generated media files (images, etc.) saved to disk.
+   * The renderer loads them as data: URIs via IPC — never exposed directly.
+   */
+  mediaUrls?: string[];
 }
 
+/**
+ * Extract all mosaic-media:// URLs from a tool result string.
+ * Returns an array of URLs (e.g. ["mosaic-media://generated_image_123.png"]).
+ */
+function extractMosaicMediaUrls(text: string): string[] {
+  const matches = text.match(/mosaic-media:\/\/[^\s\]"')]+/g);
+  return matches ?? [];
+}
+
+/**
+ * Execute a tool call.
+ *
+ * Routes to the built-in ToolRegistry first (Gmail, Web3, Vault, WASM tools).
+ * Falls back to MCP servers if the module isn't found in the registry.
+ */
 export async function executeToolCall(action: ParsedAction, agentId?: string): Promise<ToolCallOutput> {
   if (action.type !== "TOOL_CALL" || !action.params) {
     return { text: "Invalid tool action" };
@@ -104,7 +119,49 @@ export async function executeToolCall(action: ParsedAction, agentId?: string): P
   try {
     const result = await window.electronAPI.mcpAPI.callTool(server, tool, args);
     if (result.success) {
-      return { text: JSON.stringify(result.result) };
+      // TODO: The __payment_required interception below could be extracted into a
+      // shared helper (e.g. handlePaymentRequired()) and unified with executeMCPAction
+      // once the two call-paths are fully consolidated. See plugins/payments-jit.
+
+      // Intercept __payment_required signal from AIM endpoints (HTTP 402).
+      // The mcp-server.js wraps the 402 response as JSON; we route it to the
+      // JIT payment handler in the main process, which handles top-up + retry.
+      const firstContent = result.result?.content?.[0];
+      const resultText = typeof firstContent?.text === "string" ? firstContent.text : "";
+
+      if (resultText.includes('"__payment_required"')) {
+        try {
+          const paymentData = JSON.parse(resultText);
+          if (paymentData.__payment_required) {
+            console.log("[ActionParser] Intercepted __payment_required signal. Routing to payment handler...");
+            const paymentResult = await (window as any).electronAPI.hyperinsight.handlePayment(paymentData);
+            if (paymentResult.success && paymentResult.result) {
+              const finalText = paymentResult.result.content?.[0]?.text ?? JSON.stringify(paymentResult.result, null, 2);
+              const mediaUrls = extractMosaicMediaUrls(finalText);
+              return { text: finalText, ...(mediaUrls.length > 0 ? { mediaUrls, displayHint: "display" as const } : {}) };
+            }
+            if (paymentResult.result?.content?.[0]?.text) {
+              const finalText = paymentResult.result.content[0].text as string;
+              const mediaUrls = extractMosaicMediaUrls(finalText);
+              return { text: finalText, ...(mediaUrls.length > 0 ? { mediaUrls, displayHint: "display" as const } : {}) };
+            }
+            return { text: `Payment required but failed: ${paymentResult.error || "Unknown error"}` };
+          }
+        } catch (parseErr) {
+          console.warn("[ActionParser] Result contained __payment_required text but failed to parse:", parseErr);
+        }
+      }
+
+      // Extract direct text content if available (cleaner for LLM) and scan for media URLs
+      const directContent = result.result?.content?.[0];
+      const directText = typeof directContent?.text === "string"
+        ? directContent.text
+        : JSON.stringify(result.result);
+      const directMediaUrls = extractMosaicMediaUrls(directText);
+      return {
+        text: directText,
+        ...(directMediaUrls.length > 0 ? { mediaUrls: directMediaUrls, displayHint: "display" as const } : {}),
+      };
     } else {
       return { text: `Error calling tool ${tool}: ${result.error}` };
     }
@@ -307,8 +364,6 @@ export function parseMosaicUI(response: string): MosaicUIParseResult {
       // Track dropped blocks — collect raw snippets for debug view
       const droppedCount = parsed.length - filtered.length;
       if (droppedCount > 0) {
-        // We can't precisely match which raw→filtered, so collect all raw entries
-        // and let the count difference tell the story
         for (const raw of parsed) {
           failedRawSnippets.push(JSON.stringify(raw).slice(0, 200));
         }

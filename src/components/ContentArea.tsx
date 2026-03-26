@@ -8,6 +8,7 @@ import {
   INTERNAL_SETTINGS_URL,
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
+  INTERNAL_HYPERINSIGHT_URL,
   INTERNAL_SANDBOX_URL,
   INTERNAL_ONBOARDING_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
@@ -20,6 +21,7 @@ import { MCPPage } from "./MCPPage";
 import { ChatPage } from "./ChatPage";
 import { Web3Page } from "./Web3Page";
 import { VaultPage } from "./VaultPage";
+import { HyperInsightView } from "../../plugins/hyperinsight/renderer/HyperInsightView";
 import { SandboxPage } from "./SandboxPage";
 import { ToolPanelView } from "./ToolPanelView";
 import { OnboardingPage } from "./OnboardingPage";
@@ -462,6 +464,18 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     return (
       <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
         <VaultPage />
+      </div>
+    );
+  }
+
+  if (url === INTERNAL_HYPERINSIGHT_URL) {
+    useEffect(() => {
+      onUpdateTab({ title: "HyperInsight", isLoading: false, favicon: undefined });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
+        <HyperInsightView />
       </div>
     );
   }

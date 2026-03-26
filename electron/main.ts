@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, ipcMain, IpcMainInvokeEvent, powerMonitor } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain, IpcMainInvokeEvent, powerMonitor, protocol, net } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -20,6 +20,8 @@ import {
   getTitleBarStyle,
   getGmailAutoMarkRead,
   setGmailAutoMarkRead,
+  getAutoDisplayMedia,
+  setAutoDisplayMedia,
 } from "./settings";
 import {
   getDirectoryStatus,
@@ -34,6 +36,10 @@ import { mcpClient, setMainWindow as mcpSetMainWindow, initPlugins } from "./int
 import { initializeTools, cleanupTools } from "./integrations/tools";
 import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integrations/chat/index";
+// Plugin IPC handler registrations
+import { registerHyperInsightIpc } from "../plugins/hyperinsight/main/index.js";
+import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
+import { registerPaymentsJitIpc } from "../plugins/payments-jit/main/index.ts";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
@@ -101,6 +107,8 @@ interface Node {
   adminHost: string;
   adminPort: string;
   isActive: boolean;
+  // Need licenseKey to connect to node manifests in hyperinsight-aims.json
+  licenseKey?: string;
 }
 
 interface AIAgent {
@@ -285,11 +293,32 @@ app.on("web-contents-created", (_event, contents) => {
   });
 });
 
+// Must be called before app is ready
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'mosaic-media', privileges: { bypassCSP: true, supportFetchAPI: true, corsEnabled: true } }
+]);
+
 app.whenReady().then(() => {
   console.log("App is packaged:", app.isPackaged);
   console.log("User data path:", app.getPath("userData"));
   console.log("__dirname:", __dirname);
   console.log("PROJECT_ROOT:", PROJECT_ROOT);
+
+  // Register custom protocol for safely serving local media files
+  protocol.handle('mosaic-media', (request) => {
+    // URL looks like: mosaic-media://generated_image_123.png
+    const urlStr = request.url.replace(/^mosaic-media:\/\//, '');
+    const mediaDir = path.join(app.getPath('userData'), 'mosaic-media');
+    // Ensure the requested file is safely resolved inside the media directory to prevent directory traversal attacks
+    const filePath = path.join(mediaDir, path.normalize(urlStr));
+    
+    // Only serve files that actually live inside the media directory
+    if (!filePath.startsWith(mediaDir)) {
+       return new Response('Access Denied', { status: 403 });
+    }
+    
+    return net.fetch(`file://${filePath}`);
+  });
 
   // Ensure agents history directory exists
   const agentsHistoryPathExist = getDirectoryStatus(agentsHistoryPath);
@@ -304,6 +333,19 @@ app.whenReady().then(() => {
   const win = createWindow();
   mcpSetMainWindow(win);
   setChatMainWindow(win);
+
+  // ==========================================================================
+  // IMPORTANT: Register plugin IPC handlers BEFORE initPlugins().
+  // registerAimNodesIpc() reads the wallet key via getWalletKey() and writes
+  // it into the plugin's env config. initPlugins() then spawns the MCP child
+  // process using that env, so the key is available from process start.
+  // Reversing this order causes the MCP server to launch without WALLET_PRIVATE_KEY.
+  // ==========================================================================
+  registerHyperInsightIpc(ipcMain);
+  registerAimNodesIpc(ipcMain);
+  registerPaymentsJitIpc(ipcMain);
+
+  // Now auto-connect MCP plugins (with correct env already set)
   initPlugins().catch((e) => console.error("[MCP] Plugin init failed:", e));
   initChat();
 
@@ -950,3 +992,56 @@ ipcMain.handle(
     return deleteEntry(boxId, entryId);
   },
 );
+
+// =============================================================================
+// Media Handlers — safe base64 delivery for tool-generated media
+// =============================================================================
+
+/**
+ * Read a mosaic-media:// file from disk and return it as a data: URI.
+ * The renderer never gets raw filesystem access — only sanitized base64 data.
+ */
+ipcMain.handle("media:read-as-data-uri", async (_event, mediaUrl: string) => {
+  try {
+    // Strip protocol prefix  — "mosaic-media://filename.png" → "filename.png"
+    const filename = mediaUrl.replace(/^mosaic-media:\/\//, "");
+    const mediaDir = path.join(app.getPath("userData"), "mosaic-media");
+    const filePath = path.join(mediaDir, path.normalize(filename));
+
+    // Directory traversal guard
+    if (!filePath.startsWith(mediaDir + path.sep) && filePath !== mediaDir) {
+      console.error("[Media] Directory traversal attempt blocked:", filename);
+      return { success: false, error: "Access denied" };
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: "File not found" };
+    }
+
+    const buffer = fs.readFileSync(filePath);
+    const ext = path.extname(filename).toLowerCase().replace(".", "");
+    const mimeTypes: Record<string, string> = {
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      gif: "image/gif",
+      webp: "image/webp",
+      svg: "image/svg+xml",
+    };
+    const mimeType = mimeTypes[ext] ?? "image/png";
+    const dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
+    return { success: true, dataUri };
+  } catch (error: any) {
+    console.error("[Media] Failed to read media file:", error.message);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("media:get-auto-display", () => {
+  return { enabled: getAutoDisplayMedia() };
+});
+
+ipcMain.handle("media:set-auto-display", (_event, enabled: boolean) => {
+  const result = setAutoDisplayMedia(enabled);
+  return { ...result, enabled: getAutoDisplayMedia() };
+});

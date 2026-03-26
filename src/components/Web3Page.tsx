@@ -106,23 +106,11 @@ export const EthIcon: React.FC<{ size?: number; className?: string }> = ({
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
   >
-    <path
-      d="M127.961 0L125.166 9.5V285.168L127.961 287.958L255.923 212.32L127.961 0Z"
-      fill="#687BDE"
-    />
+    <path d="M127.961 0L125.166 9.5V285.168L127.961 287.958L255.923 212.32L127.961 0Z" fill="#687BDE" />
     <path d="M127.962 0L0 212.32L127.962 287.959V154.158V0Z" fill="#8C9FEF" />
-    <path
-      d="M127.961 312.187L126.386 314.107V412.306L127.961 416.905L255.999 236.587L127.961 312.187Z"
-      fill="#687BDE"
-    />
-    <path
-      d="M127.962 416.905V312.187L0 236.587L127.962 416.905Z"
-      fill="#8C9FEF"
-    />
-    <path
-      d="M127.961 287.958L255.921 212.32L127.961 154.159V287.958Z"
-      fill="#4E63CB"
-    />
+    <path d="M127.961 312.187L126.386 314.107V412.306L127.961 416.905L255.999 236.587L127.961 312.187Z" fill="#687BDE" />
+    <path d="M127.962 416.905V312.187L0 236.587L127.962 416.905Z" fill="#8C9FEF" />
+    <path d="M127.961 287.958L255.921 212.32L127.961 154.159V287.958Z" fill="#4E63CB" />
     <path d="M0 212.32L127.962 287.958V154.159L0 212.32Z" fill="#687BDE" />
   </svg>
 );
@@ -131,14 +119,13 @@ export const EthIcon: React.FC<{ size?: number; className?: string }> = ({
 // Wallet Overview Section
 // =============================================================================
 
-const WalletOverview: React.FC<{ config: Web3Config | null }> = ({
-  config,
-}) => {
+const WalletOverview: React.FC<{ config: Web3Config | null; onConfigChanged: () => void }> = ({ config, onConfigChanged }) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [hasWallet, setHasWallet] = useState(false);
   const [balances, setBalances] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
 
   useEffect(() => {
     loadWallet();
@@ -240,11 +227,35 @@ const WalletOverview: React.FC<{ config: Web3Config | null }> = ({
                     : `${walletAddress.slice(0, 8)}...${walletAddress.slice(-6)}`
                   : "Loading..."}
               </p>
-              {network && (
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {network.name} · Chain ID {network.chainId}
-                </p>
-              )}
+              {config && Object.keys(config.networks).length > 0 ? (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <select
+                    value={config.activeNetwork}
+                    disabled={isSwitchingNetwork}
+                    onChange={async (e) => {
+                      setIsSwitchingNetwork(true);
+                      try {
+                        const updated = { ...config, activeNetwork: e.target.value };
+                        await window.electronAPI?.web3?.updateConfig(updated as any);
+                        onConfigChanged();
+                      } catch {
+                        toast.error("Failed to switch network.");
+                      }
+                      setIsSwitchingNetwork(false);
+                    }}
+                    className="bg-transparent text-xs text-gray-400 border-0 outline-none cursor-pointer hover:text-gray-200 transition-colors disabled:opacity-50 py-0 pl-0 pr-4 max-w-[200px]"
+                  >
+                    {Object.entries(config.networks).map(([id, net]) => (
+                      <option key={id} value={id} className="bg-gray-900 text-gray-200">
+                        {net.name} · Chain {net.chainId}
+                      </option>
+                    ))}
+                  </select>
+                  {isSwitchingNetwork && <Loader2 size={10} className="animate-spin text-gray-500 shrink-0" />}
+                </div>
+              ) : network ? (
+                <p className="text-xs text-gray-500 mt-0.5">{network.name} · Chain ID {network.chainId}</p>
+              ) : null}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -253,11 +264,7 @@ const WalletOverview: React.FC<{ config: Web3Config | null }> = ({
               className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
               title="Copy address"
             >
-              {copied ? (
-                <Check size={16} className="text-emerald-400" />
-              ) : (
-                <Copy size={16} />
-              )}
+              {copied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
             </button>
             {walletAddress && (
               <a
@@ -285,30 +292,18 @@ const WalletOverview: React.FC<{ config: Web3Config | null }> = ({
         )}
       </div>
 
-      {/* Token Balances */}
       {balances && (
         <div className="p-4 bg-gray-950/50 rounded-lg border border-gray-800">
-          <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wider">
-            Balances
-          </p>
+          <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wider">Balances</p>
           {balances
             .split("\n")
-            .filter(
-              (l) => !l.startsWith("Address:") && !l.startsWith("Network:"),
-            )
+            .filter((l) => !l.startsWith("Address:") && !l.startsWith("Network:"))
             .map((line, i) => {
               const [symbol, ...rest] = line.split(": ");
               return (
-                <div
-                  key={i}
-                  className="flex justify-between items-center py-1.5 border-b border-gray-800/50 last:border-0"
-                >
-                  <span className="text-sm text-gray-300 font-medium">
-                    {symbol}
-                  </span>
-                  <span className="text-sm text-gray-400 font-mono">
-                    {rest.join(": ")}
-                  </span>
+                <div key={i} className="flex justify-between items-center py-1.5 border-b border-gray-800/50 last:border-0">
+                  <span className="text-sm text-gray-300 font-medium">{symbol}</span>
+                  <span className="text-sm text-gray-400 font-mono">{rest.join(": ")}</span>
                 </div>
               );
             })}
@@ -394,12 +389,7 @@ const PrivateKeyManager: React.FC<{
   }, [onWalletChanged]);
 
   const handleDelete = async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete the wallet? This cannot be undone.",
-      )
-    )
-      return;
+    if (!window.confirm("Are you sure you want to delete the wallet? This cannot be undone.")) return;
     if (window.electronAPI?.trading?.deleteWallet) {
       const result = await window.electronAPI.trading.deleteWallet();
       if (result.success) {
@@ -441,9 +431,7 @@ const PrivateKeyManager: React.FC<{
             <Wallet className="text-emerald-500" size={24} />
             <div>
               <p className="text-emerald-400 font-medium">Private Key Stored</p>
-              <p className="text-xs text-emerald-600">
-                Encrypted with system keychain
-              </p>
+              <p className="text-xs text-emerald-600">Encrypted with system keychain</p>
             </div>
           </div>
           <button
@@ -496,10 +484,7 @@ const PrivateKeyManager: React.FC<{
 // Network Settings Section
 // =============================================================================
 
-const NetworkSettings: React.FC<{
-  config: Web3Config | null;
-  onConfigChanged: () => void;
-}> = ({ config, onConfigChanged }) => {
+const NetworkSettings: React.FC<{ config: Web3Config | null; onConfigChanged: () => void }> = ({ config, onConfigChanged }) => {
   const [customRpc, setCustomRpc] = useState("");
   const [twinHostname, setTwinHostname] = useState("");
   const [todaApiKey, setTodaApiKey] = useState("");
@@ -525,9 +510,7 @@ const NetworkSettings: React.FC<{
     try {
       const updated = { ...config!, activeNetwork: networkId };
       await window.electronAPI?.web3?.updateConfig(updated as any);
-      toast.success(
-        `Switched to ${config?.networks[networkId]?.name || networkId}`,
-      );
+      toast.success(`Switched to ${config?.networks[networkId]?.name || networkId}`);
       onConfigChanged();
     } catch {
       toast.error("Failed to switch network.");
@@ -539,14 +522,8 @@ const NetworkSettings: React.FC<{
     if (!config) return;
     try {
       const networks = { ...config.networks };
-      networks[config.activeNetwork] = {
-        ...networks[config.activeNetwork],
-        customRpcUrl: customRpc.trim(),
-      };
-      await window.electronAPI?.web3?.updateConfig({
-        ...config,
-        networks,
-      } as any);
+      networks[config.activeNetwork] = { ...networks[config.activeNetwork], customRpcUrl: customRpc.trim() };
+      await window.electronAPI?.web3?.updateConfig({ ...config, networks } as any);
       toast.success("Custom RPC saved.");
       onConfigChanged();
     } catch {
@@ -624,9 +601,7 @@ const NetworkSettings: React.FC<{
               {id === "toda" ? "Twin Container" : `Chain ID: ${net.chainId}`}
             </p>
             {config.activeNetwork === id && (
-              <span className="inline-block mt-2 text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">
-                Active
-              </span>
+              <span className="inline-block mt-2 text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">Active</span>
             )}
           </button>
         ))}
@@ -717,17 +692,10 @@ const NetworkSettings: React.FC<{
 // Currency / Token Manager
 // =============================================================================
 
-const CurrencyManager: React.FC<{
-  config: Web3Config | null;
-  onConfigChanged: () => void;
-}> = ({ config, onConfigChanged }) => {
+const CurrencyManager: React.FC<{ config: Web3Config | null; onConfigChanged: () => void }> = ({ config, onConfigChanged }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [contractInput, setContractInput] = useState("");
-  const [lookupResult, setLookupResult] = useState<{
-    name: string;
-    symbol: string;
-    decimals: number;
-  } | null>(null);
+  const [lookupResult, setLookupResult] = useState<{ name: string; symbol: string; decimals: number } | null>(null);
   const [isLooking, setIsLooking] = useState(false);
   const [lookupError, setLookupError] = useState("");
   const [todaSymbol, setTodaSymbol] = useState("");
@@ -748,33 +716,15 @@ const CurrencyManager: React.FC<{
     setLookupError("");
     setLookupResult(null);
     try {
-      const result = await window.electronAPI?.web3?.lookupToken(
-        contractInput.trim(),
-      );
+      const result = await window.electronAPI?.web3?.lookupToken(contractInput.trim());
       if (result?.success && result.data) {
-        // Parse the data string to extract token info
         const lines = (result.data as string).split("\n");
-        const name =
-          lines
-            .find((l) => l.includes("Name:"))
-            ?.split("Name:")[1]
-            ?.trim() || "";
-        const symbol =
-          lines
-            .find((l) => l.includes("Symbol:"))
-            ?.split("Symbol:")[1]
-            ?.trim() || "";
-        const decimalsStr =
-          lines
-            .find((l) => l.includes("Decimals:"))
-            ?.split("Decimals:")[1]
-            ?.trim() || "18";
+        const name = lines.find((l) => l.includes("Name:"))?.split("Name:")[1]?.trim() || "";
+        const symbol = lines.find((l) => l.includes("Symbol:"))?.split("Symbol:")[1]?.trim() || "";
+        const decimalsStr = lines.find((l) => l.includes("Decimals:"))?.split("Decimals:")[1]?.trim() || "18";
         setLookupResult({ name, symbol, decimals: parseInt(decimalsStr) });
       } else {
-        setLookupError(
-          result?.error ||
-            "Could not read token data. Is this a valid ERC20 contract?",
-        );
+        setLookupError(result?.error || "Could not read token data. Is this a valid ERC20 contract?");
       }
     } catch {
       setLookupError("Failed to look up token.");
@@ -827,11 +777,7 @@ const CurrencyManager: React.FC<{
         isNative: false,
         network: config.activeNetwork,
       };
-      const updatedTokens = [...config.tokens, newToken];
-      await window.electronAPI?.web3?.updateConfig({
-        ...config,
-        tokens: updatedTokens,
-      } as any);
+      await window.electronAPI?.web3?.updateConfig({ ...config, tokens: [...config.tokens, newToken] } as any);
       toast.success(`Token ${lookupResult.symbol} added!`);
       setContractInput("");
       setLookupResult(null);
@@ -846,12 +792,7 @@ const CurrencyManager: React.FC<{
     const token = config.tokens.find((t) => t.id === tokenId);
     if (!token || token.isNative) return;
     if (!window.confirm(`Remove ${token.symbol}?`)) return;
-
-    const updatedTokens = config.tokens.filter((t) => t.id !== tokenId);
-    await window.electronAPI?.web3?.updateConfig({
-      ...config,
-      tokens: updatedTokens,
-    } as any);
+    await window.electronAPI?.web3?.updateConfig({ ...config, tokens: config.tokens.filter((t) => t.id !== tokenId) } as any);
     toast.success(`${token.symbol} removed.`);
     onConfigChanged();
   };
@@ -859,49 +800,31 @@ const CurrencyManager: React.FC<{
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
-        Manage ERC20 tokens on {config.networks[config.activeNetwork]?.name}.
-        Token info is fetched from the blockchain automatically.
+        Manage ERC20 tokens on {config.networks[config.activeNetwork]?.name}. Token info is fetched from the blockchain automatically.
       </p>
 
-      {/* Token List */}
       <div className="space-y-2">
         {activeTokens.map((token) => (
-          <div
-            key={token.id}
-            className="flex items-center justify-between p-3 bg-gray-900/50 border border-gray-800 rounded-lg"
-          >
+          <div key={token.id} className="flex items-center justify-between p-3 bg-gray-900/50 border border-gray-800 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center shrink-0">
-                <span className="text-xs font-bold text-indigo-400">
-                  {token.symbol.slice(0, 3)}
-                </span>
+                <span className="text-xs font-bold text-indigo-400">{token.symbol.slice(0, 3)}</span>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-200">
-                  {token.symbol}{" "}
-                  <span className="text-gray-500 font-normal">
-                    · {token.name}
-                  </span>
+                  {token.symbol} <span className="text-gray-500 font-normal">· {token.name}</span>
                 </p>
                 {token.contractAddress ? (
                   <p className="text-xs text-gray-600 font-mono">
-                    {token.contractAddress.slice(0, 8)}...
-                    {token.contractAddress.slice(-6)} · {token.decimals}{" "}
-                    decimals
+                    {token.contractAddress.slice(0, 8)}...{token.contractAddress.slice(-6)} · {token.decimals} decimals
                   </p>
                 ) : (
-                  <p className="text-xs text-gray-600">
-                    Native token · {token.decimals} decimals
-                  </p>
+                  <p className="text-xs text-gray-600">Native token · {token.decimals} decimals</p>
                 )}
               </div>
             </div>
             {!token.isNative && (
-              <button
-                onClick={() => handleDeleteToken(token.id)}
-                className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                title="Remove token"
-              >
+              <button onClick={() => handleDeleteToken(token.id)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Remove token">
                 <Trash2 size={14} />
               </button>
             )}
@@ -909,7 +832,6 @@ const CurrencyManager: React.FC<{
         ))}
       </div>
 
-      {/* Add Token Form */}
       {showAddForm ? (
         <div className="p-4 bg-gray-900/50 border border-gray-700 rounded-xl space-y-3">
           {isToda ? (
@@ -1084,10 +1006,7 @@ const CurrencyManager: React.FC<{
 // Transfer Limits Section
 // =============================================================================
 
-const TransferLimitsSection: React.FC<{
-  config: Web3Config | null;
-  onConfigChanged: () => void;
-}> = ({ config, onConfigChanged }) => {
+const TransferLimitsSection: React.FC<{ config: Web3Config | null; onConfigChanged: () => void }> = ({ config, onConfigChanged }) => {
   const [editSymbol, setEditSymbol] = useState("");
   const [editMaxPerTx, setEditMaxPerTx] = useState("");
   const [editMaxDaily, setEditMaxDaily] = useState("");
@@ -1095,157 +1014,70 @@ const TransferLimitsSection: React.FC<{
 
   if (!config) return null;
 
-  const activeTokens = config.tokens.filter(
-    (t) => t.network === config.activeNetwork,
-  );
+  const activeTokens = config.tokens.filter((t) => t.network === config.activeNetwork);
 
   const handleSave = async () => {
     if (!editSymbol) return;
-    const newLimit: TransferLimit = {
-      symbol: editSymbol,
-      maxPerTx: editMaxPerTx || "0",
-      maxDaily: editMaxDaily || "0",
-    };
-    const existingIdx = config.transferLimits.findIndex(
-      (l) => l.symbol === editSymbol,
-    );
+    const newLimit: TransferLimit = { symbol: editSymbol, maxPerTx: editMaxPerTx || "0", maxDaily: editMaxDaily || "0" };
+    const existingIdx = config.transferLimits.findIndex((l) => l.symbol === editSymbol);
     const updatedLimits = [...config.transferLimits];
-    if (existingIdx >= 0) {
-      updatedLimits[existingIdx] = newLimit;
-    } else {
-      updatedLimits.push(newLimit);
-    }
-    await window.electronAPI?.web3?.updateConfig({
-      ...config,
-      transferLimits: updatedLimits,
-    } as any);
+    if (existingIdx >= 0) { updatedLimits[existingIdx] = newLimit; } else { updatedLimits.push(newLimit); }
+    await window.electronAPI?.web3?.updateConfig({ ...config, transferLimits: updatedLimits } as any);
     toast.success(`Limit for ${editSymbol} saved.`);
-    setShowForm(false);
-    setEditSymbol("");
-    setEditMaxPerTx("");
-    setEditMaxDaily("");
+    setShowForm(false); setEditSymbol(""); setEditMaxPerTx(""); setEditMaxDaily("");
     onConfigChanged();
   };
 
   const handleDelete = async (symbol: string) => {
-    const updatedLimits = config.transferLimits.filter(
-      (l) => l.symbol !== symbol,
-    );
-    await window.electronAPI?.web3?.updateConfig({
-      ...config,
-      transferLimits: updatedLimits,
-    } as any);
+    await window.electronAPI?.web3?.updateConfig({ ...config, transferLimits: config.transferLimits.filter((l) => l.symbol !== symbol) } as any);
     toast.success(`Limit for ${symbol} removed.`);
     onConfigChanged();
   };
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">
-        Set maximum amounts per transaction and daily limits for each token. Use
-        "*" to set a global limit for all tokens.
-      </p>
-
+      <p className="text-sm text-gray-500">Set maximum amounts per transaction and daily limits for each token. Use "*" to set a global limit for all tokens.</p>
       {config.transferLimits.length > 0 && (
         <div className="space-y-2">
           {config.transferLimits.map((limit) => (
-            <div
-              key={limit.symbol}
-              className="flex items-center justify-between p-3 bg-gray-900/50 border border-gray-800 rounded-lg"
-            >
+            <div key={limit.symbol} className="flex items-center justify-between p-3 bg-gray-900/50 border border-gray-800 rounded-lg">
               <div>
-                <p className="text-sm font-medium text-gray-200">
-                  {limit.symbol === "*" ? "All tokens" : limit.symbol}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Max/tx:{" "}
-                  {parseFloat(limit.maxPerTx) > 0 ? limit.maxPerTx : "No limit"}
-                  {" · "}
-                  Daily:{" "}
-                  {parseFloat(limit.maxDaily) > 0 ? limit.maxDaily : "No limit"}
-                </p>
+                <p className="text-sm font-medium text-gray-200">{limit.symbol === "*" ? "All tokens" : limit.symbol}</p>
+                <p className="text-xs text-gray-500">Max/tx: {parseFloat(limit.maxPerTx) > 0 ? limit.maxPerTx : "No limit"} · Daily: {parseFloat(limit.maxDaily) > 0 ? limit.maxDaily : "No limit"}</p>
               </div>
-              <button
-                onClick={() => handleDelete(limit.symbol)}
-                className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-              >
-                <Trash2 size={14} />
-              </button>
+              <button onClick={() => handleDelete(limit.symbol)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"><Trash2 size={14} /></button>
             </div>
           ))}
         </div>
       )}
-
       {showForm ? (
         <div className="p-4 bg-gray-900/50 border border-gray-700 rounded-xl space-y-3">
           <div>
             <label className="block text-sm text-gray-400 mb-1">Token</label>
-            <select
-              value={editSymbol}
-              onChange={(e) => setEditSymbol(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 text-sm outline-none"
-            >
+            <select value={editSymbol} onChange={(e) => setEditSymbol(e.target.value)} className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 text-sm outline-none">
               <option value="">Select token...</option>
               <option value="*">All tokens (*)</option>
-              {activeTokens.map((t) => (
-                <option key={t.id} value={t.symbol}>
-                  {t.symbol} — {t.name}
-                </option>
-              ))}
+              {activeTokens.map((t) => <option key={t.id} value={t.symbol}>{t.symbol} — {t.name}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="text-sm text-gray-400 mb-1 block">
-                Max per transaction
-              </span>
-              <input
-                type="text"
-                value={editMaxPerTx}
-                onChange={(e) => setEditMaxPerTx(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 text-sm outline-none"
-                placeholder="0 = no limit"
-              />
+              <span className="text-sm text-gray-400 mb-1 block">Max per transaction</span>
+              <input type="text" value={editMaxPerTx} onChange={(e) => setEditMaxPerTx(e.target.value)} className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 text-sm outline-none" placeholder="0 = no limit" />
             </label>
             <label className="block">
-              <span className="text-sm text-gray-400 mb-1 block">
-                Max daily aggregate
-              </span>
-              <input
-                type="text"
-                value={editMaxDaily}
-                onChange={(e) => setEditMaxDaily(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 text-sm outline-none"
-                placeholder="0 = no limit"
-              />
+              <span className="text-sm text-gray-400 mb-1 block">Max daily aggregate</span>
+              <input type="text" value={editMaxDaily} onChange={(e) => setEditMaxDaily(e.target.value)} className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 text-sm outline-none" placeholder="0 = no limit" />
             </label>
           </div>
           <div className="flex gap-2 justify-end">
-            <button
-              onClick={() => {
-                setShowForm(false);
-                setEditSymbol("");
-              }}
-              className="px-3 py-1.5 text-gray-400 hover:text-gray-200 rounded-lg text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={!editSymbol}
-              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              Save Limit
-            </button>
+            <button onClick={() => { setShowForm(false); setEditSymbol(""); }} className="px-3 py-1.5 text-gray-400 hover:text-gray-200 rounded-lg text-sm">Cancel</button>
+            <button onClick={handleSave} disabled={!editSymbol} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors">Save Limit</button>
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 hover:bg-gray-800/50 text-gray-400 hover:text-gray-200 border border-gray-800 rounded-lg transition-all text-sm w-full justify-center"
-        >
-          <Plus size={16} />
-          Add Transfer Limit
+        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 hover:bg-gray-800/50 text-gray-400 hover:text-gray-200 border border-gray-800 rounded-lg transition-all text-sm w-full justify-center">
+          <Plus size={16} /> Add Transfer Limit
         </button>
       )}
     </div>
@@ -1256,10 +1088,7 @@ const TransferLimitsSection: React.FC<{
 // Banned Addresses Section
 // =============================================================================
 
-const BannedAddressesSection: React.FC<{
-  config: Web3Config | null;
-  onConfigChanged: () => void;
-}> = ({ config, onConfigChanged }) => {
+const BannedAddressesSection: React.FC<{ config: Web3Config | null; onConfigChanged: () => void }> = ({ config, onConfigChanged }) => {
   const [showForm, setShowForm] = useState(false);
   const [newAddress, setNewAddress] = useState("");
   const [newReason, setNewReason] = useState("");
@@ -1268,124 +1097,55 @@ const BannedAddressesSection: React.FC<{
 
   const handleAdd = async () => {
     if (!newAddress.trim()) return;
-    const updatedBans = [
-      ...config.bannedAddresses,
-      {
-        address: newAddress.trim(),
-        reason: newReason.trim() || undefined,
-        addedAt: Date.now(),
-      },
-    ];
-    await window.electronAPI?.web3?.updateConfig({
-      ...config,
-      bannedAddresses: updatedBans,
-    } as any);
+    const updatedBans = [...config.bannedAddresses, { address: newAddress.trim(), reason: newReason.trim() || undefined, addedAt: Date.now() }];
+    await window.electronAPI?.web3?.updateConfig({ ...config, bannedAddresses: updatedBans } as any);
     toast.success("Address banned.");
-    setNewAddress("");
-    setNewReason("");
-    setShowForm(false);
+    setNewAddress(""); setNewReason(""); setShowForm(false);
     onConfigChanged();
   };
 
   const handleRemove = async (address: string) => {
-    const updatedBans = config.bannedAddresses.filter(
-      (b) => b.address.toLowerCase() !== address.toLowerCase(),
-    );
-    await window.electronAPI?.web3?.updateConfig({
-      ...config,
-      bannedAddresses: updatedBans,
-    } as any);
+    await window.electronAPI?.web3?.updateConfig({ ...config, bannedAddresses: config.bannedAddresses.filter((b) => b.address.toLowerCase() !== address.toLowerCase()) } as any);
     toast.success("Address unbanned.");
     onConfigChanged();
   };
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">
-        Block transfers to specific addresses. Any transfer attempt to a banned
-        address will be rejected.
-      </p>
-
+      <p className="text-sm text-gray-500">Block transfers to specific addresses. Any transfer attempt to a banned address will be rejected.</p>
       {config.bannedAddresses.length > 0 && (
         <div className="space-y-2">
           {config.bannedAddresses.map((ban) => (
-            <div
-              key={ban.address}
-              className="flex items-center justify-between p-3 bg-red-950/10 border border-red-900/30 rounded-lg"
-            >
+            <div key={ban.address} className="flex items-center justify-between p-3 bg-red-950/10 border border-red-900/30 rounded-lg">
               <div className="min-w-0">
-                <p className="text-sm text-gray-200 font-mono truncate">
-                  {ban.address}
-                </p>
-                {ban.reason && (
-                  <p className="text-xs text-gray-500">{ban.reason}</p>
-                )}
+                <p className="text-sm text-gray-200 font-mono truncate">{ban.address}</p>
+                {ban.reason && <p className="text-xs text-gray-500">{ban.reason}</p>}
               </div>
-              <button
-                onClick={() => handleRemove(ban.address)}
-                className="p-1.5 text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors shrink-0 ml-2"
-                title="Unban"
-              >
+              <button onClick={() => handleRemove(ban.address)} className="p-1.5 text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors shrink-0 ml-2" title="Unban">
                 <Trash2 size={14} />
               </button>
             </div>
           ))}
         </div>
       )}
-
       {showForm ? (
         <div className="p-4 bg-gray-900/50 border border-gray-700 rounded-xl space-y-3">
           <label className="block">
-            <span className="text-sm text-gray-400 mb-1 block">
-              Address to ban
-            </span>
-            <input
-              type="text"
-              value={newAddress}
-              onChange={(e) => setNewAddress(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 font-mono text-sm outline-none"
-              placeholder="0x..."
-            />
+            <span className="text-sm text-gray-400 mb-1 block">Address to ban</span>
+            <input type="text" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 font-mono text-sm outline-none" placeholder="0x..." />
           </label>
           <label className="block">
-            <span className="text-sm text-gray-400 mb-1 block">
-              Reason (optional)
-            </span>
-            <input
-              type="text"
-              value={newReason}
-              onChange={(e) => setNewReason(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 text-sm outline-none"
-              placeholder="e.g. Known scam, Suspicious, etc."
-            />
+            <span className="text-sm text-gray-400 mb-1 block">Reason (optional)</span>
+            <input type="text" value={newReason} onChange={(e) => setNewReason(e.target.value)} className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg text-gray-100 text-sm outline-none" placeholder="e.g. Known scam, Suspicious, etc." />
           </label>
           <div className="flex gap-2 justify-end">
-            <button
-              onClick={() => {
-                setShowForm(false);
-                setNewAddress("");
-                setNewReason("");
-              }}
-              className="px-3 py-1.5 text-gray-400 hover:text-gray-200 rounded-lg text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleAdd}
-              disabled={!newAddress.trim()}
-              className="px-4 py-1.5 bg-red-600 hover:bg-red-500 disabled:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              Ban Address
-            </button>
+            <button onClick={() => { setShowForm(false); setNewAddress(""); setNewReason(""); }} className="px-3 py-1.5 text-gray-400 hover:text-gray-200 rounded-lg text-sm">Cancel</button>
+            <button onClick={handleAdd} disabled={!newAddress.trim()} className="px-4 py-1.5 bg-red-600 hover:bg-red-500 disabled:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors">Ban Address</button>
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 hover:bg-gray-800/50 text-gray-400 hover:text-gray-200 border border-gray-800 rounded-lg transition-all text-sm w-full justify-center"
-        >
-          <Plus size={16} />
-          Ban Address
+        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 hover:bg-gray-800/50 text-gray-400 hover:text-gray-200 border border-gray-800 rounded-lg transition-all text-sm w-full justify-center">
+          <Plus size={16} /> Ban Address
         </button>
       )}
     </div>
@@ -1396,58 +1156,34 @@ const BannedAddressesSection: React.FC<{
 // Safety Settings Section
 // =============================================================================
 
-const SafetySettingsSection: React.FC<{
-  config: Web3Config | null;
-  onConfigChanged: () => void;
-}> = ({ config, onConfigChanged }) => {
+const SafetySettingsSection: React.FC<{ config: Web3Config | null; onConfigChanged: () => void }> = ({ config, onConfigChanged }) => {
   if (!config) return null;
 
   const toggleSetting = async (key: keyof SafetySettings, value: boolean) => {
     const updated = { ...config.safety, [key]: value };
-    await window.electronAPI?.web3?.updateConfig({
-      ...config,
-      safety: updated,
-    } as any);
+    await window.electronAPI?.web3?.updateConfig({ ...config, safety: updated } as any);
     onConfigChanged();
   };
 
   const setCooldown = async (valueStr: string) => {
     const secs = parseInt(valueStr) || 0;
     const updated = { ...config.safety, cooldownMs: secs * 1000 };
-    await window.electronAPI?.web3?.updateConfig({
-      ...config,
-      safety: updated,
-    } as any);
+    await window.electronAPI?.web3?.updateConfig({ ...config, safety: updated } as any);
     onConfigChanged();
   };
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">
-        Control how transfers are executed. These safety rails protect you from
-        accidental or malicious transactions.
-      </p>
-
+      <p className="text-sm text-gray-500">Control how transfers are executed. These safety rails protect you from accidental or malicious transactions.</p>
       <div className="space-y-3">
-        {/* Require Confirmation */}
+        {/* Require Confirmation — also gates AIM JIT payment modal */}
         <label className="flex items-center justify-between p-3 bg-gray-900/50 border border-gray-800 rounded-lg cursor-pointer hover:border-gray-700 transition-colors">
           <div>
-            <p className="text-sm font-medium text-gray-200">
-              Require confirmation
-            </p>
-            <p className="text-xs text-gray-500">
-              Transfers need explicit approval before executing
-            </p>
+            <p className="text-sm font-medium text-gray-200">Require user confirmation for payments</p>
+            <p className="text-xs text-gray-500">Show approval modal before executing any transfer or AIM JIT payment</p>
           </div>
           <div className="relative">
-            <input
-              type="checkbox"
-              checked={config.safety.requireConfirmation}
-              onChange={(e) =>
-                toggleSetting("requireConfirmation", e.target.checked)
-              }
-              className="sr-only peer"
-            />
+            <input type="checkbox" checked={config.safety.requireConfirmation} onChange={(e) => toggleSetting("requireConfirmation", e.target.checked)} className="sr-only peer" />
             <div className="w-11 h-6 bg-gray-700 peer-checked:bg-indigo-600 rounded-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] peer-checked:after:translate-x-full after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
           </div>
         </label>
@@ -1455,20 +1191,11 @@ const SafetySettingsSection: React.FC<{
         {/* Whitelist Only */}
         <label className="flex items-center justify-between p-3 bg-gray-900/50 border border-gray-800 rounded-lg cursor-pointer hover:border-gray-700 transition-colors">
           <div>
-            <p className="text-sm font-medium text-gray-200">
-              Whitelist-only transfers
-            </p>
-            <p className="text-xs text-gray-500">
-              Only allow transfers to saved contacts
-            </p>
+            <p className="text-sm font-medium text-gray-200">Whitelist-only transfers</p>
+            <p className="text-xs text-gray-500">Only allow transfers to saved contacts</p>
           </div>
           <div className="relative">
-            <input
-              type="checkbox"
-              checked={config.safety.whitelistOnly}
-              onChange={(e) => toggleSetting("whitelistOnly", e.target.checked)}
-              className="sr-only peer"
-            />
+            <input type="checkbox" checked={config.safety.whitelistOnly} onChange={(e) => toggleSetting("whitelistOnly", e.target.checked)} className="sr-only peer" />
             <div className="w-11 h-6 bg-gray-700 peer-checked:bg-indigo-600 rounded-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] peer-checked:after:translate-x-full after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
           </div>
         </label>
@@ -1477,12 +1204,8 @@ const SafetySettingsSection: React.FC<{
         <div className="p-3 bg-gray-900/50 border border-gray-800 rounded-lg">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-sm font-medium text-gray-200">
-                Transaction cooldown
-              </p>
-              <p className="text-xs text-gray-500">
-                Minimum wait between transactions
-              </p>
+              <p className="text-sm font-medium text-gray-200">Transaction cooldown</p>
+              <p className="text-xs text-gray-500">Minimum wait between transactions</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1519,9 +1242,7 @@ const AddressBook: React.FC<{ config: Web3Config | null }> = ({ config }) => {
     try {
       const result = await window.electronAPI?.web3?.getContacts();
       if (result?.success && typeof result.data === "string") {
-        const lines = result.data
-          .split("\n")
-          .filter((l: string) => l.startsWith("•"));
+        const lines = result.data.split("\n").filter((l: string) => l.startsWith("•"));
         const parsed: WalletContact[] = lines
           .map((line: string, i: number) => {
             const match = line.match(/• (.+?): (.+)$/);
@@ -1546,22 +1267,15 @@ const AddressBook: React.FC<{ config: Web3Config | null }> = ({ config }) => {
     setIsLoading(false);
   }, []);
 
-  useEffect(() => {
-    loadContacts();
-  }, [loadContacts]);
+  useEffect(() => { loadContacts(); }, [loadContacts]);
 
   const handleAdd = async () => {
     if (!newName.trim() || !newAddress.trim()) return;
     try {
-      const result = await window.electronAPI?.web3?.saveContact(
-        newName.trim(),
-        newAddress.trim(),
-      );
+      const result = await window.electronAPI?.web3?.saveContact(newName.trim(), newAddress.trim());
       if (result?.success) {
         toast.success(`Contact "${newName}" saved!`);
-        setNewName("");
-        setNewAddress("");
-        setShowAddForm(false);
+        setNewName(""); setNewAddress(""); setShowAddForm(false);
         loadContacts();
       } else {
         toast.error(result?.error || "Failed to save contact.");
@@ -1589,59 +1303,32 @@ const AddressBook: React.FC<{ config: Web3Config | null }> = ({ config }) => {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-6">
-        <Loader2 className="animate-spin text-gray-500" size={20} />
-      </div>
-    );
+    return <div className="flex items-center justify-center py-6"><Loader2 className="animate-spin text-gray-500" size={20} /></div>;
   }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
-        Save frequently used wallet addresses with a label. You can reference
-        these by name in the chat (e.g. &quot;send 10 USDC to John&quot;).
+        Save frequently used wallet addresses with a label. You can reference these by name in the chat (e.g. &quot;send 10 USDC to John&quot;).
       </p>
-
       {contacts.length > 0 && (
         <div className="space-y-2">
           {contacts.map((contact) => (
-            <div
-              key={contact.id}
-              className="flex items-center justify-between p-3 bg-gray-900/50 border border-gray-800 rounded-lg hover:border-gray-700 transition-colors"
-            >
+            <div key={contact.id} className="flex items-center justify-between p-3 bg-gray-900/50 border border-gray-800 rounded-lg hover:border-gray-700 transition-colors">
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center shrink-0">
-                  <span className="text-sm font-bold text-indigo-400">
-                    {contact.name.charAt(0).toUpperCase()}
-                  </span>
+                  <span className="text-sm font-bold text-indigo-400">{contact.name.charAt(0).toUpperCase()}</span>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-200">
-                    {contact.name}
-                  </p>
-                  <p className="text-xs text-gray-500 font-mono truncate">
-                    {contact.address}
-                  </p>
+                  <p className="text-sm font-medium text-gray-200">{contact.name}</p>
+                  <p className="text-xs text-gray-500 font-mono truncate">{contact.address}</p>
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => copyAddress(contact.id, contact.address)}
-                  className="p-1.5 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
-                  title="Copy address"
-                >
-                  {copiedId === contact.id ? (
-                    <Check size={14} className="text-emerald-400" />
-                  ) : (
-                    <Copy size={14} />
-                  )}
+                <button onClick={() => copyAddress(contact.id, contact.address)} className="p-1.5 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors" title="Copy address">
+                  {copiedId === contact.id ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                 </button>
-                <button
-                  onClick={() => handleDelete(contact)}
-                  className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                  title="Delete contact"
-                >
+                <button onClick={() => handleDelete(contact)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Delete contact">
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -1649,18 +1336,11 @@ const AddressBook: React.FC<{ config: Web3Config | null }> = ({ config }) => {
           ))}
         </div>
       )}
-
       {showAddForm ? (
         <div className="p-4 bg-gray-900/50 border border-gray-700 rounded-xl space-y-3">
           <label className="block">
             <span className="text-sm text-gray-400 mb-1 block">Name</span>
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 text-sm"
-              placeholder="e.g. John, My Exchange"
-            />
+            <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 text-sm" placeholder="e.g. John, My Exchange" />
           </label>
           <label className="block">
             <span className="text-sm text-gray-400 mb-1 block">
@@ -1675,30 +1355,14 @@ const AddressBook: React.FC<{ config: Web3Config | null }> = ({ config }) => {
             />
           </label>
           <div className="flex gap-2 justify-end">
-            <button
-              onClick={() => {
-                setShowAddForm(false);
-                setNewName("");
-                setNewAddress("");
-              }}
-              className="px-3 py-1.5 text-gray-400 hover:text-gray-200 rounded-lg text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleAdd}
-              disabled={!newName.trim() || !newAddress.trim()}
-              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 text-white rounded-lg font-medium text-sm flex items-center gap-1.5"
-            >
+            <button onClick={() => { setShowAddForm(false); setNewName(""); setNewAddress(""); }} className="px-3 py-1.5 text-gray-400 hover:text-gray-200 rounded-lg text-sm">Cancel</button>
+            <button onClick={handleAdd} disabled={!newName.trim() || !newAddress.trim()} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 text-white rounded-lg font-medium text-sm flex items-center gap-1.5">
               <Save size={14} /> Save
             </button>
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 hover:bg-gray-800/50 text-gray-400 hover:text-gray-200 border border-gray-800 rounded-lg transition-all text-sm w-full justify-center"
-        >
+        <button onClick={() => setShowAddForm(true)} className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 hover:bg-gray-800/50 text-gray-400 hover:text-gray-200 border border-gray-800 rounded-lg transition-all text-sm w-full justify-center">
           <Plus size={16} /> Add Contact
         </button>
       )}
@@ -1717,9 +1381,7 @@ const RecentActions: React.FC = () => {
     try {
       const stored = localStorage.getItem("web3_recent_actions");
       if (stored) setActions(JSON.parse(stored));
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   }, []);
 
   if (actions.length === 0) {
@@ -1727,9 +1389,7 @@ const RecentActions: React.FC = () => {
       <div className="text-center py-8 border border-dashed border-gray-700 rounded-xl">
         <Clock className="mx-auto size-10 text-gray-600 mb-3" />
         <p className="text-gray-500 text-sm">No recent actions yet</p>
-        <p className="text-xs text-gray-600 mt-1">
-          Actions from chat and Web3 tools will appear here
-        </p>
+        <p className="text-xs text-gray-600 mt-1">Actions from chat and Web3 tools will appear here</p>
       </div>
     );
   }
@@ -1737,22 +1397,13 @@ const RecentActions: React.FC = () => {
   return (
     <div className="space-y-2 max-h-64 overflow-y-auto">
       {actions.slice(0, 20).map((action) => (
-        <div
-          key={action.id}
-          className="flex items-center gap-3 p-3 bg-gray-900/30 rounded-lg"
-        >
-          <div
-            className={`w-2 h-2 rounded-full shrink-0 ${action.success ? "bg-emerald-500" : "bg-red-500"}`}
-          />
+        <div key={action.id} className="flex items-center gap-3 p-3 bg-gray-900/30 rounded-lg">
+          <div className={`w-2 h-2 rounded-full shrink-0 ${action.success ? "bg-emerald-500" : "bg-red-500"}`} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm text-gray-300 truncate">
-              {action.description}
-            </p>
+            <p className="text-sm text-gray-300 truncate">{action.description}</p>
             <p className="text-xs text-gray-600 font-mono">{action.tool}</p>
           </div>
-          <span className="text-xs text-gray-600 shrink-0">
-            {new Date(action.timestamp).toLocaleTimeString()}
-          </span>
+          <span className="text-xs text-gray-600 shrink-0">{new Date(action.timestamp).toLocaleTimeString()}</span>
         </div>
       ))}
     </div>
@@ -1776,17 +1427,10 @@ export const Web3Page: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    loadConfig();
-  }, [loadConfig]);
+  useEffect(() => { loadConfig(); }, [loadConfig]);
 
-  const handleWalletChanged = () => {
-    setWalletKey((k) => k + 1);
-  };
-
-  const handleConfigChanged = () => {
-    loadConfig();
-  };
+  const handleWalletChanged = () => { setWalletKey((k) => k + 1); };
+  const handleConfigChanged = () => { loadConfig(); };
 
   return (
     <div className="max-w-4xl mx-auto p-8 md:p-12 animate-in slide-in-from-bottom-4 duration-300 text-gray-100 font-sans">
@@ -1794,30 +1438,15 @@ export const Web3Page: React.FC = () => {
         <EthIcon size={32} />
         Web3
       </h1>
-
       <div className="space-y-8">
-        {/* Wallet Overview */}
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
-            <Wallet size={20} />
-            Wallet
-          </h2>
-          <WalletOverview key={`overview-${walletKey}`} config={config} />
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2"><Wallet size={20} />Wallet</h2>
+          <WalletOverview key={`overview-${walletKey}`} config={config} onConfigChanged={handleConfigChanged} />
         </section>
-
-        {/* Network */}
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
-            <Globe size={20} />
-            Network
-          </h2>
-          <NetworkSettings
-            config={config}
-            onConfigChanged={handleConfigChanged}
-          />
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2"><Globe size={20} />Network</h2>
+          <NetworkSettings config={config} onConfigChanged={handleConfigChanged} />
         </section>
-
-        {/* Private Key Management */}
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
           <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
             <Eye size={20} />
@@ -1829,56 +1458,22 @@ export const Web3Page: React.FC = () => {
             config={config}
           />
         </section>
-
-        {/* Currencies */}
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
-            <Coins size={20} />
-            Currencies
-          </h2>
-          <CurrencyManager
-            config={config}
-            onConfigChanged={handleConfigChanged}
-          />
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2"><Coins size={20} />Currencies</h2>
+          <CurrencyManager config={config} onConfigChanged={handleConfigChanged} />
         </section>
-
-        {/* Transfer Limits */}
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
-            <Gauge size={20} />
-            Transfer Limits
-          </h2>
-          <TransferLimitsSection
-            config={config}
-            onConfigChanged={handleConfigChanged}
-          />
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2"><Gauge size={20} />Transfer Limits</h2>
+          <TransferLimitsSection config={config} onConfigChanged={handleConfigChanged} />
         </section>
-
-        {/* Banned Addresses */}
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
-            <Ban size={20} />
-            Banned Addresses
-          </h2>
-          <BannedAddressesSection
-            config={config}
-            onConfigChanged={handleConfigChanged}
-          />
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2"><Ban size={20} />Banned Addresses</h2>
+          <BannedAddressesSection config={config} onConfigChanged={handleConfigChanged} />
         </section>
-
-        {/* Safety Settings */}
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
-            <Shield size={20} />
-            Safety
-          </h2>
-          <SafetySettingsSection
-            config={config}
-            onConfigChanged={handleConfigChanged}
-          />
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2"><Shield size={20} />Safety</h2>
+          <SafetySettingsSection config={config} onConfigChanged={handleConfigChanged} />
         </section>
-
-        {/* Address Book */}
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
           <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
             <BookUser size={20} />
@@ -1886,13 +1481,8 @@ export const Web3Page: React.FC = () => {
           </h2>
           <AddressBook key={`book-${walletKey}`} config={config} />
         </section>
-
-        {/* Recent Actions */}
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
-            <Clock size={20} />
-            Recent Actions
-          </h2>
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2"><Clock size={20} />Recent Actions</h2>
           <RecentActions />
         </section>
       </div>
