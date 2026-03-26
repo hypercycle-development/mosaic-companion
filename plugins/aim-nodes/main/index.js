@@ -36,7 +36,7 @@ export function saveAimsToStorage(data) {
 }
 
 import { pluginManager, mcpClient } from '../../../electron/integrations/mcp/index.js';
-import { getWalletKey } from '../../../electron/integrations/web3/index.js';
+import { getWalletKey, withWalletKey } from '../../../electron/integrations/web3/index.js';
 import { getActiveRpcUrl, loadConfig as loadWeb3Config } from '../../../electron/integrations/web3/config.ts';
 import { call_paid_aim } from '../../payments-jit/main/index.ts';
 import { BrowserWindow } from 'electron';
@@ -101,43 +101,42 @@ async function collectChatStream(baseUrl, chatToken, aimSlot = null, timeoutMs =
 
   // Build authenticated headers for the chat stream request
   let authHeaders = {};
-  const rawKey = getWalletKey();
-  if (rawKey) {
-    const trimmedKey = rawKey.trim();
-    const pk = trimmedKey.startsWith("0x") ? trimmedKey : `0x${trimmedKey}`;
-    const account = privateKeyToAccount(pk);
-    const senderAddress = account.address;
-    const currencyType = process.env.NM_CURRENCY_TYPE || "USDC";
-    const txDriver = process.env.NM_TX_DRIVER || "ethereum";
+  if (getWalletKey()) {
+    authHeaders = await withWalletKey(async (formattedKey) => {
+      const account = privateKeyToAccount(formattedKey);
+      const senderAddress = account.address;
+      const currencyType = process.env.NM_CURRENCY_TYPE || "USDC";
+      const txDriver = process.env.NM_TX_DRIVER || "ethereum";
 
-    const nonce = await fetchNonceChat(baseUrl, senderAddress, currencyType, txDriver);
-    console.log(`[AimNodes:Chat] Nonce for chat stream: ${nonce}`);
+      const nonce = await fetchNonceChat(baseUrl, senderAddress, currencyType, txDriver);
+      console.log(`[AimNodes:Chat] Nonce for chat stream: ${nonce}`);
 
-    const preSignHeaders = {
-      "tx-sender": senderAddress,
-      "tx-origin": senderAddress,
-      "tx-nonce": nonce,
-      "tx-protocol": "2",
-      "currency-type": currencyType,
-      "tx-driver": txDriver,
-      "hypc-program": "",
-    };
+      const preSignHeaders = {
+        "tx-sender": senderAddress,
+        "tx-origin": senderAddress,
+        "tx-nonce": nonce,
+        "tx-protocol": "2",
+        "currency-type": currencyType,
+        "tx-driver": txDriver,
+        "hypc-program": "",
+      };
 
-    const hashedBody = computeHashedBodyChat(bodyStr);
-    const signedHeadersStr = buildSignedHeadersChat(preSignHeaders, hashedBody);
-    const messageToSign = buildProtocol2MessageChat({
-      method: "POST",
-      uriPath: chatPath,
-      signedHeadersStr,
+      const hashedBody = computeHashedBodyChat(bodyStr);
+      const signedHeadersStr = buildSignedHeadersChat(preSignHeaders, hashedBody);
+      const messageToSign = buildProtocol2MessageChat({
+        method: "POST",
+        uriPath: chatPath,
+        signedHeadersStr,
+      });
+
+      const signature = await account.signMessage({ message: messageToSign });
+      console.log(`[AimNodes:Chat] Signature for chat stream: length=${signature?.length}`);
+
+      return {
+        ...preSignHeaders,
+        "tx-signature": signature,
+      };
     });
-
-    const signature = await account.signMessage({ message: messageToSign });
-    console.log(`[AimNodes:Chat] Signature for chat stream: length=${signature?.length}`);
-
-    authHeaders = {
-      ...preSignHeaders,
-      "tx-signature": signature,
-    };
   }
 
   return new Promise((resolve, reject) => {
@@ -525,12 +524,11 @@ export function registerAimNodesIpc(ipcMain) {
       console.log('[AimNodes:Payment] User approved payment. Executing JIT top-up...');
 
       // Execute payment via JIT orchestrator (runs in main process with full viem access)
-      const walletKey = getWalletKey();
-      if (!walletKey) {
+      if (!getWalletKey()) {
         return { success: false, error: 'No wallet key configured. Cannot execute payment.' };
       }
 
-      const pk = walletKey.startsWith('0x') ? walletKey : `0x${walletKey}`;
+      const pk = await withWalletKey(async (formattedKey) => formattedKey);
 
       // Get RPC URL from Web3 config (uses the user's configured ETH mainnet RPC)
       let rpcUrl;
