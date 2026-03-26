@@ -14,6 +14,17 @@ import https from "https";
 import { privateKeyToAccount } from "viem/accounts";
 
 // =============================================================================
+// Wallet Key — read once from env, then delete from process.env
+// =============================================================================
+
+const _walletKey = process.env.WALLET_PRIVATE_KEY || "";
+delete process.env.WALLET_PRIVATE_KEY;
+
+function getWalletPrivateKey() {
+  return _walletKey || null;
+}
+
+// =============================================================================
 // CLI Args
 // =============================================================================
 
@@ -186,7 +197,7 @@ async function collectChatStream(baseUrl, chatToken, aimSlot = null, timeoutMs =
 
   // Build authenticated headers for the chat stream request (node manager requires Protocol V2 auth)
   let authHeaders = {};
-  const rawKey = process.env.WALLET_PRIVATE_KEY;
+  const rawKey = getWalletPrivateKey();
   if (rawKey) {
     const trimmedKey = rawKey.trim();
     const pk = trimmedKey.startsWith("0x") ? trimmedKey : `0x${trimmedKey}`;
@@ -408,7 +419,7 @@ async function fetchNonce(baseUrl, senderAddress, currencyType = "USDC", txDrive
 // =============================================================================
 
 async function makeAuthenticatedRequest(baseUrl, uriPath, method, args) {
-  const rawKey = process.env.WALLET_PRIVATE_KEY;
+  const rawKey = getWalletPrivateKey();
   if (!rawKey) {
     throw new Error("[NM] WALLET_PRIVATE_KEY not set — cannot sign request. Please configure your wallet in Settings.");
   }
@@ -648,7 +659,7 @@ async function dispatchAimRequest(baseUrl, aimIndex, uri, method, args) {
     }
 
     // Derive sender address and check existing balance
-    const rawKey = process.env.WALLET_PRIVATE_KEY;
+    const rawKey = getWalletPrivateKey();
     let senderAddress = null;
     let balanceData = null;
     if (rawKey) {
@@ -899,7 +910,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("[NM] MCP server started. Wallet configured:", !!process.env.WALLET_PRIVATE_KEY);
+  console.error("[NM] MCP server started. Wallet configured:", !!getWalletPrivateKey());
 }
 
 main().catch(console.error);
