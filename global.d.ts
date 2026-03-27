@@ -351,6 +351,25 @@ declare global {
         deleteNodeData: (license: string) => Promise<{ success: boolean; error?: string }>;
         getSavedAims: (license?: string) => Promise<any>;
         handlePayment: (paymentData: any) => Promise<{ success: boolean; error?: string; result?: any }>;
+        // Stage 7B: Node profile
+        getNodeProfile: (license: number | string) => Promise<any>;
+        // Stage 7C: Tool score cache
+        getToolScore: (endpointUrl: string) => Promise<any>;
+        getAllToolScores: () => Promise<any>;
+        getToolScoresLastUpdated: () => Promise<any>;
+        // Stage 8A: AIM profile / nodes
+        getAimProfile:  (name: string) => Promise<any>;
+        getAimNodes:    (name: string, opts?: { version?: string; userLat?: number; userLng?: number }) => Promise<any>;
+        getAimBestNode: (name: string, opts?: { version?: string; userLat?: number; userLng?: number }) => Promise<any>;
+      };
+
+      // AIM Nodes (separate namespace for new hooks/components)
+      aimNodes: {
+        saveNodeData: (license: string, data: any) => Promise<{ success: boolean; error?: string }>;
+        deleteNodeData: (license: string) => Promise<{ success: boolean; error?: string }>;
+        getSavedAims: (license?: string) => Promise<any>;
+        /** Handle a __payment_required signal from MCP. Shows approval modal, executes JIT payment if approved, retries tool call. */
+        handlePayment: (paymentData: any) => Promise<{ success: boolean; result?: any; error?: string }>;
       };
 
       // Media — safe data: URI delivery for tool-generated media
