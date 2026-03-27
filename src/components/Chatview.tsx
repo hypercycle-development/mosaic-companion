@@ -1341,15 +1341,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
             {agents && agents.length > 1 && (
               <div className="mt-3">
                 <MultiAgentPanel
-                  agents={agents}
-                  selectedAgentIds={[]}
-                  orchestrationMode="parallel"
-                  isActive={false}
-                  isRunning={false}
-                  currentAgentName=""
-                  onRun={async (agentIds, prompt, mode) => {
+                  initialSelected={[]}
+                  onRun={(agentIds, prompt, mode) => {
                     console.log("Multi-agent run:", { agentIds, prompt, mode });
                   }}
+                  onCollapse={() => {}}
                 />
               </div>
             )}
