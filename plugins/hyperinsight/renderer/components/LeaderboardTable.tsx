@@ -1,11 +1,24 @@
 import React, { useState, useMemo } from 'react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 
+interface LeaderboardRow {
+  aimId: number;
+  aimName: string;
+  activeNodes: number;
+  computeTflops: number;
+  computeCghz: number;
+  totalRamBytes: number;
+  totalVramBytes: number;
+  trendDirection?: 'up' | 'stable' | 'down' | null;
+  activeNodes7d?: number | null;
+  originalRank?: number;
+}
+
 export const LeaderboardTable = ({ data, loading, onSelect }: { data: any[], loading: boolean, onSelect: (name: string) => void }) => {
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
 
   // Attach original rank
-  const processedData = useMemo(() => {
+  const processedData = useMemo<LeaderboardRow[]>(() => {
       if (!data) return [];
       return data.map((item, index) => ({
           ...item,
@@ -17,8 +30,8 @@ export const LeaderboardTable = ({ data, loading, onSelect }: { data: any[], loa
       if (!sortConfig) return processedData;
 
       return [...processedData].sort((a, b) => {
-          const aValue = a[sortConfig.key];
-          const bValue = b[sortConfig.key];
+          const aValue = (a as any)[sortConfig.key];
+          const bValue = (b as any)[sortConfig.key];
 
           if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
           if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
@@ -44,9 +57,9 @@ export const LeaderboardTable = ({ data, loading, onSelect }: { data: any[], loa
       const Icon = direction === 'asc' ? ArrowUp : ArrowDown;
 
       return (
-          <Icon 
-              size={14} 
-              className={`mr-1 text-[var(--primary)] transition-opacity duration-200 ${isActive ? 'opacity-100' : 'opacity-0'}`} 
+          <Icon
+              size={14}
+              className={`mr-1 text-[var(--primary)] transition-opacity duration-200 ${isActive ? 'opacity-100' : 'opacity-0'}`}
           />
       );
   };
@@ -55,7 +68,7 @@ export const LeaderboardTable = ({ data, loading, onSelect }: { data: any[], loa
       if (!key) return <th className={`px-6 py-3 font-normal text-${align}`}>{label}</th>;
 
       return (
-          <th 
+          <th
               className={`px-6 py-3 font-normal cursor-pointer hover:text-[var(--primary)] transition-colors select-none`}
               onClick={() => handleSort(key)}
           >
@@ -65,6 +78,34 @@ export const LeaderboardTable = ({ data, loading, onSelect }: { data: any[], loa
               </div>
           </th>
       );
+  };
+
+  const TrendCell = ({ direction }: { direction: 'up' | 'stable' | 'down' | null | undefined }) => {
+      if (direction === 'up') {
+          return (
+              <span
+                className="text-green-500 font-bold"
+                title="Growing — active nodes increased >10% vs 7 days ago"
+              >↑</span>
+          );
+      }
+      if (direction === 'down') {
+          return (
+              <span
+                className="text-red-500 font-bold"
+                title="Declining — active nodes decreased >10% vs 7 days ago"
+              >↓</span>
+          );
+      }
+      if (direction === 'stable') {
+          return (
+              <span
+                className="text-gray-400"
+                title="Stable — active nodes within 10% of 7 days ago"
+              >→</span>
+          );
+      }
+      return <span className="text-[var(--textMuted)]">—</span>;
   };
 
   if (loading && (!data || data.length === 0)) return <div className="text-center py-10 text-[var(--textMuted)]">Loading leaderboard...</div>;
@@ -77,7 +118,8 @@ export const LeaderboardTable = ({ data, loading, onSelect }: { data: any[], loa
               <tr>
                   <th className="px-6 py-3 font-normal">Rank</th>
                   <th className="px-6 py-3 font-normal">AIM Name</th>
-                  {renderHeader('Active Nodes', 'activeNodes')}
+                  <th className="px-6 py-3 font-normal text-center">Trend</th>
+                  {renderHeader('Active Nodes (7d)', 'activeNodes')}
                   {renderHeader('Compute (TFLOPS)', 'computeTflops')}
                   {renderHeader('CPU (cGHz)', 'computeCghz')}
                   {renderHeader('RAM (GB)', 'totalRamBytes')}
@@ -86,14 +128,19 @@ export const LeaderboardTable = ({ data, loading, onSelect }: { data: any[], loa
           </thead>
           <tbody className="divide-y divide-[var(--border)]">
               {sortedData.map((item) => (
-                  <tr 
-                      key={item.aimId} 
+                  <tr
+                      key={item.aimId}
                       className="hover:bg-[var(--surfaceAlt)] transition-colors cursor-pointer"
                       onClick={() => onSelect(item.aimName)}
                   >
                       <td className="px-6 py-2 text-[var(--muted)]">#{item.originalRank}</td>
                       <td className="px-6 py-2 font-bold text-[var(--primary)] hover:text-[var(--primaryStrong)] transition-colors">{item.aimName}</td>
-                      <td className="px-6 py-2 text-right text-[var(--text)]">{item.activeNodes}</td>
+                      <td className="px-6 py-2 text-center">
+                          <TrendCell direction={item.trendDirection} />
+                      </td>
+                      <td className="px-6 py-2 text-right text-[var(--text)]">
+                          {item.activeNodes7d ?? item.activeNodes}
+                      </td>
                       <td className="px-6 py-2 text-right text-[var(--success)] font-bold">{item.computeTflops ? item.computeTflops.toFixed(1) : '0.0'}</td>
                       <td className="px-6 py-2 text-right text-[var(--textMuted)]">{item.computeCghz ? item.computeCghz.toFixed(0) : '0'}</td>
                       {/* Convert Bytes to GB: bytes / 1024^3 */}
