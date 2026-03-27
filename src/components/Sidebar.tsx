@@ -324,6 +324,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <Activity className={className} />;
       case "Cpu":
         return <Cpu className={className} />;
+      case "Moon":
+        return <Moon className={className} />;
       default:
         return <LayoutGrid className={className} />;
     }

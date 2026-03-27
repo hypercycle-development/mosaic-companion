@@ -651,8 +651,25 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                           </label>
                         </div>
 
+                        {/* Ollama Model Selector (for Ollama provider) - Right after provider selection */}
+                        {agent.provider === "ollama" && (
+                          <div className="mt-3 p-3 bg-gray-900/50 border border-gray-700 rounded-lg">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Cpu size={14} className="text-indigo-400" />
+                              <span className="text-sm text-gray-300 font-medium">Ollama Models</span>
+                            </div>
+                            <ModelSelector
+                              onSelect={(model) => updateAgent(agent.id, { model })}
+                              defaultModel={agent.model}
+                              onApiKeyChange={(hasKey) => {
+                                // Could store API key status if needed
+                              }}
+                            />
+                          </div>
+                        )}
+
                         {/* API Key (not used for Hypercycle node nonce flow) */}
-                        {agent.provider !== "hypercycle" && (
+                        {agent.provider !== "hypercycle" && agent.provider !== "ollama" && (
                           <label className="block">
                             <span className="text-sm text-gray-400 mb-1 block flex items-center gap-1">
                               <Key size={12} />
@@ -1093,19 +1110,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                             </div>
                           </details>
                         </div>
-
-                        {/* Ollama Model Selector (for Ollama provider) */}
-                        {agent.provider === "ollama" && (
-                          <div className="mt-4 pt-4 border-t border-gray-800">
-                            <ModelSelector
-                              onSelect={(model) => updateAgent(agent.id, { model })}
-                              defaultModel={agent.model}
-                              onApiKeyChange={(hasKey) => {
-                                // Could store API key status if needed
-                              }}
-                            />
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>

@@ -1347,7 +1347,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   isActive={false}
                   isRunning={false}
                   currentAgentName=""
-                  onRun={(agentIds, prompt, mode) => {
+                  onRun={async (agentIds, prompt, mode) => {
                     console.log("Multi-agent run:", { agentIds, prompt, mode });
                   }}
                 />
