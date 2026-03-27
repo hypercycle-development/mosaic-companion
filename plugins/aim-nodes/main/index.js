@@ -295,9 +295,26 @@ export function registerAimNodesIpc(ipcMain) {
       };
       saveAimsToStorage(savedData);
       console.log(`[AimNodes] Saved data for node ${license}`);
-      
-      // We will also trigger the MCP Server to reload tools if needed.
-      // Or simply let the MCP Server read from the file dynamically.
+
+      // Refresh the MCPClient's cached tool list so the LLM sees the newly
+      // connected node's tools immediately — without restarting the child process.
+      // mcp-server.js already reads hyperinsight-aims.json fresh on every
+      // list_tools call, so a refreshCapabilities() round-trip is all we need.
+      // This is safe even if a tool call is in-flight: MCP stdio is multiplexed
+      // by message ID, so the active callTool and our listTools coexist fine.
+      const mcpServerName = 'HyperInsight-AIMs';
+      if (mcpClient.isConnected(mcpServerName)) {
+        try {
+          await mcpClient.refreshCapabilities(mcpServerName);
+          // Emit tools-changed so mcp/index.ts notifyRenderer fires and the
+          // renderer's MCP page reflects the updated tool list automatically.
+          mcpClient.emit('tools-changed', { server: mcpServerName });
+          console.log('[AimNodes] MCP tool cache refreshed — new node tools now available to the LLM.');
+        } catch (refreshErr) {
+          console.error('[AimNodes] Failed to refresh MCP tool cache:', refreshErr);
+        }
+      }
+
       return { success: true };
     } catch (e) {
       console.error('[AimNodes] Failed to save node data:', e);
