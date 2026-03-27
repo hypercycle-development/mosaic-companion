@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Copy, Check, Loader2 } from 'lucide-react';
+import { AlertTriangle, Copy, Check, Loader2, Cpu, Zap } from 'lucide-react';
 
 // Stage 7C: HyperInsight score data attached to the payment approval payload
 export interface HyperInsightScoreData {
@@ -22,12 +22,20 @@ export interface ApprovalRequest {
   nodeUrl: string;
   to: string;
   token: string;
+  /** Base service cost (plain number, no currency label) */
   amount: string;
+  /** Total on-chain deposit = amount + 0.5% buffer */
+  depositAmount?: string;
+  /** Human-readable AIM tool name, e.g. "lightning-aim-gen:0.1.0" */
+  aimName?: string;
+  /** Human-readable network name, e.g. "Ethereum", "Base", "Sepolia (Testnet)" */
+  networkName?: string;
   chainId: number;
   chainName?: string;
   reason?: string;
   policySnapshot?: string;
   existingNodeBalance?: string;
+  /** Estimated gas cost, e.g. "~0.000032 ETH" */
   gasEstimate?: string;
   warning?: string;
   hyperinsightScore?: HyperInsightScoreData | null;
@@ -157,6 +165,18 @@ export const TransactionApprovalModal: React.FC = () => {
 
   if (!request) return null;
 
+  // Derive buffer amount for display breakdown
+  const depositAmt = request.depositAmount ?? request.amount;
+  const baseAmt = request.amount;
+  const showBreakdown =
+    request.depositAmount &&
+    request.depositAmount !== request.amount &&
+    !isNaN(parseFloat(request.depositAmount)) &&
+    !isNaN(parseFloat(request.amount));
+  const bufferAmt = showBreakdown
+    ? (parseFloat(depositAmt) - parseFloat(baseAmt)).toFixed(6)
+    : null;
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
@@ -175,11 +195,17 @@ export const TransactionApprovalModal: React.FC = () => {
         {/* Content */}
         <div className="p-5 space-y-4">
 
+          {/* Total deposit amount (prominent) */}
           <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 text-center">
-            <p className="text-sm text-indigo-300 font-medium mb-1">Transfer Amount</p>
+            <p className="text-sm text-indigo-300 font-medium mb-1">Total Deposit</p>
             <p className="text-3xl font-bold text-white">
-              {request.amount}
+              {depositAmt} <span className="text-xl text-indigo-400">{request.token}</span>
             </p>
+            {showBreakdown && (
+              <p className="text-xs text-gray-400 mt-1.5">
+                {baseAmt} service cost + {bufferAmt} buffer (0.5%)
+              </p>
+            )}
           </div>
 
           <div className="space-y-3 bg-gray-950/50 p-4 rounded-xl border border-gray-800">
@@ -187,6 +213,16 @@ export const TransactionApprovalModal: React.FC = () => {
               <span className="text-sm text-gray-500 shrink-0">Destination Node</span>
               <span className="text-sm font-medium text-gray-200 truncate max-w-[220px] ml-4 text-right">{request.nodeUrl}</span>
             </div>
+
+            {/* AIM Tool */}
+            {request.aimName && (
+              <div className="flex justify-between items-center border-b border-gray-800/50 pb-2">
+                <span className="text-sm text-gray-500 shrink-0 flex items-center gap-1.5">
+                  <Cpu size={12} className="text-indigo-400" /> AIM Tool
+                </span>
+                <span className="text-sm font-mono text-indigo-300 truncate max-w-[200px] text-right ml-4">{request.aimName}</span>
+              </div>
+            )}
 
             <div className="flex justify-between items-center border-b border-gray-800/50 pb-2">
               <span className="text-sm text-gray-500 shrink-0">Recipient Address</span>
@@ -207,7 +243,7 @@ export const TransactionApprovalModal: React.FC = () => {
             <div className="flex justify-between items-center border-b border-gray-800/50 pb-2">
               <span className="text-sm text-gray-500 shrink-0">Network</span>
               <span className="text-sm font-medium text-gray-300 ml-4 text-right">
-                {request.chainName || 'Unknown'} <span className="text-gray-500 font-mono">({request.chainId})</span>
+                {request.networkName || request.chainName || 'Unknown'} <span className="text-gray-500 font-mono">({request.chainId})</span>
               </span>
             </div>
 
@@ -220,7 +256,9 @@ export const TransactionApprovalModal: React.FC = () => {
 
             {request.gasEstimate && (
               <div className="flex justify-between items-center border-b border-gray-800/50 pb-2">
-                <span className="text-sm text-gray-500 shrink-0">Est. Gas Fee</span>
+                <span className="text-sm text-gray-500 shrink-0 flex items-center gap-1.5">
+                  <Zap size={12} className="text-yellow-400" /> Est. Gas Fee
+                </span>
                 <span className="text-sm font-mono text-gray-300 ml-4 text-right">{request.gasEstimate}</span>
               </div>
             )}
