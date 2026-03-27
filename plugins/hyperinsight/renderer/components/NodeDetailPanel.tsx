@@ -461,6 +461,7 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ licenseKey, on
             expanded={expandedSection === 'revenue'}
             onToggle={toggleSection}
           >
+            {/* REVENUE SECTION HIDDEN FOR NOW
             {profile?.isRevenueIncluded && profile.revenue ? (
               <div className="space-y-2 text-sm font-mono">
                 <div className="flex justify-between border-b border-[var(--border)]/50 pb-2">
@@ -490,6 +491,10 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ licenseKey, on
                 </div>
               </GatedFeature>
             )}
+            */}
+            <div className="py-4 text-center text-sm text-[var(--textMuted)] italic">
+              TBD / later feature
+            </div>
           </AccordionSection>
 
         </div>
