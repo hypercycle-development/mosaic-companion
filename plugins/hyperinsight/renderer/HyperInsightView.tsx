@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, RefreshCw, Trophy, Activity, Server, HelpCircle } from 'lucide-react';
 import { ActiveNodesDisplay } from './components/ActiveNodesDisplay';
-import { AimDetailView } from './components/AimDetailView';
+import { AimProfilePage } from './components/AimProfilePage';
+// NOTE: AimDetailView is preserved as dead code — do not delete. See Stage 8A-PRELIM.
 import { MetricCard } from './components/MetricCard';
 import { LeaderboardTable } from './components/LeaderboardTable';
 import { AimsList } from './components/AimsList';
@@ -99,6 +100,25 @@ export const HyperInsightView = () => {
     );
   }
 
+  // AIM profile page replaces the entire dashboard view
+  if (selectedAim) {
+    return (
+      <>
+        <AimProfilePage
+          aimName={selectedAim}
+          onBack={() => setSelectedAim(null)}
+          onNodeSelect={(license) => setSelectedNode(String(license))}
+        />
+        {selectedNode && (
+          <NodeDetailPanel
+            licenseKey={selectedNode}
+            onClose={() => setSelectedNode(null)}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="flex h-full w-full flex-col bg-[var(--background)] text-[var(--text)] font-sans overflow-hidden relative">
       {/* Header - Fixed at top */}
@@ -132,27 +152,24 @@ export const HyperInsightView = () => {
       <div className="flex-1 relative overflow-hidden flex flex-col">
           {/* Main Scrollable Content Area */}
           <div className="flex-1 overflow-auto custom-scrollbar">
-              {selectedAim ? (
-                <AimDetailView name={selectedAim} onBack={() => setSelectedAim(null)} />
-              ) : (
-                <>
+              <>
                     {/* Metric Cards Section */}
                     <div className="px-6 pt-6 grid gap-4 md:grid-cols-3">
-                        <MetricCard 
+                        <MetricCard
                             title="Active AIMs"
                             value={dataLoading ? '...' : (data.leaderboard?.length || 0)}
                             chartData={data.history?.activeAims}
                             subtext={undefined}
                             tooltipText="AIMs witnessed as active via OSINT within the previous 24hrs."
                         />
-                        <MetricCard 
+                        <MetricCard
                             title="Available AIMs"
                             value={dataLoading ? '...' : (data.stats?.totalAimsAvailable || 0)}
                             chartData={data.history?.availableAims}
                             subtext={undefined}
                             tooltipText="Total public AIMs currently available to be deployed."
                         />
-                        <MetricCard 
+                        <MetricCard
                             title="Network Compute (Est.)"
                             value={dataLoading ? '...' : `${data.stats?.totalComputeTflops ? (data.stats.totalComputeTflops >= 1000 ? (data.stats.totalComputeTflops / 1000).toFixed(1) + 'k' : data.stats.totalComputeTflops.toFixed(1)) : '0'} TFLOPS`}
                             chartData={data.history?.computeTflops}
@@ -175,7 +192,6 @@ export const HyperInsightView = () => {
                         {activeTab === TABS.NODES && <NodesList data={data.nodes} loading={dataLoading} onSelectNode={setSelectedNode} />}
                     </div>
                 </>
-              )}
           </div>
 
           {/* Node Detail Panel Overlay */}
