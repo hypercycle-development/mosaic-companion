@@ -6,10 +6,8 @@
  *   JSON body: { messages: [{ role, content }], model }
  * Step 3: POST …/stream — same tx-* headers; JSON body: { token } from step 2 response.
  *
- * **TODA (direct):** node base `http://host` → ports 8000 / 8006 / 4001 on host.
- * **Basechain (hyperpg):** requests go through `https://hyperpg.site/forward/{targetHost}/8000|8006|4001/…`.
- * If you enter only a bare node host (e.g. `http://207.53.252.108`), it is rewritten to that forward
- * form automatically. If you already paste the full `…/forward/IP` URL, it is left as-is.
+ * **Node base:** scheme + host (no path). TODA and Basechain both use direct `http://host:port` URLs.
+ * **Balance:** `POST /balance` on the server port; `tx-sender` from `GET /info` (`tm` string or `tm.address`).
  */
 
 import type { AIAgentConfig, ChatMessage } from '../types/ai';
@@ -27,12 +25,24 @@ export const HYPERCYCLE_STREAM_PORT = 4001;
 
 export const HYPERCYCLE_STREAM_PATH = '/stream';
 
+/** GET /info on the server port — includes `tm` (balance `tx-sender`). */
+export const HYPERCYCLE_INFO_PATH = '/info';
+
+/** POST /balance on the server port — register prepaid balance after funding. */
+export const HYPERCYCLE_BALANCE_PATH = '/balance';
+
 export const HYPERCYCLE_TX_DRIVER_DEFAULT = 'toda_micropay';
+
+/**
+ * TODA DQ type hash for TDN (used by Mosaic Hypercycle funding `transfer_toda`, not the symbol).
+ */
+export const HYPERCYCLE_TODA_TDN_TYPE_HASH =
+    '412964f209c966234250eba05d1a118da128925084df9f5459eb9243157e452e73';
 
 /** Placeholder until TODA micropay signing is wired */
 export const HYPERCYCLE_TX_SIGNATURE_PLACEHOLDER = 'ndfndsofdn';
 
-/** `tx-driver` for Basechain / hyperpg (EVM-signed nonce). */
+/** `tx-driver` for Basechain (EVM-signed nonce). */
 export const HYPERCYCLE_TX_DRIVER_BASECHAIN = 'basechain';
 
 export function isHypercycleBasechainConfig(
@@ -41,42 +51,57 @@ export function isHypercycleBasechainConfig(
     return config.hypercycleBackend === 'basechain';
 }
 
-/** Public hyperpg reverse-proxy origin (path continues with `/forward/{target}/8000` …). */
-export const HYPERPG_FORWARD_ORIGIN = 'https://hyperpg.site';
+function clampPort(n: number | undefined, fallback: number): number {
+    if (typeof n !== 'number' || !Number.isFinite(n)) return fallback;
+    const i = Math.floor(n);
+    if (i < 1 || i > 65535) return fallback;
+    return i;
+}
+
+/** Port for nonce, GET /info, POST /balance. Default {@link HYPERCYCLE_NONCE_PORT}. */
+export function getHypercycleServerPort(config: AIAgentConfig): number {
+    return clampPort(config.hypercycleServerPort, HYPERCYCLE_NONCE_PORT);
+}
+
+/** Port for AIM (`/api/aim/0/request`). Default {@link HYPERCYCLE_AIM_PORT}. */
+export function getHypercycleAppPort(config: AIAgentConfig): number {
+    return clampPort(config.hypercycleAppPort, HYPERCYCLE_AIM_PORT);
+}
+
+/** Port for `/stream`. Default {@link HYPERCYCLE_STREAM_PORT}. */
+export function getHypercycleStreamPort(config: AIAgentConfig): number {
+    return clampPort(config.hypercycleStreamPort, HYPERCYCLE_STREAM_PORT);
+}
+
+/** `currency-type` for POST /balance: USDC (Basechain), always TDN for TODA. */
+export function getHypercycleBalanceCurrencyType(
+    config: AIAgentConfig
+): string {
+    if (isHypercycleBasechainConfig(config)) return 'USDC';
+    return 'TDN';
+}
+
+/** Default `model` in AIM JSON body (Anthropic id used by the Hypercycle gateway). */
+export const HYPERCYCLE_DEFAULT_AIM_MODEL = 'claude-sonnet-4-5-20250929';
+
+const LEGACY_HYPERCYCLE_PLACEHOLDER_MODELS = new Set([
+    'hypercycle-node',
+    'hypercycle_node'
+]);
 
 /**
- * Basechain forward root: `https://hyperpg.site/forward/{targetHost}` (no trailing service port).
- * - Full forward URL in settings → returned unchanged (minus trailing slash).
- * - Bare `http(s)://target` or `target` → wrapped so traffic uses hyperpg, not direct `host/8000`.
+ * Stored agents may still have the old placeholder `hypercycle-node`; the gateway expects a real model id.
  */
-export function resolveHypercycleBasechainForwardRoot(raw: string): string {
-    const t = raw.trim().replace(/\/$/, '');
-    if (!t) {
-        throw new Error('Hypercycle base URL is required.');
+export function resolveHypercycleAimModel(config: AIAgentConfig): string {
+    const m = config.model?.trim() || '';
+    if (!m || LEGACY_HYPERCYCLE_PLACEHOLDER_MODELS.has(m.toLowerCase())) {
+        return HYPERCYCLE_DEFAULT_AIM_MODEL;
     }
-    if (/\/forward\//i.test(t)) {
-        return t;
-    }
-    const href = t.includes('://') ? t : `http://${t}`;
-    let u: URL;
-    try {
-        u = new URL(href);
-    } catch {
-        throw new Error('Invalid Hypercycle Basechain base URL.');
-    }
-    if (!u.hostname) {
-        throw new Error(
-            'Basechain: use a target host/IP, or the full hyperpg URL including /forward/…'
-        );
-    }
-    return `${HYPERPG_FORWARD_ORIGIN}/forward/${u.hostname}`;
+    return m;
 }
 
 export interface FetchHypercycleNonceOptions {
-    /**
-     * Resolved service base for GET /nonce (no `/nonce` suffix).
-     * TODA: `http://host:8000`. Basechain: `https://hyperpg.site/forward/ip/8000`.
-     */
+    /** Resolved service base for GET /nonce (no `/nonce` suffix): `http://host:port`. */
     nonceServiceBaseUrl: string;
     /** TODA address or `0x` sender for `sender` header */
     sender: string;
@@ -211,7 +236,7 @@ async function resolveHypercycleTodaSender(): Promise<string> {
 
 /**
  * Parse Hypercycle node base from settings: scheme + hostname only.
- * Any port in the input is ignored; services use fixed ports 8000 / 8006 / 4001 unless overridden.
+ * Any port in the input is ignored; use `hypercycleServerPort` / `hypercycleAppPort` / `hypercycleStreamPort`.
  */
 export function parseHypercycleNodeBase(raw: string): {
     protocol: string;
@@ -235,12 +260,15 @@ export function parseHypercycleNodeBase(raw: string): {
 }
 
 /** Full origin for the nonce service: `{protocol}//{hostname}:8000`. */
-export function resolveHypercycleNonceServiceBaseUrl(nodeBase: string): string {
+export function resolveHypercycleNonceServiceBaseUrl(
+    nodeBase: string,
+    serverPort: number = HYPERCYCLE_NONCE_PORT
+): string {
     const { protocol, hostname } = parseHypercycleNodeBase(nodeBase);
-    return `${protocol}//${hostname}:${HYPERCYCLE_NONCE_PORT}`;
+    return `${protocol}//${hostname}:${serverPort}`;
 }
 
-/** Resolved GET /nonce service base from agent config (TODA vs Basechain). */
+/** Resolved GET /nonce service base from agent config (direct `host:port`, TODA and Basechain). */
 export function resolveHypercycleNonceServiceBaseUrlForConfig(
     config: AIAgentConfig
 ): string {
@@ -248,36 +276,24 @@ export function resolveHypercycleNonceServiceBaseUrlForConfig(
     if (!raw) {
         throw new Error('Hypercycle base URL is required.');
     }
-    if (isHypercycleBasechainConfig(config)) {
-        const root = resolveHypercycleBasechainForwardRoot(raw);
-        return `${root}/${HYPERCYCLE_NONCE_PORT}`;
-    }
-    return resolveHypercycleNonceServiceBaseUrl(raw);
+    const port = getHypercycleServerPort(config);
+    return resolveHypercycleNonceServiceBaseUrl(raw, port);
 }
 
 /**
- * Base URL for AIM requests (port 8006). Uses `hypercycleAimBaseUrl` if set, else derived from
- * `baseUrl` and backend.
+ * Base URL for AIM requests (app port, default 8006). Derived from `baseUrl` and backend.
  */
 export function resolveHypercycleAimBaseUrl(config: AIAgentConfig): string {
-    const override = config.hypercycleAimBaseUrl?.trim();
-    if (override) return override.replace(/\/$/, '');
     const nodeBase = config.baseUrl?.trim();
     if (!nodeBase) {
         throw new Error(
-            'Hypercycle base URL is required to derive the AIM endpoint (port 8006).'
+            'Hypercycle base URL is required to derive the AIM endpoint.'
         );
     }
-    if (isHypercycleBasechainConfig(config)) {
-        const root = resolveHypercycleBasechainForwardRoot(nodeBase);
-        return `${root}/${HYPERCYCLE_AIM_PORT}`;
-    }
+    const port = getHypercycleAppPort(config);
     try {
         const { protocol, hostname } = parseHypercycleNodeBase(nodeBase);
-        return `${protocol}//${hostname}:${HYPERCYCLE_AIM_PORT}`.replace(
-            /\/$/,
-            ''
-        );
+        return `${protocol}//${hostname}:${port}`.replace(/\/$/, '');
     } catch (e) {
         const msg = e instanceof Error ? e.message : 'Invalid URL.';
         throw new Error(`${msg} (AIM host)`);
@@ -359,7 +375,8 @@ export async function postHypercycleAimRequest(
         },
         body: JSON.stringify({
             messages: options.messages,
-            model: 'claude-sonnet-4-5-20250929'
+            model:
+                options.model?.trim() || HYPERCYCLE_DEFAULT_AIM_MODEL
         })
     });
 
@@ -382,32 +399,299 @@ export async function postHypercycleAimRequest(
 }
 
 /**
- * Base URL for POST /stream (port 4001). Override with `hypercycleStreamBaseUrl`, else derived
- * from `baseUrl` and backend.
+ * Base URL for POST /stream (stream port, default 4001). Derived from `baseUrl` and backend.
  */
 export function resolveHypercycleStreamBaseUrl(config: AIAgentConfig): string {
-    const override = config.hypercycleStreamBaseUrl?.trim();
-    if (override) return override.replace(/\/$/, '');
     const nodeBase = config.baseUrl?.trim();
     if (!nodeBase) {
         throw new Error(
-            'Hypercycle base URL is required to derive the stream endpoint (port 4001).'
+            'Hypercycle base URL is required to derive the stream endpoint.'
         );
     }
-    if (isHypercycleBasechainConfig(config)) {
-        const root = resolveHypercycleBasechainForwardRoot(nodeBase);
-        return `${root}/${HYPERCYCLE_STREAM_PORT}`;
-    }
+    const port = getHypercycleStreamPort(config);
     try {
         const { protocol, hostname } = parseHypercycleNodeBase(nodeBase);
-        return `${protocol}//${hostname}:${HYPERCYCLE_STREAM_PORT}`.replace(
-            /\/$/,
-            ''
-        );
+        return `${protocol}//${hostname}:${port}`.replace(/\/$/, '');
     } catch (e) {
         const msg = e instanceof Error ? e.message : 'Invalid URL.';
         throw new Error(`${msg} (stream host)`);
     }
+}
+
+function parseInfoJson(body: unknown): unknown {
+    if (body == null) return null;
+    if (typeof body === 'string') {
+        try {
+            return JSON.parse(body) as unknown;
+        } catch {
+            return null;
+        }
+    }
+    return body;
+}
+
+function extractTmObject(body: unknown): Record<string, unknown> | null {
+    const parsed = parseInfoJson(body);
+    if (parsed == null || typeof parsed !== 'object') return null;
+    const o = parsed as Record<string, unknown>;
+    const tm = o.tm ?? o.Tm;
+    if (tm != null && typeof tm === 'object') return tm as Record<string, unknown>;
+    return null;
+}
+
+/**
+ * `GET /info` may return `tm` as a string or an object with `address` / `host_address` (see node gateway).
+ * For balance `tx-sender`, prefer `tm.address` (then legacy fallbacks).
+ */
+function extractTmFromInfoBody(body: unknown): string | null {
+    if (body == null) return null;
+    const parsed = parseInfoJson(body);
+    if (parsed == null) return null;
+    if (typeof parsed === 'string') {
+        try {
+            return extractTmFromInfoBody(JSON.parse(parsed) as unknown);
+        } catch {
+            return null;
+        }
+    }
+    if (typeof parsed !== 'object') return null;
+    const o = parsed as Record<string, unknown>;
+    const tm = o.tm ?? o.Tm;
+    if (typeof tm === 'string' && tm.trim()) return tm.trim();
+    if (tm != null && typeof tm === 'object') {
+        const t = tm as Record<string, unknown>;
+        const addr = t.address;
+        if (typeof addr === 'string' && addr.trim()) return addr.trim();
+        const hostAddr = t.host_address;
+        if (typeof hostAddr === 'string' && hostAddr.trim()) return hostAddr.trim();
+    }
+    return null;
+}
+
+/** Twin URL for in-app `transfer_toda` (`tm.host_address`). */
+function extractTmHostAddressFromInfoBody(body: unknown): string | null {
+    const tm = extractTmObject(body);
+    if (!tm) return null;
+    const h = tm.host_address ?? tm.hostAddress;
+    if (typeof h === 'string' && h.trim()) return h.trim();
+    return null;
+}
+
+/** `0x` recipient if `tm.address` is an EVM address (Basechain USDC). */
+function extractTmEvmAddressFromInfoBody(body: unknown): string | null {
+    const tm = extractTmObject(body);
+    if (!tm) return null;
+    const addr = tm.address;
+    if (typeof addr === 'string' && /^0x[a-fA-F0-9]{40}$/.test(addr.trim())) {
+        return addr.trim();
+    }
+    return null;
+}
+
+export interface HypercycleNodeInfoResult {
+    ok: boolean;
+    status: number;
+    /** Resolved `tx-sender` from `GET /info` (`tm` string or `tm.address`). */
+    tm?: string;
+    /** `tm.host_address` — Twin URL for Mosaic TDN transfer. */
+    tmHostAddress?: string;
+    /** `tm.address` when it is a `0x` address — USDC recipient hint for Basechain. */
+    tmEvmRecipient?: string;
+    body: unknown;
+    rawText: string;
+}
+
+/** `GET {serverBase}/info` on the configured server port. */
+export async function fetchHypercycleNodeInfo(
+    config: AIAgentConfig
+): Promise<HypercycleNodeInfoResult> {
+    const base = resolveHypercycleNonceServiceBaseUrlForConfig(config).replace(
+        /\/$/,
+        ''
+    );
+    const url = `${base}${HYPERCYCLE_INFO_PATH}`;
+    const resp = await fetch(url, {
+        method: 'GET',
+        headers: {
+            Accept: '*/*',
+            'User-Agent': 'MosaicCompanion/1.0'
+        }
+    });
+    const rawText = await resp.text();
+    let body: unknown = rawText;
+    if (rawText.trim()) {
+        try {
+            body = JSON.parse(rawText) as unknown;
+        } catch {
+            body = rawText;
+        }
+    }
+    const tm = extractTmFromInfoBody(body) ?? undefined;
+    const tmHostAddress = extractTmHostAddressFromInfoBody(body) ?? undefined;
+    const tmEvmRecipient = extractTmEvmAddressFromInfoBody(body) ?? undefined;
+    return {
+        ok: resp.ok,
+        status: resp.status,
+        tm,
+        tmHostAddress,
+        tmEvmRecipient,
+        body,
+        rawText
+    };
+}
+
+export interface RegisterHypercycleBalanceParams {
+    /** Amount sent (e.g. micro-units as in gateway examples). */
+    txValue: string;
+    /** Basechain: 0x tx hash. TODA: entry file id or binder-resolved id. */
+    txId: string;
+}
+
+export interface RegisterHypercycleBalanceResult {
+    ok: boolean;
+    status: number;
+    rawText: string;
+}
+
+/**
+ * Step after funding: POST `/balance` on the server port with tx-* headers.
+ * Loads `tx-sender` from `GET /info` field `tm`.
+ */
+export async function registerHypercycleBalance(
+    config: AIAgentConfig,
+    params: RegisterHypercycleBalanceParams
+): Promise<RegisterHypercycleBalanceResult> {
+    const info = await fetchHypercycleNodeInfo(config);
+    if (!info.ok) {
+        throw new Error(
+            `Hypercycle GET /info failed (${info.status}): ${info.rawText.slice(0, 280)}`
+        );
+    }
+    const txSender = info.tm?.trim();
+    if (!txSender) {
+        throw new Error(
+            'Hypercycle /info did not return a usable `tm` (string or object with `address`) for tx-sender. Check the server port and response.'
+        );
+    }
+    const base = resolveHypercycleNonceServiceBaseUrlForConfig(config).replace(
+        /\/$/,
+        ''
+    );
+    const url = `${base}${HYPERCYCLE_BALANCE_PATH}`;
+    const txValue = params.txValue.trim();
+    const txId = params.txId.trim();
+    if (!txValue || !txId) {
+        throw new Error('tx-value and tx-id are required.');
+    }
+    const currencyType = getHypercycleBalanceCurrencyType(config);
+    const txDriver = getHypercycleTxDriver(config);
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+            Accept: '*/*',
+            'Content-Type': 'application/json',
+            'currency-type': currencyType,
+            'tx-sender': txSender,
+            'tx-value': txValue,
+            'tx-driver': txDriver,
+            'tx-id': txId,
+            'User-Agent': 'MosaicCompanion/1.0'
+        },
+        body: JSON.stringify({})
+    });
+    const rawText = await resp.text();
+    return { ok: resp.ok, status: resp.status, rawText };
+}
+
+/** First string (or object id field) in an `entryFiles` / `entry_files` array on this record only. */
+function firstEntryFileFromRecord(o: Record<string, unknown>): string | null {
+    const ef = o.entryFiles ?? o.entry_files;
+    if (!Array.isArray(ef) || ef.length === 0) return null;
+    const first = ef[0];
+    if (typeof first === 'string' && first.trim()) return first.trim();
+    if (first && typeof first === 'object') {
+        const r = first as Record<string, unknown>;
+        for (const k of ['id', 'hash', 'fileId', 'entryId']) {
+            const v = r[k];
+            if (typeof v === 'string' && v.trim()) return v.trim();
+        }
+    }
+    return null;
+}
+
+/**
+ * Binder payloads are often an array of twists: `{ twistId, data: { entryFiles: ["…hash…"], … } }`.
+ * Walk JSON so we match `entryFiles` under `data`, not only at the root.
+ */
+function findFirstEntryFileIdDeep(value: unknown, depth = 0): string | null {
+    if (depth > 12 || value == null) return null;
+    if (typeof value === 'object' && !Array.isArray(value)) {
+        const hit = firstEntryFileFromRecord(value as Record<string, unknown>);
+        if (hit) return hit;
+        for (const v of Object.values(value as Record<string, unknown>)) {
+            const nested = findFirstEntryFileIdDeep(v, depth + 1);
+            if (nested) return nested;
+        }
+    }
+    if (Array.isArray(value)) {
+        for (const v of value) {
+            const nested = findFirstEntryFileIdDeep(v, depth + 1);
+            if (nested) return nested;
+        }
+    }
+    return null;
+}
+
+function firstEntryFileFromBinder(obj: unknown): string | null {
+    if (obj == null || typeof obj !== 'object') return null;
+    const shallow = firstEntryFileFromRecord(obj as Record<string, unknown>);
+    if (shallow) return shallow;
+    return findFirstEntryFileIdDeep(obj);
+}
+
+/**
+ * TODA: try to resolve balance `tx-id` as the first `entryFiles` entry from the node binder.
+ * Binder JSON is often an array of twists like `{ twistId, data: { entryFiles: ["…"], entryType, … } }`.
+ * Tries `GET {serverBase}/binder/{transferId}` (and alternates). Best-effort; paste manually if it fails.
+ */
+export async function resolveTodaBalanceTxIdFromHypercycleNode(
+    config: AIAgentConfig,
+    transferId: string
+): Promise<string> {
+    const id = transferId.trim();
+    if (!id) throw new Error('Transfer id is empty.');
+    const base = resolveHypercycleNonceServiceBaseUrlForConfig(config).replace(
+        /\/$/,
+        ''
+    );
+    const paths = [
+        `${base}/binder/${encodeURIComponent(id)}`,
+        `${base}/binder/tx/${encodeURIComponent(id)}`,
+        `${base}/binder/transaction/${encodeURIComponent(id)}`,
+        `${base}/binder/transactions/${encodeURIComponent(id)}`
+    ];
+    for (const url of paths) {
+        const resp = await fetch(url, {
+            method: 'GET',
+            headers: {
+                Accept: '*/*',
+                'User-Agent': 'MosaicCompanion/1.0'
+            }
+        });
+        if (!resp.ok) continue;
+        const text = await resp.text();
+        let body: unknown = text;
+        try {
+            body = text.trim() ? (JSON.parse(text) as unknown) : text;
+        } catch {
+            body = text;
+        }
+        const entry = firstEntryFileFromBinder(body);
+        if (entry) return entry;
+    }
+    throw new Error(
+        'Could not read entryFiles from the node binder. Paste the tx-id (first entry file id) from your binder.'
+    );
 }
 
 export function getHypercycleTxDriver(config: AIAgentConfig): string {

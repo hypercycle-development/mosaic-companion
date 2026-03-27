@@ -17,6 +17,7 @@ import {
   resolveHypercycleSender,
   resolveHypercycleStreamBaseUrl,
   resolveHypercycleTxSignature,
+  resolveHypercycleAimModel,
   txSenderForHypercycleStream,
   type HypercycleStreamCallbacks,
 } from "./hypercycleAgent";
@@ -297,7 +298,7 @@ export class AIService {
     if (!baseUrl) {
       throw new Error(
         isHypercycleBasechainConfig(config)
-          ? "Hypercycle Basechain base URL is required (e.g. https://hyperpg.site/forward/54.67.32.117)."
+          ? "Hypercycle Basechain node base URL is required (e.g. http://207.53.252.108 — scheme and host only)."
           : "Hypercycle node base URL is required (e.g. http://host — port 8000 is used for /nonce).",
       );
     }
@@ -307,7 +308,7 @@ export class AIService {
     const { nonce } = await fetchHypercycleNonce({
       nonceServiceBaseUrl: nonceServiceBase,
       sender,
-      currencyType: config.hypercycleCurrencyType || "TDN",
+      currencyType: "TDN",
       sendCurrencyType: !isHypercycleBasechainConfig(config),
     });
 
@@ -409,7 +410,7 @@ export class AIService {
           return {
             success: false,
             message: isHypercycleBasechainConfig(config)
-              ? "Set Basechain forward base URL (e.g. https://hyperpg.site/forward/54.67.32.117)."
+              ? "Set Basechain node base URL (scheme and host, e.g. http://207.53.252.108)."
               : "Set node base URL (e.g. http://207.53.252.108 — port 8000 is added for /nonce).",
           };
         }
@@ -419,7 +420,7 @@ export class AIService {
         const { nonce } = await fetchHypercycleNonce({
           nonceServiceBaseUrl: nonceServiceBase,
           sender,
-          currencyType: config.hypercycleCurrencyType || "TDN",
+          currencyType: "TDN",
           sendCurrencyType: !isHypercycleBasechainConfig(config),
         });
 
@@ -448,7 +449,7 @@ export class AIService {
           sender,
           nonce,
           messages: aimMessages,
-          model: config.model?.trim() || "claude-sonnet-4-5-20250929",
+          model: resolveHypercycleAimModel(config),
           txSignature,
           txDriver,
         });
