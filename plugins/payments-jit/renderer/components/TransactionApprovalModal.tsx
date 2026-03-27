@@ -30,13 +30,11 @@ export interface ApprovalRequest {
   aimName?: string;
   /** Human-readable network name, e.g. "Ethereum", "Base", "Sepolia (Testnet)" */
   networkName?: string;
-  chainId: number;
-  chainName?: string;
+  /** Estimated gas cost, e.g. "~0.000032 ETH" */
+  gasEstimate?: string;
   reason?: string;
   policySnapshot?: string;
   existingNodeBalance?: string;
-  /** Estimated gas cost, e.g. "~0.000032 ETH" */
-  gasEstimate?: string;
   warning?: string;
   hyperinsightScore?: HyperInsightScoreData | null;
 }
