@@ -299,6 +299,47 @@ contextBridge.exposeInMainWorld("electronAPI", {
     deleteEntry: (boxId: string, entryId: string) =>
       ipcRenderer.invoke("vault:delete-entry", boxId, entryId),
   },
+  // Our custom plugins
+  cardano: {
+    'get-state': () => ipcRenderer.invoke('cardano:get-state'),
+    'set-state': (state: any) => ipcRenderer.invoke('cardano:set-state', state),
+    'disconnect': () => ipcRenderer.invoke('cardano:disconnect'),
+    'get-policy-id': () => ipcRenderer.invoke('cardano:get-policy-id'),
+  },
+  ethwallet: {
+    'get-state': () => ipcRenderer.invoke('ethwallet:get-state'),
+    'set-state': (state: any) => ipcRenderer.invoke('ethwallet:set-state', state),
+    'disconnect': () => ipcRenderer.invoke('ethwallet:disconnect'),
+    'get-networks': () => ipcRenderer.invoke('ethwallet:get-networks'),
+    'get-anfe-contract': () => ipcRenderer.invoke('ethwallet:get-anfe-contract'),
+  },
+  ollama: {
+    'list-models': () => ipcRenderer.invoke('ollama:list-models'),
+    'pull-model': (name: string) => ipcRenderer.invoke('ollama:pull-model', name),
+    'delete-model': (name: string) => ipcRenderer.invoke('ollama:delete-model', name),
+    'get-preferences': () => ipcRenderer.invoke('ollama:get-preferences'),
+    'set-preferences': (prefs: any) => ipcRenderer.invoke('ollama:set-preferences', prefs),
+    'status': () => ipcRenderer.invoke('ollama:status'),
+  },
+  multiagent: {
+    'get-agents': () => ipcRenderer.invoke('multiagent:get-agents'),
+    'set-agents': (agents: any[]) => ipcRenderer.invoke('multiagent:set-agents', agents),
+    'get-state': () => ipcRenderer.invoke('multiagent:get-state'),
+    'set-state': (state: any) => ipcRenderer.invoke('multiagent:set-state', state),
+    'run-parallel': (agentIds: string[], prompt: string) => ipcRenderer.invoke('multiagent:run-parallel', agentIds, prompt),
+    'run-sequential': (agentIds: string[], prompt: string) => ipcRenderer.invoke('multiagent:run-sequential', agentIds, prompt),
+    'get-history': () => ipcRenderer.invoke('multiagent:get-history'),
+    'get-modes': () => ipcRenderer.invoke('multiagent:get-modes'),
+  },
+  agentsoul: {
+    'get-all': () => ipcRenderer.invoke('agentsoul:get-all'),
+    'get': (agentId: string) => ipcRenderer.invoke('agentsoul:get', agentId),
+    'create': (agentId: string, agentName: string, template?: string) => ipcRenderer.invoke('agentsoul:create', agentId, agentName, template),
+    'update-personality': (agentId: string, updates: any) => ipcRenderer.invoke('agentsoul:update-personality', agentId, updates),
+    'add-memory': (agentId: string, category: string, entry: string) => ipcRenderer.invoke('agentsoul:add-memory', agentId, category, entry),
+    'get-templates': () => ipcRenderer.invoke('agentsoul:get-templates'),
+    'delete': (agentId: string) => ipcRenderer.invoke('agentsoul:delete', agentId),
+  },
 });
 
 contextBridge.exposeInMainWorld("chatAPI", chatAPI);

@@ -169,6 +169,47 @@ interface ElectronAPI {
     execute: (command: string, options?: ShellExecuteOptions) => Promise<ShellExecuteResponse>;
   };
   midnight: MidnightApi;
+  // Custom plugins
+  cardano: {
+    'get-state': () => Promise<any>;
+    'set-state': (state: any) => Promise<{ success: boolean }>;
+    'disconnect': () => Promise<{ success: boolean }>;
+    'get-policy-id': () => Promise<{ policyId: string }>;
+  };
+  ethwallet: {
+    'get-state': () => Promise<any>;
+    'set-state': (state: any) => Promise<{ success: boolean }>;
+    'disconnect': () => Promise<{ success: boolean }>;
+    'get-networks': () => Promise<{ success: boolean; networks: Record<string, { chainId: number; name: string }> }>;
+    'get-anfe-contract': () => Promise<{ success: boolean; address: string }>;
+  };
+  ollama: {
+    'list-models': () => Promise<{ success: boolean; models: any[]; error?: string }>;
+    'pull-model': (name: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+    'delete-model': (name: string) => Promise<{ success: boolean }>;
+    'get-preferences': () => Promise<any>;
+    'set-preferences': (prefs: any) => Promise<{ success: boolean }>;
+    'status': () => Promise<{ success: boolean; running: boolean; version?: string }>;
+  };
+  multiagent: {
+    'get-agents': () => Promise<any[]>;
+    'set-agents': (agents: any[]) => Promise<{ success: boolean }>;
+    'get-state': () => Promise<any>;
+    'set-state': (state: any) => Promise<{ success: boolean }>;
+    'run-parallel': (agentIds: string[], prompt: string) => Promise<any>;
+    'run-sequential': (agentIds: string[], prompt: string) => Promise<any>;
+    'get-history': () => Promise<any[]>;
+    'get-modes': () => Promise<any[]>;
+  };
+  agentsoul: {
+    'get-all': () => Promise<any[]>;
+    'get': (agentId: string) => Promise<any>;
+    'create': (agentId: string, agentName: string, template?: string) => Promise<any>;
+    'update-personality': (agentId: string, updates: any) => Promise<any>;
+    'add-memory': (agentId: string, category: string, entry: string) => Promise<any>;
+    'get-templates': () => Promise<any[]>;
+    'delete': (agentId: string) => Promise<{ success: boolean }>;
+  };
 }
 
 declare global {

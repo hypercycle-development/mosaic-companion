@@ -110,7 +110,7 @@ const PERSONALITY_TEMPLATES: Record<string, Partial<AgentPersonality>> = {
   }
 };
 
-export function registerAgentSoulIpc() {
+export function registerAgentSoulIpc(ipcMain: typeof import('electron').ipcMain) {
   // Get all agent souls
   ipcMain.handle('agentsoul:get-all', async () => {
     return store.get('souls', []);
@@ -207,7 +207,7 @@ export function registerAgentSoulIpc() {
 
   // Get personality templates
   ipcMain.handle('agentsoul:get-templates', async () => {
-    return Object.entries(PERSONITY_TEMPLATES).map(([key, value]) => ({
+    return Object.entries(PERSONALITY_TEMPLATES).map(([key, value]) => ({
       id: key,
       name: key.charAt(0).toUpperCase() + key.slice(1),
       ...value

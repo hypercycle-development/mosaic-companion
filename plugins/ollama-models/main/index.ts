@@ -9,7 +9,7 @@ import Store from 'electron-store';
 const store = new Store({ name: 'ollama-models' });
 const OLLAMA_API = 'http://localhost:11434';
 
-export function registerOllamaIpc() {
+export function registerOllamaIpc(ipcMain: typeof import('electron').ipcMain) {
   // Get installed models
   ipcMain.handle('ollama:list-models', async () => {
     try {

@@ -18,7 +18,7 @@ const NETWORKS = {
 // ANFE Contract on Base
 const ANFE_CONTRACT = '0x8c0075D087de9588DdF5c1441dF39828d695bc2f';
 
-export function registerEthWalletIpc() {
+export function registerEthWalletIpc(ipcMain: typeof import('electron').ipcMain) {
   // Get stored wallet state
   ipcMain.handle('ethwallet:get-state', async () => {
     return store.get('walletState', {

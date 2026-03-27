@@ -52,7 +52,7 @@ const DEFAULT_AGENTS: Agent[] = [
   { id: 'agent-5', name: 'Analyst', role: 'Data Analysis', status: 'ready', model: 'mistral' },
 ];
 
-export function registerMultiAgentIpc() {
+export function registerMultiAgentIpc(ipcMain: typeof import('electron').ipcMain) {
   // Initialize default agents if none exist
   const storedAgents = store.get('agents', []) as Agent[];
   if (storedAgents.length === 0) {
