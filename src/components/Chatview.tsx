@@ -19,6 +19,7 @@ import {
   Wrench,
   ChevronRight,
   Image as ImageIcon,
+  Users,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -26,6 +27,8 @@ import {
   ChatSession,
   PROVIDER_INFO,
 } from "../types/ai";
+import { MultiAgentSelector } from "./MultiAgentSelector";
+import { AgentOrchestrationService } from "../services/AgentOrchestrationService";
 import { AIService } from "../services/AIService";
 import {
   parseAction,
@@ -284,6 +287,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [streamingContent, setStreamingContent] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showAgentSelector, setShowAgentSelector] = useState(false);
+  
+  // Multi-agent state
+  const [isMultiAgentMode, setIsMultiAgentMode] = useState(false);
+  const [selectedMultiAgentIds, setSelectedMultiAgentIds] = useState<string[]>([]);
+  const [multiAgentMode, setMultiAgentMode] = useState<"sequential" | "parallel" | "collaborative" | "orchestrator">("parallel");
+  const [multiAgentAggregation, setMultiAgentAggregation] = useState<"lastWins" | "concatenate" | "synthesize" | "vote">("concatenate");
+  const [multiAgentLoading, setMultiAgentLoading] = useState(false);
   const [showHistorySidebar, setShowHistorySidebar] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   /** Confirmation modal triggered by a tool response in chat */
@@ -902,10 +912,82 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   };
 
+  const sendMultiAgentMessage = async () => {
+    if (!input.trim() || selectedMultiAgentIds.length < 2 || multiAgentLoading) return;
+    
+    const messageContent = input.trim();
+    setInput("");
+    setMultiAgentLoading(true);
+    
+    const selectedAgents = agents.filter(a => selectedMultiAgentIds.includes(a.id));
+    
+    // Create a session for tracking
+    const sessionId = `multi-${Date.now()}`;
+    const userMessage: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      role: "user",
+      content: messageContent,
+      timestamp: Date.now(),
+      agentId: "multi-agent",
+    };
+    
+    try {
+      let result;
+      switch (multiAgentMode) {
+        case "sequential":
+          result = await AgentOrchestrationService.runSequential(selectedAgents, messageContent);
+          break;
+        case "parallel":
+          result = await AgentOrchestrationService.runParallel(selectedAgents, messageContent);
+          break;
+        case "collaborative":
+          result = await AgentOrchestrationService.runCollaborative(selectedAgents, messageContent);
+          break;
+        case "orchestrator":
+          // For orchestrator mode, first agent is orchestrator, rest are workers
+          const [orchestrator, ...workers] = selectedAgents;
+          result = await AgentOrchestrationService.runOrchestrated(orchestrator, workers, messageContent);
+          break;
+      }
+      
+      // Add user message to session
+      const session: ChatSession = {
+        id: sessionId,
+        agentId: "multi-agent",
+        title: messageContent.slice(0, 40),
+        messages: [userMessage],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      
+      // Add assistant response
+      const assistantMessage: ChatMessage = {
+        id: `msg-${Date.now() + 1}`,
+        role: "assistant",
+        content: result.finalOutput,
+        timestamp: Date.now(),
+        agentId: "multi-agent",
+      };
+      
+      session.messages.push(assistantMessage);
+      setSessions((prev) => [session, ...prev]);
+      setActiveSessionId(session.id);
+      
+    } catch (e) {
+      console.error("Multi-agent error:", e);
+    }
+    
+    setMultiAgentLoading(false);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      if (isMultiAgentMode) {
+        sendMultiAgentMessage();
+      } else {
+        sendMessage();
+      }
     }
   };
 
@@ -1001,6 +1083,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     showAgentSelector ? "rotate-180" : ""
                   }`}
                 />
+              </button>
+              
+              {/* Multi-Agent Toggle */}
+              <button
+                onClick={() => setIsMultiAgentMode(!isMultiAgentMode)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-colors ${
+                  isMultiAgentMode
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-400"
+                }`}
+                title="Multi-Agent Mode"
+              >
+                <Users size={16} />
+                <span className="text-sm">Multi-Agent</span>
               </button>
 
               {/* Agent Dropdown */}
@@ -1274,6 +1370,29 @@ export const ChatView: React.FC<ChatViewProps> = ({
         {/* Input Area */}
         <div className="shrink-0 border-t border-gray-800 bg-gray-950/80 backdrop-blur-md p-4">
           <div className="max-w-4xl mx-auto">
+            {/* Multi-Agent Selector */}
+            {isMultiAgentMode && (
+              <div className="mb-3">
+                <MultiAgentSelector
+                  agents={agents.filter(a => a.isActive)}
+                  selectedAgentIds={selectedMultiAgentIds}
+                  onAgentToggle={(id) => {
+                    setSelectedMultiAgentIds(prev => 
+                      prev.includes(id) 
+                        ? prev.filter(i => i !== id)
+                        : [...prev, id]
+                    );
+                  }}
+                  mode={multiAgentMode}
+                  onModeChange={setMultiAgentMode}
+                  aggregation={multiAgentAggregation}
+                  onAggregationChange={setMultiAgentAggregation}
+                  onRun={sendMultiAgentMessage}
+                  isRunning={multiAgentLoading}
+                />
+              </div>
+            )}
+            
             <div className="flex items-end gap-3">
               <div className="flex-1 bg-gray-900 border border-gray-800 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50 transition-all">
                 <textarea
@@ -1281,26 +1400,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={`Message ${selectedAgent?.name || "AI"}...`}
+                  placeholder={isMultiAgentMode ? "Message for multi-agent..." : `Message ${selectedAgent?.name || "AI"}...`}
                   className="w-full bg-transparent text-gray-100 placeholder-gray-500 resize-none min-h-[24px] max-h-[150px] px-3 py-2 focus:outline-none"
                   rows={1}
-                  disabled={isGenerating}
+                  disabled={isGenerating || multiAgentLoading}
                 />
               </div>
               <button
-                onClick={sendMessage}
+                onClick={isMultiAgentMode ? sendMultiAgentMessage : sendMessage}
                 data-auto-send
-                disabled={!input.trim() || isGenerating}
+                disabled={!input.trim() || isGenerating || multiAgentLoading}
                 className={`
                   p-4 rounded-xl transition-all flex items-center justify-center
                   ${
-                    input.trim() && !isGenerating
+                    input.trim() && !(isGenerating || multiAgentLoading)
                       ? "bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-105 shadow-lg shadow-indigo-500/25"
                       : "bg-gray-800 text-gray-500 cursor-not-allowed"
                   }
                 `}
               >
-                {isGenerating ? (
+                {(isGenerating || multiAgentLoading) ? (
                   <Loader2 size={20} className="animate-spin" />
                 ) : (
                   <Send size={20} />
