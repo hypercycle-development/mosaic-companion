@@ -43,6 +43,7 @@ import { ToolUIRenderer } from "./tool-ui";
 import type { ConfirmModalBlock } from "./tool-ui/types";
 import { fireToolToasts } from "./tool-ui/fireToolToasts";
 import { ToolConfirmModal } from "./tool-ui/blocks/ToolConfirmModal";
+import { MultiAgentPanel } from "./MultiAgentPanel";
 
 interface ChatViewProps {
   onNavigate?: (url: string) => void;
@@ -1335,6 +1336,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 {selectedAgent?.model || "No model selected"}
               </span>
             </div>
+
+            {/* Multi-Agent Panel */}
+            {agents && agents.length > 1 && (
+              <div className="mt-3">
+                <MultiAgentPanel
+                  agents={agents}
+                  selectedAgentIds={[]}
+                  orchestrationMode="parallel"
+                  isActive={false}
+                  isRunning={false}
+                  currentAgentName=""
+                  onRun={(agentIds, prompt, mode) => {
+                    console.log("Multi-agent run:", { agentIds, prompt, mode });
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

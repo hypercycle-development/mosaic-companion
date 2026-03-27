@@ -20,6 +20,7 @@ import {
   Thermometer,
   Zap,
   Info,
+  Brain,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -32,6 +33,8 @@ import { AIService } from "../services/AIService";
 import GmailClient from "./GmailClient";
 import { useTheme } from "../ThemeProvider";
 import { ThemeKey } from "../themes";
+import { ModelSelector } from "./ModelSelector";
+import { AgentSoulSettings } from "./AgentSoulSettings";
 
 /** AIService.testConnection only needs an API key for cloud/custom providers. */
 function providerRequiresApiKeyForConnectionTest(p: AIProvider): boolean {
@@ -1069,6 +1072,39 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                           >
                             {testResult.message}
                           </p>
+                        )}
+
+                        {/* Agent Soul Settings */}
+                        <div className="mt-4 pt-4 border-t border-gray-800">
+                          <details className="group">
+                            <summary className="flex items-center gap-2 cursor-pointer text-sm text-gray-400 hover:text-gray-300">
+                              <Brain size={14} />
+                              Agent Soul & Personality
+                              <span className="text-xs text-gray-600">(click to expand)</span>
+                            </summary>
+                            <div className="mt-3">
+                              <AgentSoulSettings
+                                agentId={agent.id}
+                                agentName={agent.name}
+                                onSave={() => {
+                                  toast.success("Agent soul updated");
+                                }}
+                              />
+                            </div>
+                          </details>
+                        </div>
+
+                        {/* Ollama Model Selector (for Ollama provider) */}
+                        {agent.provider === "ollama" && (
+                          <div className="mt-4 pt-4 border-t border-gray-800">
+                            <ModelSelector
+                              onSelect={(model) => updateAgent(agent.id, { model })}
+                              defaultModel={agent.model}
+                              onApiKeyChange={(hasKey) => {
+                                // Could store API key status if needed
+                              }}
+                            />
+                          </div>
                         )}
                       </div>
                     )}
