@@ -1,0 +1,9 @@
+{
+  "id": "agent-soul",
+  "version": "1.0.0",
+  "name": "Agent Soul",
+  "description": "Agent personality and memory management for persistent agent identity",
+  "ipcNamespace": "agentsoul",
+  "route": "mosaic://agentsoul",
+  "icon": "brain"
+}
