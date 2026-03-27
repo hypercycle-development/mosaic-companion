@@ -47,10 +47,12 @@ export function startAgentInRoom(
   if (!activeClients[roomId]) activeClients[roomId] = {};
   activeClients[roomId][agentId] = client;
 
-  // Join room after auth
+  // Track room so reconnects auto-rejoin
+  client.trackRoom(roomId);
+
+  // Join room after auth (initial connect — reconnects are handled by the client)
   client.on("auth-ok", () => {
     console.log(`[AgentRunner] ${agentName} authenticated, joining room ${roomId}`);
-    client.send({ type: "join-room", roomId });
   });
 
   // Seed history from room join
