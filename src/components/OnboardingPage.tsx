@@ -125,9 +125,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
       provider,
       model: DEFAULT_MODELS[provider][0] || "",
       baseUrl: provider === "custom" ? "" : PROVIDER_INFO[provider].baseUrl,
-      ...(provider === "hypercycle"
-        ? { hypercycleCurrencyType: "TDN" }
-        : {}),
     });
     setTestStatus({ status: "idle" });
   };
@@ -153,7 +150,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
         temperature: agentConfig.temperature,
         isActive: true,
         createdAt: Date.now(),
-        hypercycleCurrencyType: agentConfig.hypercycleCurrencyType,
       };
       const result = await AIService.testConnection(config);
       setTestStatus({
@@ -181,7 +177,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
       temperature: agentConfig.temperature ?? 0.7,
       isActive: true,
       createdAt: Date.now(),
-      hypercycleCurrencyType: agentConfig.hypercycleCurrencyType,
     };
 
     try {
@@ -461,28 +456,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                     }
                   />
                 </label>
-              )}
-
-              {agentConfig.provider === "hypercycle" && (
-                <>
-                  <label className="block">
-                    <span className="text-sm text-gray-400 mb-1 block">
-                      Currency type
-                    </span>
-                    <input
-                      type="text"
-                      value={agentConfig.hypercycleCurrencyType || "TDN"}
-                      onChange={(e) =>
-                        setAgentConfig({
-                          ...agentConfig,
-                          hypercycleCurrencyType: e.target.value.trim() || "TDN",
-                        })
-                      }
-                      className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 text-sm"
-                      placeholder="TDN"
-                    />
-                  </label>
-                </>
               )}
 
               {/* Test Connection */}
