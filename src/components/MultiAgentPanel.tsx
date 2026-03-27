@@ -1,228 +1,334 @@
 /**
- * Multi-Agent Panel Component
- * Agent selection, status, and orchestration controls
+ * Multi-Agent Orchestration Panel
+ * Production-ready control tower for multi-agent workflows
+ * 
+ * Features:
+ * - Compact bounded panel
+ * - Collapsible header
+ * - Agent roster with status
+ * - Activity feed
+ * - Output summary
+ * - All orchestration modes
  */
 
 import React, { useState, useEffect } from 'react';
-import { 
-  multiAgentService, 
-  Agent, 
-  OrchestrationMode,
-  MultiAgentState
-} from '../services/MultiAgentService';
+import { ChevronDown, ChevronUp, Users, Sparkles } from 'lucide-react';
+import { AgentRoster, ActivityFeed, OrchestrationControls, OutputSummary } from './multi-agent';
+import { useMultiAgentOrchestration, OrchestrationMode, AgentTask } from '../hooks/useMultiAgentOrchestration';
+import { AIAgentConfig } from '../types/ai';
 
 interface MultiAgentPanelProps {
-  onRun?: (agentIds: string[], prompt: string, mode: OrchestrationMode) => void;
+  onRun?: (agentIds: string[], prompt: string, mode: OrchestrationMode, results: AgentTask[]) => void;
   onCollapse?: () => void;
   initialSelected?: string[];
+  initialMode?: OrchestrationMode;
+  initialPrompt?: string;
 }
 
 export const MultiAgentPanel: React.FC<MultiAgentPanelProps> = ({
   onRun,
   onCollapse,
-  initialSelected = []
+  initialSelected = [],
+  initialMode = 'parallel',
+  initialPrompt = ''
 }) => {
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>(initialSelected);
-  const [mode, setMode] = useState<OrchestrationMode>('parallel');
-  const [prompt, setPrompt] = useState('');
-  const [isRunning, setIsRunning] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [prompt, setPrompt] = useState(initialPrompt);
 
-  // Load real agents from API
+  const { state, setMode, run, abort, reset } = useMultiAgentOrchestration();
+
+  // Load agents from API
   useEffect(() => {
     const loadAgents = async () => {
       try {
-        const realAgents = await window.electronAPI.aiAgents.get();
-        const activeAgents = realAgents.filter((a: any) => a.isActive !== false);
+        const loadedAgents = await window.electronAPI.aiAgents.get();
+        const activeAgents = loadedAgents.filter((a: AIAgentConfig) => a.isActive !== false);
+        setAgents(activeAgents);
         
-        const mappedAgents: Agent[] = activeAgents.map((a: any) => ({
-          id: a.id,
-          name: a.name,
-          role: a.role || a.description || 'Agent',
-          status: 'ready' as const,
-          model: a.model
-        }));
-        
-        setAgents(mappedAgents);
-      } catch (e) {
-        console.error('Failed to load agents:', e);
-        setAgents(multiAgentService.getAgents());
+        // Auto-select first agents if none selected
+        if (selectedIds.length === 0 && activeAgents.length > 0) {
+          setSelectedIds([activeAgents[0].id]);
+        }
+      } catch (error) {
+        console.error('Failed to load agents:', error);
       }
     };
     loadAgents();
   }, []);
 
+  // Set initial mode
   useEffect(() => {
-    multiAgentService.addListener((state: MultiAgentState) => {
-      setIsRunning(state.isRunning);
-    });
-    return () => multiAgentService.removeListener(() => {});
-  }, []);
+    setMode(initialMode);
+  }, [initialMode, setMode]);
 
   const toggleAgent = (id: string) => {
-    const agent = agents.find(a => a.id === id);
-    if (!agent) return;
-
+    if (state.isRunning) return;
+    
     if (selectedIds.includes(id)) {
       setSelectedIds(selectedIds.filter(i => i !== id));
-      multiAgentService.deselectAgent(id);
     } else {
       setSelectedIds([...selectedIds, id]);
-      multiAgentService.selectAgent(id);
     }
   };
 
   const handleRun = async () => {
     if (selectedIds.length === 0 || !prompt.trim()) return;
 
-    setIsRunning(true);
-    setIsExpanded(false); // Collapse locally to show running indicator
+    const selectedAgents = agents.filter(a => selectedIds.includes(a.id));
     
-    // Notify parent to collapse the panel
+    const result = await run(selectedAgents, prompt);
+    
+    if (onRun) {
+      onRun(selectedIds, prompt, state.mode, result.tasks);
+    }
+  };
+
+  const handleAbort = () => {
+    abort();
+  };
+
+  const handleCollapse = () => {
+    setIsExpanded(false);
     onCollapse?.();
-    
-    // Mark selected agents as running
-    selectedIds.forEach(id => {
-      const agent = agents.find(a => a.id === id);
-      if (agent) {
-        agent.status = 'running';
-      }
+  };
+
+  const getTaskStatusMap = () => {
+    const map = new Map<string, AgentTask['status']>();
+    state.tasks.forEach(task => {
+      map.set(task.agentId, task.status);
     });
-    setAgents([...agents]);
-
-    try {
-      const executeFn = async (agentId: string, prompt: string): Promise<string> => {
-        const agent = agents.find(a => a.id === agentId);
-        try {
-          const response = await fetch('http://localhost:11434/api/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: agent?.model || 'llama3',
-              prompt: prompt,
-              stream: false
-            })
-          });
-          const data = await response.json();
-          return data.response || `Response from ${agent?.name}`;
-        } catch (e) {
-          return `Error from ${agent?.name}: ${e}`;
-        }
-      };
-
-      await multiAgentService.runOrchestration(selectedIds, prompt, mode, executeFn);
-      onRun?.(selectedIds, prompt, mode);
-    } finally {
-      setIsRunning(false);
-      setAgents(agents.map(a => ({
-        ...a,
-        status: selectedIds.includes(a.id) ? 'done' as const : a.status
-      })));
-    }
+    return map;
   };
 
-  const getStatusIcon = (status: Agent['status']) => {
-    switch (status) {
-      case 'ready': return '●';
-      case 'running': return '⟳';
-      case 'idle': return '○';
-      case 'done': return '✓';
-      case 'error': return '✗';
-    }
-  };
+  // Collapsed state - running indicator
+  if (!isExpanded) {
+    return (
+      <div className="multi-agent-panel collapsed" onClick={() => setIsExpanded(true)}>
+        <div className="collapsed-header">
+          {state.isRunning ? (
+            <>
+              <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse" />
+              <span className="running-text">
+                Running {state.currentAgentId ? `(${state.currentAgentId.split('-').pop()})` : ''}
+              </span>
+            </>
+          ) : (
+            <>
+              <Users className="w-4 h-4" />
+              <span className="idle-text">
+                {selectedIds.length} agent{selectedIds.length !== 1 ? 's' : ''} selected
+              </span>
+            </>
+          )}
+          <ChevronDown className="w-4 h-4 text-gray-500" />
+        </div>
 
-  const getStatusClass = (status: Agent['status']) => {
-    return `status-${status}`;
-  };
+        <style>{`
+          .multi-agent-panel.collapsed {
+            padding: 8px 12px;
+            background: #12121c;
+            border: 1px solid #1e1e2e;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+          }
 
+          .multi-agent-panel.collapsed:hover {
+            background: #1a1a28;
+            border-color: #2a2a3e;
+          }
+
+          .collapsed-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #9ca3af;
+          }
+
+          .running-text {
+            color: #818cf8;
+          }
+
+          .idle-text {
+            color: #9ca3af;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // Expanded state - full panel
   return (
-    <div className="multi-agent-panel">
-      {/* Collapsed state: Show green running indicator */}
-      {!isExpanded && (
-        <div className="running-indicator" onClick={() => setIsExpanded(true)}>
-          <span className="green-light"></span>
-          <span className="indicator-text">
-            Multi-Agent Running ({selectedIds.length} agents)
-          </span>
-          <span className="expand-hint">Click to expand</span>
+    <div className="multi-agent-panel expanded">
+      {/* Header */}
+      <div className="panel-header">
+        <div className="header-left">
+          <Users className="w-4 h-4 text-indigo-400" />
+          <span className="panel-title">Multi-Agent</span>
+          {state.isRunning && (
+            <span className="running-badge">
+              <Sparkles className="w-3 h-3 animate-pulse" />
+              Running
+            </span>
+          )}
+        </div>
+        <button className="collapse-btn" onClick={handleCollapse}>
+          <ChevronUp className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Agent Roster */}
+      <div className="panel-section">
+        <div className="section-label">
+          <span>Agents</span>
+          <span className="count">{selectedIds.length}/{agents.length}</span>
+        </div>
+        <AgentRoster
+          agents={agents.map(a => ({ id: a.id, name: a.name, model: a.model, provider: a.provider }))}
+          selectedIds={selectedIds}
+          onToggle={toggleAgent}
+          disabled={state.isRunning}
+          taskStatus={getTaskStatusMap()}
+        />
+      </div>
+
+      {/* Orchestration Controls */}
+      <div className="panel-section">
+        <OrchestrationControls
+          mode={state.mode}
+          onModeChange={setMode}
+          prompt={prompt}
+          onPromptChange={setPrompt}
+          onRun={handleRun}
+          onAbort={handleAbort}
+          isRunning={state.isRunning}
+          selectedCount={selectedIds.length}
+          disabled={selectedIds.length === 0}
+        />
+      </div>
+
+      {/* Activity Feed (when running) */}
+      {state.tasks.length > 0 && (
+        <div className="panel-section">
+          <ActivityFeed
+            tasks={state.tasks}
+            isRunning={state.isRunning}
+          />
         </div>
       )}
 
-      {/* Expanded state: Show full configuration */}
-      {isExpanded && (
-        <>
-          <div className="panel-header">
-            <h3>Multi-Agent Orchestration</h3>
-            <div className="agent-count">
-              {selectedIds.length} selected
-            </div>
-          </div>
-
-          <div className="mode-selector">
-            <label>Mode:</label>
-            <div className="mode-buttons">
-              {(['parallel', 'sequential', 'collaborative', 'orchestrator'] as OrchestrationMode[]).map(m => (
-                <button
-                  key={m}
-                  className={`mode-btn ${mode === m ? 'active' : ''}`}
-                  onClick={() => setMode(m)}
-                >
-                  {m.charAt(0).toUpperCase() + m.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="agent-list">
-            {agents.map(agent => (
-              <div
-                key={agent.id}
-                className={`agent-chip ${selectedIds.includes(agent.id) ? 'selected' : ''}`}
-                onClick={() => toggleAgent(agent.id)}
-              >
-                <span className={`status-icon ${getStatusClass(agent.status)}`}>
-                  {getStatusIcon(agent.status)}
-                </span>
-                <span className="agent-name">{agent.name}</span>
-                <span className="agent-role">{agent.role}</span>
-                {agent.model && <span className="agent-model">{agent.model}</span>}
-              </div>
-            ))}
-          </div>
-
-          <div className="prompt-input">
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Enter your prompt for the agents..."
-              rows={3}
-            />
-          </div>
-
-          <div className="panel-actions">
-            <button
-              className="run-btn"
-              onClick={handleRun}
-              disabled={selectedIds.length === 0 || !prompt.trim() || isRunning}
-            >
-              {isRunning ? 'Running...' : `Run (${selectedIds.length})`}
-            </button>
-          </div>
-
-          <div className="mode-descriptions">
-            <details>
-              <summary>Mode Info</summary>
-              <div className="mode-info">
-                <strong>Parallel:</strong> All agents run simultaneously
-                <strong>Sequential:</strong> Agents run one after another
-                <strong>Collaborative:</strong> Agents share context
-                <strong>Orchestrator:</strong> Lead agent coordinates others
-              </div>
-            </details>
-          </div>
-        </>
+      {/* Output Summary (when completed) */}
+      {!state.isRunning && state.tasks.some(t => t.result || t.error) && (
+        <div className="panel-section">
+          <OutputSummary
+            tasks={state.tasks}
+          />
+        </div>
       )}
+
+      {/* Error Display */}
+      {state.error && (
+        <div className="panel-error">
+          <span className="error-text">{state.error}</span>
+        </div>
+      )}
+
+      <style>{`
+        .multi-agent-panel.expanded {
+          background: #0c0c14;
+          border: 1px solid #1e1e2e;
+          border-radius: 10px;
+          overflow: hidden;
+        }
+
+        /* Header */
+        .panel-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 12px;
+          background: #12121c;
+          border-bottom: 1px solid #1e1e2e;
+        }
+
+        .header-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .panel-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: #e0e0e0;
+        }
+
+        .running-badge {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 8px;
+          background: #4f46e520;
+          color: #818cf8;
+          border-radius: 10px;
+          font-size: 10px;
+          font-weight: 500;
+        }
+
+        .collapse-btn {
+          padding: 4px;
+          background: transparent;
+          border: none;
+          color: #6b7280;
+          cursor: pointer;
+          border-radius: 4px;
+        }
+
+        .collapse-btn:hover {
+          background: #1e1e2e;
+          color: #9ca3af;
+        }
+
+        /* Sections */
+        .panel-section {
+          padding: 10px 12px;
+          border-bottom: 1px solid #1e1e2e;
+        }
+
+        .panel-section:last-child {
+          border-bottom: none;
+        }
+
+        .section-label {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 8px;
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: #6b7280;
+        }
+
+        .count {
+          font-weight: 500;
+          color: #9ca3af;
+        }
+
+        /* Error */
+        .panel-error {
+          padding: 8px 12px;
+          background: #ef444410;
+          border-bottom: 1px solid #1e1e2e;
+        }
+
+        .error-text {
+          font-size: 11px;
+          color: #f87171;
+        }
+      `}</style>
     </div>
   );
 };
