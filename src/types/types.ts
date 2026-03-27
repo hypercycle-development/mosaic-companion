@@ -36,6 +36,7 @@ export const INTERNAL_MULTI_CHAT_URL = "browser://multi-chat";
 export const INTERNAL_WEB3_URL = "browser://web3";
 export const INTERNAL_VAULT_URL = "browser://vault";
 export const INTERNAL_HYPERINSIGHT_URL = "browser://hyperinsight";
+export const INTERNAL_MIDNIGHT_URL = "browser://midnight";
 export const INTERNAL_SANDBOX_URL = "browser://sandbox";
 export const INTERNAL_ONBOARDING_URL = "browser://onboarding";
 /** Dynamic tool panel URL prefix: browser://tool-panel/{toolId} */

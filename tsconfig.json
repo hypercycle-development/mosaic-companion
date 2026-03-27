@@ -1,5 +1,5 @@
 {
-  "exclude": ["chat-server", "node_modules", "dist", "tests", "external", "src/midnight", "src/types/midnight.ts"],
+  "exclude": ["chat-server", "node_modules", "dist", "tests", "external", "src/midnight", "src/types/midnight.ts", "plugins"],
   "compilerOptions": {
     "target": "ES2022",
     "experimentalDecorators": true,

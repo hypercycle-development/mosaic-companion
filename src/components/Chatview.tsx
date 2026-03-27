@@ -1,4 +1,3 @@
-// components/ChatView.tsx
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Bot,
@@ -15,6 +14,7 @@ import {
   Zap,
   History,
   AlertCircle,
+  AlertTriangle,
   Mail,
   Wrench,
   ChevronRight,
@@ -27,31 +27,22 @@ import {
   PROVIDER_INFO,
 } from "../types/ai";
 import { AIService } from "../services/AIService";
-import { ExecutionBridge } from "../services/ExecutionBridge";
-import { builderService } from "../services/BuilderService";
 import {
   parseAction,
-  executeGmailAction,
-  buildEmailAnalysisPrompt,
-  buildSingleEmailAnalysisPrompt,
-  isGmailAuthenticated,
-  getGmailSystemPrompt,
-  mightBeEmailRelated,
-  detectEmailReadRequest,
+  executeToolCall,
+  getMCPSystemPrompt,
+  parseMosaicUI,
+  getRichUISystemPrompt,
+  ParsedAction,
 } from "../services/ActionParser";
 import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import { INTERNAL_SETTINGS_URL } from "../types/types";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
-import { MultiAgentSelector } from "./MultiAgentSelector";
-import { MultiAgentPanel } from "./MultiAgentPanel";
-import {
-  OrchestrationMode,
-  AggregationStrategy,
-  AgentResponse,
-  OrchestrationResult,
-  OrchestrationCallbacks,
-} from "../types/agentOrchestration";
-import { AgentOrchestrationService } from "../services/AgentOrchestrationService";
+import { ToolUIRenderer } from "./tool-ui";
+import type { ConfirmModalBlock } from "./tool-ui/types";
+import { fireToolToasts } from "./tool-ui/fireToolToasts";
+import { ToolConfirmModal } from "./tool-ui/blocks/ToolConfirmModal";
 
 interface ChatViewProps {
   onNavigate?: (url: string) => void;
@@ -294,7 +285,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [streamingContent, setStreamingContent] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showAgentSelector, setShowAgentSelector] = useState(false);
-  const [gmailConnected, setGmailConnected] = useState(false);
   const [showHistorySidebar, setShowHistorySidebar] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   /** Confirmation modal triggered by a tool response in chat */
@@ -399,10 +389,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   // Track if we've processed the pending message to avoid duplicate sends
   const pendingMessageProcessedRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    // Check Gmail connection status
-    isGmailAuthenticated().then(setGmailConnected);
-  }, []);
+
 
   // Reset processed flag when tabId changes
   useEffect(() => {
@@ -417,10 +404,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
     };
     getAgents();
     pendingMessageProcessedRef.current = null;
-
-    // TODO: Verify this is needed
-    // Check Gmail connection status
-    // isGmailAuthenticated().then(setGmailConnected);
   }, [tabId]);
 
   // Close agent selector on outside click
@@ -467,7 +450,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   // Create new session (for New Chat button)
   const createNewSession = useCallback((): ChatSession => {
-    if (!selectedAgentId) return;
+    if (!selectedAgentId) return null as any;
 
     const session: ChatSession = {
       id: `session-${Date.now()}`,
@@ -641,7 +624,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
           const action = parseAction(response);
 
           if (action.type === "TOOL_CALL") {
-             const toolLabel = action.params?.tool?.replace(/_/g, ' ') || 'tool';
+             // Type guard to check if params has tool call shape
+             const isToolCallParams = (p: ParsedAction['params']): p is { server: string; tool: string; args: Record<string, unknown> } =>
+               p !== undefined && 'server' in p && 'tool' in p;
+             
+             const toolLabel = isToolCallParams(action.params) 
+               ? action.params.tool.replace(/_/g, ' ') 
+               : 'tool';
 
              // Use only text BEFORE the <use_tool> tag as preamble.
              // cleanResponse includes text AFTER </use_tool> which often contains
@@ -687,7 +676,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
              const toolMsg: ChatMessage = {
                  id: `msg-${Date.now() + 1}`,
                  role: "user",
-                 content: `[Tool Output for ${action.params?.server}:${action.params?.tool}]\n${result.text}\n\n[Instruction: Use ONLY the data above. Respond in 1-2 sentences. Do not add data from your training — only from this tool output.]`,
+                 content: `[Tool Output for ${isToolCallParams(action.params) ? action.params.server : ''}:${isToolCallParams(action.params) ? action.params.tool : ''}]\n${result.text}\n\n[Instruction: Use ONLY the data above. Respond in 1-2 sentences. Do not add data from your training — only from this tool output.]`,
                  timestamp: Date.now(),
                  agentId: selectedAgent!.id,
                  uiBlocks: inlineBlocks,
@@ -806,7 +795,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
       isNewSession = true;
     }
 
-    // Add user message
     const userMessage: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: "user",
@@ -820,13 +808,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
       ...session,
       messages: updatedMessages,
       updatedAt: Date.now(),
-      title:
-        session.messages.length === 0
-          ? messageContent.slice(0, 40)
-          : session.title,
+      title: session.messages.length === 0 ? messageContent.slice(0, 40) : session.title,
     };
 
-    // Update state
     if (isNewSession) {
       setSessions((prev) => [updatedSession, ...prev]);
       setActiveSessionId(updatedSession.id);
@@ -836,10 +820,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       );
     }
 
-    // Save to disk
     await saveSession(updatedSession);
-
-    // Start generating response
     setIsGenerating(true);
     setStreamingContent("");
 
@@ -908,468 +889,30 @@ export const ChatView: React.FC<ChatViewProps> = ({
           }
         }
 
-            // Send email data back to AI for analysis
-            // Use single email prompt for GMAIL_READ, list prompt for others
-            const analysisPrompt =
-              parsedAction.type === "GMAIL_READ"
-                ? buildSingleEmailAnalysisPrompt(messageContent, emailData)
-                : buildEmailAnalysisPrompt(messageContent, emailData);
-
-            // Add the initial response as a message
-            const initialMessage: ChatMessage = {
-              id: `msg-${Date.now()}`,
-              role: "assistant",
-              content: parsedAction.cleanResponse,
-              timestamp: Date.now(),
-              agentId: selectedAgent.id,
+        if (systemPrompts.length > 0) {
+            const systemMessage: ChatMessage = {
+                id: `system-${Date.now()}-${idCounter++}`,
+                role: "user", // Inject as user for compatibility
+                content: `[System Context]\n${systemPrompts.join("\n\n")}`,
+                timestamp: Date.now(),
+                agentId: selectedAgent.id
             };
+            messagesForAI.unshift(systemMessage);
+        }
 
-            const messagesWithInitial = [...updatedMessages, initialMessage];
+        // Start Recursive Loop
+        await processAIResponse(updatedSession, messagesForAI);
 
-            // Create follow-up message with email data
-            const dataMessage: ChatMessage = {
-              id: `msg-${Date.now() + 1}`,
-              role: "user",
-              content: analysisPrompt,
-              timestamp: Date.now(),
-              agentId: selectedAgent.id,
-            };
-
-            // Get AI analysis
-            let analysisResponse = "";
-            setStreamingContent(
-              parsedAction.cleanResponse + "\n\n📧 Analyzing emails...",
-            );
-
-            await AIService.sendMessage(
-              selectedAgent,
-              [...messagesWithInitial, dataMessage].filter(
-                (m) => m.role !== "system",
-              ),
-              {
-                onToken: (token) => {
-                  analysisResponse += token;
-                  setStreamingContent(
-                    parsedAction.cleanResponse + "\n\n" + analysisResponse,
-                  );
-                },
-                onComplete: async (analysis) => {
-                  const finalMessage: ChatMessage = {
-                    id: `msg-${Date.now() + 2}`,
-                    role: "assistant",
-                    content: parsedAction.cleanResponse + "\n\n" + analysis,
-                    timestamp: Date.now(),
-                    agentId: selectedAgent.id,
-                  };
-
-                  const finalSession: ChatSession = {
-                    ...session!,
-                    messages: [...updatedMessages, finalMessage],
-                    updatedAt: Date.now(),
-                  };
-
-                  setSessions((prev) =>
-                    prev.map((s) =>
-                      s.id === finalSession.id ? finalSession : s,
-                    ),
-                  );
-                  await saveSession(finalSession);
-                  setStreamingContent("");
-                  setIsGenerating(false);
-                },
-                onError: async (error) => {
-                  // Still show the initial response even if analysis fails
-                  const errorMessage: ChatMessage = {
-                    id: `msg-${Date.now()}`,
-                    role: "assistant",
-                    content: `${parsedAction.cleanResponse}\n\n⚠️ Error analyzing emails: ${error.message}`,
-                    timestamp: Date.now(),
-                    agentId: selectedAgent.id,
-                  };
-
-                  const errorSession: ChatSession = {
-                    ...session!,
-                    messages: [...updatedMessages, errorMessage],
-                    updatedAt: Date.now(),
-                  };
-
-                  setSessions((prev) =>
-                    prev.map((s) =>
-                      s.id === errorSession.id ? errorSession : s,
-                    ),
-                  );
-                  await saveSession(errorSession);
-                  setStreamingContent("");
-                  setIsGenerating(false);
-                },
-              }, isBuilderMode);
-          } else {
-            // No Gmail action in AI response - check if user was asking to read an email
-            // and auto-execute if so (fallback for when AI doesn't output the tag)
-            const requestedEmailNum = detectEmailReadRequest(messageContent);
-
-            if (requestedEmailNum !== null && gmailConnected) {
-              // User asked to read an email but AI didn't output the tag - auto-execute
-              setStreamingContent(
-                response + "\n\n📧 Fetching email content...",
-              );
-
-              const readAction = {
-                type: "GMAIL_READ" as const,
-                params: { index: requestedEmailNum },
-                cleanResponse: response,
-              };
-
-              const emailData = await executeGmailAction(readAction);
-
-              // Send email data back to AI for analysis/summarization
-              // Use the single email prompt for better TL;DR format
-              const analysisPrompt = buildSingleEmailAnalysisPrompt(
-                messageContent,
-                emailData,
-              );
-
-              const initialMessage: ChatMessage = {
-                id: `msg-${Date.now()}`,
-                role: "assistant",
-                content: response,
-                timestamp: Date.now(),
-                agentId: selectedAgent.id,
-              };
-
-              const messagesWithInitial = [...updatedMessages, initialMessage];
-
-              const dataMessage: ChatMessage = {
-                id: `msg-${Date.now() + 1}`,
-                role: "user",
-                content: analysisPrompt,
-                timestamp: Date.now(),
-                agentId: selectedAgent.id,
-              };
-
-              let analysisResponse = "";
-
-              await AIService.sendMessage(
-                selectedAgent,
-                [...messagesWithInitial, dataMessage].filter(
-                  (m) => m.role !== "system",
-                ),
-                {
-                  onToken: (token) => {
-                    analysisResponse += token;
-                    setStreamingContent(response + "\n\n" + analysisResponse);
-                  },
-                  onComplete: async (analysis) => {
-                    const finalMessage: ChatMessage = {
-                      id: `msg-${Date.now() + 2}`,
-                      role: "assistant",
-                      content: response + "\n\n" + analysis,
-                      timestamp: Date.now(),
-                      agentId: selectedAgent.id,
-                    };
-
-                    const finalSession: ChatSession = {
-                      ...updatedSession,
-                      messages: [...updatedMessages, finalMessage],
-                      updatedAt: Date.now(),
-                    };
-
-                    setSessions((prev) =>
-                      prev.map((s) =>
-                        s.id === finalSession.id ? finalSession : s,
-                      ),
-                    );
-                    await saveSession(finalSession);
-                    setStreamingContent("");
-                    setIsGenerating(false);
-                  },
-                  onError: async (error) => {
-                    const errorMessage: ChatMessage = {
-                      id: `msg-${Date.now()}`,
-                      role: "assistant",
-                      content: `${response}\n\n⚠️ Error analyzing email: ${error.message}`,
-                      timestamp: Date.now(),
-                      agentId: selectedAgent.id,
-                    };
-                    const errorSession: ChatSession = {
-                      ...updatedSession,
-                      messages: [...updatedMessages, errorMessage],
-                      updatedAt: Date.now(),
-                    };
-                    setSessions((prev) =>
-                      prev.map((s) =>
-                        s.id === errorSession.id ? errorSession : s,
-                      ),
-                    );
-                    await saveSession(errorSession);
-                    setStreamingContent("");
-                    setIsGenerating(false);
-                  },
-                }, isBuilderMode);
-            } else {
-              // Normal response - check for Builder mode execution
-              let finalResponse = response;
-              
-              // If Builder mode is enabled, process execution commands
-              if (isBuilderMode) {
-                console.log('[Builder] Processing response for execution commands...');
-                try {
-                  finalResponse = await ExecutionBridge.processResponse(response, true);
-                } catch (execError) {
-                  console.error('[Builder] Execution error:', execError);
-                }
-              }
-              
-              const assistantMessage: ChatMessage = {
-                id: `msg-${Date.now()}`,
-                role: "assistant",
-                content: finalResponse,
-                timestamp: Date.now(),
-                agentId: selectedAgent.id,
-              };
-
-              const finalSession: ChatSession = {
-                ...updatedSession,
-                messages: [...updatedMessages, assistantMessage],
-                updatedAt: Date.now(),
-              };
-
-              setSessions((prev) =>
-                prev.map((s) => (s.id === finalSession.id ? finalSession : s)),
-              );
-
-              await saveSession(finalSession);
-
-              setStreamingContent("");
-              setIsGenerating(false);
-              window.electronAPI.logInput(finalResponse.trim());
-            }
-          }
-        },
-        onError: async (error) => {
-          console.error("Stream error:", error);
-          // Add error message
-          const errorMessage: ChatMessage = {
-            id: `msg-${Date.now()}`,
-            role: "assistant",
-            content: `⚠️ Error: ${error.message}`,
-            timestamp: Date.now(),
-            agentId: selectedAgent.id,
-          };
-
-          const errorSession: ChatSession = {
-            ...updatedSession,
-            messages: [...updatedMessages, errorMessage],
-            updatedAt: Date.now(),
-          };
-          setSessions((prev) =>
-            prev.map((s) => (s.id === errorSession.id ? errorSession : s)),
-          );
-
-          await saveSession(errorSession);
-          setStreamingContent("");
-          setIsGenerating(false);
-        },
-      }, isBuilderMode);
-    } catch (error) {
-      const errorMessage: ChatMessage = {
-        id: `msg-${Date.now()}`,
-        role: "assistant",
-        content: `⚠️ Error: ${(error as Error).message}`,
-        timestamp: Date.now(),
-        agentId: selectedAgent.id,
-      };
-
-      const errorSession: ChatSession = {
-        ...updatedSession,
-        messages: [...updatedMessages, errorMessage],
-        updatedAt: Date.now(),
-      };
-
-      setSessions((prev) =>
-        prev.map((s) => (s.id === errorSession.id ? errorSession : s)),
-      );
-      await saveSession(errorSession);
-      setIsGenerating(false);
+    } catch (e) {
+        console.error(e);
+        setIsGenerating(false);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (isMultiAgentMode) {
-        sendMultiAgentMessage();
-      } else {
-        sendMessage();
-      }
-    }
-  };
-
-  // Multi-agent orchestration send
-  const sendMultiAgentMessage = async () => {
-    if (!input.trim() || selectedMultiAgentIds.length === 0 || isOrchestrating) return;
-
-    const messageContent = input.trim();
-    setInput("");
-    setIsOrchestrating(true);
-    setMultiAgentResponses([]);
-    setStreamingContent("");
-
-    // Get selected agents
-    const selectedAgents = activeAgents.filter((a) =>
-      selectedMultiAgentIds.includes(a.id)
-    );
-
-    // Create user message
-    const userMessage: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      role: "user",
-      content: messageContent,
-      timestamp: Date.now(),
-      agentId: "multi",
-    };
-
-    // Create new session for multi-agent
-    const session: ChatSession = {
-      id: `session-${Date.now()}`,
-      agentId: "multi",
-      title: messageContent.slice(0, 40),
-      messages: [userMessage],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    setSessions((prev) => [session, ...prev]);
-    setActiveSessionId(session.id);
-
-    // Build callbacks for orchestration
-    const callbacks: OrchestrationCallbacks = {
-      onAgentStart: (agentId, agentName, order, total) => {
-        setCurrentOrchestratingAgent(agentName);
-        setStreamingContent(`[${order}/${total}] ${agentName} is thinking...`);
-      },
-      onAgentProgress: (agentId, token) => {
-        // Could stream tokens here but keep it simple for now
-      },
-      onAgentComplete: (agentId, response, duration) => {
-        setMultiAgentResponses((prev) => [
-          ...prev,
-          {
-            agentId,
-            agentName: activeAgents.find((a) => a.id === agentId)?.name || agentId,
-            response,
-            timestamp: Date.now(),
-            duration,
-          },
-        ]);
-      },
-      onAgentError: (agentId, error) => {
-        setMultiAgentResponses((prev) => [
-          ...prev,
-          {
-            agentId,
-            agentName: activeAgents.find((a) => a.id === agentId)?.name || agentId,
-            response: `⚠️ Error: ${error}`,
-            timestamp: Date.now(),
-            duration: 0,
-            error,
-          },
-        ]);
-      },
-      onAllComplete: async (result) => {
-        // Build combined response
-        let combinedContent = "";
-        if (result.responses.length > 1) {
-          combinedContent = result.responses
-            .map((r) => {
-              const agent = activeAgents.find((a) => a.id === r.agentId);
-              const color = agent ? PROVIDER_INFO[agent.provider]?.color : "#6B7280";
-              return `### ${r.agentName}\n\n${r.response}`;
-            })
-            .join("\n\n---\n\n");
-        } else {
-          combinedContent = result.responses[0]?.response || "";
-        }
-
-        const assistantMessage: ChatMessage = {
-          id: `msg-${Date.now()}-assistant`,
-          role: "assistant",
-          content: combinedContent,
-          timestamp: Date.now(),
-          agentId: "multi",
-        };
-
-        const finalSession: ChatSession = {
-          ...session,
-          messages: [...session.messages, assistantMessage],
-          updatedAt: Date.now(),
-        };
-
-        setSessions((prev) =>
-          prev.map((s) => (s.id === finalSession.id ? finalSession : s))
-        );
-        await saveSession(finalSession);
-
-        setStreamingContent("");
-        setIsOrchestrating(false);
-        setCurrentOrchestratingAgent(null);
-      },
-      onSynthesisStart: (agentId) => {
-        setStreamingContent(`Synthesizing results...`);
-      },
-    };
-
-    try {
-      if (orchestrationMode === "sequential") {
-        await AgentOrchestrationService.runSequential(
-          selectedAgents,
-          messageContent,
-          callbacks
-        );
-      } else if (orchestrationMode === "parallel") {
-        await AgentOrchestrationService.runParallel(
-          selectedAgents,
-          messageContent,
-          callbacks
-        );
-      } else if (orchestrationMode === "collaborative") {
-        await AgentOrchestrationService.runCollaborative(
-          selectedAgents,
-          messageContent,
-          3,
-          callbacks
-        );
-      } else if (orchestrationMode === "orchestrator") {
-        const [orchestrator, ...workers] = selectedAgents;
-        await AgentOrchestrationService.runOrchestrated(
-          orchestrator,
-          workers,
-          messageContent,
-          callbacks
-        );
-      }
-    } catch (error) {
-      console.error("Orchestration error:", error);
-      const errorMessage: ChatMessage = {
-        id: `msg-${Date.now()}-error`,
-        role: "assistant",
-        content: `⚠️ Orchestration error: ${(error as Error).message}`,
-        timestamp: Date.now(),
-        agentId: "multi",
-      };
-
-      const errorSession: ChatSession = {
-        ...session,
-        messages: [...session.messages, errorMessage],
-        updatedAt: Date.now(),
-      };
-
-      setSessions((prev) =>
-        prev.map((s) => (s.id === errorSession.id ? errorSession : s))
-      );
-      await saveSession(errorSession);
-      setIsOrchestrating(false);
-      setCurrentOrchestratingAgent(null);
+      sendMessage();
     }
   };
 
@@ -1424,38 +967,52 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   return (
     <div className="h-full flex bg-black">
-      {/* Main Chat Area - Full height with proper flex layout */}
+      {/* Main Chat Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        
-        {/* TOP BAR - Agent selector + Multi + Run buttons */}
-        <div className="shrink-0 border-b border-gray-800/50 bg-gray-950/90 backdrop-blur-md">
-          <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-            {/* Left: Agent Selector */}
+        {/* Header */}
+        <div className="shrink-0 border-b border-gray-800 bg-gray-950/80 backdrop-blur-md px-6 py-4">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            {/* Agent Selector */}
             <div className="relative" ref={agentSelectorRef}>
               <button
                 onClick={() => setShowAgentSelector(!showAgentSelector)}
-                className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700/50 rounded-lg transition-colors"
+                className="flex items-center gap-3 px-4 py-2 bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-xl transition-colors"
               >
                 {selectedAgent && (
                   <>
                     <div
-                      className="w-2 h-2 rounded-full"
+                      className="w-2.5 h-2.5 rounded-full"
                       style={{
                         backgroundColor:
-                          PROVIDER_INFO[selectedAgent.provider]?.color || "#6B7280",
+                          PROVIDER_INFO[selectedAgent.provider]?.color ||
+                          "#6B7280",
+                        boxShadow: `0 0 8px ${
+                          PROVIDER_INFO[selectedAgent.provider]?.color ||
+                          "#6B7280"
+                        }`,
                       }}
                     />
-                    <span className="text-sm text-gray-200 truncate max-w-[150px]">
-                      {selectedAgent.name}
-                    </span>
+                    <div className="text-left">
+                      <p className="text-sm font-medium text-white">
+                        {selectedAgent.name}
+                      </p>
+                      <p className="text-xs text-gray-500 font-mono">
+                        {selectedAgent.model}
+                      </p>
+                    </div>
                   </>
                 )}
-                <ChevronDown size={14} className="text-gray-400" />
+                <ChevronDown
+                  size={16}
+                  className={`text-gray-400 transition-transform ${
+                    showAgentSelector ? "rotate-180" : ""
+                  }`}
+                />
               </button>
 
               {/* Agent Dropdown */}
               {showAgentSelector && (
-                <div className="absolute top-full left-0 mt-2 w-64 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50">
+                <div className="absolute top-full left-0 mt-2 w-72 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50">
                   <div className="p-2">
                     {activeAgents.map((agent) => (
                       <button
@@ -1464,28 +1021,38 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           setSelectedAgentId(agent.id);
                           setShowAgentSelector(false);
                         }}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                          selectedAgentId === agent.id
-                            ? "bg-indigo-600/20 border border-indigo-500/30"
-                            : "hover:bg-gray-800"
-                        }`}
+                        className={`
+                          w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors
+                          ${
+                            selectedAgentId === agent.id
+                              ? "bg-indigo-900/30 border border-indigo-500/30"
+                              : "hover:bg-gray-800"
+                          }
+                        `}
                       >
                         <div
-                          className="w-2 h-2 rounded-full shrink-0"
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
                           style={{
-                            backgroundColor: PROVIDER_INFO[agent.provider]?.color || "#6B7280",
+                            backgroundColor:
+                              PROVIDER_INFO[agent.provider]?.color || "#6B7280",
+                            boxShadow: `0 0 8px ${
+                              PROVIDER_INFO[agent.provider]?.color || "#6B7280"
+                            }`,
                           }}
                         />
                         <div className="text-left flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-200 truncate">
                             {agent.name}
                           </p>
-                          <p className="text-xs text-gray-500 truncate">
+                          <p className="text-xs text-gray-500 font-mono truncate">
                             {agent.model}
                           </p>
                         </div>
                         {selectedAgentId === agent.id && (
-                          <Check size={14} className="text-indigo-400 shrink-0" />
+                          <Check
+                            size={16}
+                            className="text-indigo-400 shrink-0"
+                          />
                         )}
                       </button>
                     ))}
@@ -1494,274 +1061,72 @@ export const ChatView: React.FC<ChatViewProps> = ({
               )}
             </div>
 
-            {/* Center: Multi + Run buttons */}
+            {/* Actions */}
             <div className="flex items-center gap-2">
-              {/* Multi-Agent Toggle */}
-              <button
-                onClick={() => {
-                  if (isMultiAgentMode) {
-                    setShowMultiAgentPanel(!showMultiAgentPanel);
-                  } else {
-                    setIsMultiAgentMode(true);
-                    setShowMultiAgentPanel(true);
-                  }
-                }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                  isMultiAgentMode
-                    ? "bg-purple-600 text-white shadow-lg"
-                    : "bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 border border-gray-700/50"
-                }`}
-              >
-                <Users size={16} />
-                <span>Multi</span>
-              </button>
-
-              {/* Run Button */}
-              <button
-                onClick={() => {
-                  if (isMultiAgentMode && selectedMultiAgentIds.length > 0) {
-                    setShowMultiAgentPanel(false);
-                    setTimeout(() => textareaRef.current?.focus(), 100);
-                  } else if (isMultiAgentMode) {
-                    setShowMultiAgentPanel(true);
-                  }
-                }}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  !isMultiAgentMode
-                    ? "bg-gray-800/30 text-gray-500 cursor-not-allowed"
-                    : selectedMultiAgentIds.length > 0
-                      ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg"
-                      : "bg-gray-700/50 text-gray-400 border border-gray-600/50"
-                }`}
-              >
-                <Play size={16} />
-                <span>{isMultiAgentMode && selectedMultiAgentIds.length > 0 ? `Run (${selectedMultiAgentIds.length})` : "Run"}</span>
-              </button>
-
-              {/* Mode indicator */}
-              {isMultiAgentMode && selectedMultiAgentIds.length > 1 && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-600/20 border border-purple-500/30">
-                  <Zap size={12} className="text-purple-400" />
-                  <span className="text-xs text-purple-300 font-medium">
-                    {orchestrationMode}
-                  </span>
-                </div>
+              {activeSession && activeSession.messages.length >= 2 && (
+                <button
+                  onClick={regenerateLastResponse}
+                  disabled={isGenerating}
+                  className="p-2 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Regenerate last response"
+                >
+                  <RefreshCw size={18} />
+                </button>
               )}
-
-              {/* Builder Mode Toggle - Enables system execution capabilities */}
               <button
-                onClick={() => {
-                  const newMode = !isBuilderMode;
-                  setIsBuilderMode(newMode);
-                  if (newMode) {
-                    builderService.enable();
-                    console.log('[Builder] Enabled - system execution active');
-                  } else {
-                    builderService.disable();
-                    console.log('[Builder] Disabled - chat only mode');
-                  }
-                }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                  isBuilderMode
-                    ? "bg-orange-600 text-white shadow-lg shadow-orange-500/30"
-                    : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 border border-gray-700/50"
-                }`}
-                title={isBuilderMode ? "Builder Mode: ON - System actions enabled" : "Builder Mode: OFF - Chat only"}
+                onClick={createNewSession}
+                className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
               >
-                <Settings size={16} className={isBuilderMode ? "animate-spin" : ""} />
-                <span>Builder</span>
+                <MessageSquare size={16} />
+                <span className="text-sm">New Chat</span>
               </button>
+              <button
+                onClick={() => setShowHistorySidebar(!showHistorySidebar)}
+                className={`p-2 rounded-lg transition-colors ${
+                  showHistorySidebar
+                    ? "bg-indigo-600 text-white"
+                    : "text-gray-500 hover:text-gray-300 hover:bg-gray-800"
+                }`}
+                title="Toggle history"
+              >
+                <History size={18} />
+              </button>
+              {activeSession && (
+                <button
+                  onClick={() =>
+                    handleDeleteSession(activeSession.agentId, activeSession.id)
+                  }
+                  className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                  title="Delete chat"
+                >
+                  <Trash2 size={18} />
+                </button>
+              )}
             </div>
-
-            {/* Right: History button */}
-            <button
-              onClick={() => setShowHistorySidebar(!showHistorySidebar)}
-              className={`p-2 rounded-lg transition-colors ${
-                showHistorySidebar
-                  ? "bg-indigo-600 text-white"
-                  : "text-gray-400 hover:text-white hover:bg-gray-800"
-              }`}
-            >
-              <History size={18} />
-            </button>
           </div>
         </div>
 
-        {/* MULTI-AGENT SELECTOR BAR - Horizontal panel below top bar */}
-        {isMultiAgentMode && (
-          <div className="shrink-0 border-b border-gray-800/50 bg-gray-900/95 backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="max-w-4xl mx-auto px-4 py-3">
-              {/* Agent selection row */}
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs text-gray-500 uppercase tracking-wider font-medium">Agents</span>
-                <div className="flex-1 flex items-center gap-2 flex-wrap">
-                  {activeAgents.map((agent) => (
-                    <button
-                      key={agent.id}
-                      onClick={() => {
-                        if (selectedMultiAgentIds.includes(agent.id)) {
-                          setSelectedMultiAgentIds(selectedMultiAgentIds.filter(id => id !== agent.id));
-                        } else {
-                          setSelectedMultiAgentIds([...selectedMultiAgentIds, agent.id]);
-                        }
-                      }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                        selectedMultiAgentIds.includes(agent.id)
-                          ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25'
-                          : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 border border-gray-700/50'
-                      }`}
-                    >
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{
-                          backgroundColor: PROVIDER_INFO[agent.provider]?.color || '#6B7280',
-                        }}
-                      />
-                      <span>{agent.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Mode and Aggregation row */}
-              {selectedMultiAgentIds.length > 1 && (
-                <div className="flex items-center gap-4">
-                  {/* Mode buttons */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 uppercase tracking-wider font-medium">Mode</span>
-                    <div className="flex gap-1">
-                      {(['parallel', 'sequential', 'collaborative', 'orchestrator'] as const).map((mode) => (
-                        <button
-                          key={mode}
-                          onClick={() => setOrchestrationMode(mode)}
-                          className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                            orchestrationMode === mode
-                              ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50'
-                              : 'bg-gray-800/50 text-gray-400 hover:text-gray-300 border border-gray-700/50'
-                          }`}
-                        >
-                          {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Aggregation buttons */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 uppercase tracking-wider font-medium">Output</span>
-                    <div className="flex gap-1">
-                      {([
-                        { value: 'concatenate', label: 'Combine' },
-                        { value: 'lastWins', label: 'Last' },
-                      ] as const).map((opt) => (
-                        <button
-                          key={opt.value}
-                          onClick={() => setAggregationStrategy(opt.value)}
-                          className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                            aggregationStrategy === opt.value
-                              ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50'
-                              : 'bg-gray-800/50 text-gray-400 hover:text-gray-300 border border-gray-700/50'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Status row */}
-              {selectedMultiAgentIds.length > 0 && (
-                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-800/50">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-purple-500" />
-                    <span className="text-sm text-purple-300 font-medium">
-                      {selectedMultiAgentIds.length} agent{selectedMultiAgentIds.length > 1 ? 's' : ''} selected
-                    </span>
-                  </div>
-                  {selectedMultiAgentIds.length > 1 && (
-                    <span className="text-xs text-gray-500">
-                      • {orchestrationMode} mode
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Builder mode status row */}
-              {isBuilderMode && (
-                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-orange-500/30">
-                  <div className="flex items-center gap-1.5">
-                    <Settings size={12} className="text-orange-400 animate-spin" />
-                    <span className="text-sm text-orange-300 font-medium">Builder Mode Active</span>
-                  </div>
-                  <span className="text-xs text-gray-500">
-                    • Shell execution enabled
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    • File system access
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    • Network requests
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* MAIN CHAT AREA - Centered messages */}
+        {/* Messages Area */}
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-3xl mx-auto py-8 px-6">
-            {/* Empty state */}
-            {(!activeSession || activeSession.messages.length === 0) && !streamingContent ? (
+          <div className="max-w-4xl mx-auto py-8 px-6">
+            {(!activeSession || activeSession.messages.length === 0) &&
+            !streamingContent ? (
               <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center mb-6">
-                  {isMultiAgentMode ? (
-                    <Users className="size-8 text-purple-400" />
-                  ) : (
-                    <Bot className="size-8 text-indigo-400" />
-                  )}
+                  <Sparkles className="size-8 text-indigo-400" />
                 </div>
-                
-                {isMultiAgentMode ? (
-                  <>
-                    <h2 className="text-xl font-semibold text-white mb-2">
-                      Multi-Agent Mode
-                    </h2>
-                    <p className="text-gray-400 mb-4">
-                      {selectedMultiAgentIds.length > 0
-                        ? `${selectedMultiAgentIds.length} agents ready in ${orchestrationMode} mode`
-                        : "Select agents to begin"}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <h2 className="text-xl font-semibold text-white mb-2">
-                      {selectedAgent?.name || "AI Assistant"}
-                    </h2>
-                    <p className="text-gray-400 mb-4">
-                      {selectedAgent?.model || "Ready to help"}
-                    </p>
-                  </>
-                )}
-
-                <div className="flex flex-wrap justify-center gap-2">
-                  {["Ask a question", "Write code", "Analyze data", "Create content"].map(
-                    (suggestion) => (
-                      <button
-                        key={suggestion}
-                        onClick={() => setInput(suggestion + "... ")}
-                        className="px-4 py-2 bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 rounded-lg text-sm transition-colors border border-gray-700/50"
-                      >
-                        {suggestion}
-                      </button>
-                    )
-                  )}
-                </div>
+                <h2 className="text-xl font-semibold text-white mb-2">
+                  Chat with {selectedAgent?.name || "AI"}
+                </h2>
+                <p className="text-gray-500 max-w-md">
+                  Start a conversation by typing a message below. Your chat will
+                  be powered by{" "}
+                  <span className="text-indigo-400 font-mono">
+                    {selectedAgent?.model}
+                  </span>
+                </p>
               </div>
             ) : (
-              /* Messages */
               <div className="space-y-6">
                 {activeSession?.messages.map((message) => {
                   // Detect tool-related messages (output or system context)
@@ -1792,84 +1157,117 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   <div
                     key={message.id}
                     className={`flex gap-4 ${
-                      message.role === "user" ? "justify-end" : "justify-start"
+                      message.role === "user" ? "flex-row-reverse" : ""
                     }`}
                   >
-                    {message.role !== "user" && (
-                      <div className="shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                        <Bot size={16} className="text-white" />
-                      </div>
-                    )}
+                    {/* Avatar */}
                     <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-                        message.role === "user"
-                          ? "bg-indigo-600 text-white"
-                          : "bg-gray-800 text-gray-100"
-                      }`}
+                      className={`
+                        shrink-0 w-10 h-10 rounded-xl flex items-center justify-center
+                        ${
+                          message.role === "user"
+                            ? "bg-indigo-600"
+                            : "bg-gray-800 border border-gray-700"
+                        }
+                      `}
                     >
-                      <div className="prose prose-sm prose-invert max-w-none">
-                        {message.content}
+                      {message.role === "user" ? (
+                        <User size={18} className="text-white" />
+                      ) : (
+                        <Bot size={18} className="text-gray-400" />
+                      )}
+                    </div>
+
+                    {/* Message Content */}
+                    <div
+                      className={`
+                      flex-1 max-w-[80%] group
+                      ${message.role === "user" ? "text-right" : ""}
+                    `}
+                    >
+                      <div
+                        className={`
+                        inline-block px-4 py-3 rounded-2xl text-left
+                        ${
+                          message.role === "user"
+                            ? "bg-indigo-600 text-white rounded-br-md"
+                            : "bg-gray-900 text-gray-200 border border-gray-800 rounded-bl-md"
+                        }
+                      `}
+                      >
+                        <div className="break-words text-[15px] leading-loose prose prose-invert prose-sm max-w-none prose-p:my-3 prose-headings:my-4 prose-ul:my-3 prose-li:my-2 prose-hr:my-4">
+                          {message.role === "assistant" ? (
+                            <RenderMessageContent content={message.content} role="assistant" />
+                          ) : (
+                            <RenderMessageContent content={message.content} role="user" />
+                          )}
+                        </div>
+                        {message.role === "assistant" && message.uiBlocks && message.uiBlocks.length > 0 && (
+                          <ToolUIRenderer blocks={message.uiBlocks} />
+                        )}
+                        {message.role === "assistant" && message.failedUIBlockCount && message.failedUIBlockCount > 0 && !message.uiBlocks?.length && (
+                          <FailedBlockChip count={message.failedUIBlockCount} snippets={message.failedUIRawSnippets} />
+                        )}
+                      </div>
+
+                      {/* Message Actions */}
+                      <div
+                        className={`
+                        flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity
+                        ${message.role === "user" ? "justify-end" : ""}
+                      `}
+                      >
+                        <button
+                          onClick={() =>
+                            copyMessage(message.id, message.content)
+                          }
+                          className="p-1 text-gray-600 hover:text-gray-400 transition-colors"
+                        >
+                          {copiedId === message.id ? (
+                            <Check size={14} className="text-emerald-500" />
+                          ) : (
+                            <Copy size={14} />
+                          )}
+                        </button>
+                        <span className="text-xs text-gray-600 font-mono">
+                          {new Date(message.timestamp).toLocaleTimeString()}
+                        </span>
                       </div>
                     </div>
-                    {message.role === "user" && (
-                      <div className="shrink-0 w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center">
-                        <User size={16} className="text-gray-300" />
-                      </div>
-                    )}
                   </div>
-                ))}
+                  );
+                })}
 
-                {/* Streaming content */}
+                {/* Streaming Response */}
                 {streamingContent && (
-                  <div className="flex gap-4 justify-start">
-                    <div className="shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                      <Bot size={16} className="text-white" />
+                  <div className="flex gap-4">
+                    <div className="shrink-0 w-10 h-10 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center">
+                      <Bot size={18} className="text-gray-400" />
                     </div>
-                    <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-gray-800 text-gray-100">
-                      <div className="prose prose-sm prose-invert max-w-none">
-                        {streamingContent}
-                      </div>
-                    </div>
-                  </div>
-                )}
 
-                {/* Multi-agent responses */}
-                {multiAgentResponses.length > 0 && (
-                  <div className="space-y-4">
-                    {multiAgentResponses.map((response, index) => (
-                      <div key={index} className="flex gap-4 justify-start">
-                        <div className="shrink-0 w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
-                          <Users size={16} className="text-white" />
-                        </div>
-                        <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-gray-800 text-gray-100">
-                          <div className="text-xs text-purple-400 mb-1 font-medium">
-                            {response.agentName}
-                          </div>
-                          <div className="prose prose-sm prose-invert max-w-none">
-                            {response.response}
-                          </div>
+                    <div className="flex-1 max-w-[80%]">
+                      <div className="inline-block px-4 py-3 rounded-2xl rounded-bl-md bg-gray-900 text-gray-200 border border-gray-800">
+                        <div className="break-words text-[15px] leading-loose prose prose-invert prose-sm max-w-none prose-p:my-3 prose-headings:my-4 prose-ul:my-3 prose-li:my-2 prose-hr:my-4">
+                          <ReactMarkdown remarkPlugins={[remarkBreaks]}>{streamingContent}</ReactMarkdown>
+                          <span className="inline-block w-2 h-4 bg-indigo-500 ml-0.5 animate-pulse" />
                         </div>
                       </div>
-                    ))}
+                    </div>
                   </div>
                 )}
 
                 {/* Loading indicator */}
-                {(isGenerating || isOrchestrating) && !streamingContent && multiAgentResponses.length === 0 && (
-                  <div className="flex gap-4 justify-start">
-                    <div className="shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                      <Loader2 size={16} className="text-white animate-spin" />
+                {isGenerating && !streamingContent && (
+                  <div className="flex gap-4">
+                    <div className="shrink-0 w-10 h-10 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center">
+                      <Bot size={18} className="text-gray-400" />
                     </div>
-                    <div className="rounded-2xl px-4 py-3 bg-gray-800">
-                      <div className="flex items-center gap-2">
-                        {isOrchestrating && currentOrchestratingAgent ? (
-                          <span className="text-gray-400 text-sm">
-                            {currentOrchestratingAgent} is thinking...
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-sm">Thinking...</span>
-                        )}
-                      </div>
+                    <div className="flex items-center gap-2 px-4 py-3 bg-gray-900 border border-gray-800 rounded-2xl rounded-bl-md">
+                      <Loader2
+                        size={16}
+                        className="animate-spin text-indigo-400"
+                      />
+                      <span className="text-sm text-gray-400">Thinking...</span>
                     </div>
                   </div>
                 )}
@@ -1880,64 +1278,64 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
         </div>
 
-        {/* BOTTOM SECTION - Input + Agent Status */}
-        <div className="shrink-0 border-t border-gray-800/50 bg-gray-950/90 backdrop-blur-md">
-          {/* Message Input */}
-          <div className="max-w-3xl mx-auto p-4">
+        {/* Input Area */}
+        <div className="shrink-0 border-t border-gray-800 bg-gray-950/80 backdrop-blur-md p-4">
+          <div className="max-w-4xl mx-auto">
             <div className="flex items-end gap-3">
-              <div className="flex-1 bg-gray-800/50 border border-gray-700/50 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50 transition-all">
+              <div className="flex-1 bg-gray-900 border border-gray-800 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50 transition-all">
                 <textarea
                   ref={textareaRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={
-                    isMultiAgentMode
-                      ? `Message ${selectedMultiAgentIds.length} agents...`
-                      : `Message ${selectedAgent?.name || "AI"}...`
-                  }
+                  placeholder={`Message ${selectedAgent?.name || "AI"}...`}
                   className="w-full bg-transparent text-gray-100 placeholder-gray-500 resize-none min-h-[24px] max-h-[150px] px-3 py-2 focus:outline-none"
                   rows={1}
-                  disabled={isGenerating || isOrchestrating}
+                  disabled={isGenerating}
                 />
               </div>
               <button
-                onClick={isMultiAgentMode ? sendMultiAgentMessage : sendMessage}
-                disabled={
-                  isMultiAgentMode
-                    ? !input.trim() || isOrchestrating || selectedMultiAgentIds.length === 0
-                    : !input.trim() || isGenerating
-                }
-                className={`p-3 rounded-xl transition-all ${
-                  isMultiAgentMode
-                    ? input.trim() && !isOrchestrating && selectedMultiAgentIds.length > 0
-                      ? "bg-purple-600 hover:bg-purple-500 text-white shadow-lg"
+                onClick={sendMessage}
+                data-auto-send
+                disabled={!input.trim() || isGenerating}
+                className={`
+                  p-4 rounded-xl transition-all flex items-center justify-center
+                  ${
+                    input.trim() && !isGenerating
+                      ? "bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-105 shadow-lg shadow-indigo-500/25"
                       : "bg-gray-800 text-gray-500 cursor-not-allowed"
-                    : input.trim() && !isGenerating
-                      ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg"
-                      : "bg-gray-800 text-gray-500 cursor-not-allowed"
-                }`}
+                  }
+                `}
               >
-                {isGenerating || isOrchestrating ? (
+                {isGenerating ? (
                   <Loader2 size={20} className="animate-spin" />
-                ) : isMultiAgentMode ? (
-                  <Users size={20} />
                 ) : (
                   <Send size={20} />
                 )}
               </button>
             </div>
-          </div>
 
-          {/* Agent Status Bar - Below input */}
-          <MultiAgentPanel
-            agents={activeAgents}
-            selectedAgentIds={selectedMultiAgentIds}
-            orchestrationMode={orchestrationMode}
-            isActive={isMultiAgentMode}
-            isRunning={isOrchestrating}
-            currentAgentName={currentOrchestratingAgent}
-          />
+            {/* Status Bar */}
+            <div className="flex items-center justify-center gap-2 mt-3 opacity-50">
+              <div
+                className="w-1.5 h-1.5 rounded-full"
+                style={{
+                  backgroundColor: selectedAgent
+                    ? PROVIDER_INFO[selectedAgent.provider]?.color || "#6B7280"
+                    : "#6B7280",
+                  boxShadow: selectedAgent
+                    ? `0 0 6px ${
+                        PROVIDER_INFO[selectedAgent.provider]?.color ||
+                        "#6B7280"
+                      }`
+                    : "none",
+                }}
+              />
+              <span className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">
+                {selectedAgent?.model || "No model selected"}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1953,6 +1351,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
         onNewChat={createNewSession}
         agentName={selectedAgent?.name}
       />
+
+      {/* Tool Confirmation Modal (triggered by tool responses in chat) */}
+      {chatConfirmModal && (
+        <ToolConfirmModal
+          modal={chatConfirmModal}
+          onClose={() => setChatConfirmModal(null)}
+        />
+      )}
     </div>
   );
 };
