@@ -21,6 +21,7 @@ import {
   Search,
   Gauge,
 } from "lucide-react";
+import { EthWalletConnect } from "./EthWalletConnect";
 
 // =============================================================================
 // Types
@@ -1442,6 +1443,25 @@ export const Web3Page: React.FC = () => {
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
           <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2"><Wallet size={20} />Wallet</h2>
           <WalletOverview key={`overview-${walletKey}`} config={config} onConfigChanged={handleConfigChanged} />
+        </section>
+        <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
+          <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2">
+            <Wallet size={20} />
+            ETH/BASE Wallet
+          </h2>
+          <p className="text-sm text-gray-400 mb-4">
+            Connect your Ethereum or Base wallet for ANFE (Account Abstraction) features
+          </p>
+          <EthWalletConnect 
+            onConnect={(address, network) => {
+              console.log('Wallet connected:', { address, network });
+              handleWalletChanged();
+            }}
+            onDisconnect={() => {
+              console.log('Wallet disconnected');
+              handleWalletChanged();
+            }}
+          />
         </section>
         <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
           <h2 className="text-xl font-semibold mb-4 text-indigo-400 flex items-center gap-2"><Globe size={20} />Network</h2>
