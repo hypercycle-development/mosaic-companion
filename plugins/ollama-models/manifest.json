@@ -1,0 +1,9 @@
+{
+  "id": "ollama-models",
+  "version": "1.0.0",
+  "name": "Ollama Models",
+  "description": "Local LLM model management via Ollama",
+  "ipcNamespace": "ollama",
+  "route": "mosaic://ollama",
+  "icon": "cpu"
+}

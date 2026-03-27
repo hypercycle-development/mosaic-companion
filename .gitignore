@@ -1,0 +1,59 @@
+# Dependencies
+node_modules
+
+# Bun
+bun.lockb
+
+# Build outputs
+dist/
+out/
+build/
+release/
+*.asar
+tmp_static/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+bun-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.test
+
+# Testing
+coverage/
+
+# Misc
+*.pem
+.cache/
+
+# Gmail OAuth credentials (keep private)
+config/gmail-credentials.json
+# agent files
+.github/copilot-instructions.md
+.github/skills/
+project_dump.txt
+
+*.resolved.md
+*.plan.md
+
+# Local planning docs
+/plans/

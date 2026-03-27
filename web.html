@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mosaic Companion - Web (MetaMask)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              gray: {
+                750: "#2d3748",
+                850: "#1a202c",
+                950: "#0d1117",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af;
+      }
+      .dark ::-webkit-scrollbar-thumb {
+        background: #4b5563;
+      }
+      .dark ::-webkit-scrollbar-thumb:hover {
+        background: #6b7280;
+      }
+      body {
+        overscroll-behavior: none;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://aistudiocdn.com/react@^19.2.1",
+          "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+          "react/": "https://aistudiocdn.com/react@^19.2.1/",
+          "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0"
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="/index.css" />
+  </head>
+  <body
+    class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-hidden h-screen w-screen transition-colors duration-200"
+  >
+    <div id="root" class="h-full w-full"></div>
+    
+    <!-- Web Mode Stub for Electron API - MUST be set BEFORE React loads -->
+    <script>
+      // ALWAYS provide electronAPI stub in web mode - set it BEFORE React loads
+      window.electronAPI = {
+        logInput: async (text) => console.log('[Web]', text),
+        getCsvPath: async () => '',
+        checkForUpdates: async () => console.log('[Web] Updates not available'),
+        getUpdateSettings: async () => ({ autoDownload: false, titleBarStyle: 'hidden' }),
+        setUpdateSettings: async () => {},
+        getUpdateLogs: async () => [],
+        getUpdateLogPath: async () => '',
+        restartWindow: async () => window.location.reload(),
+        showTitleBarConfirm: async () => false,
+        nodes: {
+          get: async () => {
+            try {
+              const stored = localStorage.getItem('mosaic_nodes');
+              return stored ? JSON.parse(stored) : [];
+            } catch (e) { return []; }
+          },
+          add: async (node) => {
+            try {
+              const stored = localStorage.getItem('mosaic_nodes');
+              const nodes = stored ? JSON.parse(stored) : [];
+              nodes.push({ ...node, id: Date.now().toString() });
+              localStorage.setItem('mosaic_nodes', JSON.stringify(nodes));
+              return { success: true };
+            } catch (e) { return { success: false, error: e.message }; }
+          },
+          update: async (id, updates) => {
+            try {
+              const stored = localStorage.getItem('mosaic_nodes');
+              const nodes = stored ? JSON.parse(stored) : [];
+              const index = nodes.findIndex(n => n.id === id);
+              if (index >= 0) {
+                nodes[index] = { ...nodes[index], ...updates };
+                localStorage.setItem('mosaic_nodes', JSON.stringify(nodes));
+                return { success: true };
+              }
+              return { success: false, error: 'Not found' };
+            } catch (e) { return { success: false, error: e.message }; }
+          },
+          delete: async (id) => {
+            try {
+              const stored = localStorage.getItem('mosaic_nodes');
+              const nodes = stored ? JSON.parse(stored) : [];
+              localStorage.setItem('mosaic_nodes', JSON.stringify(nodes.filter(n => n.id !== id)));
+              return { success: true };
+            } catch (e) { return { success: false, error: e.message }; }
+          },
+        },
+        aiAgents: {
+          get: async () => {
+            try {
+              const stored = localStorage.getItem('mosaic_ai_agents');
+              console.log('[Web] Loading agents:', stored);
+              return stored ? JSON.parse(stored) : [];
+            } catch (e) {
+              console.error('[Web] Error loading agents:', e);
+              return [];
+            }
+          },
+          set: async (agents) => {
+            try {
+              localStorage.setItem('mosaic_ai_agents', JSON.stringify(agents));
+              return { success: true };
+            } catch (e) { return { success: false, error: e.message }; }
+          },
+          add: async (agent) => {
+            try {
+              const stored = localStorage.getItem('mosaic_ai_agents');
+              const agents = stored ? JSON.parse(stored) : [];
+              const newAgent = agent.id ? agent : { ...agent, id: 'agent_' + Date.now() };
+              agents.push(newAgent);
+              localStorage.setItem('mosaic_ai_agents', JSON.stringify(agents));
+              console.log('[Web] Agent saved:', newAgent);
+              return { success: true };
+            } catch (e) {
+              console.error('[Web] Error saving agent:', e);
+              return { success: false, error: e.message };
+            }
+          },
+          update: async (id, updates) => {
+            try {
+              const stored = localStorage.getItem('mosaic_ai_agents');
+              const agents = stored ? JSON.parse(stored) : [];
+              const index = agents.findIndex(a => a.id === id);
+              if (index >= 0) {
+                agents[index] = { ...agents[index], ...updates };
+                localStorage.setItem('mosaic_ai_agents', JSON.stringify(agents));
+                return { success: true };
+              }
+              return { success: false, error: 'Agent not found' };
+            } catch (e) { return { success: false, error: e.message }; }
+          },
+          delete: async (id) => {
+            try {
+              const stored = localStorage.getItem('mosaic_ai_agents');
+              const agents = stored ? JSON.parse(stored) : [];
+              localStorage.setItem('mosaic_ai_agents', JSON.stringify(agents.filter(a => a.id !== id)));
+              return { success: true };
+            } catch (e) { return { success: false, error: e.message }; }
+          },
+          clear: async () => {
+            try {
+              localStorage.removeItem('mosaic_ai_agents');
+              return { success: true };
+            } catch (e) { return { success: false, error: e.message }; }
+          },
+        },
+        themes: {
+          get: async () => localStorage.getItem('mosaic_theme') || 'dark',
+          set: async (theme) => { localStorage.setItem('mosaic_theme', theme); },
+        },
+        aiAgentsHistory: {
+          getAll: async () => [],
+          get: async () => ({ id: '', agentId: '' }),
+          save: async () => {},
+          delete: async () => {},
+          deleteAll: async () => {},
+        },
+        mcpAPI: {},
+        gmailAPI: {},
+        sandbox: {
+          getState: async () => ({ isSandbox: false }),
+        },
+        window: {
+          minimize: async () => {},
+          maximize: async () => {},
+          close: async () => window.close(),
+          isMaximized: async () => false,
+        },
+      };
+      console.log('[Web] electronAPI stub initialized');
+    </script>
+    
+    <!-- Vite entry point -->
+    <script type="module" src="/src/index.tsx"></script>
+  </body>
+</html>

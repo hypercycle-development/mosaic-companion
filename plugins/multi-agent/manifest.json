@@ -1,0 +1,9 @@
+{
+  "id": "multi-agent",
+  "version": "1.0.0",
+  "name": "Multi-Agent Orchestration",
+  "description": "Coordinate multiple AI agents in Parallel, Sequential, Collaborative, or Orchestrator modes",
+  "ipcNamespace": "multiagent",
+  "route": "mosaic://multiagent",
+  "icon": "users"
+}

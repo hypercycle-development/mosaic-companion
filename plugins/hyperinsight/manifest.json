@@ -1,0 +1,8 @@
+{
+  "id": "hyperinsight",
+  "version": "1.0.0",
+  "name": "HyperInsight",
+  "description": "HyperInsight Integration for Mosaic",
+  "ipcNamespace": "hyperinsight",
+  "route": "mosaic://hyperinsight"
+}

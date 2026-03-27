@@ -1,0 +1,9 @@
+{
+  "id": "cardano-wallet",
+  "version": "1.0.0",
+  "name": "Cardano Wallet",
+  "description": "Cardano wallet integration with HyperSharePass NFT-gated access for Midnight Network",
+  "ipcNamespace": "cardano",
+  "route": "mosaic://cardano",
+  "icon": "wallet"
+}

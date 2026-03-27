@@ -1,0 +1,9 @@
+{
+  "id": "eth-wallet",
+  "version": "1.0.0",
+  "name": "ETH/BASE Wallet",
+  "description": "Ethereum and BASE wallet integration with ANFE support",
+  "ipcNamespace": "ethwallet",
+  "route": "mosaic://ethwallet",
+  "icon": "wallet"
+}

@@ -1,0 +1,542 @@
+/* ===== CSS Variables — MosAIc Brand ===== */
+:root {
+  --color-bg: #0b0b0f;
+  --color-bg-card: #131318;
+  --color-bg-card-hover: #1a1a22;
+  --color-primary: #00ffc8;
+  --color-primary-dim: rgba(0, 255, 200, 0.15);
+  --color-primary-glow: rgba(0, 255, 200, 0.25);
+  --color-accent: #2dd4a8;
+  --color-text: #e8e8ec;
+  --color-text-muted: #71717a;
+  --color-border: #1e1e26;
+  --color-border-hover: #2a2a36;
+  --color-warning: #f59e0b;
+  --font-main:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===== Reset & Base ===== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-main);
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ===== Background Effect ===== */
+.bg-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+  overflow: hidden;
+}
+
+.bg-glow::before,
+.bg-glow::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(150px);
+  opacity: 0.15;
+}
+
+.bg-glow::before {
+  width: 600px;
+  height: 600px;
+  background: var(--color-primary);
+  top: -250px;
+  right: -150px;
+  animation: float 12s ease-in-out infinite;
+}
+
+.bg-glow::after {
+  width: 500px;
+  height: 500px;
+  background: var(--color-accent);
+  bottom: -200px;
+  left: -150px;
+  animation: float 15s ease-in-out infinite reverse;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(20px, -20px);
+  }
+}
+
+/* ===== Container ===== */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ===== Header ===== */
+header {
+  padding: 80px 0 40px;
+  text-align: center;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--color-text);
+  margin-bottom: 8px;
+  letter-spacing: -1px;
+}
+
+.logo-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  background: var(--color-primary);
+  border-radius: 10px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #0b0b0f;
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+
+.subtitle {
+  font-size: 1.3rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  margin-bottom: 16px;
+  font-style: italic;
+}
+
+.tagline {
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  max-width: 650px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
+
+/* ===== Section Title ===== */
+.section-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin: 48px 0 0;
+}
+
+.section-title span {
+  color: var(--color-primary);
+}
+
+/* ===== Platform Tabs ===== */
+.platform-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 48px 0 32px;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 26px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 50px;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: var(--font-main);
+}
+
+.tab-btn:hover {
+  background: var(--color-bg-card-hover);
+  color: var(--color-text);
+  border-color: var(--color-border-hover);
+}
+
+.tab-btn.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-dim);
+  color: var(--color-primary);
+}
+
+.tab-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ===== Install Sections ===== */
+.install-sections {
+  margin-bottom: 80px;
+}
+
+.install-section {
+  display: none;
+  animation: fadeIn 0.4s ease;
+}
+
+.install-section.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== Cards ===== */
+.card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 32px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+  transition: var(--transition);
+}
+
+.card:hover {
+  border-color: var(--color-border-hover);
+  transform: translateY(-2px);
+}
+
+.card h3 {
+  font-size: 1.4rem;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-text);
+}
+
+.card h3 .step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: var(--color-primary);
+  color: #0b0b0f;
+  border-radius: 50%;
+  font-size: 0.95rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.card h4 {
+  margin-top: 24px;
+  margin-bottom: 8px;
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.card p {
+  color: var(--color-text-muted);
+}
+
+.card p strong {
+  color: var(--color-text);
+}
+
+/* ===== Code Blocks ===== */
+.code-block {
+  background: #08080c;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 20px;
+  margin: 16px 0;
+  position: relative;
+  overflow-x: auto;
+}
+
+.code-block code {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--color-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.copy-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 6px 14px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-family: var(--font-main);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.copy-btn:hover {
+  background: var(--color-primary);
+  color: #0b0b0f;
+  border-color: var(--color-primary);
+}
+
+/* ===== Lists ===== */
+.steps-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.steps-list li {
+  position: relative;
+  padding-left: 28px;
+  margin-bottom: 12px;
+  color: var(--color-text-muted);
+}
+
+.steps-list li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: var(--color-primary);
+  font-weight: bold;
+}
+
+.steps-list li strong {
+  color: var(--color-text);
+}
+
+/* ===== Download Buttons ===== */
+.download-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.download-btn {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  background: var(--color-bg-card-hover);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  text-decoration: none;
+  font-weight: 600;
+  transition: var(--transition);
+}
+
+.download-btn:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 0 24px rgba(0, 255, 200, 0.1);
+}
+
+.download-btn .icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-dim);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.download-btn .icon svg {
+  width: 24px;
+  height: 24px;
+  fill: var(--color-primary);
+}
+
+.download-btn .info {
+  flex: 1;
+}
+
+.download-btn .info .arch {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+.download-btn.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  filter: grayscale(1);
+  cursor: not-allowed;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  user-select: none;
+}
+
+/* ===== Notice Box ===== */
+.notice {
+  display: flex;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--color-primary-dim);
+  border: 1px solid rgba(0, 255, 200, 0.2);
+  border-radius: var(--radius-sm);
+  margin: 20px 0;
+}
+
+.notice.warning {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.notice-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.notice p {
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+}
+
+/* ===== Footer ===== */
+footer {
+  text-align: center;
+  padding: 40px 0;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+footer a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+footer a:hover {
+  color: var(--color-accent);
+}
+
+/* ===== Specialized Releases Section ===== */
+.specialized-releases {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin: auto 0;
+  flex-wrap: wrap;
+  animation: fadeIn 0.4s ease;
+  font-size: 1rem;
+}
+
+.specialized-label {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.specialized-links {
+  display: inline;
+}
+
+.specialized-link {
+  color: var(--color-text);
+  text-decoration: underline;
+  font-weight: 600;
+  transition: var(--transition);
+}
+
+.specialized-link:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  header {
+    padding: 60px 0 32px;
+  }
+
+  .logo {
+    font-size: 2.2rem;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+    border-radius: 8px;
+  }
+
+  .tagline {
+    font-size: 0.92rem;
+  }
+
+  .specialized-releases {
+    padding: 0 20px;
+  }
+
+  .specialized-select {
+    width: 100%;
+  }
+
+  .go-btn {
+    width: 100%;
+  }
+
+  .card {
+    padding: 24px;
+  }
+
+  .platform-tabs {
+    gap: 8px;
+  }
+
+  .tab-btn {
+    padding: 10px 18px;
+    font-size: 0.85rem;
+  }
+
+  .download-grid {
+    grid-template-columns: 1fr;
+  }
+}
