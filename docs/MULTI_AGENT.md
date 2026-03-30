@@ -2,6 +2,101 @@
 
 > Integrate multi-agent AI workflows into your Mosaic Companion app
 
+---
+
+## ⚡ Latest Upgrade: Real-Time Sequential Streaming
+
+**Version:** March 2026
+
+This upgrade transforms the sequential execution model from batched rendering to **true real-time streaming**.
+
+### What Changed
+
+**Before:**
+- Agents executed sequentially but rendered at the end
+- UI showed a single batched response after all agents completed
+- All responses appeared together
+
+**After:**
+- Each agent renders immediately after its execution completes
+- Users see a live multi-agent conversation unfold
+- "Thinking → Response" replacement per agent
+
+### Execution Flow
+
+```
+1. Insert "thinking" placeholder message
+   └─ "🧠 Agent 1 (1/3) thinking..."
+   
+2. Run agent and get response
+
+3. Replace thinking message with actual response
+   └─ Agent 1's response now visible
+
+4. Pass context to next agent
+   └─ Agent 2 sees Agent 1's output
+
+5. Repeat until all agents complete
+```
+
+### Key Rule
+
+**All rendering MUST happen inside the execution loop.**
+
+```typescript
+for (let i = 0; i < agents.length; i++) {
+  // 1. Insert thinking message
+  setSessions(prev => [...prev, thinkingMessage]);
+  await new Promise(r => setTimeout(r, 0)); // Force render
+
+  // 2. Run agent
+  const response = await runAgent(agent, context);
+
+  // 3. Replace thinking with response (IMMEDIATELY)
+  setSessions(prev => prev.map(msg => 
+    msg.id === thinkingId 
+      ? { ...msg, content: response, status: "done" }
+      : msg
+  ));
+  await new Promise(r => setTimeout(r, 0)); // Force render
+
+  // 4. Pass context to next agent
+  previousOutputs.push({ agentName: agent.name, output: response });
+}
+```
+
+### ⚠️ Anti-Patterns (DO NOT USE)
+
+- ❌ `setMessages(fullArray)` - Batching all responses before rendering
+- ❌ `useEffect(() => { setMessages(results) })` - Overwriting chat after execution
+- ❌ Waiting for full loop completion before updating UI
+- ❌ Merging all agent responses into one message
+
+### Test Case
+
+**Run 3 agents in sequential mode:**
+
+Expected:
+```
+Agent 1 appears → Agent 2 appears → Agent 3 appears
+```
+
+NOT:
+```
+All responses appear at once
+```
+
+### Integration with Agent Soul + Memory
+
+Each agent receives:
+- Its own Soul system prompt (personality, reasoning style)
+- Memory context from previous sessions
+- Previous agent outputs for critique/refinement
+
+---
+
+## Quick Start
+
 ## Quick Start
 
 ```tsx

@@ -62,6 +62,10 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   agentId: string;
+  /** Multi-agent status: "thinking" | "done" | "error" */
+  status?: "thinking" | "done" | "error";
+  /** Agent name for multi-agent display */
+  agentName?: string;
   isStreaming?: boolean;
   /** UI blocks returned by a tool call (rendered by ToolUIRenderer) */
   uiBlocks?: ToolUIBlock[];

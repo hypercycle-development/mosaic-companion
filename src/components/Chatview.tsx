@@ -973,11 +973,206 @@ export const ChatView: React.FC<ChatViewProps> = ({
         }
       };
 
+      // ============================================================
+      // SEQUENTIAL MODE: Stream each agent's response in real-time
+      //
+      // IMPORTANT: Do not batch responses. Each agent must render
+      // immediately after execution. This is the core architectural pattern.
+      // ============================================================
+      if (mode === "sequential") {
+        // Create session and add user message
+        const session: ChatSession = {
+          id: sessionId,
+          agentId: "multi-agent",
+          title: prompt.slice(0, 40),
+          messages: [userMessage],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+
+        setSessions((prev) => [session, ...prev]);
+        setActiveSessionId(session.id);
+
+        let previousOutputs: Array<{ agentName: string; output: string }> = [];
+
+        for (let i = 0; i < selectedAgents.length; i++) {
+          const agent = selectedAgents[i];
+          const step = i + 1;
+          const total = selectedAgents.length;
+
+          console.log(`[Multi-Agent] START ${agent.name} (${step}/${total})`);
+
+          // Update status
+          setMultiAgentStatus(prev => prev ? {
+            ...prev,
+            currentAgentIndex: step,
+            currentAgentName: agent.name
+          } : null);
+
+          // 1. Create "thinking" message
+          const thinkingId = `msg-thinking-${Date.now()}-${i}`;
+          const thinkingMessage: ChatMessage = {
+            id: thinkingId,
+            role: "assistant",
+            content: `🧠 ${agent.name} (${step}/${total}) thinking...`,
+            timestamp: Date.now(),
+            agentId: agent.id,
+            status: "thinking",
+          };
+
+          // 2. Add thinking message to session
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === session.id
+                ? { ...s, messages: [...s.messages, thinkingMessage], updatedAt: Date.now() }
+                : s
+            )
+          );
+
+          // Force UI render
+          await new Promise((r) => setTimeout(r, 0));
+
+          try {
+            // 3. Build context from previous outputs
+            const historySection = previousOutputs.length > 0
+              ? `\n\n=== PREVIOUS AGENT OUTPUTS ===\n${previousOutputs.map((h, idx) =>
+                  `--- Agent ${idx + 1}: ${h.agentName} ---\n${h.output}`
+                ).join('\n\n')}`
+              : '';
+
+            const collaborativePrompt = `You are ${agent.name}.
+
+You have:
+- A unique personality ("soul")
+- Your own memory context
+- A specialized reasoning style
+
+${historySection}
+
+=== ORIGINAL USER PROMPT ===
+${prompt}
+
+Your task:
+1. Analyze the original prompt
+2. Review previous agent outputs (if any)
+3. Provide your own answer
+4. Critique previous agents (if any)
+5. Improve the overall solution
+
+IMPORTANT: Respond naturally, NOT as JSON.`;
+
+            const baseMessages: ChatMessage[] = [
+              {
+                id: `context-${Date.now()}-${i}`,
+                role: 'user',
+                content: collaborativePrompt,
+                timestamp: Date.now(),
+                agentId: agent.id,
+              },
+            ];
+
+            // Enrich with Soul context (replicate enrichWithSoul from AgentOrchestrationService)
+            let messages = baseMessages;
+            try {
+              const { AgentSoulService } = await import('../services/AgentSoulService');
+              const soul = await AgentSoulService.getSoul(agent.id);
+              if (soul) {
+                const systemPrompt = AgentSoulService.generateSystemPrompt(soul);
+                const soulSystemMessage: ChatMessage = {
+                  id: `soul-${Date.now()}-${i}`,
+                  role: 'system',
+                  content: systemPrompt,
+                  timestamp: Date.now(),
+                  agentId: agent.id
+                };
+                messages = [soulSystemMessage, ...baseMessages];
+              }
+            } catch (e) {
+              console.log(`[Multi-Agent] No soul context for agent ${agent.id}`);
+            }
+
+            // 4. Run the agent
+            const response = await AIService.sendMessage(agent, messages, {
+              onToken: () => {}, // Silent for now
+              onComplete: () => {},
+              onError: (error) => { throw error; },
+            });
+
+            // Sanitize response (remove any JSON artifacts)
+            const cleanResponse = response
+              .replace(/^```json\n[\s\S]*?\n```/g, '')
+              .replace(/^{[\s\S]*}$/g, '')
+              .trim() || response;
+
+            console.log(`[Multi-Agent] ${agent.name} completed (${cleanResponse.length} chars)`);
+
+            // 5. Replace thinking message with response
+            setSessions((prev) =>
+              prev.map((s) =>
+                s.id === session.id
+                  ? {
+                      ...s,
+                      messages: s.messages.map((msg) =>
+                        msg.id === thinkingId
+                          ? { ...msg, content: cleanResponse, status: "done", agentName: agent.name }
+                          : msg
+                      ),
+                      updatedAt: Date.now(),
+                    }
+                  : s
+              )
+            );
+
+            // 6. Pass context to next agent
+            previousOutputs.push({ agentName: agent.name, output: cleanResponse });
+
+            // Force UI update
+            await new Promise((r) => setTimeout(r, 0));
+
+          } catch (error) {
+            console.error(`[Multi-Agent] ${agent.name} error:`, error);
+
+            // Replace with error message
+            setSessions((prev) =>
+              prev.map((s) =>
+                s.id === session.id
+                  ? {
+                      ...s,
+                      messages: s.messages.map((msg) =>
+                        msg.id === thinkingId
+                          ? { ...msg, content: `Error: ${(error as Error).message}`, status: "error" }
+                          : msg
+                      ),
+                      updatedAt: Date.now(),
+                    }
+                  : s
+              )
+            );
+          }
+        }
+
+        // Show execution viewer with results
+        const executionResults: AgentExecutionResult[] = previousOutputs.map((r, idx) => ({
+          agentId: selectedAgents[idx].id,
+          agentName: selectedAgents[idx].name,
+          output: r.output,
+          timestamp: Date.now(),
+          duration: 0,
+        }));
+        setAgentExecutionResults(executionResults);
+        setShowExecutionViewer(true);
+
+        setIsGenerating(false);
+        setMultiAgentStatus(null);
+        setShowMultiAgentPanel(false);
+        return;
+      }
+
+      // ============================================================
+      // OTHER MODES: Parallel, Collaborative, Orchestrator (original behavior)
+      // ============================================================
       let result: { finalOutput: string; responses?: Array<{ agentId: string; agentName: string; response: string; duration: number; timestamp: number }> };
       switch (mode) {
-        case "sequential":
-          result = await AgentOrchestrationService.runSequential(selectedAgents, prompt, orchestrationCallbacks);
-          break;
         case "parallel":
           result = await AgentOrchestrationService.runParallel(selectedAgents, prompt, orchestrationCallbacks);
           break;
@@ -1336,7 +1531,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       `}
                       >
                         <div className="break-words text-[15px] leading-loose prose prose-invert prose-sm max-w-none prose-p:my-3 prose-headings:my-4 prose-ul:my-3 prose-li:my-2 prose-hr:my-4">
-                          {message.role === "assistant" ? (
+                          {/* Thinking message - show spinner and status */}
+                          {message.status === "thinking" ? (
+                            <div className="flex items-center gap-2 text-amber-400">
+                              <Loader2 size={16} className="animate-spin" />
+                              <span>{message.content}</span>
+                            </div>
+                          ) : message.role === "assistant" ? (
                             <RenderMessageContent content={message.content} role="assistant" />
                           ) : (
                             <RenderMessageContent content={message.content} role="user" />
