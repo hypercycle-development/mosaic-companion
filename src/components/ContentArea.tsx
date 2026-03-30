@@ -6,6 +6,7 @@ import {
   INTERNAL_MOSAICBOT_URL,
   INTERNAL_MULTI_CHAT_URL,
   INTERNAL_SETTINGS_URL,
+  INTERNAL_OLLAMA_URL,
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
   INTERNAL_HYPERINSIGHT_URL,
@@ -25,6 +26,7 @@ import { HyperInsightView } from "../../plugins/hyperinsight/renderer/HyperInsig
 import { SandboxPage } from "./SandboxPage";
 import { ToolPanelView } from "./ToolPanelView";
 import { OnboardingPage } from "./OnboardingPage";
+import { OllamaPage } from "./OllamaPage";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
 
@@ -345,6 +347,22 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
         customGreeting={settings.customGreeting}
         onOpenCommandPalette={settings.onOpenCommandPalette}
       />
+    );
+  }
+
+  if (url === INTERNAL_OLLAMA_URL) {
+    useEffect(() => {
+      onUpdateTab({
+        title: "Ollama",
+        isLoading: false,
+        favicon: undefined,
+      });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
+        <OllamaPage />
+      </div>
     );
   }
 
