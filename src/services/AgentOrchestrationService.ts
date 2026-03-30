@@ -5,6 +5,62 @@ import { AIAgentConfig, ChatMessage } from '../types/ai';
 import { AIService } from './AIService';
 import { AgentSoulService } from './AgentSoulService';
 
+// =============================================================================
+// Enhanced Sequential Execution with Structured Prompt Injection
+// =============================================================================
+
+/** History entry for sequential mode */
+export interface AgentHistoryEntry {
+  agentId: string;
+  agentName: string;
+  output: string;
+  timestamp: number;
+}
+
+/** Generate the collaborative system prompt for sequential reasoning */
+function generateCollaborativePrompt(
+  agentName: string,
+  originalPrompt: string,
+  history: AgentHistoryEntry[]
+): string {
+  const historySection = history.length > 0
+    ? `\n\n=== PREVIOUS AGENT OUTPUTS ===\n${history.map((h, i) =>
+        `--- Agent ${i + 1}: ${h.agentName} ---\n${h.output}`
+      ).join('\n\n')}`
+    : '';
+
+  return `You are ${agentName}.
+
+You have:
+- A unique personality ("soul")
+- Your own memory context  
+- A specialized reasoning style
+
+${historySection}
+
+=== ORIGINAL USER PROMPT ===
+${originalPrompt}
+
+Your task:
+1. Analyze the original prompt
+2. Review previous agent outputs (if any)
+3. Provide your own answer
+4. Critique previous agents (if any)
+5. Improve the overall solution
+
+Rules:
+- Do NOT repeat prior answers
+- Add new value
+- Be concise but insightful
+
+Output format (JSON):
+{
+  "answer": "your answer here",
+  "critique": "critique of previous agents (or 'none' if first)",
+  "improvements": "specific improvements you contribute"
+}`;
+}
+
 // Extend messages with Soul context for each agent
 async function enrichWithSoul(agent: AIAgentConfig, messages: ChatMessage[]): Promise<ChatMessage[]> {
   try {
@@ -46,7 +102,8 @@ export class AgentOrchestrationService {
   static async runSequential(
     agents: AIAgentConfig[],
     prompt: string,
-    callbacks?: OrchestrationCallbacks
+    callbacks?: OrchestrationCallbacks,
+    previousHistory?: AgentHistoryEntry[]
   ): Promise<OrchestrationResult> {
     const startTime = Date.now();
     const responses: AgentResponse[] = [];
@@ -59,11 +116,26 @@ export class AgentOrchestrationService {
       callbacks?.onAgentStart?.(agent.id, agent.name, i + 1, agents.length);
 
       try {
+        // Build history from previous responses
+        const history: AgentHistoryEntry[] = previousHistory || responses.map(r => ({
+          agentId: r.agentId,
+          agentName: r.agentName,
+          output: r.response,
+          timestamp: r.timestamp,
+        }));
+
+        // Generate collaborative prompt with full context
+        const collaborativePrompt = generateCollaborativePrompt(
+          agent.name,
+          prompt,
+          history
+        );
+
         const baseMessages: ChatMessage[] = [
           {
             id: `context-${Date.now()}`,
             role: 'user',
-            content: currentInput,
+            content: collaborativePrompt,
             timestamp: Date.now(),
             agentId: agent.id,
           },
@@ -71,17 +143,6 @@ export class AgentOrchestrationService {
 
         // Enrich with Soul context
         const messages = await enrichWithSoul(agent, baseMessages);
-
-        if (i > 0 && responses.length > 0) {
-          const prevResponse = responses[responses.length - 1];
-          messages.unshift({
-            id: `prev-${Date.now()}`,
-            role: 'assistant',
-            content: `Previous agent (${prevResponse.agentName}) output:\n${prevResponse.response}`,
-            timestamp: Date.now() - 1,
-            agentId: agent.id,
-          });
-        }
 
         let fullResponse = '';
         const response = await AIService.sendMessage(agent, messages, {
