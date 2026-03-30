@@ -961,8 +961,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
             currentAgentName: agentName
           } : null);
         },
-        onAgentComplete: (agentId: string, agentName: string, response: string) => {
-          console.log(`[Multi-Agent] ${agentName} completed`);
+        onAgentComplete: (agentId: string, response: string, duration: number) => {
+          console.log(`[Multi-Agent] Agent completed in ${duration}ms`);
         },
         onIteration: (iteration: number, total: number) => {
           console.log(`[Multi-Agent] Iteration ${iteration}/${total}`);
