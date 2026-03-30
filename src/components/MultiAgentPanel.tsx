@@ -1,227 +1,394 @@
 /**
- * Multi-Agent Panel Component
- * Agent selection, status, and orchestration controls
+ * Multi-Agent Panel - Production-Ready Orchestration Control Tower
+ * Compact, clean, native-feeling multi-agent workflow management
  */
 
-import React, { useState, useEffect } from 'react';
-import { 
-  multiAgentService, 
-  Agent, 
-  OrchestrationMode,
-  MultiAgentState
-} from '../services/MultiAgentService';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Play,
+  Square,
+  Users,
+  ChevronDown,
+  ChevronRight,
+  CheckCircle2,
+  Circle,
+  Loader2,
+  AlertCircle,
+  Bot,
+  X,
+  Workflow,
+  Clock,
+  Zap,
+} from 'lucide-react';
 
-interface MultiAgentPanelProps {
-  onRun?: (agentIds: string[], prompt: string, mode: OrchestrationMode) => void;
-  onCollapse?: () => void;
-  initialSelected?: string[];
+// =============================================================================
+// Types
+// =============================================================================
+
+export type OrchestrationMode = 'parallel' | 'sequential' | 'collaborative' | 'orchestrator';
+
+export interface Agent {
+  id: string;
+  name: string;
+  role?: string;
+  status?: AgentStatus;
+  model?: string;
 }
+
+/** Extended agent with all required fields */
+export interface AgentWithStatus extends Agent {
+  role: string;
+  status: AgentStatus;
+}
+
+/** Convert app's AIAgentConfig to panel's Agent type */
+export const toPanelAgent = (agent: { id: string; name: string; model?: string; description?: string; role?: string; isActive?: boolean }): AgentWithStatus => ({
+  id: agent.id,
+  name: agent.name,
+  role: agent.role || agent.description || 'Agent',
+  status: 'ready',
+  model: agent.model,
+});
+
+export type AgentStatus = 'idle' | 'ready' | 'running' | 'done' | 'error';
+
+export interface MultiAgentPanelProps {
+  /** Callback when user clicks Run */
+  onRun?: (agentIds: string[], prompt: string, mode: OrchestrationMode) => void;
+  /** Callback when panel should collapse */
+  onCollapse?: () => void;
+  /** Pre-selected agent IDs */
+  initialSelected?: string[];
+  /** Available agents */
+  agents?: Agent[];
+}
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+const MODE_INFO: Record<OrchestrationMode, { label: string; description: string }> = {
+  parallel: { label: 'Parallel', description: 'All agents run simultaneously' },
+  sequential: { label: 'Sequential', description: 'Agents run one after another' },
+  collaborative: { label: 'Collaborative', description: 'Agents share context' },
+  orchestrator: { label: 'Orchestrator', description: 'Lead agent coordinates others' },
+};
+
+const MAX_VISIBLE_AGENTS = 6;
+
+// =============================================================================
+// Helper Components
+// =============================================================================
+
+/** Compact status indicator */
+const StatusDot = ({ status, size = 'sm' }: { status: AgentStatus; size?: 'sm' | 'md' }) => {
+  const sizeClass = size === 'sm' ? 'w-2 h-2' : 'w-2.5 h-2.5';
+  const colors: Record<AgentStatus, string> = {
+    idle: 'bg-gray-500',
+    ready: 'bg-emerald-500',
+    running: 'bg-amber-500 animate-pulse',
+    done: 'bg-emerald-400',
+    error: 'bg-red-500',
+  };
+  return <span className={`${sizeClass} rounded-full ${colors[status]}`} />;
+};
+
+/** Mode button */
+const ModeButton = ({
+  mode,
+  active,
+  onClick,
+}: {
+  mode: OrchestrationMode;
+  active: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    onClick={onClick}
+    className={`
+      px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200
+      ${
+        active
+          ? 'bg-indigo-600 text-white'
+          : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+      }
+    `}
+  >
+    {MODE_INFO[mode].label}
+  </button>
+);
+
+// =============================================================================
+// Main Component
+// =============================================================================
 
 export const MultiAgentPanel: React.FC<MultiAgentPanelProps> = ({
   onRun,
   onCollapse,
-  initialSelected = []
+  initialSelected = [],
+  agents: externalAgents,
 }) => {
-  const [agents, setAgents] = useState<Agent[]>([]);
+  // ---------------------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------------------
+  const [internalAgents, setInternalAgents] = useState<Agent[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>(initialSelected);
   const [mode, setMode] = useState<OrchestrationMode>('parallel');
   const [prompt, setPrompt] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [showModeInfo, setShowModeInfo] = useState(false);
 
-  // Load real agents from API
+  // Use external agents if provided, otherwise use internal
+  const agents = externalAgents?.length ? externalAgents : internalAgents;
+
+  // ---------------------------------------------------------------------------
+  // Effects
+  // ---------------------------------------------------------------------------
+
+  // Load agents from API
   useEffect(() => {
+    if (externalAgents?.length) return; // Skip if external agents provided
+
     const loadAgents = async () => {
       try {
         const realAgents = await window.electronAPI.aiAgents.get();
         const activeAgents = realAgents.filter((a: any) => a.isActive !== false);
-        
-        const mappedAgents: Agent[] = activeAgents.map((a: any) => ({
+
+        const mapped: Agent[] = activeAgents.map((a: any) => ({
           id: a.id,
           name: a.name,
           role: a.role || a.description || 'Agent',
           status: 'ready' as const,
-          model: a.model
+          model: a.model,
         }));
-        
-        setAgents(mappedAgents);
+
+        setInternalAgents(mapped);
       } catch (e) {
-        console.error('Failed to load agents:', e);
-        setAgents(multiAgentService.getAgents());
+        console.error('[MultiAgentPanel] Failed to load agents:', e);
+        // Fallback to empty - will show empty state
+        setInternalAgents([]);
       }
     };
+
     loadAgents();
-  }, []);
+  }, [externalAgents]);
 
-  useEffect(() => {
-    multiAgentService.addListener((state: MultiAgentState) => {
-      setIsRunning(state.isRunning);
-    });
-    return () => multiAgentService.removeListener(() => {});
-  }, []);
+  // ---------------------------------------------------------------------------
+  // Handlers
+  // ---------------------------------------------------------------------------
 
-  const toggleAgent = (id: string) => {
-    const agent = agents.find(a => a.id === id);
-    if (!agent) return;
+  const toggleAgent = useCallback((id: string) => {
+    if (isRunning) return; // Prevent changes while running
 
-    if (selectedIds.includes(id)) {
-      setSelectedIds(selectedIds.filter(i => i !== id));
-      multiAgentService.deselectAgent(id);
-    } else {
-      setSelectedIds([...selectedIds, id]);
-      multiAgentService.selectAgent(id);
-    }
-  };
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  }, [isRunning]);
 
-  const handleRun = async () => {
-    if (selectedIds.length === 0 || !prompt.trim()) return;
+  const handleRun = useCallback(async () => {
+    if (selectedIds.length === 0 || !prompt.trim() || isRunning) return;
 
     setIsRunning(true);
-    setIsExpanded(false); // Collapse locally to show running indicator
-    
-    // Notify parent to collapse the panel
     onCollapse?.();
-    
-    // Mark selected agents as running
-    selectedIds.forEach(id => {
-      const agent = agents.find(a => a.id === id);
-      if (agent) {
-        agent.status = 'running';
-      }
-    });
-    setAgents([...agents]);
 
     try {
-      const executeFn = async (agentId: string, prompt: string): Promise<string> => {
-        const agent = agents.find(a => a.id === agentId);
-        try {
-          const response = await fetch('http://localhost:11434/api/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: agent?.model || 'llama3',
-              prompt: prompt,
-              stream: false
-            })
-          });
-          const data = await response.json();
-          return data.response || `Response from ${agent?.name}`;
-        } catch (e) {
-          return `Error from ${agent?.name}: ${e}`;
-        }
-      };
-
-      await multiAgentService.runOrchestration(selectedIds, prompt, mode, executeFn);
-      onRun?.(selectedIds, prompt, mode);
+      onRun?.(selectedIds, prompt.trim(), mode);
     } finally {
-      setIsRunning(false);
-      setAgents(agents.map(a => ({
-        ...a,
-        status: selectedIds.includes(a.id) ? 'done' as const : a.status
-      })));
+      // Keep running state until parent updates
+      setTimeout(() => setIsRunning(false), 1500);
     }
-  };
+  }, [selectedIds, prompt, isRunning, mode, onRun, onCollapse]);
 
-  const getStatusIcon = (status: Agent['status']) => {
-    switch (status) {
-      case 'ready': return '●';
-      case 'running': return '⟳';
-      case 'idle': return '○';
-      case 'done': return '✓';
-      case 'error': return '✗';
-    }
-  };
+  const clearSelection = useCallback(() => {
+    setSelectedIds([]);
+  }, []);
 
-  const getStatusClass = (status: Agent['status']) => {
-    return `status-${status}`;
-  };
+  // ---------------------------------------------------------------------------
+  // Derived State
+  // ---------------------------------------------------------------------------
+
+  const selectedAgents = agents.filter((a) => selectedIds.includes(a.id));
+  const canRun = selectedIds.length > 0 && prompt.trim() && !isRunning;
+  const hasAgents = agents.length > 0;
+  const showMoreAgents = agents.length > MAX_VISIBLE_AGENTS;
+
+  // ---------------------------------------------------------------------------
+  // Render Helpers
+  // ---------------------------------------------------------------------------
+
+  const renderEmptyState = () => (
+    <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+      <Bot size={32} className="mb-3 opacity-50" />
+      <p className="text-sm">No agents available</p>
+      <p className="text-xs mt-1 opacity-70">Configure agents in Settings to get started</p>
+    </div>
+  );
+
+  const renderAgentChip = (agent: Agent, isSelected: boolean) => (
+    <button
+      key={agent.id}
+      onClick={() => toggleAgent(agent.id)}
+      disabled={isRunning}
+      className={`
+        flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-150
+        ${
+          isSelected
+            ? 'bg-indigo-900/40 border border-indigo-500/50 text-indigo-100'
+            : 'bg-gray-800/50 border border-gray-700/50 text-gray-300 hover:bg-gray-700/50'
+        }
+        ${isRunning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+      `}
+    >
+      <StatusDot status={agent.status} size="md" />
+      <span className="text-sm font-medium truncate max-w-[120px]">{agent.name}</span>
+      {isSelected && <CheckCircle2 size={14} className="text-indigo-400 ml-auto" />}
+    </button>
+  );
+
+  const renderRunningIndicator = () => (
+    <div
+      onClick={() => setIsExpanded(true)}
+      className="flex items-center gap-3 px-4 py-3 bg-emerald-900/20 border border-emerald-500/30 rounded-lg cursor-pointer hover:bg-emerald-900/30 transition-colors"
+    >
+      <Loader2 size={16} className="text-emerald-400 animate-spin" />
+      <div className="flex-1">
+        <span className="text-sm font-medium text-emerald-100">
+          Running {selectedIds.length} agents
+        </span>
+        <span className="text-xs text-emerald-400/70 ml-2 capitalize">{mode}</span>
+      </div>
+      <ChevronDown size={14} className="text-emerald-400/70" />
+    </div>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
-    <div className="multi-agent-panel">
-      {/* Collapsed state: Show green running indicator */}
-      {!isExpanded && (
-        <div className="running-indicator" onClick={() => setIsExpanded(true)}>
-          <span className="green-light"></span>
-          <span className="indicator-text">
-            Multi-Agent Running ({selectedIds.length} agents)
-          </span>
-          <span className="expand-hint">Click to expand</span>
-        </div>
-      )}
+    <div className="bg-gray-900/95 backdrop-blur-sm">
+      {/* Collapsed Running State */}
+      {!isExpanded && isRunning && renderRunningIndicator()}
 
-      {/* Expanded state: Show full configuration */}
+      {/* Expanded Panel */}
       {isExpanded && (
-        <>
-          <div className="panel-header">
-            <h3>Multi-Agent Orchestration</h3>
-            <div className="agent-count">
-              {selectedIds.length} selected
-            </div>
-          </div>
-
-          <div className="mode-selector">
-            <label>Mode:</label>
-            <div className="mode-buttons">
-              {(['parallel', 'sequential', 'collaborative', 'orchestrator'] as OrchestrationMode[]).map(m => (
-                <button
-                  key={m}
-                  className={`mode-btn ${mode === m ? 'active' : ''}`}
-                  onClick={() => setMode(m)}
-                >
-                  {m.charAt(0).toUpperCase() + m.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="agent-list">
-            {agents.map(agent => (
-              <div
-                key={agent.id}
-                className={`agent-chip ${selectedIds.includes(agent.id) ? 'selected' : ''}`}
-                onClick={() => toggleAgent(agent.id)}
-              >
-                <span className={`status-icon ${getStatusClass(agent.status)}`}>
-                  {getStatusIcon(agent.status)}
+        <div className="p-4 space-y-4">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Workflow size={18} className="text-indigo-400" />
+              <h3 className="text-sm font-semibold text-gray-100">Multi-Agent Control</h3>
+              {selectedIds.length > 0 && (
+                <span className="px-2 py-0.5 text-xs font-medium bg-indigo-600/20 text-indigo-300 rounded-full">
+                  {selectedIds.length}
                 </span>
-                <span className="agent-name">{agent.name}</span>
-                <span className="agent-role">{agent.role}</span>
-                {agent.model && <span className="agent-model">{agent.model}</span>}
-              </div>
-            ))}
-          </div>
-
-          <div className="prompt-input">
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Enter your prompt for the agents..."
-              rows={3}
-            />
-          </div>
-
-          <div className="panel-actions">
+              )}
+            </div>
             <button
-              className="run-btn"
-              onClick={handleRun}
-              disabled={selectedIds.length === 0 || !prompt.trim() || isRunning}
+              onClick={onCollapse}
+              className="p-1 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
+              title="Collapse"
             >
-              {isRunning ? 'Running...' : `Run (${selectedIds.length})`}
+              <ChevronDown size={16} className="rotate-180" />
             </button>
           </div>
 
-          <div className="mode-descriptions">
-            <details>
-              <summary>Mode Info</summary>
-              <div className="mode-info">
-                <strong>Parallel:</strong> All agents run simultaneously
-                <strong>Sequential:</strong> Agents run one after another
-                <strong>Collaborative:</strong> Agents share context
-                <strong>Orchestrator:</strong> Lead agent coordinates others
+          {/* Mode Selector */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                Orchestration Mode
+              </span>
+              <button
+                onClick={() => setShowModeInfo(!showModeInfo)}
+                className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1"
+              >
+                <Zap size={12} />
+                Info
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(MODE_INFO) as OrchestrationMode[]).map((m) => (
+                <ModeButton key={m} mode={m} active={mode === m} onClick={() => setMode(m)} />
+              ))}
+            </div>
+            {showModeInfo && (
+              <div className="text-xs text-gray-500 bg-gray-800/50 rounded-lg p-3">
+                {MODE_INFO[mode].description}
               </div>
-            </details>
+            )}
           </div>
-        </>
+
+          {/* Agent Selection */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                Select Agents
+              </span>
+              {selectedIds.length > 0 && (
+                <button
+                  onClick={clearSelection}
+                  className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1"
+                >
+                  <X size={12} />
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {!hasAgents ? (
+              renderEmptyState()
+            ) : (
+              <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto">
+                {agents.slice(0, MAX_VISIBLE_AGENTS).map((agent) =>
+                  renderAgentChip(agent, selectedIds.includes(agent.id))
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Prompt Input */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+              Prompt
+            </label>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="What should the agents do?"
+              disabled={isRunning}
+              rows={2}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 disabled:opacity-50"
+            />
+          </div>
+
+          {/* Run Button */}
+          <button
+            onClick={handleRun}
+            disabled={!canRun}
+            className={`
+              w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200
+              ${
+                canRun
+                  ? 'bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-[1.02] shadow-lg shadow-indigo-500/20'
+                  : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+              }
+            `}
+          >
+            {isRunning ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Running...
+              </>
+            ) : (
+              <>
+                <Play size={16} />
+                Run {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}
+              </>
+            )}
+          </button>
+        </div>
       )}
     </div>
   );

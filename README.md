@@ -8,6 +8,15 @@ This contains everything you need to run your app locally.
 
 View your app in AI Studio: <https://ai.studio/apps/drive/1G6opS0oqO9Ygn97nFvJGFQJakcx1piny>
 
+## Features
+
+- 💬 **AI Chat** - Gemini-powered conversations with persistent sessions
+- 🤖 **Multi-Agent Orchestration** - Run multiple AI agents in parallel, sequential, or collaborative modes
+- 📧 **Gmail Integration** - Send emails directly from the app
+- 🔐 **Vault** - Secure credential storage
+- 🌐 **Web3** - Blockchain interactions
+- 🎨 **Tool UI** - Beautiful tool output rendering
+
 ## Run Locally
 
 **Prerequisites:** Node.js v20+
@@ -60,3 +69,19 @@ Or manually:
 
 - `./setup.sh` - Automated setup (installs dependencies, creates .env.local)
 - `./start.sh` - Quick start script (installs dependencies if needed, then starts the app)
+
+## Documentation
+
+### Core Documentation
+- [docs/README.md](docs/README.md) - **Start here** - Complete system documentation
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Technical architecture deep-dive
+- [docs/INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) - HyperCycle developer integration
+
+### Component Guides
+- [docs/MULTI_AGENT.md](docs/MULTI_AGENT.md) - Multi-agent integration guide
+- [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) - File structure reference
+
+### Feature Guides
+- [docs/vault.md](docs/vault.md) - Vault setup and usage
+- [docs/GMAIL_SETUP.md](docs/GMAIL_SETUP.md) - Gmail API configuration
+- [docs/build.md](docs/build.md) - Build and deployment
