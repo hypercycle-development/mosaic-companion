@@ -8,13 +8,16 @@ import { AgentSoulService } from './AgentSoulService';
 // Extend messages with Soul context for each agent
 async function enrichWithSoul(agent: AIAgentConfig, messages: ChatMessage[]): Promise<ChatMessage[]> {
   try {
-    const soulContext = await AgentSoulService.getSoulContext(agent.id);
-    if (soulContext) {
+    const soul = await AgentSoulService.getSoul(agent.id);
+    if (soul) {
+      // Generate system prompt from soul config
+      const systemPrompt = AgentSoulService.generateSystemPrompt(soul);
+      
       // Add system message with Soul context at the beginning
       const soulSystemMessage: ChatMessage = {
         id: `soul-${Date.now()}`,
         role: 'system',
-        content: soulContext,
+        content: systemPrompt,
         timestamp: Date.now(),
         agentId: agent.id
       };
