@@ -20,6 +20,7 @@ import {
   Thermometer,
   Zap,
   Info,
+  Brain,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -30,6 +31,7 @@ import {
 } from "../types/ai";
 import { AIService } from "../services/AIService";
 import GmailClient from "./GmailClient";
+import { AgentSoulSettings } from "./AgentSoulSettings";
 import { useTheme } from "../ThemeProvider";
 import { ThemeKey } from "../themes";
 
@@ -99,6 +101,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     >
   >({});
   const [nameErrors, setNameErrors] = useState<Record<string, string>>({});
+  const [agentSoulTab, setAgentSoulTab] = useState<Record<string, "config" | "soul">>({});
 
   const { themes, themeKey, setThemeKey } = useTheme();
 
@@ -1070,6 +1073,45 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                             {testResult.message}
                           </p>
                         )}
+
+                        {/* Agent Soul Tab */}
+                        <div className="mt-4 pt-4 border-t border-gray-800">
+                          <div className="flex items-center gap-2 mb-3">
+                            <button
+                              onClick={() => setAgentSoulTab(prev => ({ ...prev, [agent.id]: "config" }))}
+                              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                                (agentSoulTab[agent.id] || "config") === "config"
+                                  ? "bg-indigo-600 text-white"
+                                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                              }`}
+                            >
+                              Config
+                            </button>
+                            <button
+                              onClick={() => setAgentSoulTab(prev => ({ ...prev, [agent.id]: "soul" }))}
+                              className={`px-3 py-1.5 text-sm rounded-lg transition-colors flex items-center gap-1 ${
+                                agentSoulTab[agent.id] === "soul"
+                                  ? "bg-indigo-600 text-white"
+                                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                              }`}
+                            >
+                              <Brain size={14} />
+                              Soul
+                            </button>
+                          </div>
+                          
+                          {agentSoulTab[agent.id] === "soul" && (
+                            <div className="bg-gray-950 rounded-lg p-3 border border-gray-800">
+                              <AgentSoulSettings
+                                agentId={agent.id}
+                                agentName={agent.name}
+                                onSave={() => {
+                                  toast.success("Agent soul saved");
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
