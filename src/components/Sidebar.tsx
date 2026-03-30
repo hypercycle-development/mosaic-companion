@@ -38,7 +38,6 @@ import {
   INTERNAL_MOSAICBOT_URL,
   INTERNAL_MULTI_CHAT_URL,
   INTERNAL_SETTINGS_URL,
-  INTERNAL_OLLAMA_URL,
   INTERNAL_CHAT_URL,
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
@@ -254,12 +253,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: "Configuration",
       icon: "Settings",
       url: INTERNAL_SETTINGS_URL,
-    },
-    {
-      id: "ollama",
-      label: "Ollama",
-      icon: "Server",
-      url: INTERNAL_OLLAMA_URL,
     },
   ];
 
