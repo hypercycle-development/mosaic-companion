@@ -133,11 +133,20 @@ export const MultiAgentPanel: React.FC<MultiAgentPanelProps> = ({
   // ---------------------------------------------------------------------------
   const [internalAgents, setInternalAgents] = useState<Agent[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>(initialSelected);
-  const [mode, setMode] = useState<OrchestrationMode>('parallel');
+  const [mode, setMode] = useState<OrchestrationMode>(() => {
+    // Load persisted mode from localStorage
+    const saved = localStorage.getItem('multiAgentMode');
+    return (saved as OrchestrationMode) || 'parallel';
+  });
   const [prompt, setPrompt] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
   const [showModeInfo, setShowModeInfo] = useState(false);
+
+  // Persist mode choice to localStorage
+  useEffect(() => {
+    localStorage.setItem('multiAgentMode', mode);
+  }, [mode]);
 
   // Use external agents if provided, otherwise use internal
   const agents = externalAgents?.length ? externalAgents : internalAgents;

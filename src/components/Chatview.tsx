@@ -28,6 +28,7 @@ import {
   PROVIDER_INFO,
 } from "../types/ai";
 import { MultiAgentPanel, toPanelAgent } from "./MultiAgentPanel";
+import { MultiAgentExecutionViewer, AgentExecutionResult } from "./MultiAgentExecutionViewer";
 import { AgentOrchestrationService } from "../services/AgentOrchestrationService";
 import { AIService } from "../services/AIService";
 import {
@@ -292,6 +293,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
     currentAgentIndex: number;
     currentAgentName: string;
   } | null>(null);
+  // Multi-agent execution results for viewer
+  const [agentExecutionResults, setAgentExecutionResults] = useState<AgentExecutionResult[]>([]);
+  const [showExecutionViewer, setShowExecutionViewer] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showAgentSelector, setShowAgentSelector] = useState(false);
@@ -969,7 +973,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         }
       };
 
-      let result: { finalOutput: string };
+      let result: { finalOutput: string; responses?: Array<{ agentId: string; agentName: string; response: string; duration: number; timestamp: number }> };
       switch (mode) {
         case "sequential":
           result = await AgentOrchestrationService.runSequential(selectedAgents, prompt, orchestrationCallbacks);
@@ -987,6 +991,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
         default:
           result = { finalOutput: "Unknown orchestration mode" };
       }
+
+      // Convert responses to execution results for viewer
+      const executionResults: AgentExecutionResult[] = (result.responses || []).map(r => ({
+        agentId: r.agentId,
+        agentName: r.agentName,
+        output: r.response,
+        timestamp: r.timestamp,
+        duration: r.duration,
+      }));
+
+      // Store results and show viewer
+      setAgentExecutionResults(executionResults);
+      setShowExecutionViewer(true);
 
       // Create session
       const session: ChatSession = {
@@ -1408,6 +1425,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
               agents={activeAgents.map(toPanelAgent)}
               onCollapse={() => setShowMultiAgentPanel(false)}
               onRun={handleMultiAgentRun}
+            />
+          </div>
+        )}
+
+        {/* Multi-Agent Execution Viewer */}
+        {showExecutionViewer && agentExecutionResults.length > 0 && (
+          <div className="shrink-0 border-b border-gray-800 p-4">
+            <MultiAgentExecutionViewer
+              results={agentExecutionResults}
+              onClose={() => setShowExecutionViewer(false)}
             />
           </div>
         )}
