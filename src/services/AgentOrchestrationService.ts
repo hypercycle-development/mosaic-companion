@@ -3,6 +3,28 @@
 
 import { AIAgentConfig, ChatMessage } from '../types/ai';
 import { AIService } from './AIService';
+import { AgentSoulService } from './AgentSoulService';
+
+// Extend messages with Soul context for each agent
+async function enrichWithSoul(agent: AIAgentConfig, messages: ChatMessage[]): Promise<ChatMessage[]> {
+  try {
+    const soulContext = await AgentSoulService.getSoulContext(agent.id);
+    if (soulContext) {
+      // Add system message with Soul context at the beginning
+      const soulSystemMessage: ChatMessage = {
+        id: `soul-${Date.now()}`,
+        role: 'system',
+        content: soulContext,
+        timestamp: Date.now(),
+        agentId: agent.id
+      };
+      return [soulSystemMessage, ...messages];
+    }
+  } catch (e) {
+    console.log(`[Soul] No soul context for agent ${agent.id}`);
+  }
+  return messages;
+}
 import {
   OrchestrationMode,
   AggregationStrategy,
@@ -34,7 +56,7 @@ export class AgentOrchestrationService {
       callbacks?.onAgentStart?.(agent.id, agent.name, i + 1, agents.length);
 
       try {
-        const messages: ChatMessage[] = [
+        const baseMessages: ChatMessage[] = [
           {
             id: `context-${Date.now()}`,
             role: 'user',
@@ -43,6 +65,9 @@ export class AgentOrchestrationService {
             agentId: agent.id,
           },
         ];
+
+        // Enrich with Soul context
+        const messages = await enrichWithSoul(agent, baseMessages);
 
         if (i > 0 && responses.length > 0) {
           const prevResponse = responses[responses.length - 1];
@@ -124,7 +149,7 @@ export class AgentOrchestrationService {
       callbacks?.onAgentStart?.(agent.id, agent.name, index + 1, agents.length);
 
       try {
-        const messages: ChatMessage[] = [
+        const baseMessages: ChatMessage[] = [
           {
             id: `msg-${Date.now()}-${index}`,
             role: 'user',
@@ -133,6 +158,9 @@ export class AgentOrchestrationService {
             agentId: agent.id,
           },
         ];
+
+        // Enrich with Soul context
+        const messages = await enrichWithSoul(agent, baseMessages);
 
         let fullResponse = '';
         const response = await AIService.sendMessage(agent, messages, {
@@ -334,7 +362,7 @@ Create a plan to divide this task among the agents.`;
       callbacks?.onAgentStart?.(worker.id, worker.name, i + 2, workers.length + 2);
 
       try {
-        const messages: ChatMessage[] = [
+        const baseMessages: ChatMessage[] = [
           {
             id: `worker-${i}-${Date.now()}`,
             role: 'user',
@@ -343,6 +371,9 @@ Create a plan to divide this task among the agents.`;
             agentId: worker.id,
           },
         ];
+
+        // Enrich with Soul context
+        const messages = await enrichWithSoul(worker, baseMessages);
 
         let workerResponse = '';
         const response = await AIService.sendMessage(worker, messages, {

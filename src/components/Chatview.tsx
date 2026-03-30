@@ -284,6 +284,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  // Multi-agent status tracking
+  const [multiAgentStatus, setMultiAgentStatus] = useState<{
+    active: boolean;
+    mode: string;
+    totalAgents: number;
+    currentAgentIndex: number;
+    currentAgentName: string;
+  } | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showAgentSelector, setShowAgentSelector] = useState(false);
@@ -931,24 +939,50 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setInput("");
     setIsGenerating(true);
 
+    // Set multi-agent status
+    setMultiAgentStatus({
+      active: true,
+      mode,
+      totalAgents: agentIds.length,
+      currentAgentIndex: 1,
+      currentAgentName: agents.find(a => a.id === agentIds[0])?.name || "Agent"
+    });
+
     try {
       // Get selected agents
       const selectedAgents = agents.filter((a) => agentIds.includes(a.id));
 
+      // Orchestration callbacks for status updates
+      const orchestrationCallbacks = {
+        onAgentStart: (agentId: string, agentName: string, index: number, total: number) => {
+          setMultiAgentStatus(prev => prev ? {
+            ...prev,
+            currentAgentIndex: index,
+            currentAgentName: agentName
+          } : null);
+        },
+        onAgentComplete: (agentId: string, agentName: string, response: string) => {
+          console.log(`[Multi-Agent] ${agentName} completed`);
+        },
+        onIteration: (iteration: number, total: number) => {
+          console.log(`[Multi-Agent] Iteration ${iteration}/${total}`);
+        }
+      };
+
       let result: { finalOutput: string };
       switch (mode) {
         case "sequential":
-          result = await AgentOrchestrationService.runSequential(selectedAgents, prompt);
+          result = await AgentOrchestrationService.runSequential(selectedAgents, prompt, orchestrationCallbacks);
           break;
         case "parallel":
-          result = await AgentOrchestrationService.runParallel(selectedAgents, prompt);
+          result = await AgentOrchestrationService.runParallel(selectedAgents, prompt, orchestrationCallbacks);
           break;
         case "collaborative":
-          result = await AgentOrchestrationService.runCollaborative(selectedAgents, prompt);
+          result = await AgentOrchestrationService.runCollaborative(selectedAgents, prompt, 3, orchestrationCallbacks);
           break;
         case "orchestrator":
           const [orchestrator, ...workers] = selectedAgents;
-          result = await AgentOrchestrationService.runOrchestrated(orchestrator, workers, prompt);
+          result = await AgentOrchestrationService.runOrchestrated(orchestrator, workers, prompt, orchestrationCallbacks);
           break;
         default:
           result = { finalOutput: "Unknown orchestration mode" };
@@ -981,6 +1015,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     } finally {
       setIsGenerating(false);
       setShowMultiAgentPanel(false);
+      setMultiAgentStatus(null);
     }
   };
 
@@ -1415,24 +1450,49 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
 
             {/* Status Bar */}
-            <div className="flex items-center justify-center gap-2 mt-3 opacity-50">
-              <div
-                className="w-1.5 h-1.5 rounded-full"
-                style={{
-                  backgroundColor: selectedAgent
-                    ? PROVIDER_INFO[selectedAgent.provider]?.color || "#6B7280"
-                    : "#6B7280",
-                  boxShadow: selectedAgent
-                    ? `0 0 6px ${
-                        PROVIDER_INFO[selectedAgent.provider]?.color ||
-                        "#6B7280"
-                      }`
-                    : "none",
-                }}
-              />
-              <span className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">
-                {selectedAgent?.model || "No model selected"}
-              </span>
+            <div className="flex items-center justify-center gap-2 mt-3">
+              {multiAgentStatus?.active ? (
+                // Multi-Agent Mode Status
+                <div className="flex items-center gap-3 px-3 py-1.5 bg-purple-900/30 border border-purple-500/30 rounded-full">
+                  <div className="flex items-center gap-2">
+                    <Loader2 size={12} className="animate-spin text-purple-400" />
+                    <span className="text-[10px] text-purple-400 font-medium uppercase tracking-wider">
+                      Multi-Agent
+                    </span>
+                  </div>
+                  <div className="w-px h-3 bg-purple-500/30" />
+                  <span className="text-[10px] text-gray-400 font-mono">
+                    {multiAgentStatus.currentAgentIndex}/{multiAgentStatus.totalAgents}
+                  </span>
+                  <span className="text-[10px] text-purple-300 font-medium">
+                    {multiAgentStatus.currentAgentName}
+                  </span>
+                  <span className="text-[10px] text-gray-500 capitalize">
+                    ({multiAgentStatus.mode})
+                  </span>
+                </div>
+              ) : (
+                // Single Agent Status
+                <div className="flex items-center gap-2 opacity-50">
+                  <div
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{
+                      backgroundColor: selectedAgent
+                        ? PROVIDER_INFO[selectedAgent.provider]?.color || "#6B7280"
+                        : "#6B7280",
+                      boxShadow: selectedAgent
+                        ? `0 0 6px ${
+                            PROVIDER_INFO[selectedAgent.provider]?.color ||
+                            "#6B7280"
+                          }`
+                        : "none",
+                    }}
+                  />
+                  <span className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">
+                    {selectedAgent?.model || "No model selected"}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
