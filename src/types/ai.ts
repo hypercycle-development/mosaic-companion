@@ -103,7 +103,27 @@ export const DEFAULT_MODELS: Record<AIProvider, string[]> = {
     "o1-mini",
   ],
   gemini: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
-  ollama: ["llama3.2", "mistral", "codellama", "deepseek-coder"],
+  ollama: [
+    // Local models
+    "llama3.2",
+    "llama3",
+    "llama2",
+    "llama2:13b",
+    "mistral",
+    "codellama",
+    "codellama:13b",
+    "deepseek-coder",
+    "neural-chat",
+    "phi3",
+    "qwen",
+    "aya",
+    "solar",
+    "wizardlm2",
+    // Cloud models
+    "minimax-m2.5:cloud",
+    "openai/gpt-4",
+    "openai/gpt-3.5-turbo",
+  ],
   custom: [],
   hypercycle: ["claude-sonnet-4-5-20250929"],
 };
