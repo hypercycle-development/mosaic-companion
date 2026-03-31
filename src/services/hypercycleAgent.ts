@@ -2,7 +2,7 @@
  * Hypercycle node LLM gateway
  *
  * Step 1: GET …/nonce — sender (+ TODA `currency-type` on direct node).
- * Step 2: POST …/api/aim/0/request — tx-driver, tx-sender, tx-nonce, tx-signature;
+ * Step 2: POST …/api/aim/{index}/request (index from `hypercycleAimIndex`; default 0 TODA / 2 Basechain) — tx-driver, …
  *   JSON body: { messages: [{ role, content }], model }
  * Step 3: POST …/stream — same tx-* headers; JSON body: { token } from step 2 response.
  *
@@ -12,16 +12,22 @@
 
 import type { AIAgentConfig, ChatMessage } from '../types/ai';
 
-/** Port for GET /nonce (appended to configured node base URL). */
+/** Port for GET /nonce (TODA default). */
 export const HYPERCYCLE_NONCE_PORT = 8000;
 
-/** Port for POST /api/aim/0/request (distinct from nonce port 8000). */
+/** Port for POST `/api/aim/{index}/request` (TODA default). */
 export const HYPERCYCLE_AIM_PORT = 8006;
 
+/** Default AIM path when index is 0. */
 export const HYPERCYCLE_AIM_PATH = '/api/aim/0/request';
 
-/** Port for POST /stream (LLM token stream). */
+/** Port for POST /stream (TODA default). */
 export const HYPERCYCLE_STREAM_PORT = 4001;
+
+/** Basechain Hypercycle defaults (server / app / stream). */
+export const HYPERCYCLE_BASECHAIN_SERVER_PORT = 8010;
+export const HYPERCYCLE_BASECHAIN_APP_PORT = 8016;
+export const HYPERCYCLE_BASECHAIN_STREAM_PORT = 4102;
 
 export const HYPERCYCLE_STREAM_PATH = '/stream';
 
@@ -58,19 +64,83 @@ function clampPort(n: number | undefined, fallback: number): number {
     return i;
 }
 
-/** Port for nonce, GET /info, POST /balance. Default {@link HYPERCYCLE_NONCE_PORT}. */
+function defaultHypercycleServerPort(
+    config: Pick<AIAgentConfig, 'hypercycleBackend'>
+): number {
+    return isHypercycleBasechainConfig(config)
+        ? HYPERCYCLE_BASECHAIN_SERVER_PORT
+        : HYPERCYCLE_NONCE_PORT;
+}
+
+function defaultHypercycleAppPort(
+    config: Pick<AIAgentConfig, 'hypercycleBackend'>
+): number {
+    return isHypercycleBasechainConfig(config)
+        ? HYPERCYCLE_BASECHAIN_APP_PORT
+        : HYPERCYCLE_AIM_PORT;
+}
+
+function defaultHypercycleStreamPort(
+    config: Pick<AIAgentConfig, 'hypercycleBackend'>
+): number {
+    return isHypercycleBasechainConfig(config)
+        ? HYPERCYCLE_BASECHAIN_STREAM_PORT
+        : HYPERCYCLE_STREAM_PORT;
+}
+
+/** Port for nonce, GET /info, POST /balance. TODA default 8000; Basechain 8010. */
 export function getHypercycleServerPort(config: AIAgentConfig): number {
-    return clampPort(config.hypercycleServerPort, HYPERCYCLE_NONCE_PORT);
+    return clampPort(
+        config.hypercycleServerPort,
+        defaultHypercycleServerPort(config)
+    );
 }
 
-/** Port for AIM (`/api/aim/0/request`). Default {@link HYPERCYCLE_AIM_PORT}. */
+/** Port for AIM (`/api/aim/{index}/request`). TODA default 8006; Basechain 8016. */
 export function getHypercycleAppPort(config: AIAgentConfig): number {
-    return clampPort(config.hypercycleAppPort, HYPERCYCLE_AIM_PORT);
+    return clampPort(config.hypercycleAppPort, defaultHypercycleAppPort(config));
 }
 
-/** Port for `/stream`. Default {@link HYPERCYCLE_STREAM_PORT}. */
+const HYPERCYCLE_AIM_INDEX_MAX = 999;
+
+/** When `hypercycleAimIndex` is unset. */
+export const HYPERCYCLE_AIM_INDEX_DEFAULT_TODA = 0;
+/** When `hypercycleAimIndex` is unset (Basechain LiteLLM gateway). */
+export const HYPERCYCLE_AIM_INDEX_DEFAULT_BASECHAIN = 2;
+
+function clampAimIndex(i: number): number {
+    if (i < 0) return 0;
+    if (i > HYPERCYCLE_AIM_INDEX_MAX) return HYPERCYCLE_AIM_INDEX_MAX;
+    return i;
+}
+
+function normalizeHypercycleAimIndex(n: number | undefined): number {
+    if (typeof n !== 'number' || !Number.isFinite(n)) return 0;
+    return clampAimIndex(Math.floor(n));
+}
+
+/** AIM route index for `POST /api/aim/{index}/request`. Default 0 (TODA) or 2 (Basechain) when unset. */
+export function getHypercycleAimIndex(config: AIAgentConfig): number {
+    const raw = config.hypercycleAimIndex;
+    if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+        return isHypercycleBasechainConfig(config)
+            ? HYPERCYCLE_AIM_INDEX_DEFAULT_BASECHAIN
+            : HYPERCYCLE_AIM_INDEX_DEFAULT_TODA;
+    }
+    return clampAimIndex(Math.floor(raw));
+}
+
+/** Path only, e.g. `/api/aim/2/request`. */
+export function getHypercycleAimPath(config: AIAgentConfig): string {
+    return `/api/aim/${getHypercycleAimIndex(config)}/request`;
+}
+
+/** Port for `/stream`. TODA default 4001; Basechain 4102. */
 export function getHypercycleStreamPort(config: AIAgentConfig): number {
-    return clampPort(config.hypercycleStreamPort, HYPERCYCLE_STREAM_PORT);
+    return clampPort(
+        config.hypercycleStreamPort,
+        defaultHypercycleStreamPort(config)
+    );
 }
 
 /** `currency-type` for POST /balance: USDC (Basechain), always TDN for TODA. */
@@ -85,8 +155,8 @@ export function getHypercycleBalanceCurrencyType(
 export const HYPERCYCLE_DEFAULT_AIM_MODEL = 'claude-sonnet-4-5-20250929';
 
 const LEGACY_HYPERCYCLE_PLACEHOLDER_MODELS = new Set([
-    'hypercycle-node',
-    'hypercycle_node'
+    'claude-sonnet-4-5-20250929',
+    'claude-sonnet-4-5-20250929'
 ]);
 
 /**
@@ -259,7 +329,7 @@ export function parseHypercycleNodeBase(raw: string): {
     return { protocol: u.protocol, hostname: u.hostname };
 }
 
-/** Full origin for the nonce service: `{protocol}//{hostname}:8000`. */
+/** Full origin for the nonce service: `{protocol}//{hostname}:{serverPort}`. */
 export function resolveHypercycleNonceServiceBaseUrl(
     nodeBase: string,
     serverPort: number = HYPERCYCLE_NONCE_PORT
@@ -281,7 +351,7 @@ export function resolveHypercycleNonceServiceBaseUrlForConfig(
 }
 
 /**
- * Base URL for AIM requests (app port, default 8006). Derived from `baseUrl` and backend.
+ * Base URL for AIM requests (app port: TODA 8006 / Basechain 8016 by default). Derived from `baseUrl` and backend.
  */
 export function resolveHypercycleAimBaseUrl(config: AIAgentConfig): string {
     const nodeBase = config.baseUrl?.trim();
@@ -300,7 +370,7 @@ export function resolveHypercycleAimBaseUrl(config: AIAgentConfig): string {
     }
 }
 
-/** Message shape for POST /api/aim/0/request */
+/** Message shape for POST /api/aim/{index}/request */
 export interface HypercycleAimMessage {
     role: 'user' | 'assistant' | 'system';
     content: string;
@@ -336,6 +406,8 @@ export interface PostHypercycleAimRequestOptions {
     txSignature?: string;
     /** @default from {@link getHypercycleTxDriver} at call site */
     txDriver?: string;
+    /** AIM path index (`/api/aim/{index}/request`). Omitted → 0. */
+    aimIndex?: number;
 }
 
 export interface HypercycleAimRequestResult {
@@ -352,7 +424,8 @@ export async function postHypercycleAimRequest(
     options: PostHypercycleAimRequestOptions
 ): Promise<HypercycleAimRequestResult> {
     const base = options.aimBaseUrl.trim().replace(/\/$/, '');
-    const url = `${base}${HYPERCYCLE_AIM_PATH}`;
+    const idx = normalizeHypercycleAimIndex(options.aimIndex);
+    const url = `${base}/api/aim/${idx}/request`;
     if (!options.messages.length) {
         throw new Error(
             'Hypercycle AIM request requires at least one message.'
@@ -375,8 +448,7 @@ export async function postHypercycleAimRequest(
         },
         body: JSON.stringify({
             messages: options.messages,
-            model:
-                options.model?.trim() || HYPERCYCLE_DEFAULT_AIM_MODEL
+            model: options.model?.trim() || HYPERCYCLE_DEFAULT_AIM_MODEL
         })
     });
 
@@ -399,7 +471,7 @@ export async function postHypercycleAimRequest(
 }
 
 /**
- * Base URL for POST /stream (stream port, default 4001). Derived from `baseUrl` and backend.
+ * Base URL for POST /stream (TODA 4001 / Basechain 4102 by default). Derived from `baseUrl` and backend.
  */
 export function resolveHypercycleStreamBaseUrl(config: AIAgentConfig): string {
     const nodeBase = config.baseUrl?.trim();
@@ -435,7 +507,8 @@ function extractTmObject(body: unknown): Record<string, unknown> | null {
     if (parsed == null || typeof parsed !== 'object') return null;
     const o = parsed as Record<string, unknown>;
     const tm = o.tm ?? o.Tm;
-    if (tm != null && typeof tm === 'object') return tm as Record<string, unknown>;
+    if (tm != null && typeof tm === 'object')
+        return tm as Record<string, unknown>;
     return null;
 }
 
@@ -463,7 +536,8 @@ function extractTmFromInfoBody(body: unknown): string | null {
         const addr = t.address;
         if (typeof addr === 'string' && addr.trim()) return addr.trim();
         const hostAddr = t.host_address;
-        if (typeof hostAddr === 'string' && hostAddr.trim()) return hostAddr.trim();
+        if (typeof hostAddr === 'string' && hostAddr.trim())
+            return hostAddr.trim();
     }
     return null;
 }

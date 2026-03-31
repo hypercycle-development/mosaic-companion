@@ -31,10 +31,17 @@ import {
 import { AIService } from "../services/AIService";
 import {
   fetchHypercycleNodeInfo,
+  getHypercycleAimIndex,
+  getHypercycleAimPath,
+  HYPERCYCLE_AIM_INDEX_DEFAULT_BASECHAIN,
+  HYPERCYCLE_AIM_INDEX_DEFAULT_TODA,
   getHypercycleAppPort,
   getHypercycleServerPort,
   getHypercycleStreamPort,
   HYPERCYCLE_AIM_PORT,
+  HYPERCYCLE_BASECHAIN_APP_PORT,
+  HYPERCYCLE_BASECHAIN_SERVER_PORT,
+  HYPERCYCLE_BASECHAIN_STREAM_PORT,
   HYPERCYCLE_NONCE_PORT,
   HYPERCYCLE_STREAM_PORT,
   HYPERCYCLE_TODA_TDN_TYPE_HASH,
@@ -44,6 +51,16 @@ import {
 import GmailClient from "./GmailClient";
 import { useTheme } from "../ThemeProvider";
 import { ThemeKey } from "../themes";
+
+/** Hypercycle: chain wallet / TODA Twin must be configured before activation. */
+function hypercycleWalletReady(
+  agent: AIAgentConfig,
+  evmWallet: boolean,
+  todaOk: boolean,
+): boolean {
+  if (agent.provider !== "hypercycle") return true;
+  return agent.hypercycleBackend === "basechain" ? evmWallet : todaOk;
+}
 
 /** AIService.testConnection only needs an API key for cloud/custom providers. */
 function providerRequiresApiKeyForConnectionTest(p: AIProvider): boolean {
@@ -489,6 +506,37 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   >({});
   const [nameErrors, setNameErrors] = useState<Record<string, string>>({});
 
+  const [web3EvmWallet, setWeb3EvmWallet] = useState(false);
+  const [web3TodaOk, setWeb3TodaOk] = useState(false);
+
+  const refreshWeb3WalletGate = useCallback(async () => {
+    try {
+      const w = await window.electronAPI.trading.walletExists();
+      const data = w as { success?: boolean; data?: { exists?: boolean }; exists?: boolean };
+      const exists =
+        typeof data.exists === "boolean"
+          ? data.exists
+          : !!(data.success && data.data?.exists);
+      setWeb3EvmWallet(exists);
+    } catch {
+      setWeb3EvmWallet(false);
+    }
+    try {
+      const t = await window.electronAPI.web3.todaHasConfig();
+      setWeb3TodaOk(!!t?.configured);
+    } catch {
+      setWeb3TodaOk(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshWeb3WalletGate();
+    const unsub = window.electronAPI.web3.onWalletImported(() => {
+      void refreshWeb3WalletGate();
+    });
+    return () => unsub();
+  }, [refreshWeb3WalletGate]);
+
   const { themes, themeKey, setThemeKey } = useTheme();
 
   // Update settings state for auto-updater
@@ -854,7 +902,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     const info = PROVIDER_INFO[provider];
     const patch: Partial<AIAgentConfig> = {
       provider,
-      model: defaultModel,
+      model: provider === "hypercycle" ? "" : defaultModel,
       baseUrl: provider === "custom" ? "" : info.baseUrl,
     };
     if (provider === "hypercycle") {
@@ -1077,18 +1125,36 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               <Cpu size={12} />
                               Model
                             </span>
-                            {agent.provider === "custom" ? (
-                              <input
-                                type="text"
-                                value={agent.model}
-                                onChange={(e) =>
-                                  updateAgent(agent.id, {
-                                    model: e.target.value,
-                                  })
-                                }
-                                className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100 font-mono text-sm"
-                                placeholder="model-name"
-                              />
+                            {agent.provider === "custom" ||
+                            agent.provider === "hypercycle" ? (
+                              <>
+                                <input
+                                  type="text"
+                                  value={agent.model}
+                                  onChange={(e) =>
+                                    updateAgent(agent.id, {
+                                      model: e.target.value,
+                                    })
+                                  }
+                                  className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-gray-100 font-mono text-sm"
+                                  placeholder={
+                                    agent.provider === "hypercycle"
+                                      ? "Model id for AIM request body"
+                                      : "model-name"
+                                  }
+                                />
+                                {agent.provider === "hypercycle" && (
+                                  <p className="text-xs text-gray-600 mt-1">
+                                    Sent as{" "}
+                                    <code className="text-gray-500">model</code>{" "}
+                                    in{" "}
+                                    <code className="text-gray-500">
+                                      POST …/api/aim/…/request
+                                    </code>{" "}
+                                    JSON.
+                                  </p>
+                                )}
+                              </>
                             ) : (
                               <select
                                 value={agent.model}
@@ -1120,8 +1186,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               {agent.provider === "hypercycle" &&
                                 agent.hypercycleBackend !== "basechain" && (
                                   <p className="text-xs text-gray-600 mb-1.5">
-                                    Scheme and host only (no port here). Set server / app / stream
-                                    ports below (defaults 8000 / 8006 / 4001).
+                                    Scheme and host only (no port here). TODA default ports: 8000 / 8006 /
+                                    4001; Basechain: 8010 / 8016 / 4102.
                                   </p>
                                 )}
                               <input
@@ -1164,10 +1230,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               <span className="text-sm text-gray-400 mb-1 block">
                                 Server port
                               </span>
-                              <p className="text-xs text-gray-600 mb-1">
-                                Nonce, <code className="text-gray-500">GET /info</code>,{" "}
-                                <code className="text-gray-500">POST /balance</code>
-                              </p>
                               <input
                                 type="number"
                                 min={1}
@@ -1175,10 +1237,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                                 value={getHypercycleServerPort(agent)}
                                 onChange={(e) => {
                                   const v = parseInt(e.target.value, 10);
+                                  const fb =
+                                    agent.hypercycleBackend === "basechain"
+                                      ? HYPERCYCLE_BASECHAIN_SERVER_PORT
+                                      : HYPERCYCLE_NONCE_PORT;
                                   updateAgent(agent.id, {
                                     hypercycleServerPort: Number.isFinite(v)
                                       ? v
-                                      : HYPERCYCLE_NONCE_PORT,
+                                      : fb,
                                   });
                                 }}
                                 className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
@@ -1186,9 +1252,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                             </label>
                             <label className="block">
                               <span className="text-sm text-gray-400 mb-1 block">App port</span>
-                              <p className="text-xs text-gray-600 mb-1">
-                                <code className="text-gray-500">POST /api/aim/0/request</code>
-                              </p>
                               <input
                                 type="number"
                                 min={1}
@@ -1196,13 +1259,46 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                                 value={getHypercycleAppPort(agent)}
                                 onChange={(e) => {
                                   const v = parseInt(e.target.value, 10);
+                                  const fb =
+                                    agent.hypercycleBackend === "basechain"
+                                      ? HYPERCYCLE_BASECHAIN_APP_PORT
+                                      : HYPERCYCLE_AIM_PORT;
                                   updateAgent(agent.id, {
                                     hypercycleAppPort: Number.isFinite(v)
                                       ? v
-                                      : HYPERCYCLE_AIM_PORT,
+                                      : fb,
                                   });
                                 }}
                                 className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
+                              />
+                            </label>
+                            <label className="block col-span-2">
+                              <span className="text-sm text-gray-400 mb-1 block">AIM index</span>
+                              <p className="text-xs text-gray-600 mb-1">
+                                Second connection step calls{" "}
+                                <code className="text-gray-500">POST {getHypercycleAimPath(agent)}</code>{" "}
+                                on the app port (defaults: TODA{" "}
+                                <code className="text-gray-500">0</code>, Basechain{" "}
+                                <code className="text-gray-500">2</code>).
+                              </p>
+                              <input
+                                type="number"
+                                min={0}
+                                max={999}
+                                value={getHypercycleAimIndex(agent)}
+                                onChange={(e) => {
+                                  const v = parseInt(e.target.value, 10);
+                                  const fb =
+                                    agent.hypercycleBackend === "basechain"
+                                      ? HYPERCYCLE_AIM_INDEX_DEFAULT_BASECHAIN
+                                      : HYPERCYCLE_AIM_INDEX_DEFAULT_TODA;
+                                  updateAgent(agent.id, {
+                                    hypercycleAimIndex: Number.isFinite(v)
+                                      ? Math.max(0, Math.min(999, v))
+                                      : fb,
+                                  });
+                                }}
+                                className="w-full max-w-[12rem] px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
                               />
                             </label>
                             <label className="block col-span-2">
@@ -1217,10 +1313,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                                 value={getHypercycleStreamPort(agent)}
                                 onChange={(e) => {
                                   const v = parseInt(e.target.value, 10);
+                                  const fb =
+                                    agent.hypercycleBackend === "basechain"
+                                      ? HYPERCYCLE_BASECHAIN_STREAM_PORT
+                                      : HYPERCYCLE_STREAM_PORT;
                                   updateAgent(agent.id, {
                                     hypercycleStreamPort: Number.isFinite(v)
                                       ? v
-                                      : HYPERCYCLE_STREAM_PORT,
+                                      : fb,
                                   });
                                 }}
                                 className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-gray-100 font-mono text-sm"
@@ -1385,28 +1485,69 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                         </div>
 
                         {/* Actions Row */}
-                        <div className="flex items-center justify-between pt-4 border-t border-gray-800">
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm text-gray-400">
-                              Active
-                            </span>
-                            <button
-                              onClick={() =>
-                                updateAgent(agent.id, {
-                                  isActive: !agent.isActive,
-                                })
-                              }
-                              className={`
+                        <div className="flex flex-col gap-2 pt-4 border-t border-gray-800">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm text-gray-400">
+                                Active
+                              </span>
+                              <button
+                                type="button"
+                                disabled={
+                                  !agent.isActive &&
+                                  agent.provider === "hypercycle" &&
+                                  !hypercycleWalletReady(
+                                    agent,
+                                    web3EvmWallet,
+                                    web3TodaOk,
+                                  )
+                                }
+                                title={
+                                  !agent.isActive &&
+                                  agent.provider === "hypercycle" &&
+                                  !hypercycleWalletReady(
+                                    agent,
+                                    web3EvmWallet,
+                                    web3TodaOk,
+                                  )
+                                    ? agent.hypercycleBackend === "basechain"
+                                      ? "Import an EVM wallet in Web3 (Base) first."
+                                      : "Configure TODA Twin (hostname + API key) in Web3 first."
+                                    : undefined
+                                }
+                                onClick={() => {
+                                  if (
+                                    !agent.isActive &&
+                                    agent.provider === "hypercycle" &&
+                                    !hypercycleWalletReady(
+                                      agent,
+                                      web3EvmWallet,
+                                      web3TodaOk,
+                                    )
+                                  ) {
+                                    toast.warning(
+                                      agent.hypercycleBackend === "basechain"
+                                        ? "Import an EVM wallet in Web3 (Base) before activating this agent."
+                                        : "Configure TODA Twin in Web3 before activating this agent.",
+                                    );
+                                    return;
+                                  }
+                                  updateAgent(agent.id, {
+                                    isActive: !agent.isActive,
+                                  });
+                                }}
+                                className={`
                                 relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+                                disabled:opacity-40 disabled:cursor-not-allowed
                                 ${
                                   agent.isActive
                                     ? "bg-emerald-600"
                                     : "bg-gray-700"
                                 }
                               `}
-                            >
-                              <span
-                                className={`
+                              >
+                                <span
+                                  className={`
                                 inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out
                                 ${
                                   agent.isActive
@@ -1414,9 +1555,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                                     : "translate-x-1"
                                 }
                               `}
-                              />
-                            </button>
-                          </div>
+                                />
+                              </button>
+                            </div>
 
                           <button
                             onClick={() => testConnection(agent)}
@@ -1452,6 +1593,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               </>
                             )}
                           </button>
+                          </div>
+                          {agent.provider === "hypercycle" &&
+                            !agent.isActive &&
+                            !hypercycleWalletReady(
+                              agent,
+                              web3EvmWallet,
+                              web3TodaOk,
+                            ) && (
+                              <p className="text-xs text-amber-600/90">
+                                {agent.hypercycleBackend === "basechain"
+                                  ? "Import an EVM wallet in Web3 (Base) to activate this agent."
+                                  : "Configure TODA Twin (hostname + API key) in Web3 to activate this agent."}
+                              </p>
+                            )}
                         </div>
 
                         {/* Test Result Message */}
