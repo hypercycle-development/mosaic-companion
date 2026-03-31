@@ -36,6 +36,7 @@ import { mcpClient, setMainWindow as mcpSetMainWindow, initPlugins } from "./int
 import { initializeTools, cleanupTools } from "./integrations/tools";
 import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integrations/chat/index";
+import { initIDE, cleanupIDE } from "./integrations/ide/index";
 // Plugin IPC handler registrations
 import { registerHyperInsightIpc } from "../plugins/hyperinsight/main/index.js";
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
@@ -282,6 +283,7 @@ app.on("before-quit", () => {
   cleanupTools().catch(console.error);
   if (mosaicBotStop) mosaicBotStop().catch(console.error);
   stopChat();
+  cleanupIDE();
 });
 
 // Suppress ERR_ABORTED errors from webviews
@@ -348,6 +350,7 @@ app.whenReady().then(() => {
   // Now auto-connect MCP plugins (with correct env already set)
   initPlugins().catch((e) => console.error("[MCP] Plugin init failed:", e));
   initChat();
+  initIDE();
 
   // Initialize tool registry
   initializeTools().catch((e) => console.error("[Tools] Init failed:", e));
