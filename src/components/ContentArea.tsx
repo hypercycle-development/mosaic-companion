@@ -10,6 +10,7 @@ import {
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
   INTERNAL_HYPERINSIGHT_URL,
+  INTERNAL_ADA_PORTAL_URL,
   INTERNAL_SANDBOX_URL,
   INTERNAL_ONBOARDING_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
@@ -23,6 +24,7 @@ import { ChatPage } from "./ChatPage";
 import { Web3Page } from "./Web3Page";
 import { VaultPage } from "./VaultPage";
 import { HyperInsightView } from "../../plugins/hyperinsight/renderer/HyperInsightView";
+import { AdaPortalPanel } from "./AdaPortalPanel";
 import { SandboxPage } from "./SandboxPage";
 import { ToolPanelView } from "./ToolPanelView";
 import { OnboardingPage } from "./OnboardingPage";
@@ -494,6 +496,18 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     return (
       <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
         <HyperInsightView />
+      </div>
+    );
+  }
+
+  if (url === INTERNAL_ADA_PORTAL_URL) {
+    useEffect(() => {
+      onUpdateTab({ title: "Ada Portal", isLoading: false, favicon: undefined });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
+        <AdaPortalPanel />
       </div>
     );
   }

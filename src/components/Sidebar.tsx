@@ -42,6 +42,7 @@ import {
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
   INTERNAL_HYPERINSIGHT_URL,
+  INTERNAL_ADA_PORTAL_URL,
   INTERNAL_SANDBOX_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
 } from "../types/types";
@@ -235,6 +236,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL },
     { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL },
     { id: "hyperinsight", label: "HyperInsight", icon: "Activity", url: INTERNAL_HYPERINSIGHT_URL },
+    { id: "ada-portal", label: "Ada Portal", icon: "BrainCircuit", url: INTERNAL_ADA_PORTAL_URL },
     { id: "sandbox", label: "Tool Sandbox", icon: "Cpu", url: INTERNAL_SANDBOX_URL },
     {
       id: "bookmarks",

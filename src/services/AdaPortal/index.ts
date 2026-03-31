@@ -1,6 +1,6 @@
 // ============================================
-// SYNAPSE EXCHANGE - Main Export
-// Decentralized AI Workforce + Intelligence Economy
+// ADA PORTAL - Main Export
+// AI Workforce + Compute + Intelligence Platform for Cardano
 // ============================================
 
 // Types
@@ -16,17 +16,17 @@ export { skillGraph, SkillGraphService } from './SkillGraphService';
 export { agentPackages, AgentPackagesService } from './AgentPackagesService';
 export { nodeIntelligence, NodeIntelligenceService } from './NodeIntelligenceService';
 export { mcpIntegration, MCPIntegrationService } from './MCPIntegrationService';
-export { HYPERCYCLE_CONFIG } from './hypercycleConfig';
+export { ADA_PORTAL_CONFIG } from './types';
 import { mcpIntegration } from './MCPIntegrationService';
 
 // Initialize all services
-export function initializeSynapseExchange(): void {
-  console.log('🚀 Synapse Exchange initializing...');
+export function initializeAdaPortal(): void {
+  console.log('🚀 Ada Portal initializing...');
   
   // Services auto-initialize via singletons
   const status = mcpIntegration.getSystemStatus();
   
-  console.log(`✅ Synapse Exchange ready:
+  console.log(`✅ Ada Portal ready:
   - ${status.agents} specialized agents
   - ${status.listings} marketplace listings
   - ${status.externalAgents} external agents
