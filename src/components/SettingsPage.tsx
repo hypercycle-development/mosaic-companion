@@ -32,6 +32,8 @@ import {
 import { AIService } from "../services/AIService";
 import GmailClient from "./GmailClient";
 import { AgentSoulSettings } from "./AgentSoulSettings";
+import { ModelSelector } from "./ModelSelector";
+import { MultiAgentPanel } from "./MultiAgentPanel";
 import { useTheme } from "../ThemeProvider";
 import { ThemeKey } from "../themes";
 
@@ -1119,6 +1121,28 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               })}
             </div>
           )}
+        </section>
+
+        {/* Ollama Models Section */}
+        <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-purple-400 flex items-center gap-2">
+              <Brain size={20} />
+              Ollama Models
+            </h2>
+          </div>
+          <ModelSelector />
+        </section>
+
+        {/* Multi-Agent Orchestration Section */}
+        <section className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-emerald-400 flex items-center gap-2">
+              <Cpu size={20} />
+              Multi-Agent Orchestration
+            </h2>
+          </div>
+          <MultiAgentPanel />
         </section>
 
         {/* Hypercycle Nodes Section */}
