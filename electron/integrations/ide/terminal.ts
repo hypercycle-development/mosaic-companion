@@ -1,15 +1,8 @@
 import { ipcMain, BrowserWindow, IpcMainInvokeEvent } from "electron";
 import os from "os";
+import * as ptyModule from "node-pty";
 
-// node-pty is a native module — must be required at runtime
-let pty: typeof import("node-pty") | null = null;
-try {
-  pty = require("node-pty");
-} catch (e) {
-  console.warn("[IDE] node-pty not available:", (e as Error).message);
-}
-
-type IPty = import("node-pty").IPty;
+type IPty = ptyModule.IPty;
 
 const terminals = new Map<string, IPty>();
 let nextId = 1;
@@ -30,13 +23,10 @@ export function registerTerminalHandlers(): void {
   ipcMain.handle(
     "ide:pty:create",
     async (_e: IpcMainInvokeEvent, cwd: string): Promise<{ success: boolean; id?: string; error?: string }> => {
-      if (!pty) {
-        return { success: false, error: "Terminal not available (node-pty not loaded)" };
-      }
       try {
         const id = `term-${nextId++}`;
         const shell = getDefaultShell();
-        const proc = pty.spawn(shell, [], {
+        const proc = ptyModule.spawn(shell, [], {
           name: "xterm-256color",
           cols: 80,
           rows: 24,
