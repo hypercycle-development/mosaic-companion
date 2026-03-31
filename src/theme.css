@@ -352,3 +352,245 @@ button[class*="bg-"] {
 .text-pink-500 {
   color: var(--accent) !important;
 }
+
+/* ============================================
+   Multi-Agent Panel Styles
+   ============================================ */
+
+.multi-agent-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 8px;
+}
+
+.multi-agent-panel .panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.multi-agent-panel .panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.multi-agent-panel .agent-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--primary-dim);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.multi-agent-panel .mode-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.multi-agent-panel .mode-selector label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.multi-agent-panel .mode-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.multi-agent-panel .mode-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.multi-agent-panel .mode-btn:hover {
+  background: var(--surface-hover);
+}
+
+.multi-agent-panel .mode-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.multi-agent-panel .agent-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.multi-agent-panel .agent-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+}
+
+.multi-agent-panel .agent-chip:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary-dim);
+}
+
+.multi-agent-panel .agent-chip.selected {
+  background: var(--primary-dim);
+  border-color: var(--primary);
+}
+
+.multi-agent-panel .agent-chip .status-icon {
+  font-size: 10px;
+}
+
+.multi-agent-panel .agent-chip .status-ready { color: #22c55e; }
+.multi-agent-panel .agent-chip .status-running { color: #3b82f6; }
+.multi-agent-panel .agent-chip .status-idle { color: #6b7280; }
+.multi-agent-panel .agent-chip .status-done { color: #22c55e; }
+.multi-agent-panel .agent-chip .status-error { color: #ef4444; }
+
+.multi-agent-panel .agent-chip .agent-name {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.multi-agent-panel .agent-chip .agent-role {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.multi-agent-panel .agent-chip .agent-model {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-family: monospace;
+}
+
+.multi-agent-panel .prompt-input textarea {
+  width: 100%;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  resize: none;
+  margin-bottom: 12px;
+}
+
+.multi-agent-panel .prompt-input textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.multi-agent-panel .prompt-input textarea::placeholder {
+  color: var(--text-secondary);
+}
+
+.multi-agent-panel .panel-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.multi-agent-panel .run-btn {
+  padding: 8px 20px;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.multi-agent-panel .run-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
+.multi-agent-panel .run-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.multi-agent-panel .mode-descriptions {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.multi-agent-panel .mode-descriptions summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.multi-agent-panel .mode-descriptions .mode-info {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--surface);
+  border-radius: 6px;
+}
+
+.multi-agent-panel .mode-descriptions .mode-info strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* Running indicator when panel is collapsed */
+.running-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(109, 40, 217, 0.2));
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.running-indicator:hover {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(109, 40, 217, 0.3));
+}
+
+.running-indicator .green-light {
+  width: 8px;
+  height: 8px;
+  background: #22c55e;
+  border-radius: 50%;
+  animation: pulse-green 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px #22c55e; }
+  50% { opacity: 0.5; box-shadow: 0 0 8px #22c55e; }
+}
+
+.running-indicator .indicator-text {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: #a78bfa;
+}
+
+.running-indicator .expand-hint {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
