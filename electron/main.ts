@@ -61,7 +61,7 @@ import {
   type NetworkConfig,
   clearTodaTwinInfoAddress,
 } from "./integrations/web3/config";
-import { saveWalletKey } from "./integrations/web3/index";
+import { getWalletKey, saveWalletKey } from "./integrations/web3/index";
 import { signHypercycleNonceWithWallet } from "./integrations/web3/hypercycleSign";
 import {
   saveTodaApiKey,
@@ -82,6 +82,7 @@ import {
   deleteEntry,
 } from "./integrations/vault";
 import type { VaultBox } from "./integrations/vault/types";
+import { mergeBuiltinAgents } from "./defaultAiAgents";
 
 // =============================================================================
 // ESM Path Setup
@@ -551,16 +552,43 @@ ipcMain.handle("sandbox:get-state", async () => sandboxState);
 const aiAgentsPath = path.join(app.getPath("userData"), "ai-agents.json");
 const themesPath = path.join(app.getPath("userData"), "themes.json");
 
+function validateActiveHypercycleAgent(agent: AIAgent): string | null {
+  if (agent.provider !== "hypercycle") return null;
+  if (agent.isActive !== true) return null;
+  const basechain = agent.hypercycleBackend === "basechain";
+  if (basechain) {
+    if (!getWalletKey()) {
+      return "Import an EVM wallet in Web3 settings (Base) before activating this Basechain Hypercycle agent.";
+    }
+  } else if (!hasTodaConfig()) {
+    return "Configure TODA Twin (hostname + API key) in Web3 settings before activating this TODA Hypercycle agent.";
+  }
+  return null;
+}
+
+function validateAgentsListForActivation(agents: AIAgent[]): string | null {
+  for (const a of agents) {
+    const err = validateActiveHypercycleAgent(a);
+    if (err) return err;
+  }
+  return null;
+}
+
 function readAgents(): AIAgent[] {
+  let raw: AIAgent[] = [];
   try {
     if (fs.existsSync(aiAgentsPath)) {
       const data = fs.readFileSync(aiAgentsPath, "utf8");
-      return JSON.parse(data);
+      raw = JSON.parse(data);
     }
   } catch (error) {
     console.error("Failed to read AI agents:", error);
   }
-  return [];
+  const { agents, changed } = mergeBuiltinAgents(raw);
+  if (changed) {
+    writeAgents(agents);
+  }
+  return agents;
 }
 
 function writeAgents(agents: AIAgent[]): boolean {
@@ -601,6 +629,8 @@ ipcMain.handle("ai-agents:get", async () => {
 
 ipcMain.handle("ai-agents:set", async (_event: IpcMainInvokeEvent, agents: AIAgent[]) => {
   try {
+    const err = validateAgentsListForActivation(agents);
+    if (err) return { success: false, error: err };
     writeAgents(agents);
     return { success: true };
   } catch (error) {
@@ -628,7 +658,10 @@ ipcMain.handle("ai-agents:update", async (_event: IpcMainInvokeEvent, id: string
     if (index === -1) {
       return { success: false, error: "Agent not found" };
     }
-    agents[index] = { ...agents[index], ...updates };
+    const merged = { ...agents[index], ...updates };
+    const err = validateActiveHypercycleAgent(merged);
+    if (err) return { success: false, error: err };
+    agents[index] = merged;
     writeAgents(agents);
     return { success: true };
   } catch (error) {
