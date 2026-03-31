@@ -32,15 +32,19 @@ export interface AIAgentConfig {
   /** @deprecated TODA always uses TDN in code; kept for legacy saved agents. */
   hypercycleCurrencyType?: string;
   /**
-   * Hypercycle: server port (nonce, GET /info, POST /balance). Default 8000.
+   * Hypercycle: server port (nonce, GET /info, POST /balance). TODA default 8000; Basechain 8010.
    */
   hypercycleServerPort?: number;
   /**
-   * Hypercycle: app port (POST /api/aim/0/request). Default 8006.
+   * Hypercycle: app port (POST `/api/aim/{index}/request`). TODA default 8006; Basechain 8016.
    */
   hypercycleAppPort?: number;
   /**
-   * Hypercycle: stream port (POST /stream). Default 4001.
+   * Hypercycle: AIM route index (`/api/aim/{index}/request`). Default 0 (TODA) or 2 (Basechain) when unset.
+   */
+  hypercycleAimIndex?: number;
+  /**
+   * Hypercycle: stream port (POST /stream). TODA default 4001; Basechain 4102.
    */
   hypercycleStreamPort?: number;
   /**

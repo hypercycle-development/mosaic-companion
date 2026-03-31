@@ -123,7 +123,10 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
     setAgentConfig({
       ...agentConfig,
       provider,
-      model: DEFAULT_MODELS[provider][0] || "",
+      model:
+        provider === "hypercycle"
+          ? ""
+          : DEFAULT_MODELS[provider][0] || "",
       baseUrl: provider === "custom" ? "" : PROVIDER_INFO[provider].baseUrl,
     });
     setTestStatus({ status: "idle" });
@@ -391,16 +394,32 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                   <Cpu size={12} />
                   Model
                 </span>
-                {agentConfig.provider === "custom" ? (
-                  <input
-                    type="text"
-                    value={agentConfig.model}
-                    onChange={(e) =>
-                      setAgentConfig({ ...agentConfig, model: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-100 text-sm"
-                    placeholder="model-name"
-                  />
+                {agentConfig.provider === "custom" ||
+                agentConfig.provider === "hypercycle" ? (
+                  <>
+                    <input
+                      type="text"
+                      value={agentConfig.model}
+                      onChange={(e) =>
+                        setAgentConfig({ ...agentConfig, model: e.target.value })
+                      }
+                      className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-gray-100 text-sm"
+                      placeholder={
+                        agentConfig.provider === "hypercycle"
+                          ? "Model id for AIM request body"
+                          : "model-name"
+                      }
+                    />
+                    {agentConfig.provider === "hypercycle" && (
+                      <p className="text-xs text-gray-600 mt-1">
+                        Sent as <code className="text-gray-500">model</code> in{" "}
+                        <code className="text-gray-500">
+                          POST …/api/aim/…/request
+                        </code>{" "}
+                        JSON.
+                      </p>
+                    )}
+                  </>
                 ) : (
                   <select
                     value={agentConfig.model}

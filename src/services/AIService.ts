@@ -8,7 +8,7 @@ import {
   probeHypercycleStream,
   fetchHypercycleNonce,
   getHypercycleTxDriver,
-  HYPERCYCLE_AIM_PATH,
+  getHypercycleAimIndex,
   HYPERCYCLE_STREAM_PATH,
   isHypercycleBasechainConfig,
   postHypercycleAimRequest,
@@ -288,7 +288,7 @@ export class AIService {
     }
   }
 
-  /** Hypercycle: GET /nonce → POST /api/aim/0/request → POST /stream with `{ token }`. */
+  /** Hypercycle: GET /nonce → POST /api/aim/{index}/request → POST /stream with `{ token }`. */
   static async sendToHypercycle(
     config: AIAgentConfig,
     messages: ChatMessage[],
@@ -323,10 +323,11 @@ export class AIService {
 
     const aim = await postHypercycleAimRequest({
       aimBaseUrl: aimBase,
+      aimIndex: getHypercycleAimIndex(config),
       sender,
       nonce,
       messages: aimMessages,
-      model: config.model?.trim() || "claude-sonnet-4-5-20250929",
+      model: resolveHypercycleAimModel(config),
       txSignature,
       txDriver,
     });
@@ -446,6 +447,7 @@ export class AIService {
         const aimMessages = chatMessagesToHypercycleAimMessages([testUserMsg]);
         const aim = await postHypercycleAimRequest({
           aimBaseUrl: aimBase,
+          aimIndex: getHypercycleAimIndex(config),
           sender,
           nonce,
           messages: aimMessages,
