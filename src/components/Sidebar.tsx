@@ -30,6 +30,7 @@ import {
   Box,
   Shield,
   Hash,
+  Code2,
 } from "lucide-react";
 import {
   SidebarItem,
@@ -43,6 +44,7 @@ import {
   INTERNAL_VAULT_URL,
   INTERNAL_HYPERINSIGHT_URL,
   INTERNAL_SANDBOX_URL,
+  INTERNAL_IDE_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
 } from "../types/types";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
@@ -235,6 +237,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL },
     { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL },
     { id: "hyperinsight", label: "HyperInsight", icon: "Activity", url: INTERNAL_HYPERINSIGHT_URL },
+    { id: "ide", label: "IDE", icon: "Code2", url: INTERNAL_IDE_URL },
     { id: "sandbox", label: "Tool Sandbox", icon: "Cpu", url: INTERNAL_SANDBOX_URL },
     {
       id: "bookmarks",
@@ -321,6 +324,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <Activity className={className} />;
       case "Cpu":
         return <Cpu className={className} />;
+      case "Code2":
+        return <Code2 className={className} />;
       default:
         return <LayoutGrid className={className} />;
     }
