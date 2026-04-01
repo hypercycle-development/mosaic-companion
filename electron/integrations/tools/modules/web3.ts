@@ -665,13 +665,22 @@ const web3Tools: ToolDefinition[] = [
         const result = await executeTodaTransfer(typeHash, amount, resolved.address);
         if (!result.success) return { success: false, error: result.error };
         recordSpend(typeHash.slice(0, 8), amount);
+        const summary =
+          `✅ Transfer successful!\n\n` +
+          `From: ${fromAddr}\n` +
+          `To: ${label}\n` +
+          `Amount: ${amount}\n` +
+          `Transfer ID: ${result.transferId || "N/A"}\n` +
+          (result.entryFileId
+            ? `Entry file (balance tx-id): ${result.entryFileId}\n`
+            : "");
         return {
           success: true,
-          data: `✅ Transfer successful!\n\n` +
-            `From: ${fromAddr}\n` +
-            `To: ${label}\n` +
-            `Amount: ${amount}\n` +
-            `Transfer ID: ${result.transferId || "N/A"}`,
+          data: {
+            summary,
+            transferId: result.transferId,
+            entryFileId: result.entryFileId,
+          },
         };
       } catch (err) {
         return { success: false, error: `TODA transfer failed: ${(err as Error).message}` };

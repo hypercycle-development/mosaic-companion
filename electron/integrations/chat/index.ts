@@ -188,12 +188,14 @@ export function initChat(): void {
 
   ipcMain.handle("chat:join-room", async (_e: IpcMainInvokeEvent, roomId: string) => {
     if (!chatClient?.isConnected()) return { success: false, error: "Not connected" };
+    chatClient.trackRoom(roomId);
     chatClient.send({ type: "join-room", roomId });
     return { success: true };
   });
 
   ipcMain.handle("chat:leave-room", async (_e: IpcMainInvokeEvent, roomId: string) => {
     if (!chatClient?.isConnected()) return { success: false, error: "Not connected" };
+    chatClient.untrackRoom(roomId);
     chatClient.send({ type: "leave-room", roomId });
     return { success: true };
   });

@@ -9,7 +9,7 @@ export type AIProvider =
   | "custom"
   | "hypercycle";
 
-/** Hypercycle routing: direct TODA node vs hyperpg forward (ports in URL path). */
+/** Hypercycle routing: TODA micropay vs Basechain (EVM) — same direct `host:port` URL shape. */
 export type HypercycleBackend = "toda" | "basechain";
 
 export interface AIAgentConfig {
@@ -26,17 +26,27 @@ export interface AIAgentConfig {
   boxAccess?: string[]; // IDs of vault boxes this agent can access
   richUI?: boolean; // Allow agent to render charts, tables, cards inline via <mosaic_ui>
   /**
-   * Hypercycle: `toda` (default) = direct node, host + ports 8000/8006/4001.
-   * `basechain` = hyperpg forward base, e.g. `https://hyperpg.site/forward/54.67.32.117` — ports are path segments.
+   * Hypercycle: `toda` (default) or `basechain` — node base is scheme + host; ports are configured separately.
    */
   hypercycleBackend?: HypercycleBackend;
-  /** Hypercycle TODA direct: `currency-type` header (default TDN). Omitted for Basechain. */
+  /** @deprecated TODA always uses TDN in code; kept for legacy saved agents. */
   hypercycleCurrencyType?: string;
   /**
-   * Hypercycle: AIM request base URL (port 8006), e.g. http://host:8006.
-   * If omitted, host is taken from `baseUrl` (nonce URL) with port 8006.
+   * Hypercycle: server port (nonce, GET /info, POST /balance). TODA default 8000; Basechain 8010.
    */
-  hypercycleAimBaseUrl?: string;
+  hypercycleServerPort?: number;
+  /**
+   * Hypercycle: app port (POST `/api/aim/{index}/request`). TODA default 8006; Basechain 8016.
+   */
+  hypercycleAppPort?: number;
+  /**
+   * Hypercycle: AIM route index (`/api/aim/{index}/request`). Default 0 (TODA) or 2 (Basechain) when unset.
+   */
+  hypercycleAimIndex?: number;
+  /**
+   * Hypercycle: stream port (POST /stream). TODA default 4001; Basechain 4102.
+   */
+  hypercycleStreamPort?: number;
   /**
    * Hypercycle: optional `tx-signature` override.
    * TODA: placeholder if unset. Basechain: wallet EIP-191 signs the nonce automatically if unset.
@@ -44,11 +54,6 @@ export interface AIAgentConfig {
   hypercycleTxSignature?: string;
   /** Hypercycle: override `tx-driver` header (default: toda_micropay / basechain). */
   hypercycleTxDriver?: string;
-  /**
-   * Hypercycle: stream POST base URL (port 4001), e.g. http://host:4001.
-   * If omitted, same host as node `baseUrl` with port 4001.
-   */
-  hypercycleStreamBaseUrl?: string;
   /**
    * Hypercycle: optional `tx-sender` for POST /stream only (e.g. name.hypercycle.biz.todaq.net).
    * If omitted, uses the same TODA address as nonce/AIM steps.
