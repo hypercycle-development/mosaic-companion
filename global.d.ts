@@ -268,6 +268,35 @@ declare global {
           getActionPatterns: () => Promise<Array<{ moduleName: string; toolName: string; pattern: string; flags: string }>>;
       };
 
+      // IDE integration
+      ide: {
+        fs: {
+          readDir: (dirPath: string) => Promise<{ success: boolean; entries?: Array<{ name: string; type: "file" | "directory" | "symlink"; size: number; modifiedMs: number }>; error?: string }>;
+          readFile: (filePath: string) => Promise<{ success: boolean; content?: string; isBinary?: boolean; error?: string }>;
+          writeFile: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>;
+          createFile: (filePath: string, content?: string) => Promise<{ success: boolean; error?: string }>;
+          createDir: (dirPath: string) => Promise<{ success: boolean; error?: string }>;
+          delete: (targetPath: string) => Promise<{ success: boolean; error?: string }>;
+          rename: (oldPath: string, newPath: string) => Promise<{ success: boolean; error?: string }>;
+          stat: (targetPath: string) => Promise<{ success: boolean; stat?: { size: number; isDirectory: boolean; isFile: boolean; modifiedMs: number }; error?: string }>;
+          openFolder: () => Promise<{ success: boolean; path?: string; error?: string }>;
+        };
+        pty: {
+          create: (cwd: string) => Promise<{ success: boolean; id?: string; error?: string }>;
+          write: (id: string, data: string) => Promise<{ success: boolean; error?: string }>;
+          resize: (id: string, cols: number, rows: number) => Promise<{ success: boolean; error?: string }>;
+          destroy: (id: string) => Promise<{ success: boolean }>;
+          onData: (callback: (data: { id: string; data: string }) => void) => () => void;
+          onExit: (callback: (data: { id: string; code: number }) => void) => () => void;
+        };
+        project: {
+          getRecent: () => Promise<string[]>;
+          saveRecent: (projectPath: string) => Promise<{ success: boolean }>;
+          getGitStatus: (cwd: string) => Promise<{ success: boolean; files?: Array<{ path: string; status: string }>; error?: string }>;
+          getGitBranch: (cwd: string) => Promise<{ success: boolean; branch?: string; error?: string }>;
+        };
+      };
+
       // Vault (named boxes & agent access)
       vault: {
         getBoxes: () => Promise<VaultBox[]>;
