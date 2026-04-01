@@ -476,12 +476,13 @@
           const section = document.getElementById("specialized-section");
 
           const names = [];
+          const hidden = ["hyperinsight"];
           prefixes.forEach((prefixNode) => {
             const prefix = prefixNode.textContent;
             // Prefix is like "releases/experimental/screenpipe/"
             const parts = prefix.split("/");
             const name = parts[parts.length - 2];
-            if (name && name !== "experimental") {
+            if (name && name !== "experimental" && !hidden.includes(name)) {
               names.push({ name, prefix });
             }
           });

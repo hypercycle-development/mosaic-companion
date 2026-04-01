@@ -13,6 +13,7 @@ import {
   INTERNAL_ADA_PORTAL_URL,
   INTERNAL_SANDBOX_URL,
   INTERNAL_ONBOARDING_URL,
+  INTERNAL_IDE_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
   Tab,
 } from "../types/types";
@@ -29,6 +30,7 @@ import { SandboxPage } from "./SandboxPage";
 import { ToolPanelView } from "./ToolPanelView";
 import { OnboardingPage } from "./OnboardingPage";
 import { OllamaPage } from "./OllamaPage";
+import IDEPage from "./ide/IDEPage";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
 
@@ -527,6 +529,22 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   if (url.startsWith(INTERNAL_TOOL_PANEL_PREFIX)) {
     const toolId = url.slice(INTERNAL_TOOL_PANEL_PREFIX.length);
     return <ToolPanelPage toolId={toolId} url={url} onUpdateTab={onUpdateTab} />;
+  }
+
+  if (url === INTERNAL_IDE_URL || url.startsWith(INTERNAL_IDE_URL + "?")) {
+    useEffect(() => {
+      onUpdateTab({
+        title: "IDE",
+        isLoading: false,
+        favicon: undefined,
+      });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
+        <IDEPage url={url} onNavigate={onNavigate} />
+      </div>
+    );
   }
 
   if (url === INTERNAL_ONBOARDING_URL) {

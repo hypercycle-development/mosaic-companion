@@ -42,6 +42,7 @@ await esbuild.build({
     "better-sqlite3",
     "sqlite-vec",
     "chokidar",
+    "node-pty",
   ],
 
 });
