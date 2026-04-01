@@ -240,18 +240,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "ide", label: "IDE", icon: "Code2", url: INTERNAL_IDE_URL },
     { id: "sandbox", label: "Tool Sandbox", icon: "Cpu", url: INTERNAL_SANDBOX_URL },
     {
-      id: "bookmarks",
-      label: "Bookmarks",
-      icon: "Star",
-      url: "browser://bookmarks",
-    },
-    {
-      id: "history",
-      label: "History",
-      icon: "Clock",
-      url: "browser://history",
-    },
-    {
       id: "settings",
       label: "Configuration",
       icon: "Settings",
