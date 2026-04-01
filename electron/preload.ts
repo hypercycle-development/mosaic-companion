@@ -270,6 +270,42 @@ contextBridge.exposeInMainWorld("electronAPI", {
     approveResult: (requestId: string, approved: boolean) =>
       ipcRenderer.invoke('payments-jit:approve_tx_result', { requestId, approved }),
   },
+  // IDE integration
+  ide: {
+    fs: {
+      readDir: (dirPath: string) => ipcRenderer.invoke("ide:fs:read-dir", dirPath),
+      readFile: (filePath: string) => ipcRenderer.invoke("ide:fs:read-file", filePath),
+      writeFile: (filePath: string, content: string) => ipcRenderer.invoke("ide:fs:write-file", filePath, content),
+      createFile: (filePath: string, content?: string) => ipcRenderer.invoke("ide:fs:create-file", filePath, content),
+      createDir: (dirPath: string) => ipcRenderer.invoke("ide:fs:create-dir", dirPath),
+      delete: (targetPath: string) => ipcRenderer.invoke("ide:fs:delete", targetPath),
+      rename: (oldPath: string, newPath: string) => ipcRenderer.invoke("ide:fs:rename", oldPath, newPath),
+      stat: (targetPath: string) => ipcRenderer.invoke("ide:fs:stat", targetPath),
+      openFolder: () => ipcRenderer.invoke("ide:fs:open-folder"),
+    },
+    pty: {
+      create: (cwd: string) => ipcRenderer.invoke("ide:pty:create", cwd),
+      write: (id: string, data: string) => ipcRenderer.invoke("ide:pty:write", id, data),
+      resize: (id: string, cols: number, rows: number) => ipcRenderer.invoke("ide:pty:resize", id, cols, rows),
+      destroy: (id: string) => ipcRenderer.invoke("ide:pty:destroy", id),
+      onData: (callback: (data: { id: string; data: string }) => void) => {
+        const handler = (_e: IpcRendererEvent, data: { id: string; data: string }) => callback(data);
+        ipcRenderer.on("ide:pty:data", handler);
+        return () => ipcRenderer.removeListener("ide:pty:data", handler);
+      },
+      onExit: (callback: (data: { id: string; code: number }) => void) => {
+        const handler = (_e: IpcRendererEvent, data: { id: string; code: number }) => callback(data);
+        ipcRenderer.on("ide:pty:exit", handler);
+        return () => ipcRenderer.removeListener("ide:pty:exit", handler);
+      },
+    },
+    project: {
+      getRecent: () => ipcRenderer.invoke("ide:project:get-recent"),
+      saveRecent: (projectPath: string) => ipcRenderer.invoke("ide:project:save-recent", projectPath),
+      getGitStatus: (cwd: string) => ipcRenderer.invoke("ide:project:get-git-status", cwd),
+      getGitBranch: (cwd: string) => ipcRenderer.invoke("ide:project:get-git-branch", cwd),
+    },
+  },
   // Vault (named boxes & agent access)
   vault: {
     getBoxes: () => ipcRenderer.invoke("vault:get-boxes"),

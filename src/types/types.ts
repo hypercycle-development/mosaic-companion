@@ -38,6 +38,7 @@ export const INTERNAL_VAULT_URL = "browser://vault";
 export const INTERNAL_HYPERINSIGHT_URL = "browser://hyperinsight";
 export const INTERNAL_SANDBOX_URL = "browser://sandbox";
 export const INTERNAL_ONBOARDING_URL = "browser://onboarding";
+export const INTERNAL_IDE_URL = "browser://ide";
 /** Dynamic tool panel URL prefix: browser://tool-panel/{toolId} */
 export const INTERNAL_TOOL_PANEL_PREFIX = "browser://tool-panel/";
 

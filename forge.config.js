@@ -42,7 +42,8 @@ export default {
         asar: true,
         asarUnpack: [
             'node_modules/onnxruntime-node/**',
-            'node_modules/sharp/**'
+            'node_modules/sharp/**',
+            'node_modules/node-pty/**'
         ],
         ignore: [
             // Source directories (not needed in build)
