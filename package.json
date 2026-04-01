@@ -1,7 +1,7 @@
 {
   "name": "mosaic-companion",
   "description": "Mosaic Companion Application",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "main": "dist/main/main.js",
   "author": "hypercycle",
   "scripts": {
