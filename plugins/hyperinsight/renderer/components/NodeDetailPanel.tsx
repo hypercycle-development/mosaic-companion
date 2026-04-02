@@ -454,6 +454,7 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ licenseKey, on
             )}
           </AccordionSection>
 
+          {/* REVENUE SECTION HIDDEN FOR NOW
           <AccordionSection
             id="revenue"
             title="Revenue"
@@ -490,7 +491,11 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ licenseKey, on
                 </div>
               </GatedFeature>
             )}
+            <div className="py-4 text-center text-sm text-[var(--textMuted)] italic">
+              TBD / later feature
+            </div>
           </AccordionSection>
+          */}
 
         </div>
       )}
