@@ -216,7 +216,7 @@ const DEFAULT_TOKENS: TokenConfig[] = [
     symbol: "TDN",
     name: "TODA Digital Note",
     contractAddress: "tdn",
-    decimals: 0,
+    decimals: 3,
     isNative: true,
     network: "toda",
   },
