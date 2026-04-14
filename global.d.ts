@@ -361,6 +361,13 @@ declare global {
         getAimProfile:  (name: string) => Promise<any>;
         getAimNodes:    (name: string, opts?: { version?: string; userLat?: number; userLng?: number }) => Promise<any>;
         getAimBestNode: (name: string, opts?: { version?: string; userLat?: number; userLng?: number }) => Promise<any>;
+        // Stage 8B / Stage 7 probe data
+        getAimDeployments: (aimId: number) => Promise<any[]>;
+        getToolStatus: (toolId: string) => Promise<any>;
+        subscribe: (payload: { endpointUrl: string; aimId?: number; nodeLicense?: number }) => Promise<any>;
+        getSubscriptions: () => Promise<any[]>;
+        unsubscribe: (subscriptionId: string) => Promise<any>;
+        getVerificationHistory: (subscriptionId: string) => Promise<any[]>;
       };
 
       // AIM Nodes (separate namespace for new hooks/components)
