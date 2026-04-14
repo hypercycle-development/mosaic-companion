@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Server, Zap, Cpu, Activity, ChevronDown, ChevronUp } from 'lucide-react';
-import { AimNodeInstanceDto, AimStatsDto } from '../types';
-import { relativeTime, freshnessStatus, scoreToColourClass } from '../utils';
+import { AimNodeInstanceDto, AimStatsDto, AimDeploymentDto } from '../types';
+import { relativeTime, freshnessStatus, scoreToColourClass, formatUsdcMicro } from '../utils';
 import { AimTrendChart } from './AimTrendChart';
 import { GatedFeature } from './GatedFeature';
+import { CompositeScoreBadge } from './CompositeScoreBadge';
+import { LivenessBadge } from './LivenessBadge';
+import { PollTierBadge } from './PollTierBadge';
+import { UptimeBadge } from './UptimeBadge';
+import { Tooltip } from './Tooltip';
 import { useNodeConnect } from '../hooks/useNodeConnect';
 
 interface AimIntelligenceZoneProps {
   aimName: string;
   nodes: AimNodeInstanceDto[];
+  deployments: AimDeploymentDto[];
   stats: AimStatsDto | null;
   dataFreshnessUtc: string | null;
   hasUserGeo: boolean;
@@ -17,7 +23,98 @@ interface AimIntelligenceZoneProps {
   onNodeSelect: (nodeLicense: number) => void;
 }
 
-// Derive health status from the nodes array
+// ── Merged row type ───────────────────────────────────────────────────────────
+
+interface MergedDeploymentRow {
+  nodeId: string;
+  nodeName: string | null;
+  nodeLicense: number;
+  region: string | null;
+  tagName: string;
+  isAlive: boolean;
+  uptimePercent: number;
+  gpuName: string | null;
+  computeTflops: number;
+  distanceKm: number | null;
+  primaryEndpointUrl: string;
+  lastContactAt: string;
+  compositeScore: number | null;
+  healthScore: number | null;
+  latencyScore: number | null;
+  uptimeScore: number | null;
+  hardwareBonus: number | null;
+  pollTier: string | null;
+  lastProbedAt: string | null;
+  consecutiveFailures: number | null;
+  releaseTagName: string | null;
+  manifestVersion: string | null;
+  measuredUptime7d: number | null;
+  costMinMicroUsdc: number | null;
+  costMaxMicroUsdc: number | null;
+  currency: string | null;
+  endpointUrl: string | null;
+  hasDeploymentData: boolean;
+}
+
+function buildMergedRows(
+  nodes: AimNodeInstanceDto[],
+  deployments: AimDeploymentDto[],
+): MergedDeploymentRow[] {
+  // Index deployments by nodeLicense — keep highest compositeScore on collision
+  const deployMap = new Map<number, AimDeploymentDto>();
+  for (const d of deployments) {
+    const existing = deployMap.get(d.nodeLicense);
+    if (!existing || d.compositeScore > existing.compositeScore) {
+      deployMap.set(d.nodeLicense, d);
+    }
+  }
+
+  const rows: MergedDeploymentRow[] = nodes.map(node => {
+    const dep = deployMap.get(node.nodeLicense);
+    return {
+      nodeId: node.nodeId,
+      nodeName: node.nodeName,
+      nodeLicense: node.nodeLicense,
+      region: dep?.nodeRegion ?? node.region,
+      tagName: node.tagName,
+      isAlive: node.isAlive,
+      uptimePercent: node.uptimePercent,
+      gpuName: node.gpuName,
+      computeTflops: node.computeTflops,
+      distanceKm: node.distanceKm,
+      primaryEndpointUrl: node.primaryEndpointUrl,
+      lastContactAt: node.lastContactAt,
+      compositeScore: dep != null ? dep.compositeScore : node.compositeScore,
+      healthScore: dep?.healthScore ?? null,
+      latencyScore: dep?.latencyScore ?? null,
+      uptimeScore: dep?.uptimeScore ?? null,
+      hardwareBonus: dep?.hardwareBonus ?? null,
+      pollTier: dep?.pollTier ?? null,
+      lastProbedAt: dep?.lastProbedAt ?? null,
+      consecutiveFailures: dep?.consecutiveFailures ?? null,
+      releaseTagName: dep?.releaseTagName ?? null,
+      manifestVersion: dep?.manifestVersion ?? null,
+      measuredUptime7d: dep?.measuredUptime7d ?? null,
+      costMinMicroUsdc: dep?.costMinMicroUsdc ?? null,
+      costMaxMicroUsdc: dep?.costMaxMicroUsdc ?? null,
+      currency: dep?.currency ?? null,
+      endpointUrl: dep?.endpointUrl ?? null,
+      hasDeploymentData: dep !== undefined,
+    };
+  });
+
+  rows.sort((a, b) => {
+    if (a.compositeScore == null && b.compositeScore == null) return 0;
+    if (a.compositeScore == null) return 1;
+    if (b.compositeScore == null) return -1;
+    return b.compositeScore - a.compositeScore;
+  });
+
+  return rows;
+}
+
+// ── Utility helpers ───────────────────────────────────────────────────────────
+
 function deriveHealth(nodes: AimNodeInstanceDto[]): { label: string; colour: string; dotClass: string } {
   const aliveNodes = nodes.filter(n => n.isAlive);
   if (aliveNodes.length === 0) return { label: 'Offline', colour: 'text-red-400', dotClass: 'bg-red-500' };
@@ -26,7 +123,6 @@ function deriveHealth(nodes: AimNodeInstanceDto[]): { label: string; colour: str
   return { label: 'Degraded', colour: 'text-amber-400', dotClass: 'bg-amber-400' };
 }
 
-// Weighted average uptime (weighted by computeTflops)
 function weightedUptime(nodes: AimNodeInstanceDto[]): string {
   const alive = nodes.filter(n => n.isAlive);
   if (alive.length === 0) return '0.0%';
@@ -35,9 +131,10 @@ function weightedUptime(nodes: AimNodeInstanceDto[]): string {
   return (weightedSum / totalWeight).toFixed(1) + '%';
 }
 
-// Per-row connect button with local loading / success / error state
+// ── ConnectButton ─────────────────────────────────────────────────────────────
+
 const ConnectButton = ({ node }: { node: AimNodeInstanceDto }) => {
-  const { connect, isConnecting, isConnected } = useNodeConnect();
+  const { connect, isConnecting, isConnected, error } = useNodeConnect();
   const connected = isConnected(node.primaryEndpointUrl);
 
   const handleClick = (e: React.MouseEvent) => {
@@ -67,78 +164,256 @@ const ConnectButton = ({ node }: { node: AimNodeInstanceDto }) => {
   );
 };
 
-interface NodeTableRowProps {
-  node: AimNodeInstanceDto;
+// ── ScoreBreakdownPanel ───────────────────────────────────────────────────────
+
+interface ScoreBreakdownPanelProps {
+  deployments: AimDeploymentDto[];
+}
+
+const ScoreBreakdownPanel = ({ deployments }: ScoreBreakdownPanelProps) => {
+  if (deployments.length === 0) return null;
+
+  const bestDeployment = deployments.reduce(
+    (best, d) => (d.compositeScore > best.compositeScore ? d : best),
+    deployments[0],
+  );
+  const avgScore = Math.round(
+    deployments.reduce((sum, d) => sum + d.compositeScore, 0) / deployments.length,
+  );
+
+  interface SubScoreBar {
+    label: string;
+    score: number | null;
+    tooltip: string;
+    isMissing?: boolean;
+  }
+
+  const bars: SubScoreBar[] = [
+    {
+      label: 'Health',
+      score: bestDeployment.healthScore,
+      tooltip: 'Pass rate of health probes in the last 24h',
+    },
+    {
+      label: 'Latency',
+      score: bestDeployment.latencyScore,
+      tooltip: 'Response latency score — 100 at 0ms, 0 at 5000ms (measured from HyperInsight servers)',
+    },
+    {
+      label: 'Uptime',
+      score: bestDeployment.uptimeScore,
+      tooltip: '7-day uptime from HyperInsight probe data',
+    },
+    {
+      // TODO: capabilityScore not yet exposed by API — show placeholder
+      label: 'Capability',
+      score: null,
+      tooltip: 'Manifest completeness — documentation, input/output schemas, cost data',
+      isMissing: true,
+    },
+    {
+      // TODO: costScore not yet exposed by API — show placeholder
+      label: 'Cost',
+      score: null,
+      tooltip: 'Cost data present and parseable',
+      isMissing: true,
+    },
+  ];
+
+  return (
+    <div className="bg-[var(--background)] rounded-lg border border-[var(--border)] p-4 space-y-3">
+      {/* Header row */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div>
+          <div className="text-xs text-[var(--textMuted)] mb-1">Best available</div>
+          <div className="flex items-center gap-2">
+            <CompositeScoreBadge
+              score={bestDeployment.compositeScore}
+              healthScore={bestDeployment.healthScore}
+              latencyScore={bestDeployment.latencyScore}
+              uptimeScore={bestDeployment.uptimeScore}
+              hardwareBonus={bestDeployment.hardwareBonus}
+              size="md"
+            />
+            <span className="text-xs text-[var(--textMuted)]">
+              / 100
+            </span>
+          </div>
+        </div>
+        <div className="text-xs text-[var(--textMuted)]">
+          Network average:{' '}
+          <span className="font-mono text-[var(--text)]">{avgScore}/100</span>
+          {' · '}
+          <span className="font-mono">{deployments.length}</span>{' '}
+          deployment{deployments.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+
+      {/* Sub-score bars */}
+      <div className="space-y-2">
+        <div className="text-xs text-[var(--textMuted)] font-medium">Score Breakdown (best deployment)</div>
+        {bars.map(({ label, score, tooltip, isMissing }) => {
+          const barWidth = isMissing || score == null ? 0 : score;
+          const colorClass = !isMissing && score != null ? scoreToColourClass(score) : 'bg-gray-600';
+          return (
+            <div key={label} className="flex items-center gap-2">
+              <Tooltip content={tooltip}>
+                <span className="text-xs text-[var(--textMuted)] w-20 shrink-0 cursor-default">
+                  {label}
+                </span>
+              </Tooltip>
+              <div className="flex-1 h-1.5 bg-[var(--surface)] rounded-full overflow-hidden">
+                {!isMissing && score != null ? (
+                  <div
+                    className={`h-full rounded-full ${colorClass}`}
+                    style={{ width: `${barWidth}%` }}
+                  />
+                ) : null}
+              </div>
+              <span className="text-xs font-mono text-[var(--textMuted)] w-8 text-right shrink-0">
+                {isMissing || score == null ? '—' : score}
+              </span>
+            </div>
+          );
+        })}
+        {/* Hardware bonus row */}
+        <div className="flex items-center gap-2">
+          <Tooltip content="Additive bonus for verified GPU compute (HyperCycle nodes only)">
+            <span className="text-xs text-[var(--textMuted)] w-20 shrink-0 cursor-default">
+              Hardware
+            </span>
+          </Tooltip>
+          <div className="flex-1" />
+          <span className="text-xs font-mono text-[var(--textMuted)] w-8 text-right shrink-0">
+            +{bestDeployment.hardwareBonus}
+          </span>
+        </div>
+      </div>
+
+      {/* Footnote */}
+      <p className="text-[10px] text-[var(--textMuted)]">
+        Latency measured from HyperInsight servers (Canada Central) — relative comparison only
+      </p>
+    </div>
+  );
+};
+
+// ── MergedNodeRow ─────────────────────────────────────────────────────────────
+
+interface MergedNodeRowProps {
+  row: MergedDeploymentRow;
   hasUserGeo: boolean;
   onSelect: (license: number) => void;
 }
 
-const NodeTableRow = ({ node, hasUserGeo, onSelect }: NodeTableRowProps) => {
-  const scoreClass = node.compositeScore != null
-    ? scoreToColourClass(node.compositeScore)
-    : '';
+const MergedNodeRow = ({ row, hasUserGeo, onSelect }: MergedNodeRowProps) => {
+  // Reconstruct AimNodeInstanceDto shape for ConnectButton (uses primaryEndpointUrl)
+  const nodeForConnect: AimNodeInstanceDto = {
+    nodeId: row.nodeId,
+    nodeName: row.nodeName,
+    nodeLicense: row.nodeLicense,
+    region: row.region,
+    tagName: row.tagName,
+    isAlive: row.isAlive,
+    uptimePercent: row.uptimePercent,
+    gpuName: row.gpuName,
+    computeTflops: row.computeTflops,
+    compositeScore: row.compositeScore,
+    distanceKm: row.distanceKm,
+    primaryEndpointUrl: row.primaryEndpointUrl,
+    lastContactAt: row.lastContactAt,
+  };
+
+  const versionLabel = row.releaseTagName ?? row.tagName;
+  const costLabel = row.hasDeploymentData ? formatUsdcMicro(row.costMinMicroUsdc) : '—';
 
   return (
     <tr
-      onClick={() => onSelect(node.nodeLicense)}
+      onClick={() => onSelect(row.nodeLicense)}
       className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surfaceAlt)] cursor-pointer transition-colors"
     >
-      {/* Status dot */}
+      {/* Liveness */}
       <td className="py-2.5 px-3 w-8">
-        <span
-          className={`inline-block w-2.5 h-2.5 rounded-full ${node.isAlive ? 'bg-[var(--success)]' : 'bg-[var(--textMuted)]'}`}
-          title={node.isAlive ? 'Node is currently alive' : 'Node is offline'}
+        <LivenessBadge
+          healthScore={row.healthScore}
+          consecutiveFailures={row.consecutiveFailures ?? undefined}
+          size="sm"
         />
       </td>
       {/* Name */}
       <td className="py-2.5 px-3 font-mono text-xs text-[var(--text)] max-w-[140px]">
-        <span className="truncate block" title={node.nodeName ?? String(node.nodeLicense)}>
-          {node.nodeName ? node.nodeName.substring(0, 20) + (node.nodeName.length > 20 ? '…' : '') : `#${node.nodeLicense}`}
+        <span className="truncate block" title={row.nodeName ?? String(row.nodeLicense)}>
+          {row.nodeName
+            ? row.nodeName.substring(0, 20) + (row.nodeName.length > 20 ? '…' : '')
+            : `#${row.nodeLicense}`}
         </span>
       </td>
       {/* Region */}
-      <td className="py-2.5 px-3 text-xs text-[var(--textMuted)]">{node.region ?? '—'}</td>
+      <td className="py-2.5 px-3 text-xs text-[var(--textMuted)]">{row.region ?? '—'}</td>
       {/* Version */}
-      <td className="py-2.5 px-3 font-mono text-xs text-[var(--textMuted)]">{node.tagName}</td>
+      <td className="py-2.5 px-3 font-mono text-xs text-[var(--textMuted)]">{versionLabel}</td>
       {/* Uptime */}
-      <td className="py-2.5 px-3 text-xs text-[var(--text)] font-mono">{node.uptimePercent.toFixed(1)}%</td>
+      <td className="py-2.5 px-3">
+        <UptimeBadge
+          measuredUptime7d={row.measuredUptime7d}
+          nodeReportedUptime={row.uptimePercent}
+        />
+      </td>
       {/* GPU */}
       <td className="py-2.5 px-3 text-xs text-[var(--textMuted)] max-w-[120px]">
-        <span className="truncate block" title={node.gpuName ?? undefined}>
-          {node.gpuName ? node.gpuName.substring(0, 16) + (node.gpuName.length > 16 ? '…' : '') : '—'}
+        <span className="truncate block" title={row.gpuName ?? undefined}>
+          {row.gpuName
+            ? row.gpuName.substring(0, 16) + (row.gpuName.length > 16 ? '…' : '')
+            : '—'}
         </span>
       </td>
       {/* Compute */}
       <td className="py-2.5 px-3 text-xs font-mono text-[var(--text)]">
-        {node.computeTflops.toFixed(2)} TF
+        {row.computeTflops.toFixed(2)} TF
       </td>
-      {/* Score */}
+      {/* Composite score */}
       <td className="py-2.5 px-3">
-        {node.compositeScore != null ? (
-          <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${scoreClass}`}>
-            {Math.round(node.compositeScore)}
-          </span>
+        {row.compositeScore != null ? (
+          <CompositeScoreBadge
+            score={row.compositeScore}
+            healthScore={row.healthScore}
+            latencyScore={row.latencyScore}
+            uptimeScore={row.uptimeScore}
+            hardwareBonus={row.hardwareBonus}
+            size="sm"
+          />
         ) : (
           <span className="text-[var(--textMuted)] text-xs">—</span>
         )}
       </td>
+      {/* Cost */}
+      <td className="py-2.5 px-3 text-xs font-mono text-[var(--textMuted)]">{costLabel}</td>
+      {/* Poll tier */}
+      <td className="py-2.5 px-3">
+        {row.pollTier
+          ? <PollTierBadge tier={row.pollTier} />
+          : <span className="text-xs text-[var(--textMuted)]">—</span>}
+      </td>
       {/* Distance (conditional) */}
       {hasUserGeo && (
         <td className="py-2.5 px-3 text-xs text-[var(--textMuted)]">
-          {node.distanceKm != null ? `${Math.round(node.distanceKm)} km` : '—'}
+          {row.distanceKm != null ? `${Math.round(row.distanceKm)} km` : '—'}
         </td>
       )}
       {/* Connect */}
       <td className="py-2.5 px-3" onClick={e => e.stopPropagation()}>
-        <ConnectButton node={node} />
+        <ConnectButton node={nodeForConnect} />
       </td>
     </tr>
   );
 };
 
+// ── AimIntelligenceZone ───────────────────────────────────────────────────────
+
 export const AimIntelligenceZone = ({
   aimName,
   nodes,
+  deployments,
   stats,
   dataFreshnessUtc,
   hasUserGeo,
@@ -173,8 +448,9 @@ export const AimIntelligenceZone = ({
     ? stats.totalComputeTflops.toFixed(1) + ' TFLOPS'
     : '—';
 
-  const visibleNodes = nodes.slice(0, 3);
-  const gatedNodes = nodes.slice(3);
+  const mergedRows = buildMergedRows(nodes, deployments);
+  const visibleRows = mergedRows.slice(0, 3);
+  const gatedRows = mergedRows.slice(3);
 
   return (
     <div className="aim-intelligence-zone space-y-4 bg-[var(--surface)] rounded-xl border border-[var(--border)] p-5">
@@ -217,6 +493,9 @@ export const AimIntelligenceZone = ({
         </div>
       </div>
 
+      {/* Score breakdown panel (only when deployment data is present) */}
+      {deployments.length > 0 && <ScoreBreakdownPanel deployments={deployments} />}
+
       {/* Freshness row */}
       {dataFreshnessUtc && (() => {
         const fStatus = freshnessStatus(dataFreshnessUtc);
@@ -232,7 +511,6 @@ export const AimIntelligenceZone = ({
 
       {/* Section B: Historical trend chart */}
       <div className="space-y-3">
-        {/* Controls */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           {/* Metric toggle */}
           <div className="flex space-x-1 bg-[var(--background)] p-1 rounded-lg border border-[var(--border)]">
@@ -300,7 +578,9 @@ export const AimIntelligenceZone = ({
           className="flex items-center gap-2 text-sm text-[var(--textMuted)] hover:text-[var(--text)] transition-colors"
         >
           {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          {expanded ? 'Hide node details' : `Show node details (${nodes.length} node${nodes.length !== 1 ? 's' : ''})`}
+          {expanded
+            ? 'Hide node details'
+            : `Show node details (${nodes.length} node${nodes.length !== 1 ? 's' : ''})`}
         </button>
 
         {expanded && (
@@ -322,15 +602,19 @@ export const AimIntelligenceZone = ({
                       <th className="py-2 px-3 text-xs text-[var(--textMuted)] font-medium">GPU</th>
                       <th className="py-2 px-3 text-xs text-[var(--textMuted)] font-medium">Compute</th>
                       <th className="py-2 px-3 text-xs text-[var(--textMuted)] font-medium">Score</th>
-                      {hasUserGeo && <th className="py-2 px-3 text-xs text-[var(--textMuted)] font-medium">Distance</th>}
+                      <th className="py-2 px-3 text-xs text-[var(--textMuted)] font-medium">Cost</th>
+                      <th className="py-2 px-3 text-xs text-[var(--textMuted)] font-medium">Tier</th>
+                      {hasUserGeo && (
+                        <th className="py-2 px-3 text-xs text-[var(--textMuted)] font-medium">Distance</th>
+                      )}
                       <th className="py-2 px-3 text-xs text-[var(--textMuted)] font-medium" />
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleNodes.map(node => (
-                      <NodeTableRow
-                        key={node.nodeLicense}
-                        node={node}
+                    {visibleRows.map(row => (
+                      <MergedNodeRow
+                        key={row.nodeLicense}
+                        row={row}
                         hasUserGeo={hasUserGeo}
                         onSelect={onNodeSelect}
                       />
@@ -338,7 +622,7 @@ export const AimIntelligenceZone = ({
                   </tbody>
                 </table>
 
-                {gatedNodes.length > 0 && (
+                {gatedRows.length > 0 && (
                   <>
                     <GatedFeature
                       tier="pro"
@@ -347,10 +631,10 @@ export const AimIntelligenceZone = ({
                     >
                       <table className="w-full text-left border-collapse">
                         <tbody>
-                          {gatedNodes.map(node => (
-                            <NodeTableRow
-                              key={node.nodeLicense}
-                              node={node}
+                          {gatedRows.map(row => (
+                            <MergedNodeRow
+                              key={row.nodeLicense}
+                              row={row}
                               hasUserGeo={hasUserGeo}
                               onSelect={onNodeSelect}
                             />
