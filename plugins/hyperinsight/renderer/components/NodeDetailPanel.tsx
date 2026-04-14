@@ -346,6 +346,11 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ licenseKey, on
                         {formatUtcDate(profile?.lastContactAt ?? node?.lastContactAt)}
                     </span>
                 </div>
+                {/* TODO: Tilling Score
+                    Composite score of uptime_ratio × computation_ratio × reputation_ratio.
+                    Source: Merklizer API (external) — not yet in database.
+                    When available, display here as a 0-2.0 score with breakdown.
+                    See HyperCycle whitepaper section 4.2 for formula details. */}
             </div>
           </AccordionSection>
 
