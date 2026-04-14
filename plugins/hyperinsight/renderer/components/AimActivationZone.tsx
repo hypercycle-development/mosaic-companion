@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Play, CheckCircle, AlertCircle, Loader2, Copy, Check, ExternalLink } from 'lucide-react';
-import { AimNodeInstanceDto } from '../types';
+import { AimNodeInstanceDto, AimDeploymentDto, SubscriptionDto, SubscribePayload } from '../types';
+import { relativeTime } from '../utils';
 import { useNodeConnect } from '../hooks/useNodeConnect';
 
 interface AimActivationZoneProps {
@@ -10,6 +11,11 @@ interface AimActivationZoneProps {
   onChooseNode: () => void;
   /** Accepting currencies from best node hardware (optional — shown in MCP config copy). */
   acceptingCurrencies?: string[];
+  // Stage 8F additions:
+  deployments?: AimDeploymentDto[];
+  subscriptions?: SubscriptionDto[];
+  aimId?: number | null;
+  onSubscriptionsChange?: (subs: SubscriptionDto[]) => void;
 }
 
 export const AimActivationZone = ({
@@ -18,13 +24,28 @@ export const AimActivationZone = ({
   selectedVersion,
   onChooseNode,
   acceptingCurrencies = [],
+  deployments = [],
+  subscriptions = [],
+  aimId,
+  onSubscriptionsChange,
 }: AimActivationZoneProps) => {
   const { connect, isConnecting, isConnected, error } = useNodeConnect();
   const [connectSuccess, setConnectSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
+  const [unsubscribing, setUnsubscribing] = useState(false);
+  const [subscribeError, setSubscribeError] = useState<string | null>(null);
 
   const endpointUrl = bestNode?.primaryEndpointUrl ?? null;
   const alreadyConnected = endpointUrl ? isConnected(endpointUrl) : false;
+
+  // Subscription derived state
+  const isSubscribed = subscriptions.some(
+    s => s.aimId === aimId && s.status !== 'disconnected',
+  );
+  const activeSubscription = subscriptions.find(
+    s => s.aimId === aimId && s.status !== 'disconnected',
+  ) ?? null;
 
   const handleConnect = async () => {
     if (!bestNode || !endpointUrl) return;
@@ -49,6 +70,54 @@ export const AimActivationZone = ({
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // clipboard denied
+    }
+  };
+
+  const handleSubscribe = async () => {
+    if (!aimId) return;
+
+    // Pick best deployment by compositeScore; fall back to bestNode endpoint
+    const bestDeployment = deployments.length > 0
+      ? deployments.reduce(
+          (best, d) => (d.compositeScore > best.compositeScore ? d : best),
+          deployments[0],
+        )
+      : null;
+
+    const subscribeEndpoint = bestDeployment?.endpointUrl ?? bestNode?.primaryEndpointUrl ?? null;
+    if (!subscribeEndpoint) return;
+
+    setSubscribing(true);
+    setSubscribeError(null);
+    try {
+      const payload: SubscribePayload = {
+        endpointUrl: subscribeEndpoint,
+        aimId,
+        nodeLicense: bestDeployment?.nodeLicense ?? bestNode?.nodeLicense ?? undefined,
+      };
+      await window.electronAPI.hyperinsight.subscribe(payload);
+      const updated: unknown = await window.electronAPI.hyperinsight.getSubscriptions();
+      const updatedSubs = Array.isArray(updated) ? (updated as SubscriptionDto[]) : [];
+      onSubscriptionsChange?.(updatedSubs);
+    } catch (e: unknown) {
+      setSubscribeError(e instanceof Error ? e.message : 'Subscribe failed');
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
+  const handleUnsubscribe = async () => {
+    if (!activeSubscription) return;
+    setUnsubscribing(true);
+    try {
+      await window.electronAPI.hyperinsight.unsubscribe(activeSubscription.id);
+      const updated: unknown = await window.electronAPI.hyperinsight.getSubscriptions();
+      const updatedSubs = Array.isArray(updated) ? (updated as SubscriptionDto[]) : [];
+      onSubscriptionsChange?.(updatedSubs);
+    } catch {
+      // non-fatal — stale state is acceptable
+    } finally {
+      setUnsubscribing(false);
     }
   };
 
@@ -189,6 +258,59 @@ export const AimActivationZone = ({
               Until wired up, show fallback message. */}
           Cost varies by endpoint — see capabilities above.
         </p>
+      </div>
+
+      {/* Monitor This AIM section */}
+      <div className="border-t border-[var(--border)] pt-4 space-y-3">
+        <h3 className="text-xs font-semibold text-[var(--textMuted)] uppercase tracking-wider">
+          Monitor This AIM
+        </h3>
+
+        {isSubscribed ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 p-3 bg-[color-mix(in_srgb,var(--success),transparent_90%)] rounded-lg border border-[color-mix(in_srgb,var(--success),transparent_70%)]">
+              <span className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-[var(--success)]">Monitoring active</p>
+                {activeSubscription?.lastVerifiedAt && (
+                  <p className="text-xs text-[var(--textMuted)] mt-0.5">
+                    Last verified {relativeTime(activeSubscription.lastVerifiedAt)}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={handleUnsubscribe}
+                disabled={unsubscribing}
+                className="text-xs text-[var(--textMuted)] hover:text-red-400 transition-colors disabled:opacity-50"
+              >
+                {unsubscribing ? 'Stopping…' : 'Stop'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <button
+              onClick={handleSubscribe}
+              disabled={subscribing || !aimId || (deployments.length === 0 && !bestNode)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-[var(--border)] text-[var(--textMuted)] rounded-lg text-sm font-medium hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {subscribing ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Subscribing…
+                </>
+              ) : (
+                'Subscribe to Monitor'
+              )}
+            </button>
+            {subscribeError && (
+              <p className="text-xs text-red-400">{subscribeError}</p>
+            )}
+            <p className="text-xs text-[var(--textMuted)]">
+              Receive alerts when this AIM&apos;s status changes.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
