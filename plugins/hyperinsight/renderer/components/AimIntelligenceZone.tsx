@@ -154,13 +154,23 @@ const ConnectButton = ({ node }: { node: AimNodeInstanceDto }) => {
   }
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={isConnecting}
-      className="px-2 py-0.5 rounded text-xs bg-[var(--primary)] text-white hover:opacity-80 transition-opacity disabled:opacity-50"
-    >
-      {isConnecting ? '...' : 'Connect'}
-    </button>
+    <span className="inline-flex items-center gap-1">
+      <button
+        onClick={handleClick}
+        disabled={isConnecting || !node.isRoutable}
+        className="px-2 py-0.5 rounded text-xs bg-[var(--primary)] text-white hover:opacity-80 transition-opacity disabled:opacity-50"
+      >
+        {isConnecting ? '...' : 'Connect'}
+      </button>
+      {node.isLocalOnly && (
+        <span
+          title="Private IP — connectivity may require direct network access or port forwarding"
+          className="text-[var(--textMuted)] cursor-help"
+        >
+          🔒
+        </span>
+      )}
+    </span>
   );
 };
 

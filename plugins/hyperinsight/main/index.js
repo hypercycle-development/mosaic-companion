@@ -7,8 +7,28 @@ const STORAGE_FILE = 'hyperinsight.json';
 
 // --- Score cache (Stage 7C) ---
 const TOOL_SCORES_PATH = path.join(app.getPath('userData'), 'hyperinsight-tool-scores.json');
-const POLL_INTERVAL_MS = 60 * 1000; // 60 seconds
+const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes — tool scores update no faster than probe cycles
 let _pollIntervalId = null;
+
+// --- In-memory TTL response cache ---
+// Reduces API quota consumption: leaderboard/nodes/aims are cached per endpoint URL.
+// clearResponseCache() is called when the user manually refreshes.
+const _responseCache = new Map(); // endpoint → { data, expiresAt }
+
+function getCached(key) {
+  const entry = _responseCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { _responseCache.delete(key); return null; }
+  return entry.data;
+}
+
+function setCached(key, data, ttlMs) {
+  _responseCache.set(key, { data, expiresAt: Date.now() + ttlMs });
+}
+
+function clearResponseCache() {
+  _responseCache.clear();
+}
 // Utility: Get storage path
 function getStoragePath() {
   return path.join(app.getPath('userData'), STORAGE_FILE);
@@ -203,42 +223,56 @@ export function registerHyperInsightIpc(ipcMain) {
   });
 
   // 4. Data Fetching
-  const handleDataRequest = async (endpoint, method = 'GET', body = null) => {
+  // ttlMs: when > 0 and method is GET, response is served from in-memory cache until expiry.
+  // Non-GET requests (POST, DELETE) always bypass the cache.
+  const handleDataRequest = async (endpoint, method = 'GET', body = null, ttlMs = 0) => {
     const data = loadKeyData();
     if (!data || !data.apiKey) {
       throw new Error('Not registered');
     }
-    return await apiRequest(endpoint, method, body, data.apiKey);
+
+    if (method === 'GET' && ttlMs > 0) {
+      const cached = getCached(endpoint);
+      if (cached !== null) return cached;
+    }
+
+    const result = await apiRequest(endpoint, method, body, data.apiKey);
+
+    if (method === 'GET' && ttlMs > 0) {
+      setCached(endpoint, result, ttlMs);
+    }
+
+    return result;
   };
 
   ipcMain.handle('hyperinsight:get-aims', async () => {
     try {
-      return await handleDataRequest('/aims/list');
+      return await handleDataRequest('/aims/list', 'GET', null, 10 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:get-leaderboard', async () => {
     try {
-      return await handleDataRequest('/aims/leaderboard?includeTrend=true');
+      return await handleDataRequest('/aims/leaderboard?includeTrend=true', 'GET', null, 3 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:get-nodes', async (event, params) => {
     try {
       const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
-      return await handleDataRequest(`/nodes${queryString}`);
+      return await handleDataRequest(`/nodes${queryString}`, 'GET', null, 2 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:get-node-detail', async (event, license) => {
     try {
-      return await handleDataRequest(`/nodes/${license}`);
+      return await handleDataRequest(`/nodes/${license}`, 'GET', null, 2 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:get-node-profile', async (event, license) => {
     try {
-      return await handleDataRequest(`/nodes/${license}/profile`);
+      return await handleDataRequest(`/nodes/${license}/profile`, 'GET', null, 5 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
@@ -251,33 +285,33 @@ export function registerHyperInsightIpc(ipcMain) {
   // Add support for network stats if needed
   ipcMain.handle('hyperinsight:get-network-stats', async () => {
     try {
-      return await handleDataRequest('/aims/network-stats');
+      return await handleDataRequest('/aims/network-stats', 'GET', null, 5 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:get-network-history', async () => {
     try {
-      return await handleDataRequest('/aims/network-history');
+      return await handleDataRequest('/aims/network-history', 'GET', null, 15 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:get-aim-stats', async (event, name, range) => {
     try {
       // Use query parameters for stats as per backend controller definition
-      return await handleDataRequest(`/aims/stats?name=${encodeURIComponent(name)}&range=${range || '1d'}`);
+      return await handleDataRequest(`/aims/stats?name=${encodeURIComponent(name)}&range=${range || '1d'}`, 'GET', null, 5 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:get-aim-stats-current', async (event, name) => {
     try {
       // Use query parameters for current stats as per backend controller definition
-      return await handleDataRequest(`/aims/stats/current?name=${encodeURIComponent(name)}`);
+      return await handleDataRequest(`/aims/stats/current?name=${encodeURIComponent(name)}`, 'GET', null, 2 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:get-aim-details', async (event, name) => {
     try {
-      return await handleDataRequest(`/aims/${name}`);
+      return await handleDataRequest(`/aims/${name}`, 'GET', null, 10 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
@@ -285,14 +319,14 @@ export function registerHyperInsightIpc(ipcMain) {
     try {
       // Split by slash to handle namespaces (user/repo) correctly without encoding the separator
       const pathSafeName = name.split('/').map(part => encodeURIComponent(part)).join('/');
-      return await handleDataRequest(`/aims/${pathSafeName}/releases`);
+      return await handleDataRequest(`/aims/${pathSafeName}/releases`, 'GET', null, 15 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:get-aim-release-detail', async (event, name, tag) => {
     try {
       const pathSafeName = name.split('/').map(part => encodeURIComponent(part)).join('/');
-      return await handleDataRequest(`/aims/${pathSafeName}/releases/${encodeURIComponent(tag)}`);
+      return await handleDataRequest(`/aims/${pathSafeName}/releases/${encodeURIComponent(tag)}`, 'GET', null, 15 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
@@ -301,7 +335,7 @@ export function registerHyperInsightIpc(ipcMain) {
   ipcMain.handle('hyperinsight:get-aim-profile', async (event, name) => {
     try {
       const pathSafeName = name.split('/').map(p => encodeURIComponent(p)).join('/');
-      return await handleDataRequest(`/aims/${pathSafeName}/profile`);
+      return await handleDataRequest(`/aims/${pathSafeName}/profile`, 'GET', null, 10 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
@@ -313,7 +347,7 @@ export function registerHyperInsightIpc(ipcMain) {
       if (opts.userLat != null) params.set('user_lat', String(opts.userLat));
       if (opts.userLng != null) params.set('user_lng', String(opts.userLng));
       const qs = params.toString() ? `?${params}` : '';
-      return await handleDataRequest(`/aims/${pathSafeName}/nodes${qs}`);
+      return await handleDataRequest(`/aims/${pathSafeName}/nodes${qs}`, 'GET', null, 3 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
@@ -325,7 +359,7 @@ export function registerHyperInsightIpc(ipcMain) {
       if (opts.userLat != null) params.set('user_lat', String(opts.userLat));
       if (opts.userLng != null) params.set('user_lng', String(opts.userLng));
       const qs = params.toString() ? `?${params}` : '';
-      return await handleDataRequest(`/aims/${pathSafeName}/best-node${qs}`);
+      return await handleDataRequest(`/aims/${pathSafeName}/best-node${qs}`, 'GET', null, 2 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
@@ -415,6 +449,12 @@ export function registerHyperInsightIpc(ipcMain) {
       console.error('[HyperInsight] Failed to save image:', error);
       return { success: false, error: error.message };
     }
+  });
+
+  // Cache management — called by renderer before manual refresh so the user always gets fresh data
+  ipcMain.handle('hyperinsight:clear-cache', () => {
+    clearResponseCache();
+    return { success: true };
   });
 
   // Start background polling after all handlers are registered (key guaranteed available)

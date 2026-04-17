@@ -264,6 +264,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getSubscriptions:       () => ipcRenderer.invoke("hyperinsight:get-subscriptions"),
     unsubscribe:            (subscriptionId: string) => ipcRenderer.invoke("hyperinsight:unsubscribe", subscriptionId),
     getVerificationHistory: (subscriptionId: string) => ipcRenderer.invoke("hyperinsight:get-verification-history", subscriptionId),
+    clearCache:             () => ipcRenderer.invoke("hyperinsight:clear-cache"),
     // AIM Nodes data
     saveNodeData: (license: string, data: any) => ipcRenderer.invoke("aimnodes:save-node-data", license, data),
     deleteNodeData: (license: string) => ipcRenderer.invoke("aimnodes:delete-node-data", license),
