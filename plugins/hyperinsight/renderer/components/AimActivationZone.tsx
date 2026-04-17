@@ -136,7 +136,7 @@ export const AimActivationZone = ({
           <>
             <button
               onClick={handleConnect}
-              disabled={isConnecting || alreadyConnected}
+              disabled={isConnecting || alreadyConnected || bestNode?.isRoutable === false}
               className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[var(--primary)] text-white rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isConnecting ? (

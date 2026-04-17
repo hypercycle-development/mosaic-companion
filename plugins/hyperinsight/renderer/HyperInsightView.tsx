@@ -163,8 +163,11 @@ export const HyperInsightView = () => {
         </div>
         <div className="flex items-center space-x-4">
             <ActiveNodesDisplay stats={data.stats} history={data.history} />
-            <button 
-                onClick={fetchData} 
+            <button
+                onClick={async () => {
+                  await window.electronAPI?.hyperinsight?.clearCache?.();
+                  fetchData();
+                }}
                 disabled={dataLoading}
                 className="p-2 rounded-full hover:bg-[var(--surface)] transition-colors disabled:opacity-50"
             >
