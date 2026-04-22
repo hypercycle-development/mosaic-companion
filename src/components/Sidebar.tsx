@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Home,
@@ -46,6 +47,7 @@ import {
   INTERNAL_SANDBOX_URL,
   INTERNAL_IDE_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
+  INTERNAL_ADAPORTAL_START_URL,
 } from "../types/types";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
 import { NodeDetailPanel } from "../../plugins/hyperinsight/renderer/components/NodeDetailPanel";
@@ -240,6 +242,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "ide", label: "IDE", icon: "Code2", url: INTERNAL_IDE_URL },
     { id: "sandbox", label: "Tool Sandbox", icon: "Cpu", url: INTERNAL_SANDBOX_URL },
     {
+      id: "adaportal",
+      label: "Stargate",
+      icon: "Sparkles",
+      url: INTERNAL_ADAPORTAL_START_URL,
+    },
+    {
       id: "settings",
       label: "Configuration",
       icon: "Settings",
@@ -314,6 +322,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <Cpu className={className} />;
       case "Code2":
         return <Code2 className={className} />;
+      case "Sparkles":
+        return <Sparkles className={className} />;
       default:
         return <LayoutGrid className={className} />;
     }

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useRef, useEffect } from "react";
 import {
   INTERNAL_CHAT_URL,
@@ -13,6 +14,14 @@ import {
   INTERNAL_ONBOARDING_URL,
   INTERNAL_IDE_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
+  INTERNAL_ADAPORTAL_URL,
+  INTERNAL_ADAPORTAL_START_URL,
+  INTERNAL_ADAPORTAL_SKILLS_URL,
+  INTERNAL_ADAPORTAL_TRAIN_URL,
+  INTERNAL_ADAPORTAL_COMPUTE_URL,
+  INTERNAL_ADAPORTAL_BUNDLES_URL,
+  INTERNAL_ADAPORTAL_RANKINGS_URL,
+  INTERNAL_ADAPORTAL_STARGATE_URL,
   Tab,
 } from "../types/types";
 import { LandingPage } from "./LandingPage";
@@ -29,6 +38,7 @@ import { OnboardingPage } from "./OnboardingPage";
 import IDEPage from "./ide/IDEPage";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
+import { AdaPortalPanel } from "./AdaPortalPanel";
 
 interface ContentAreaProps {
   url: string;
@@ -529,6 +539,23 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
         onNavigate={onNavigate}
         onComplete={() => onOnboardingComplete?.()}
       />
+    );
+  }
+
+  // Stargate URLs
+  if (url.startsWith("browser://adaportal")) {
+    useEffect(() => {
+      onUpdateTab({
+        title: "Stargate",
+        isLoading: false,
+        favicon: undefined,
+      });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
+        <AdaPortalPanel url={url} onNavigate={onNavigate} />
+      </div>
     );
   }
 

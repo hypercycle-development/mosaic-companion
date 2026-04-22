@@ -42,6 +42,16 @@ export const INTERNAL_IDE_URL = "browser://ide";
 /** Dynamic tool panel URL prefix: browser://tool-panel/{toolId} */
 export const INTERNAL_TOOL_PANEL_PREFIX = "browser://tool-panel/";
 
+// Stargate URLs
+export const INTERNAL_ADAPORTAL_URL = "browser://adaportal";
+export const INTERNAL_ADAPORTAL_START_URL = "browser://adaportal/start";
+export const INTERNAL_ADAPORTAL_SKILLS_URL = "browser://adaportal/skills";
+export const INTERNAL_ADAPORTAL_TRAIN_URL = "browser://adaportal/train";
+export const INTERNAL_ADAPORTAL_COMPUTE_URL = "browser://adaportal/compute";
+export const INTERNAL_ADAPORTAL_BUNDLES_URL = "browser://adaportal/bundles";
+export const INTERNAL_ADAPORTAL_RANKINGS_URL = "browser://adaportal/rankings";
+export const INTERNAL_ADAPORTAL_STARGATE_URL = "browser://adaportal/stargate";
+
 export interface AppSettings {
   homeUrl: string;
   customGreeting: string;
