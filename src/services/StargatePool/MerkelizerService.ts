@@ -1,7 +1,10 @@
 // @ts-nocheck
 // =============================================================================
-// STARGATE POOL - Merkelizer Service
-// ANFE verification via Merkelizer API
+// STARGATE POOL - Merkelizer Service (v2 — HyperInsight bridge)
+// =============================================================================
+// The old IP-based Merkelizer is dead. This service:
+// - Verifies/enriches ANFE metadata via HyperInsight API
+// - Provides node uptime, tranche, status from live network data
 // =============================================================================
 
 export interface VerificationResult {
@@ -11,6 +14,13 @@ export interface VerificationResult {
   proof?: string;
   lastUpdated?: number;
   error?: string;
+  nodeFactoryId?: string;
+  tranche?: string;
+  uptime?: number;
+  reliability?: number;
+  lastVerified?: number;
+  status?: 'online' | 'offline' | 'busy';
+  registeredAt?: number;
 }
 
 export interface NodeInfo {
@@ -19,6 +29,10 @@ export interface NodeInfo {
   uptime: number;
   status: 'online' | 'offline' | 'busy';
   lastVerified: number;
+  nodeFactoryId?: string;
+  tranche?: string;
+  reliability?: number;
+  registeredAt?: number;
 }
 
 export interface UptimeInfo {
@@ -27,7 +41,6 @@ export interface UptimeInfo {
   avgUptime: number;
 }
 
-// Merkelizer API response types
 interface MerkelizerVerifyResponse {
   valid: boolean;
   anfeId: string;
@@ -36,219 +49,109 @@ interface MerkelizerVerifyResponse {
 }
 
 interface MerkelizerNodesResponse {
-  nodes: Array<{
-    id: string;
-    address: string;
-    uptime: string;
-    status: string;
-    lastVerified: string;
-  }>;
+  nodes: Array<{ id: string; address: string; uptime: string; status: string; lastVerified: string }>;
 }
 
-interface MerkelizerUptimeResponse {
-  totalNodes: number;
-  onlineNodes: number;
-  avgUptime: number;
-}
+// Legacy fallback URL (dead — kept for backwards compat only)
+const FALLBACK_MERKELIZER_URL = 'http://YOUR_HYPERCYCLE_NODE_IP:8003';
 
-// Default config
-const DEFAULT_MERKELIZER_URL = import.meta.env.VITE_MERKELIZER_URL_MAINNET || 'http://YOUR_HYPERCYCLE_NODE_IP:8003';
+// Primary: HyperInsight API
+const HI_BASE   = 'https://api.hyperinsight.app/v1';
+const HI_KEY    = 'wq2YvVU4SXPekQzAKJfmDJ4cdSV0yquHEihaY3vMYwk';
+const HI_HEADERS: Record<string,string> = {
+  'Authorization': `Bearer ${HI_KEY}`,
+  'Accept': 'application/json',
+};
+
+async function hiFetch(path: string): Promise<any|null> {
+  try {
+    const r = await fetch(`${HI_BASE}${path}`, { headers: HI_HEADERS });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
 
 class MerkelizerService {
   private baseUrl: string;
   private cache: Map<string, { data: VerificationResult; timestamp: number }> = new Map();
-  private cacheTTL = 60000; // 1 minute cache for verifications
+  private cacheTTL = 60000;
 
   constructor(baseUrl?: string) {
-    this.baseUrl = baseUrl || DEFAULT_MERKELIZER_URL;
-    console.log('[MerkelizerService] Initialized with baseUrl:', this.baseUrl);
+    this.baseUrl = baseUrl || FALLBACK_MERKELIZER_URL;
+    console.log('[MerkelizerService] Initialized — primary HyperInsight, legacy fallback:', this.baseUrl);
   }
 
-  /**
-   * Verify an ANFE using Merkelizer
-   */
+  /** Verify ANFE — PRIMARY: HyperInsight node detail */
   async verifyANFE(anfeId: string): Promise<VerificationResult> {
     const cacheKey = `verify:${anfeId}`;
     const cached = this.cache.get(cacheKey);
-    
-    if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
-      console.log('[MerkelizerService] Cache hit for verification:', anfeId);
-      return cached.data;
-    }
+    if (cached && Date.now() - cached.timestamp < this.cacheTTL) return cached.data;
 
     try {
-      console.log('[MerkelizerService] Verifying ANFE:', anfeId);
-
-      const response = await fetch(`${this.baseUrl}/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ anfeId }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Verification failed: ${response.status}`);
-      }
-
-      const result: VerificationResult = await response.json();
-      
-      // Add metadata
-      result.lastUpdated = Date.now();
-      result.anfeId = anfeId;
-
-      // Cache result
-      this.cache.set(cacheKey, { data: result, timestamp: Date.now() });
-
-      console.log('[MerkelizerService] Verification result:', result.valid ? 'VALID' : 'INVALID');
-      return result;
-    } catch (error) {
-      console.error('[MerkelizerService] Verification error:', error);
-      
-      // Return unverified on error (graceful degradation)
-      return {
-        valid: false,
-        anfeId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        lastUpdated: Date.now(),
-      };
-    }
-  }
-
-  /**
-   * Batch verify multiple ANFEs
-   */
-  async verifyANFEs(anfeIds: string[]): Promise<VerificationResult[]> {
-    const results = await Promise.all(
-      anfeIds.map(id => this.verifyANFE(id))
-    );
-    return results;
-  }
-
-  /**
-   * Get all registered nodes from Merkelizer
-   */
-  async getNodes(): Promise<NodeInfo[]> {
-    try {
-      const response = await fetch(`${this.baseUrl}/nodes`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to get nodes: ${response.status}`);
-      }
-
-      const data: MerkelizerNodesResponse = await response.json();
-
-      return data.nodes.map(node => ({
-        nodeId: node.id,
-        address: node.address,
-        uptime: parseFloat(node.uptime),
-        status: node.status as 'online' | 'offline' | 'busy',
-        lastVerified: parseInt(node.lastVerified) * 1000,
-      }));
-    } catch (error) {
-      console.error('[MerkelizerService] Failed to get nodes:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get Merkelizer uptime stats
-   */
-  async getUptime(): Promise<UptimeInfo | null> {
-    try {
-      const response = await fetch(`${this.baseUrl}/uptime`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to get uptime: ${response.status}`);
-      }
-
-      const data: MerkelizerUptimeResponse = await response.json();
-
-      return {
-        totalNodes: data.totalNodes,
-        onlineNodes: data.onlineNodes,
-        avgUptime: data.avgUptime,
-      };
-    } catch (error) {
-      console.error('[MerkelizerService] Failed to get uptime:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Request compute from a node
-   */
-  async requestCompute(anfeId: string, nodeId: string, task: any): Promise<{ success: boolean; result?: any; error?: string }> {
-    try {
-      const response = await fetch(`${this.baseUrl}/compute`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const node = await hiFetch(`/nodes/${anfeId}`);
+      if (node && (node.licenseKey || node.isAlive !== undefined)) {
+        const result: VerificationResult = {
+          valid: node.isAlive === true || node.isAlive === undefined,
           anfeId,
-          nodeId,
-          task,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Compute request failed: ${response.status}`);
+          lastUpdated: Date.now(),
+          nodeFactoryId: node.licenseKey ? String(node.licenseKey) : undefined,
+          tranche: node.network || 'BASE',
+          uptime: node.measuredUptime ?? node.uptimePercent ?? undefined,
+          reliability: node.measuredUptime ?? undefined,
+          lastVerified: Date.now(),
+          status: node.isAlive ? 'online' : 'offline',
+          registeredAt: node.lastContactAt ? new Date(node.lastContactAt).getTime() : undefined,
+        };
+        this.cache.set(cacheKey, { data: result, timestamp: Date.now() });
+        return result;
       }
+    } catch (e) { console.warn('[MerkelizerService] HyperInsight verifyANFE failed:', e); }
 
-      const result = await response.json();
-      return { success: true, result };
+    // LEGACY FALLBACK (dead, but safe)
+    try {
+      const r = await fetch(`${this.baseUrl}/verify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ anfeId }) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data: VerificationResult = await r.json();
+      data.lastUpdated = Date.now(); data.anfeId = anfeId;
+      this.cache.set(cacheKey, { data, timestamp: Date.now() });
+      return data;
     } catch (error) {
-      console.error('[MerkelizerService] Compute request error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+      console.warn('[MerkelizerService] Legacy verify also failed:', error);
+      return { valid: false, anfeId, error: 'HyperInsight unreachable' };
     }
   }
 
-  /**
-   * Check if Merkelizer is available
-   */
+  /** Node details — PRIMARY: HyperInsight */
+  async getNodeDetails(anfeId: string): Promise<NodeInfo|null> {
+    try {
+      const node = await hiFetch(`/nodes/${anfeId}`);
+      if (!node) return null;
+      return {
+        nodeId: String(node.licenseKey || anfeId),
+        address: node.coldWalletAddress || node.hotWalletAddress || '',
+        uptime: node.measuredUptime ?? node.uptimePercent ?? 0,
+        status: node.isAlive ? 'online' : 'offline',
+        lastVerified: node.lastContactAt ? new Date(node.lastContactAt).getTime() : Date.now(),
+        nodeFactoryId: node.licenseKey ? String(node.licenseKey) : undefined,
+        tranche: node.network || 'BASE',
+        reliability: node.measuredUptime ?? 0,
+        registeredAt: node.lastContactAt ? new Date(node.lastContactAt).getTime() : undefined,
+      };
+    } catch (e) { console.warn('[MerkelizerService] HyperInsight getNodeDetails failed:', e); return null; }
+  }
+
+  /** Not available on HyperInsight as a wallet mapping endpoint */
+  async getANFEsByOwner(_walletAddress: string): Promise<VerificationResult[]> { return []; }
+  async getAllANFEs(): Promise<VerificationResult[]> { return []; }
+
+  clearCache(): void { this.cache.clear(); }
+
   async healthCheck(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/uptime`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(5000),
-      });
-      return response.ok;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Clear verification cache
-   */
-  clearCache(): void {
-    this.cache.clear();
-    console.log('[MerkelizerService] Cache cleared');
-  }
-
-  /**
-   * Get cached verification for an ANFE (without making API call)
-   */
-  getCachedVerification(anfeId: string): VerificationResult | null {
-    const cached = this.cache.get(`verify:${anfeId}`);
-    return cached?.data || null;
+      const r = await fetch(`${HI_BASE}/auth/me`, { headers: HI_HEADERS });
+      return r.ok;
+    } catch { return false; }
   }
 }
 
-// Singleton
 export const merkelizerService = new MerkelizerService();
-export default merkelizerService;

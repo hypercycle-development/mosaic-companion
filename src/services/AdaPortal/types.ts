@@ -22,6 +22,11 @@ export interface AIMInfo {
   hypercycle_id?: string; // HyperCycle ID
   license?: string;       // License type
   isActive?: boolean;     // Whether AIM is actively running on nodes
+  // Additional HyperInsight fields
+  bestLivenessScore?: number;
+  bestEndpointUrl?: string;
+  estimatedCostUsdc?: number | null;
+  manifestVersion?: string | null;
 }
 
 export interface AIMPerformance {

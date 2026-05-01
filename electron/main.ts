@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, ipcMain, IpcMainInvokeEvent, powerMonitor, protocol, net } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain, IpcMainInvokeEvent, powerMonitor, protocol, net, Menu, MenuItem, shell } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -62,7 +62,7 @@ import {
   type NetworkConfig,
   clearTodaTwinInfoAddress,
 } from "./integrations/web3/config";
-import { getWalletKey, saveWalletKey } from "./integrations/web3/index";
+import { getWalletKey, saveWalletKey, getWalletAddress } from "./integrations/web3/index";
 import { signHypercycleNonceWithWallet } from "./integrations/web3/hypercycleSign";
 import {
   saveTodaApiKey,
@@ -296,6 +296,23 @@ app.on("web-contents-created", (_event, contents) => {
   });
 });
 
+// Enable copy/paste context menu (fix from community installer)
+app.on('browser-window-created', (_, win) => {
+  win.webContents.on('context-menu', (e, params) => {
+    const menu = new Menu();
+    if (params.isEditable) {
+      menu.append(new MenuItem({ role: 'paste', label: 'Paste' }));
+      menu.append(new MenuItem({ role: 'copy', label: 'Copy' }));
+      menu.append(new MenuItem({ role: 'cut', label: 'Cut' }));
+      menu.append(new MenuItem({ type: 'separator' }));
+      menu.append(new MenuItem({ role: 'selectAll', label: 'Select All' }));
+    } else if (params.selectionText) {
+      menu.append(new MenuItem({ role: 'copy', label: 'Copy' }));
+    }
+    menu.popup();
+  });
+});
+
 // Must be called before app is ready
 protocol.registerSchemesAsPrivileged([
   { scheme: 'mosaic-media', privileges: { bypassCSP: true, supportFetchAPI: true, corsEnabled: true } }
@@ -419,6 +436,28 @@ ipcMain.handle("show-title-bar-confirm", async () => {
   return { buttonIndex: result.response };
 });
 
+// HyperCycle Node status IPC (from community installer)
+ipcMain.handle("get-node-status", async () => {
+  try {
+    const http = await import('http');
+    return new Promise((resolve) => {
+      http.get('http://localhost:8000/info', (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch {
+            resolve(null);
+          }
+        });
+      }).on('error', () => resolve(null));
+    });
+  } catch {
+    return null;
+  }
+});
+
 ipcMain.handle("window:minimize", () => {
   if (mainWindow) mainWindow.minimize();
 });
@@ -439,6 +478,14 @@ ipcMain.handle("window:close", () => {
 
 ipcMain.handle("window:is-maximized", () => {
   return mainWindow ? mainWindow.isMaximized() : false;
+});
+
+// Open external URLs in default browser (from community installer)
+ipcMain.on("open-external", (event, url) => {
+  // Prevent navigation to non-local URLs
+  if (!url.startsWith('http://localhost') && !url.startsWith('file://')) {
+    shell.openExternal(url);
+  }
 });
 
 // File dialog for sandbox tool installation
@@ -867,9 +914,10 @@ ipcMain.handle("web3:sign-hypercycle-nonce", async (_event, nonce: string) => {
 
 // Web3 wallet import (secure paths — key never passes through renderer IPC)
 function isValidPrivateKey(key: string): boolean {
-  const trimmed = key.trim();
-  if (!trimmed) return false;
-  const hex = trimmed.startsWith("0x") ? trimmed.slice(2) : trimmed;
+  // Strip ALL whitespace (spaces, newlines, tabs) that copy/paste often introduces
+  const cleaned = key.replace(/\s+/g, "").trim();
+  if (!cleaned) return false;
+  const hex = cleaned.startsWith("0x") ? cleaned.slice(2) : cleaned;
   return /^[a-fA-F0-9]{64}$/.test(hex);
 }
 
@@ -880,8 +928,12 @@ ipcMain.handle("web3:import-from-clipboard", async () => {
       return { success: false, error: "Clipboard does not contain a valid Ethereum private key (64 hex chars, optional 0x prefix)." };
     }
     const ok = saveWalletKey(text.trim());
-    if (ok) clipboard.clear();
-    return { success: ok };
+    if (!ok) return { success: false, error: "Failed to save wallet key." };
+    clipboard.clear();
+    const address = getWalletAddress();
+    mainWindow?.webContents.send("wallet:imported");
+    mainWindow?.webContents.send("wallet:changed", { address });
+    return { success: true, address };
   } catch {
     return { success: false, error: "Failed to import from clipboard." };
   }

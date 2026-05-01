@@ -19,6 +19,7 @@ import {
   Wrench,
   ChevronRight,
   Image as ImageIcon,
+  Users,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -294,6 +295,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const agentSelectorRef = useRef<HTMLDivElement>(null);
+
+  // Multi-agent orchestration state
+  const [multiAgentMode, setMultiAgentMode] = useState(false);
+  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
+  const [orchestrationMode, setOrchestrationMode] = useState<'parallel' | 'sequential' | 'collaborative'>('parallel');
 
   const activeAgents = agents.filter((a) => a.isActive);
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
@@ -966,45 +972,46 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <div className="shrink-0 border-b border-gray-800 bg-gray-950/80 backdrop-blur-md px-6 py-4">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
             {/* Agent Selector */}
-            <div className="relative" ref={agentSelectorRef}>
-              <button
-                onClick={() => setShowAgentSelector(!showAgentSelector)}
-                className="flex items-center gap-3 px-4 py-2 bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-xl transition-colors"
-              >
-                {selectedAgent && (
-                  <>
-                    <div
-                      className="w-2.5 h-2.5 rounded-full"
-                      style={{
-                        backgroundColor:
-                          PROVIDER_INFO[selectedAgent.provider]?.color ||
-                          "#6B7280",
-                        boxShadow: `0 0 8px ${
-                          PROVIDER_INFO[selectedAgent.provider]?.color ||
-                          "#6B7280"
-                        }`,
-                      }}
-                    />
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-white">
-                        {selectedAgent.name}
-                      </p>
-                      <p className="text-xs text-gray-500 font-mono">
-                        {selectedAgent.model}
-                      </p>
-                    </div>
-                  </>
-                )}
-                <ChevronDown
-                  size={16}
-                  className={`text-gray-400 transition-transform ${
-                    showAgentSelector ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
+            <div className="flex items-center gap-2">
+              <div className="relative" ref={agentSelectorRef}>
+                <button
+                  onClick={() => setShowAgentSelector(!showAgentSelector)}
+                  className="flex items-center gap-3 px-4 py-2 bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-xl transition-colors"
+                >
+                  {selectedAgent && (
+                    <>
+                      <div
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{
+                          backgroundColor:
+                            PROVIDER_INFO[selectedAgent.provider]?.color ||
+                            "#6B7280",
+                          boxShadow: `0 0 8px ${
+                            PROVIDER_INFO[selectedAgent.provider]?.color ||
+                            "#6B7280"
+                          }`,
+                        }}
+                      />
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-white">
+                          {selectedAgent.name}
+                        </p>
+                        <p className="text-xs text-gray-500 font-mono">
+                          {selectedAgent.model}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  <ChevronDown
+                    size={16}
+                    className={`text-gray-400 transition-transform ${
+                      showAgentSelector ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
 
-              {/* Agent Dropdown */}
-              {showAgentSelector && (
+                {/* Agent Dropdown */}
+                {showAgentSelector && (
                 <div className="absolute top-full left-0 mt-2 w-72 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50">
                   <div className="p-2">
                     {activeAgents.map((agent) => (
@@ -1053,6 +1060,73 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 </div>
               )}
             </div>
+            </div>
+
+            {/* Multi-Agent Toggle */}
+            <button
+              onClick={() => setMultiAgentMode(!multiAgentMode)}
+              className={`p-2 rounded-lg transition-colors ${
+                multiAgentMode
+                  ? "bg-indigo-600 text-white"
+                  : "text-gray-500 hover:text-gray-300 hover:bg-gray-800"
+              }`}
+              title={multiAgentMode ? "Single agent mode" : "Multi-agent orchestration"}
+            >
+              <Users size={18} />
+            </button>
+
+            {/* Multi-Agent Selection Panel */}
+            {multiAgentMode && (
+              <div className="absolute top-full left-0 right-0 mt-2 p-4 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl z-50">
+                <div className="max-w-4xl mx-auto">
+                  <p className="text-sm font-medium text-white mb-3">
+                    Select agents for orchestration
+                  </p>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {activeAgents.map((agent) => (
+                      <button
+                        key={agent.id}
+                        onClick={() => {
+                          if (selectedAgentIds.includes(agent.id)) {
+                            setSelectedAgentIds(selectedAgentIds.filter(id => id !== agent.id));
+                          } else {
+                            setSelectedAgentIds([...selectedAgentIds, agent.id]);
+                          }
+                        }}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+                          selectedAgentIds.includes(agent.id)
+                            ? "bg-indigo-900/30 border-indigo-500 text-white"
+                            : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600"
+                        }`}
+                      >
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{
+                            backgroundColor: PROVIDER_INFO[agent.provider]?.color || "#6B7280",
+                          }}
+                        />
+                        <span className="text-sm">{agent.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs text-gray-500">Mode:</span>
+                    <select
+                      value={orchestrationMode}
+                      onChange={(e) => setOrchestrationMode(e.target.value as any)}
+                      className="bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-1"
+                    >
+                      <option value="parallel">Parallel</option>
+                      <option value="sequential">Sequential</option>
+                      <option value="collaborative">Collaborative</option>
+                    </select>
+                    <span className="text-xs text-gray-500">
+                      {selectedAgentIds.length} agent{selectedAgentIds.length !== 1 ? 's' : ''} selected
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex items-center gap-2">

@@ -85,7 +85,11 @@ export default {
         }
     },
 
-    rebuildConfig: {},
+    rebuildConfig: {
+        force: false,
+        onlyModules: []
+    },
+    skipNativeRebuild: true,
 
     makers: [
         {

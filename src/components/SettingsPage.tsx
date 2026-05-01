@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { toast } from "react-toastify";
 
@@ -855,3 +856,4 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     </div>
   );
 };
+

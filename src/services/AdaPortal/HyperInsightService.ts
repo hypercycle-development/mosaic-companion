@@ -1,172 +1,37 @@
 // ============================================
 // ADA PORTAL - HyperInsight Integration Service
-// Real AIM data from HyperInsight MCP + REST API
+// Uses the Electron IPC bridge (NOT direct fetch)
+// All calls go through window.electronAPI.hyperinsight.*
 // ============================================
 
 import {
   AIMInfo,
-  AIMPerformance,
-  ComputeNode,
   ComputeTier,
   ComputeTierInfo,
   UnifiedLeaderboardEntry,
   UnifiedLeaderboardSection,
   IntentOption,
   UserIntent,
-  AutonomousTask,
-  SubTask
+  AutonomousTask
 } from './types';
 
-// ============================================
-// HYPERINSIGHT REST API CONFIGURATION
-// ============================================
-const HYPERINSIGHT_CONFIG = {
-  partner: 'Mauricio-HPEC-DAO',
-  tier: 'enterprise',
-  apiKey: 'wq2YvVU4SXPekQzAKJfmDJ4cdSV0yquHEihaY3vMYwk',
-  baseUrl: 'https://api.hyperinsight.app/',
-  rateLimit: { rpm: 500, daily: 100000 }
-};
-
-// Type for HyperInsight API (augments existing window.electronAPI)
-interface HyperInsightAPI {
-  getStatus: () => Promise<{ registered: boolean; tier?: string; clientId?: string }>;
-  ensureKey: () => Promise<{ success: boolean; clientId?: string; error?: string }>;
-  resetKey: () => Promise<{ success: boolean; error?: string }>;
-  getAims: () => Promise<any[]>;
-  getLeaderboard: () => Promise<any[]>;
-  getNodes: () => Promise<any[]>;
-  getNetworkStats?: () => Promise<any>;
-}
-
-// ============================================
-// REST API CLIENT
-// ============================================
-class HyperInsightAPIClient {
-  private apiKey: string;
-  private baseUrl: string;
-
-  constructor() {
-    this.apiKey = HYPERINSIGHT_CONFIG.apiKey;
-    this.baseUrl = HYPERINSIGHT_CONFIG.baseUrl;
-  }
-
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    const headers = {
-      'Content-Type': 'application/json',
-      'X-API-Key': this.apiKey,
-      'X-Partner': HYPERINSIGHT_CONFIG.partner,
-      ...options.headers
-    };
-
-    const response = await fetch(url, { ...options, headers });
-    
-    if (!response.ok) {
-      throw new Error(`HyperInsight API error: ${response.status} ${response.statusText}`);
-    }
-    
-    return response.json();
-  }
-
-  // Get all AIMs (AI Models)
-  async getAIMs(): Promise<any[]> {
-    try {
-      return await this.request<any[]>('v1/aims');
-    } catch (e) {
-      console.warn('[HyperInsight] Failed to fetch AIMs:', e);
-      return [];
-    }
-  }
-
-  // Get AIM leaderboard/rankings
-  async getLeaderboard(category?: string): Promise<any[]> {
-    try {
-      const params = category ? `?category=${category}` : '';
-      return await this.request<any[]>(`v1/leaderboard${params}`);
-    } catch (e) {
-      console.warn('[HyperInsight] Failed to fetch leaderboard:', e);
-      return [];
-    }
-  }
-
-  // Get compute nodes
-  async getNodes(): Promise<any[]> {
-    try {
-      return await this.request<any[]>('v1/nodes');
-    } catch (e) {
-      console.warn('[HyperInsight] Failed to fetch nodes:', e);
-      return [];
-    }
-  }
-
-  // Get network stats
-  async getNetworkStats(): Promise<any> {
-    try {
-      return await this.request<any>('v1/stats');
-    } catch (e) {
-      console.warn('[HyperInsight] Failed to fetch stats:', e);
-      return null;
-    }
-  }
-
-  // Check API status
-  async getStatus(): Promise<{ connected: boolean; tier: string; aims: number }> {
-    try {
-      const aims = await this.getAIMs();
-      return {
-        connected: true,
-        tier: HYPERINSIGHT_CONFIG.tier,
-        aims: aims.length
-      };
-    } catch (e) {
-      return {
-        connected: false,
-        tier: 'none',
-        aims: 0
-      };
-    }
-  }
-}
-
-// Singleton instance
-const hyperInsightAPI = new HyperInsightAPIClient();
-
-// Safe access to HyperInsight API
-function getHyperInsightAPI(): HyperInsightAPI | undefined {
+// Safe access to the Electron IPC bridge
+function getAPI(): any | undefined {
   return (window as any).electronAPI?.hyperinsight;
 }
 
-// Check if HyperInsight is connected
-export async function checkHyperInsightConnection(): Promise<boolean> {
-  try {
-    const api = getHyperInsightAPI();
-    if (!api) return false;
-    
-    const status = await api.getStatus();
-    return status.registered === true;
-  } catch (error) {
-    console.error('[AdaPortal] Connection check failed:', error);
-    return false;
+// Extract .data array/object from the HyperInsight API envelope
+function unwrapData<T>(response: any): T {
+  if (response && typeof response === 'object' && 'data' in response) {
+    return response.data as T;
   }
+  // Fallback: if no envelope, return as-is (for backward compat)
+  return response as T;
 }
 
-// Connect to HyperInsight (register client)
-export async function connectToHyperInsight(): Promise<{ success: boolean; clientId?: string; error?: string }> {
-  try {
-    const api = getHyperInsightAPI();
-    if (!api) {
-      return { success: false, error: 'HyperInsight API not available' };
-    }
-    
-    const result = await api.ensureKey();
-    return result;
-  } catch (error) {
-    console.error('[AdaPortal] Connection failed:', error);
-    return { success: false, error: String(error) };
-  }
-}
-
+// ============================================
+// SERVICE CLASS
+// ============================================
 class HyperInsightService {
   private aims: AIMInfo[] = [];
   private nodes: Map<string, any> = new Map();
@@ -176,7 +41,7 @@ class HyperInsightService {
 
   constructor() {
     this.initializeComputeTiers();
-    console.log('[AdaPortal] HyperInsight Service initialized ( awaiting data )');
+    console.log('[AdaPortal] HyperInsight Service initialized');
   }
 
   private initializeComputeTiers(): void {
@@ -209,176 +74,139 @@ class HyperInsightService {
   }
 
   // ============================================
-  // REAL DATA FETCHING FROM HYPERINSIGHT
-  // Uses REST API with provided credentials
+  // REAL DATA FETCHING FROM HYPERINSIGHT (IPC)
   // ============================================
 
   async fetchFromHyperInsight(): Promise<void> {
+    const api = getAPI();
+    if (!api) {
+      this.loadError = 'HyperInsight IPC bridge not available — restart app';
+      this.isInitialized = true;
+      console.error('[AdaPortal]', this.loadError);
+      return;
+    }
+
     try {
-      // First try REST API with provided credentials
-      const status = await hyperInsightAPI.getStatus();
-      
-      if (status.connected) {
-        console.log('[AdaPortal] Connected to HyperInsight REST API:', status);
-        
-        // Fetch data from REST API
-        const [aimsRaw, nodesRaw, leaderboardRaw] = await Promise.all<any>([
-          hyperInsightAPI.getAIMs().catch(e => {
-            console.error('[AdaPortal] Failed to fetch AIMs:', e);
-            return [];
-          }),
-          hyperInsightAPI.getNodes().catch(e => {
-            console.error('[AdaPortal] Failed to fetch nodes:', e);
-            return [];
-          }),
-          hyperInsightAPI.getLeaderboard().catch(e => {
-            console.error('[AdaPortal] Failed to fetch leaderboard:', e);
-            return [];
-          })
-        ]);
-
-        // Process AIMs from HyperInsight
-        this.aims = this.processAIMs(aimsRaw);
-        
-        // Process Nodes from HyperInsight
-        this.nodes.clear();
-        nodesRaw.forEach((node: any) => {
-          this.nodes.set(node.licenseKey, node);
-        });
-
-        this.isInitialized = true;
-        this.loadError = null;
-        
-        console.log(`[AdaPortal] Loaded ${this.aims.length} AIMs and ${this.nodes.size} nodes from HyperInsight REST API`);
-        return;
+      // Ensure key is registered (uses provided enterprise key)
+      const ensure = await api.ensureKey();
+      if (!ensure.success) {
+        throw new Error(ensure.error || 'HyperInsight key registration failed');
       }
-      
-      // Fallback: Try Electron MCP API
-      const api = getHyperInsightAPI();
-      if (!api) {
-        console.warn('[AdaPortal] HyperInsight API not available');
-        this.loadFallbackData();
-        return;
-      }
+      console.log(`[AdaPortal] HyperInsight key ready (tier: ${ensure.tier || 'unknown'})`);
 
-      // Fetch real data from HyperInsight MCP
-      const [aimsRaw, nodesRaw, leaderboardRaw] = await Promise.all<any>([
-        api.getAims().catch(e => {
-          console.error('[AdaPortal] Failed to fetch AIMs:', e);
-          return { error: e.message };
-        }),
-        api.getNodes().catch(e => {
-          console.error('[AdaPortal] Failed to fetch nodes:', e);
-          return { error: e.message };
-        }),
-        api.getLeaderboard().catch(e => {
-          console.error('[AdaPortal] Failed to fetch leaderboard:', e);
-          return { error: e.message };
-        })
+      // Parallel fetch: catalog, discover, leaderboard, nodes, network status
+      const [catalogRes, discoverRes, leaderboardRes, nodesRes, statusRes] = await Promise.all([
+        api.getCatalog().catch((e: any) => ({ error: e.message })),
+        api.getDiscover({ alive_only: 'true', sort_by: 'liveness', limit: '50' }).catch((e: any) => ({ error: e.message })),
+        api.getLeaderboard().catch((e: any) => ({ error: e.message })),
+        api.getNodes({ gpuOnly: 'true', onlineOnly: 'true', sortBy: 'computeTflops', pageSize: '50' }).catch((e: any) => ({ error: e.message })),
+        api.getNetworkStatus().catch((e: any) => ({ error: e.message }))
       ]);
 
-      // Handle error wrapper responses from plugin
-      const aims = aimsRaw && aimsRaw.error ? [] : (aimsRaw || []);
-      const nodes = nodesRaw && nodesRaw.error ? [] : (nodesRaw || []);
-      const leaderboard = leaderboardRaw && leaderboardRaw.error ? [] : (leaderboardRaw || []);
+      if (catalogRes.error) console.error('[AdaPortal] Catalog error:', catalogRes.error);
+      if (discoverRes.error) console.error('[AdaPortal] Discover error:', discoverRes.error);
+      if (leaderboardRes.error) console.error('[AdaPortal] Leaderboard error:', leaderboardRes.error);
+      if (nodesRes.error) console.error('[AdaPortal] Nodes error:', nodesRes.error);
+      if (statusRes.error) console.error('[AdaPortal] Network status error:', statusRes.error);
 
-      if (aimsRaw?.error) console.error('[AdaPortal] AIMs error:', aimsRaw.error);
-      if (nodesRaw?.error) console.error('[AdaPortal] Nodes error:', nodesRaw.error);
-      if (leaderboardRaw?.error) console.error('[AdaPortal] Leaderboard error:', leaderboardRaw.error);
+      // Process AIMs from /discover (results[]) or /aims/leaderboard (data[])
+      const discoverData = unwrapData<{ results?: any[] }>(discoverRes);
+      const discoverAims = Array.isArray(discoverData?.results) ? discoverData.results : [];
 
-      // Process AIMs from HyperInsight
-      this.aims = this.processAIMs(aims);
-      
-      // Process Nodes from HyperInsight
+      const leaderboardData = unwrapData<any[]>(leaderboardRes);
+      const leaderboardAims = Array.isArray(leaderboardData) ? leaderboardData : [];
+
+      // Prefer discover data; augment with leaderboard data
+      this.aims = this.processAIMs(discoverAims, leaderboardAims);
+
+      // Process Nodes
+      const nodesData = unwrapData<any[]>(nodesRes);
       this.nodes.clear();
-      nodes.forEach((node: any) => {
-        this.nodes.set(node.licenseKey, node);
+      (Array.isArray(nodesData) ? nodesData : []).forEach((node: any) => {
+        this.nodes.set(String(node.licenseKey || node.license || node.id), node);
       });
 
       this.isInitialized = true;
       this.loadError = null;
-      
+
       console.log(`[AdaPortal] Loaded ${this.aims.length} AIMs and ${this.nodes.size} nodes from HyperInsight`);
-      
-    } catch (error) {
+
+      // Log network summary if available
+      const statusData = unwrapData<any>(statusRes);
+      if (statusData) {
+        console.log(`[AdaPortal] Network: ${statusData.activeNodes || '?'} active nodes, ${statusData.activeAims || '?'} active AIMs, pass rate ${statusData.healthProbePassRatePct || '?'}%`);
+      }
+    } catch (error: any) {
       console.error('[AdaPortal] Error fetching from HyperInsight:', error);
-      this.loadError = 'Failed to load HyperInsight data';
-      this.loadFallbackData();
+      this.loadError = error.message || 'Failed to load HyperInsight data';
+      this.isInitialized = true;
     }
   }
 
-  private processAIMs(aims: any[]): AIMInfo[] {
-    // No fake data — only real AIMs from HyperInsight
-    if (!Array.isArray(aims) || aims.length === 0) {
-      console.warn('[AdaPortal] No AIMs from HyperInsight — empty state');
-      return [];  // Return empty, not fake data
-    }
+  private processAIMs(discoverAims: any[], leaderboardAims: any[]): AIMInfo[] {
+    const seen = new Set<string>();
+    const output: AIMInfo[] = [];
 
-    // Process all AIMs with extended fields from HyperInsight
-    const processedAims = aims.map((aim, index) => {
-      const activeNodes = aim.active_nodes || aim.activeNodes || aim.nodeCount || 0;
-      
-      return {
-        name: aim.name || aim.aimName || `aim-${index}`,
-        version: aim.version || null,
+    // 1) Process /discover results
+    for (const aim of discoverAims) {
+      const name = aim.aimName || aim.aim_name || aim.name || '';
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+
+      output.push({
+        name,
+        version: aim.manifestVersion || null,
         description: aim.description || null,
-        rank: aim.rank || aim.position || index + 1,
-        activeNodes: activeNodes,
-        computeTFLOPS: aim.compute_tflops || aim.computeTflops || aim.tflops || this.estimateTFLOPS(aim),
-        cpuCores: aim.cpu || aim.cpuCores || 0,
-        ramGB: aim.ram || aim.ramGB || 0,
-        vramGB: aim.vram || aim.vramGB || 0,
-        // Extended fields from HyperInsight
-        origin: aim.origin || null,
-        hypercycle_id: aim.hypercycle_id || aim.hypercycleId || null,
-        license: aim.license || null,
-        // Active if running on at least one node
-        isActive: activeNodes > 0
-      };
-    });
-
-    // Debug logging for verification
-    const hypercycleAims = processedAims.filter(a => a.origin === 'hypercycle');
-    const activeAims = processedAims.filter(a => a.isActive);
-    
-    console.log(`[AdaPortal] Raw AIM count: ${processedAims.length}`);
-    console.log(`[AdaPortal] HyperCycle verified AIMs: ${hypercycleAims.length}`);
-    console.log(`[AdaPortal] Active AIMs (with nodes): ${activeAims.length}`);
-    
-    // Log rejected AIMs for debugging
-    if (processedAims.length !== hypercycleAims.length) {
-      const rejected = processedAims
-        .filter(a => a.origin !== 'hypercycle')
-        .slice(0, 5)
-        .map(a => ({ name: a.name, origin: a.origin || 'missing' }));
-      console.log(`[AdaPortal] Rejected AIMs (first 5):`, JSON.stringify(rejected));
+        rank: aim.rank || undefined,
+        activeNodes: aim.activeNodeCount || aim.activeNodes || 0,
+        computeTFLOPS: aim.computeTflops || 0,
+        cpuCores: 0,
+        ramGB: 0,
+        vramGB: aim.estimatedVramGB || 0,
+        origin: aim.sourceName || 'hypercycle',
+        hypercycle_id: String(aim.aimId || ''),
+        license: null,
+        isActive: (aim.bestLivenessScore || 0) > 0,
+        // Additional HyperInsight fields for UI
+        bestLivenessScore: aim.bestLivenessScore || 0,
+        bestEndpointUrl: aim.bestEndpointUrl || '',
+        estimatedCostUsdc: aim.estimatedCostUsdc || null,
+        manifestVersion: aim.manifestVersion || null
+      });
     }
 
-    return processedAims
-      .filter(a => a.origin === 'hypercycle')  // ONLY verified HyperCycle AIMs
-      .sort((a, b) => (a.rank || 999) - (b.rank || 999));
-  }
+    // 2) Augment with leaderboard data (compute totals)
+    for (const lb of leaderboardAims) {
+      const name = lb.aimName || lb.name || '';
+      if (!name) continue;
+      const existing = output.find(a => a.name === name);
+      if (existing) {
+        existing.computeTFLOPS = lb.computeTflops || lb.totalComputeTflops || existing.computeTFLOPS;
+        existing.activeNodes = lb.activeNodes || existing.activeNodes;
+        existing.isActive = lb.isVerified || existing.isActive;
+        existing.ramGB = lb.totalRamBytes ? Math.round(lb.totalRamBytes / 1073741824) : existing.ramGB;
+        existing.vramGB = lb.totalVramBytes ? Math.round(lb.totalVramBytes / 1073741824) : existing.vramGB;
+      } else if (!seen.has(name)) {
+        seen.add(name);
+        output.push({
+          name,
+          version: null,
+          description: null,
+          rank: lb.rank || undefined,
+          activeNodes: lb.activeNodes || 0,
+          computeTFLOPS: lb.computeTflops || lb.totalComputeTflops || 0,
+          cpuCores: lb.totalCpu || 0,
+          ramGB: lb.totalRamBytes ? Math.round(lb.totalRamBytes / 1073741824) : 0,
+          vramGB: lb.totalVramBytes ? Math.round(lb.totalVramBytes / 1073741824) : 0,
+          origin: 'hypercycle',
+          hypercycle_id: String(lb.aimId || ''),
+          license: null,
+          isActive: lb.isVerified || false
+        });
+      }
+    }
 
-  private estimateTFLOPS(node: any): number {
-    const gpuCount = node.gpuCount || node.gpu_count || 0;
-    const gpuName = node.gpuName?.toLowerCase() || node.gpu_name?.toLowerCase() || '';
-    
-    if (gpuName.includes('a100')) return gpuCount * 312;
-    if (gpuName.includes('a10')) return gpuCount * 125;
-    if (gpuName.includes('v100')) return gpuCount * 112;
-    if (gpuName.includes('t4')) return gpuCount * 65;
-    if (gpuName.includes('3090')) return gpuCount * 35;
-    if (gpuName.includes('4090')) return gpuCount * 82;
-    
-    return gpuCount * 50;
-  }
-
-  private loadFallbackData(): void {
-    // NO FAKE DATA — only real AIMs from HyperInsight
-    // If HyperInsight is unavailable, show empty state to user
-    this.aims = [];
-    this.isInitialized = true;
-    console.warn('[AdaPortal] No fallback data — HyperInsight unavailable');
+    return output.sort((a, b) => (b.activeNodes || 0) - (a.activeNodes || 0));
   }
 
   // ============================================
@@ -398,10 +226,7 @@ class HyperInsightService {
   }
 
   getTopAIMs(count: number = 10): AIMInfo[] {
-    return [...this.aims]
-      .filter(a => a.rank)
-      .sort((a, b) => (a.rank || 999) - (b.rank || 999))
-      .slice(0, count);
+    return this.aims.slice(0, count);
   }
 
   getAIMsByRank(minRank: number, maxRank: number): AIMInfo[] {
@@ -409,42 +234,34 @@ class HyperInsightService {
   }
 
   selectBestAIMForRole(role: string): AIMInfo | undefined {
-    // DYNAMIC selection based on real AIM data from HyperInsight
-    // No hardcoded fallback names — select based on actual AIM properties
-    
-    // Role-based scoring weights for selection
     const roleWeights: Record<string, { compute: number; vram: number; nodes: number }> = {
-      'developer': { compute: 0.6, vram: 0.3, nodes: 0.1 },    // High compute for coding
-      'marketing': { compute: 0.3, vram: 0.2, nodes: 0.5 },    // Need available nodes
-      'growth': { compute: 0.4, vram: 0.2, nodes: 0.4 },        // Balance
-      'uiux': { compute: 0.3, vram: 0.6, nodes: 0.1 },         // High VRAM for images
-      'data_analyst': { compute: 0.7, vram: 0.2, nodes: 0.1 }  // High compute for analysis
+      'developer': { compute: 0.6, vram: 0.3, nodes: 0.1 },
+      'marketing': { compute: 0.3, vram: 0.2, nodes: 0.5 },
+      'growth': { compute: 0.4, vram: 0.2, nodes: 0.4 },
+      'uiux': { compute: 0.3, vram: 0.6, nodes: 0.1 },
+      'data_analyst': { compute: 0.7, vram: 0.2, nodes: 0.1 }
     };
 
     const weights = roleWeights[role] || { compute: 0.4, vram: 0.3, nodes: 0.3 };
-    
     if (this.aims.length === 0) return undefined;
 
-    // Normalize and score each AIM
-    const maxCompute = Math.max(...this.aims.map(a => a.computeTFLOPS || 1));
-    const maxVRAM = Math.max(...this.aims.map(a => a.vramGB || 1));
-    const maxNodes = Math.max(...this.aims.map(a => a.activeNodes || 1));
+    const maxCompute = Math.max(...this.aims.map(a => a.computeTFLOPS || 1), 1);
+    const maxVRAM = Math.max(...this.aims.map(a => a.vramGB || 1), 1);
+    const maxNodes = Math.max(...this.aims.map(a => a.activeNodes || 1), 1);
 
     let bestAIM: AIMInfo | undefined;
     let bestScore = -1;
 
     for (const aim of this.aims) {
-      const computeScore = maxCompute > 0 ? ((aim.computeTFLOPS || 0) / maxCompute) * weights.compute : 0;
-      const vramScore = maxVRAM > 0 ? ((aim.vramGB || 0) / maxVRAM) * weights.vram : 0;
-      const nodesScore = maxNodes > 0 ? ((aim.activeNodes || 0) / maxNodes) * weights.nodes : 0;
-      const totalScore = computeScore + vramScore + nodesScore;
-
-      if (totalScore > bestScore) {
-        bestScore = totalScore;
+      const cs = maxCompute > 0 ? ((aim.computeTFLOPS || 0) / maxCompute) * weights.compute : 0;
+      const vs = maxVRAM > 0 ? ((aim.vramGB || 0) / maxVRAM) * weights.vram : 0;
+      const ns = maxNodes > 0 ? ((aim.activeNodes || 0) / maxNodes) * weights.nodes : 0;
+      const total = cs + vs + ns;
+      if (total > bestScore) {
+        bestScore = total;
         bestAIM = aim;
       }
     }
-
     return bestAIM;
   }
 
@@ -481,7 +298,7 @@ class HyperInsightService {
   setNodes(nodes: any[]): void {
     this.nodes.clear();
     nodes.forEach(node => {
-      this.nodes.set(node.licenseKey, node);
+      this.nodes.set(String(node.licenseKey || node.license || node.id), node);
     });
   }
 
@@ -494,7 +311,7 @@ class HyperInsightService {
   }
 
   getOnlineNodes(): any[] {
-    return Array.from(this.nodes.values()).filter(n => n.isAlive);
+    return Array.from(this.nodes.values()).filter(n => n.isAlive !== false);
   }
 
   getBestNodeForTier(tier: ComputeTier): any | null {
@@ -502,13 +319,13 @@ class HyperInsightService {
     if (!tierInfo) return null;
 
     const candidates = this.getOnlineNodes().filter(n => {
-      const tflops = this.estimateTFLOPS(n);
+      const tflops = n.computeTflops || n.computeTFLOPS || 0;
       return tflops >= tierInfo.minTFLOPS;
     });
 
     candidates.sort((a, b) => {
-      const scoreA = (a.uptimePercent || 0) * (a.isAlive ? 1 : 0);
-      const scoreB = (b.uptimePercent || 0) * (b.isAlive ? 1 : 0);
+      const scoreA = (a.uptimePercent || a.measuredUptime7d || 0) * (a.isAlive !== false ? 1 : 0);
+      const scoreB = (b.uptimePercent || b.measuredUptime7d || 0) * (b.isAlive !== false ? 1 : 0);
       return scoreB - scoreA;
     });
 
@@ -522,37 +339,33 @@ class HyperInsightService {
   getUnifiedLeaderboard(section?: UnifiedLeaderboardSection): UnifiedLeaderboardEntry[] {
     const entries: UnifiedLeaderboardEntry[] = [];
 
-    // Nodes from HyperInsight
     if (!section || section === 'nodes') {
       const nodes = this.getOnlineNodes();
       nodes.forEach((node, index) => {
         entries.push({
           type: 'nodes',
-          id: node.licenseKey,
-          name: node.name || node.licenseKey?.slice(0, 8) || `Node-${index + 1}`,
+          id: String(node.licenseKey || node.license || index),
+          name: node.name || String(node.licenseKey || '').slice(0, 8) || `Node-${index + 1}`,
           rank: index + 1,
-          score: (node.uptimePercent || 0) * 100,
-          uptime: node.uptimePercent,
-          reliability: node.isAlive ? 0.99 : 0,
-          availableCompute: this.estimateTFLOPS(node)
+          score: (node.compositeScore || node.composite_score || 0),
+          uptime: node.measuredUptime7d || node.uptimePercent || 0,
+          reliability: node.isAlive !== false ? 0.99 : 0,
+          availableCompute: node.computeTflops || node.computeTFLOPS || 0
         });
       });
     }
 
-    // AIMs from HyperInsight
     if (!section || section === 'aims') {
-      this.aims.forEach(aim => {
-        if (aim.rank) {
-          entries.push({
-            type: 'aims',
-            id: aim.name,
-            name: aim.name.split('/')[1] || aim.name,
-            rank: aim.rank,
-            score: (10 - aim.rank) * 10,
-            activeNodes: aim.activeNodes,
-            computeTFLOPS: aim.computeTFLOPS
-          });
-        }
+      this.aims.forEach((aim, index) => {
+        entries.push({
+          type: 'aims',
+          id: aim.name,
+          name: aim.name.split('/')[1] || aim.name,
+          rank: index + 1,
+          score: (aim.bestLivenessScore as number) || (aim.activeNodes || 0) * 10,
+          activeNodes: aim.activeNodes,
+          computeTFLOPS: aim.computeTFLOPS
+        });
       });
     }
 
@@ -571,7 +384,7 @@ class HyperInsightService {
         description: 'Start a new blockchain project or dApp',
         icon: '🚀',
         recommendedAgents: ['developer', 'uiux'],
-        recommendedAims: [],  // Dynamically selected based on role weights
+        recommendedAims: [],
         computeTier: 'high_performance'
       },
       {
@@ -580,7 +393,7 @@ class HyperInsightService {
         description: 'Expand community and governance',
         icon: '🌱',
         recommendedAgents: ['marketing', 'growth'],
-        recommendedAims: [],  // Dynamically selected
+        recommendedAims: [],
         computeTier: 'standard'
       },
       {
@@ -589,7 +402,7 @@ class HyperInsightService {
         description: 'Develop and deploy decentralized applications',
         icon: '🔧',
         recommendedAgents: ['developer', 'uiux'],
-        recommendedAims: [],  // Dynamically selected
+        recommendedAims: [],
         computeTier: 'dedicated'
       },
       {
@@ -598,7 +411,7 @@ class HyperInsightService {
         description: 'Set up automated processes and tasks',
         icon: '⚡',
         recommendedAgents: ['data_analyst', 'developer'],
-        recommendedAims: [],  // Dynamically selected
+        recommendedAims: [],
         computeTier: 'standard'
       }
     ];
@@ -611,11 +424,7 @@ class HyperInsightService {
   } {
     const options = this.getIntentOptions();
     const option = options.find(o => o.intent === intent);
-
-    if (!option) {
-      return { agents: [], aims: [], computeTier: 'standard' };
-    }
-
+    if (!option) return { agents: [], aims: [], computeTier: 'standard' };
     return {
       agents: option.recommendedAgents,
       aims: option.recommendedAims || [],
@@ -641,25 +450,16 @@ class HyperInsightService {
     reasoning: string;
   } {
     const config = this.getRecommendedConfigForIntent(params.intent);
-    
-    // Get recommended AIM
-    const aim = params.role 
-      ? this.selectBestAIMForRole(params.role) 
+    const aim = params.role
+      ? this.selectBestAIMForRole(params.role)
       : this.getTopAIMs(1)[0];
-    
-    // Get compute tier
     const compute = this.getComputeTier(config.computeTier)!;
-    
-    // Build reasoning
+
     const reasoningLines = [
       `Best ${params.role || 'overall'} agent for ${params.intent.replace('_', ' ')}`,
-      `Top-ranked AIM: ${aim?.name.split('/')[1]} (#${aim?.rank}) with ${aim?.computeTFLOPS} TFLOPS`,
+      `Top AIM: ${aim?.name.split('/')[1] || aim?.name || 'unknown'} with ${aim?.computeTFLOPS || 0} TFLOPS`,
       `${compute.label} compute tier for optimal performance`
     ];
-
-    // Estimate cost and time
-    const cost = compute.maxPricePerHour * 1; // 1 hour baseline
-    const time = params.intent === 'build_dapp' ? 5 : 2; // minutes
 
     return {
       agent: {
@@ -670,8 +470,8 @@ class HyperInsightService {
       },
       aim: aim || this.aims[0],
       compute,
-      cost,
-      time,
+      cost: compute.maxPricePerHour * 1,
+      time: params.intent === 'build_dapp' ? 5 : 2,
       reasoning: reasoningLines.join('\n• ')
     };
   }
@@ -697,24 +497,22 @@ class HyperInsightService {
 
   getStats(): {
     totalAIMs: number;
-    activeAIMs: number;  // AIMs tracked by HyperInsight (running on nodes)
+    activeAIMs: number;
     activeNodes: number;
     totalComputeTFLOPS: number;
     averageUptime: number;
     dataSource: 'hyperinsight' | 'fallback';
   } {
     const nodes = this.getOnlineNodes();
-    const totalTFLOPS = nodes.reduce((sum, n) => sum + this.estimateTFLOPS(n), 0);
+    const totalTFLOPS = nodes.reduce((sum, n) => sum + (n.computeTflops || n.computeTFLOPS || 0), 0);
     const avgUptime = nodes.length > 0
-      ? nodes.reduce((sum, n) => sum + (n.uptimePercent || 0), 0) / nodes.length
+      ? nodes.reduce((sum, n) => sum + (n.measuredUptime7d || n.uptimePercent || 0), 0) / nodes.length
       : 0;
-
-    // Active AIMs = those tracked by HyperInsight (running on at least one node)
     const activeAIMs = this.aims.filter(a => (a.activeNodes || 0) > 0).length;
 
     return {
       totalAIMs: this.aims.length,
-      activeAIMs: activeAIMs,
+      activeAIMs,
       activeNodes: nodes.length,
       totalComputeTFLOPS: totalTFLOPS,
       averageUptime: avgUptime,
@@ -722,14 +520,10 @@ class HyperInsightService {
     };
   }
 
-  // Get all AIMs (including non-verified)
   getAllAIMs(): AIMInfo[] {
-    // This would need to store unfiltered AIMs separately
-    // For now, return filtered list
     return this.aims;
   }
 
-  // Get active AIMs (running on nodes)
   getActiveAIMs(): AIMInfo[] {
     return this.aims.filter(a => (a.activeNodes || 0) > 0);
   }

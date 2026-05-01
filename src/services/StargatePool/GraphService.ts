@@ -136,8 +136,10 @@ class GraphService {
         this.query<{ anfes: ANFEGraphData[] }>(baseQuery, 8453),
       ]);
 
-      console.log('[GraphService] Eth result:', ethResult);
-      console.log('[GraphService] Base result:', baseResult);
+      console.log('[GraphService] Eth query result:', JSON.stringify(ethResult).substring(0, 500));
+      console.log('[GraphService] Base query result:', JSON.stringify(baseResult).substring(0, 500));
+      console.log('[GraphService] Raw ethResult:', ethResult);
+      console.log('[GraphService] Raw baseResult:', baseResult);
 
       if (ethResult?.anfes) {
         allANFEs.push(...ethResult.anfes);

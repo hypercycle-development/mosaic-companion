@@ -32,6 +32,7 @@ import {
   Shield,
   Hash,
   Code2,
+  Users,
 } from "lucide-react";
 import {
   SidebarItem,
@@ -48,6 +49,7 @@ import {
   INTERNAL_IDE_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
   INTERNAL_ADAPORTAL_START_URL,
+  INTERNAL_MULTIAGENT_URL,
 } from "../types/types";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
 import { NodeDetailPanel } from "../../plugins/hyperinsight/renderer/components/NodeDetailPanel";
@@ -57,7 +59,7 @@ import type { InstalledTool } from "../../electron/integrations/sandbox/types";
 const TOOL_ICON_MAP: Record<string, React.FC<{ size?: number; className?: string }>> = {
   server: Server, zap: Zap, cpu: Cpu, activity: Activity, trophy: Trophy,
   chart: BarChart3, globe: Globe, database: Database, layers: Layers,
-  box: Box, shield: Shield, hash: Hash,
+  box: Box, shield: Shield, hash: Hash, users: Users,
 };
 
 // HypercycleNode is declared globally in global.d.ts — no local duplicate needed.

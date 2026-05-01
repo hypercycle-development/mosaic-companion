@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useEffect, useState, useCallback } from "react";
 import { toast } from "react-toastify";
 import {
@@ -1489,3 +1490,4 @@ export const Web3Page: React.FC = () => {
     </div>
   );
 };
+

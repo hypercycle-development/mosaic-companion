@@ -41,16 +41,18 @@ import {
 import { 
   anfeService, 
   walletAdapter,
+  merkelizerService,
   ANFE,
   formatANFEForDisplay,
   WalletState,
   WalletANFEs,
-  SupportedChain 
+  SupportedChain,
+  NodeInfo
 } from '../services/StargatePool';
 import { MarketplaceListing, LeaderboardEntry, TrainingListing, AgentPackage, ComputeNode, AIMInfo, UserIntent, ComputeTierInfo, AccessLevel } from '../services/AdaPortal/types';
 import { skillMarketplace } from '../services/AdaPortal';
 import { aspGateway, AspPackage, Company, UsageRecord } from '../services/AspGateway';
-import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock, Unlock } from 'lucide-react';
+import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus } from 'lucide-react';
 
 interface AdaPortalPanelProps {
   url?: string;
@@ -198,6 +200,19 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [isLoadingANFEs, setIsLoadingANFEs] = useState(false);
   const [selectedANFE, setSelectedANFE] = useState<ANFE | null>(null);
   const [walletState, setWalletState] = useState<WalletState | null>(null);
+  const [showManualANFE, setShowManualANFE] = useState(false);
+  const [manualANFEId, setManualANFEId] = useState('');
+
+  // ANFE <-> Agent Bindings (Skill -> Agent -> ANFE deployment model)
+  const [anfeAgentBindings, setAnfeAgentBindings] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('stargate_anfe_bindings');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [deployingANFEs, setDeployingANFEs] = useState<Set<string>>(new Set());
 
   // User AI Agents from ai-agents.json
   const [userAgents, setUserAgents] = useState<any[]>([]);
@@ -209,33 +224,78 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [selectedUserAgent, setSelectedUserAgent] = useState<any | null>(null);
   const [selectedAgentForDelegation, setSelectedAgentForDelegation] = useState<string | null>(null);
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
-    setListings(agentMarketplace.getListings());
-    setLeaderboardData(leaderboard.getLeaderboard(leaderboardCategory as any, leaderboardPeriod).entries);
-    setTrainingListings(trainingMarketplace.getListings());
-    setPackages(agentPackages.getPackages());
-    setNodes(nodeIntelligence.getNodes());
-    setSkills(skillMarketplace.getSkills());
-    
-    // Fetch AIMs: try HyperInsight first, then derive from skills as fallback
+    console.log('[AdaPortal] loadData: Fetching real data from HyperInsight + user agents...');
     try {
+      // 1. Load agents (async — from real user config + HyperInsight AIMs)
+      const marketplaceListings = await agentMarketplace.getListings();
+      console.log('[AdaPortal] listings loaded:', marketplaceListings.length);
+      setListings(marketplaceListings);
+
+      // 2. Load HyperInsight data (AIMs + nodes)
+      await hyperInsight.refreshData();
       const hyperAims = hyperInsight.getActiveAIMs();
-      if (hyperAims && hyperAims.length > 0) {
-        setAims(hyperAims);
-      } else {
-        // Fallback: Derive AIMs from skills
-        console.log('[AdaPortal] HyperInsight empty, deriving AIMs from skills');
-        const skillBasedAims = deriveAimsFromSkills(skillMarketplace.getSkills());
-        setAims(skillBasedAims);
-      }
-    } catch (e) {
-      console.log('[AdaPortal] HyperInsight unavailable, deriving AIMs from skills');
-      const skillBasedAims = deriveAimsFromSkills(skillMarketplace.getSkills());
-      setAims(skillBasedAims);
+      console.log(`[AdaPortal] Loaded ${hyperAims.length} AIMs from HyperInsight`);
+      setAims(hyperAims);
+
+      const hyperNodes = hyperInsight.getNodes();
+      const mappedNodes: ComputeNode[] = hyperNodes.map((n: any, idx: number) => ({
+        nodeId: String(n.licenseKey || n.license || idx),
+        address: n.name || `Node-${idx}`,
+        uptime: n.measuredUptime7d || n.uptimePercent || 0,
+        reliability: (n.compositeScore || 0) / 100,
+        availableCompute: n.computeTflops || n.computeTFLOPS || 0,
+        pricePerHour: 0.15,
+        status: n.isAlive ? 'online' : 'offline',
+        lastChecked: n.lastProbedAt || new Date().toISOString(),
+        platform: 'hyperinsight'
+      }));
+      setNodes(mappedNodes);
+
+      // 3. Leaderboard from HyperInsight
+      const unifiedLb = hyperInsight.getUnifiedLeaderboard();
+      setLeaderboardData(unifiedLb.map((e, i) => ({
+        rank: i + 1,
+        agentId: e.id,
+        agentName: e.name,
+        score: e.score,
+        tasksCompleted: e.activeNodes || 0,
+        earnings: e.computeTFLOPS || 0,
+        avatar: e.type === 'aims' ? '🤖' : '🖥️',
+        trend: 'stable' as const
+      })));
+
+      // 4. Training/Packages/Skills — still mock, mark them clearly
+      setTrainingListings([]);  // TODO: Wire to real training service
+      setPackages([]);          // TODO: Wire to real package service
+      setSkills([]);            // TODO: Wire to real skills marketplace
+
+      // 5. ANFE / Stargate Pool — load from wallet
+      // NOTE: Must call via anfeService; line wrapped in anon IIFE for useCallback scope
+      (async () => {
+        const addr = (window as any).electronAPI?.web3?.getAddress ? await (window as any).electronAPI.web3.getAddress() : null;
+        if (addr) {
+          try {
+            setIsLoadingANFEs(true);
+            const walletANFEs = await anfeService.loadWalletANFEs(addr);
+            setWalletANFEs(walletANFEs.anfes || []);
+            console.log('[AdaPortal] loadData loaded', walletANFEs.totalCount, 'ANFEs');
+          } catch (e) {
+            console.warn('[AdaPortal] loadData ANFE load failed:', e);
+          } finally {
+            setIsLoadingANFEs(false);
+          }
+        }
+      })();
+
+    } catch (e: any) {
+      console.error('[AdaPortal] loadData failed:', e);
+      setNotification({ type: 'error', message: e.message || 'Failed to load data' });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-  }, [leaderboardCategory, leaderboardPeriod]);
+  }, []);
 
   // Derive AIM-like models from available skills
   const deriveAimsFromSkills = (skillList: any[]): AIMInfo[] => {
@@ -308,11 +368,11 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         
         if (!isMounted) return;
         
-        // Auto-add demo factories if none exist (for first-time users)
+        // Auto-load Node Factories from blockchain when wallet connects
+        // Will query ERC-1155 contracts to find factories owned by wallet
         const existingFactories = await stargatePoolService.getFactories();
         if (existingFactories.length === 0) {
-          console.log('[AdaPortal] No factories found, adding demo data...');
-          await stargatePoolService.addDemoFactories();
+          console.log('[AdaPortal] No factories found, will query blockchain when wallet connects...');
         }
         
         if (!isMounted) return;
@@ -363,6 +423,16 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
 
         if (!isMounted) return;
 
+        // CRITICAL: Sync wallet address to StargatePoolService
+        // This ensures factories can check eligibility based on the connected wallet
+        if (walletAddress) {
+          // Manually set the wallet address in StargatePoolService for eligibility checks
+          (stargatePoolService as any).walletAddress = walletAddress;
+          console.log('[AdaPortal] Synced wallet to StargatePoolService:', walletAddress.slice(0, 8) + '...');
+        }
+
+        if (!isMounted) return;
+
         // Load ANFEs and factories if we have a wallet address
         if (walletAddress) {
           setEthAddress(walletAddress);
@@ -385,14 +455,9 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             const walletANFEs = await withTimeout<WalletANFEs>(anfeService.loadWalletANFEs(walletAddress), 8000, emptyWalletANFEs);
             console.log('[AdaPortal] Graph result:', walletANFEs.totalCount, 'ANFEs');
             
-            // If Graph empty, try Base RPC directly
+            // If Graph empty, try RPC fallback (already handled inside loadWalletANFEs)
+            // loadWalletANFEs internally does: Graph → RPC → Demo fallback
             let allANFEs = walletANFEs.anfes || [];
-            if (walletANFEs.totalCount === 0) {
-              console.log('[AdaPortal] Trying Base RPC fallback...');
-              const baseANFEs = await withTimeout(anfeService.loadBaseANFEsViaRPC(walletAddress), 8000, []);
-              console.log('[AdaPortal] Base RPC result:', baseANFEs.length, 'ANFEs');
-              allANFEs = baseANFEs;
-            }
             
             if (isMounted) {
               setWalletANFEs(allANFEs);
@@ -443,37 +508,67 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   // Load user AI Agents from appData
   const loadUserAgents = useCallback(async () => {
     setIsLoadingUserAgents(true);
+    console.log('[AdaPortal] Loading user agents...');
+    
     try {
-      // Try to load from Electron API first (same location as WebConfig)
-      if (window.electronAPI?.config?.getAIAgents) {
-        const result = await window.electronAPI.config.getAIAgents();
-        if (result?.success && result?.data) {
-          setUserAgents(result.data);
-          console.log('[AdaPortal] Loaded', result.data.length, 'user agents from Electron API');
-          setIsLoadingUserAgents(false);
-          return;
-        }
-      }
-      
-      // Fallback: Try direct file read via IPC
-      if (window.electronAPI?.ipc?.invoke) {
-        const result = await window.electronAPI.ipc.invoke('config:getAIAgents');
-        if (result) {
+      // Method 1: Use the correct aiAgents API from preload
+      if (window.electronAPI?.aiAgents?.get) {
+        const result = await window.electronAPI.aiAgents.get();
+        if (Array.isArray(result) && result.length > 0) {
           setUserAgents(result);
-          console.log('[AdaPortal] Loaded', result.length, 'user agents via IPC');
+          console.log('[AdaPortal] Loaded', result.length, 'user agents from aiAgents.get()');
           setIsLoadingUserAgents(false);
           return;
         }
       }
       
-      // Final fallback: Empty array (agents not available)
-      console.log('[AdaPortal] Could not load user agents - API not available');
+      // Method 2: Try web3 config API
+      if (window.electronAPI?.web3?.getConfig) {
+        const configResult = await window.electronAPI.web3.getConfig();
+        if (configResult?.success && configResult?.data?.aiAgents) {
+          setUserAgents(configResult.data.aiAgents);
+          console.log('[AdaPortal] Loaded', configResult.data.aiAgents.length, 'user agents from web3.getConfig');
+          setIsLoadingUserAgents(false);
+          return;
+        }
+      }
+      
+      // Debug: Log what's available
+      console.log('[AdaPortal] electronAPI keys:', window.electronAPI ? Object.keys(window.electronAPI) : 'undefined');
+      console.log('[AdaPortal] aiAgents API available:', !!window.electronAPI?.aiAgents);
+      
+      // Final fallback: Empty array
+      console.log('[AdaPortal] Could not load user agents - using empty array');
       setUserAgents([]);
     } catch (e) {
       console.error('[AdaPortal] Failed to load user agents:', e);
       setUserAgents([]);
     }
     setIsLoadingUserAgents(false);
+  }, []);
+
+  // Listen for wallet changes (imported via clipboard) and auto-reload ANFEs
+  useEffect(() => {
+    if (!window.electronAPI?.web3?.onWalletImported) return;
+    const unsub = window.electronAPI.web3.onWalletImported(() => {
+      console.log('[AdaPortal] Wallet imported event received — reloading ANFEs...');
+      (async () => {
+        const addr = (window as any).electronAPI?.web3?.getAddress ? await (window as any).electronAPI.web3.getAddress() : null;
+        if (addr) {
+          try {
+            setIsLoadingANFEs(true);
+            const w = await anfeService.loadWalletANFEs(addr);
+            setWalletANFEs(w.anfes || []);
+            console.log('[AdaPortal] Wallet-import reload loaded', w.totalCount, 'ANFEs');
+          } catch (e) {
+            console.warn('[AdaPortal] Wallet-import ANFE reload failed:', e);
+          } finally {
+            setIsLoadingANFEs(false);
+          }
+        }
+      })();
+    });
+    return () => unsub();
   }, []);
 
   const handleRefresh = useCallback(() => {
@@ -484,6 +579,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   }, [loadData]);
 
   const handleHireAgent = useCallback((listing: MarketplaceListing) => {
+    console.log('[AdaPortal] handleHireAgent called:', listing.agentName);
     if (onHireAgent) {
       onHireAgent(listing.agentId, listing.agentName);
     } else if (onNavigateToChat) {
@@ -716,32 +812,30 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
               try {
                 plan = hyperInsight.buildExecutionPlan({ intent: intent.id as any });
                 setExecutionPlan(plan);
-                
-                // Pre-select agents based on intent from marketplace
-                if (plan?.agent?.roles) {
-                  const matchingAgents = listings.filter(l => 
-                    plan.agent.roles.some((r: any) => l.roles.includes(r as any))
-                  );
-                  console.log('[AdaPortal] Matching agents for intent:', matchingAgents.length);
-                }
               } catch (e) {
                 console.log('[AdaPortal] Could not build execution plan:', e);
                 setExecutionPlan(null);
               }
               
-              // Build detailed context message for the chat
-              const intentContext = {
-                intent: intent.id,
-                label: intent.label,
-                plan: plan,
-                walletConnected: !!ethAddress,
-                hasANFEs: walletANFEs.length > 0,
-                anfeCount: walletANFEs.length
-              };
+              // Navigate to appropriate tab based on intent
+              switch (intent.id) {
+                case 'launch_project':
+                case 'build_dapp':
+                  setActiveTab('marketplace');
+                  break;
+                case 'grow_dao':
+                  setActiveTab('leaderboard');
+                  break;
+                case 'automate_workflows':
+                  setActiveTab('skills');
+                  break;
+                default:
+                  break;
+              }
               
+              // Send intent to chat for workflow execution
               if (onNavigateToChat) {
-                // Send detailed intent with execution plan context
-                onNavigateToChat(`I want to ${intent.label.toLowerCase()}. Configure the AI workforce for me. ${plan ? `Stack: ${plan.agent?.name || 'auto'} + ${plan.aim?.name || 'auto'} + ${plan.compute?.label || 'standard'}` : ''}`);
+                onNavigateToChat(`I want to ${intent.label.toLowerCase()}. Configure the AI workforce for me.`);
               }
             }}
             className={`p-4 rounded-xl border text-left transition-all ${
@@ -881,22 +975,13 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                     try {
                       console.log('[AdaPortal] Loading ANFEs for wallet:', address);
                       
-                      // First try Graph
+                      // loadWalletANFEs handles Graph → RPC → Demo fallback internally
                       const walletANFEs = await anfeService.loadWalletANFEs(address);
-                      console.log('[AdaPortal] Graph result:', walletANFEs.totalCount, 'ANFEs');
+                      console.log('[AdaPortal] ANFE result:', walletANFEs.totalCount, 'ANFEs');
                       
-                      // If Graph empty, try Base RPC directly
-                      let allANFEs = walletANFEs.anfes;
-                      if (walletANFEs.totalCount === 0) {
-                        console.log('[AdaPortal] Trying Base RPC fallback...');
-                        const baseANFEs = await anfeService.loadBaseANFEsViaRPC(address);
-                        console.log('[AdaPortal] Base RPC result:', baseANFEs.length, 'ANFEs');
-                        allANFEs = baseANFEs;
-                      }
-                      
-                      setWalletANFEs(allANFEs);
-                      console.log('[AdaPortal] Final ANFEs:', allANFEs.length, allANFEs);
-                      showNotification('success', `Loaded ${allANFEs.length} ANFE(s)`);
+                      setWalletANFEs(walletANFEs.anfes);
+                      console.log('[AdaPortal] Final ANFEs:', walletANFEs.anfes.length);
+                      showNotification('success', `Loaded ${walletANFEs.anfes.length} ANFE(s)`);
                     } catch (e) {
                       console.error('[AdaPortal] ANFE load failed:', e);
                       showNotification('error', 'Failed to load ANFEs from Graph');
@@ -935,6 +1020,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             <div className="grid gap-3">
               {walletANFEs.map((anfe) => {
                 const display = formatANFEForDisplay(anfe);
+                console.log('[AdaPortal] Rendering ANFE:', anfe.id, 'verification:', anfe.verification);
                 return (
                   <div 
                     key={anfe.id}
@@ -956,18 +1042,38 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                           {anfe.chainName}
                         </span>
                       </div>
-                      {/* Verification Status */}
-                      {anfe.verification.valid ? (
-                        <span className="flex items-center gap-1 text-xs text-green-400">
-                          <CheckCircle size={12} />
-                          Verified
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-xs text-yellow-400">
-                          <Shield size={12} />
-                          Unverified
-                        </span>
-                      )}
+                      {/* Merkelizer Info */}
+                      <div className="space-y-1">
+                        {anfe.verification.valid ? (
+                          <>
+                            <span className="flex items-center gap-1 text-xs text-green-400">
+                              <CheckCircle size={12} />
+                              Verified
+                            </span>
+                            {anfe.verification.nodeFactoryId && (
+                              <span className="text-xs text-gray-500 block">Node Factory: {anfe.verification.nodeFactoryId}</span>
+                            )}
+                            {anfe.verification.tranche && (
+                              <span className="text-xs text-cyan-400 block">Tranche: {anfe.verification.tranche}</span>
+                            )}
+                            {(anfe.verification.uptime !== undefined || anfe.verification.reliability !== undefined) && (
+                              <div className="flex gap-2 text-xs">
+                                {anfe.verification.uptime !== undefined && (
+                                  <span className="text-gray-400">Uptime: {(anfe.verification.uptime * 100).toFixed(1)}%</span>
+                                )}
+                                {anfe.verification.reliability !== undefined && (
+                                  <span className="text-gray-400">Reliability: {(anfe.verification.reliability * 100).toFixed(1)}%</span>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="flex items-center gap-1 text-xs text-yellow-400">
+                            <Shield size={12} />
+                            Unverified
+                          </span>
+                        )}
+                      </div>
                     </div>
                     
                     {/* Attributes */}
@@ -995,6 +1101,48 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                         {display.aiModules.length > 4 && (
                           <span className="text-xs text-gray-500">+{display.aiModules.length - 4}</span>
                         )}
+                      </div>
+                    )}
+                    
+                    {/* Merkelizer Node Info */}
+                    {anfe.verification.nodeFactoryId && (
+                      <div className="mt-2 pt-2 border-t border-gray-700/50">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-3">
+                            <span className="text-gray-400">
+                              Node Factory:
+                            </span>
+                            <span className="font-mono text-cyan-400">
+                              {anfe.verification.nodeFactoryId}
+                            </span>
+                          </div>
+                          {anfe.verification.tranche && (
+                            <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">
+                              Tranche {anfe.verification.tranche}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 mt-1 text-xs">
+                          {anfe.verification.uptime !== undefined && (
+                            <span className="text-gray-400">
+                              Uptime: <span className="text-green-400">{(anfe.verification.uptime * 100).toFixed(1)}%</span>
+                            </span>
+                          )}
+                          {anfe.verification.reliability !== undefined && (
+                            <span className="text-gray-400">
+                              Reliability: <span className="text-cyan-400">{(anfe.verification.reliability * 100).toFixed(1)}%</span>
+                            </span>
+                          )}
+                          {anfe.verification.status && (
+                            <span className={`px-1.5 py-0.5 rounded ${
+                              anfe.verification.status === 'online' ? 'bg-green-500/20 text-green-400' :
+                              anfe.verification.status === 'busy' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-red-500/20 text-red-400'
+                            }`}>
+                              {anfe.verification.status}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1106,6 +1254,45 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           </div>
         )}
 
+        {/* Manual ANFE Entry (when no ANFEs) */}
+        {!isLoadingANFEs && walletANFEs.length === 0 && (
+          <div className="mt-4 p-4 bg-gray-800/50 rounded-xl border border-gray-700">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium text-gray-400 flex items-center gap-2">
+                <Key size={14} className="text-cyan-400" />
+                Add ANFE Manually
+              </h4>
+              <button
+                onClick={() => setShowManualANFE(!showManualANFE)}
+                className="text-xs text-cyan-400 hover:text-cyan-300"
+              >
+                {showManualANFE ? 'Cancel' : '+ Add'}
+              </button>
+            </div>
+            {showManualANFE && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={manualANFEId}
+                  onChange={(e) => setManualANFEId(e.target.value)}
+                  placeholder="Enter ANFE ID (e.g., 2324779898006116)"
+                  className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500"
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddManualANFE()}
+                />
+                <button
+                  onClick={handleAddManualANFE}
+                  className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-medium"
+                >
+                  Add
+                </button>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 mt-2">
+              APIs unavailable. Enter your ANFE ID from your wallet to display manually.
+            </p>
+          </div>
+        )}
+
         {/* Dev Tools (shown when ANFEs are loaded) */}
         {walletANFEs.length > 0 && (
           <div className="flex gap-2 mt-4 pt-3 border-t border-gray-800">
@@ -1131,17 +1318,17 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             <button
               onClick={async () => {
                 if (ethAddress) {
-                  // Add demo factories and reload
-                  await stargatePoolService.addDemoFactories();
+                  // Load Node Factories from blockchain contracts
+                  await stargatePoolService.loadNodeFactoriesFromChain(ethAddress);
                   const walletFactories = await stargatePoolService.getFactoriesByWallet(ethAddress);
                   setFactories(walletFactories);
-                  showNotification('success', `Added demo factories: ${walletFactories.length} available`);
+                  showNotification('success', `Loaded ${walletFactories.length} Node Factory/ies from blockchain`);
                 }
               }}
               className="px-3 py-1.5 text-xs bg-cyan-700 hover:bg-cyan-600 rounded-lg transition-colors flex items-center gap-1"
             >
               <Network size={12} />
-              Add Demo Factories
+              Load from Chain
             </button>
             <button
               onClick={async () => {
@@ -1798,118 +1985,304 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const renderStargatePool = () => {
     const walletAddress = stargatePoolService.getWalletAddress();
 
+    const getAgentDisplay = (id: string) => {
+      const a = userAgents.find((x) => x.id === id);
+      return a ? a.name : id.substring(0, 8) + '...';
+    };
+
+    const attachAgent = (anfeId: string, agentId: string) => {
+      setAnfeAgentBindings((prev) => {
+        const next = { ...prev, [anfeId]: agentId };
+        try { localStorage.setItem('stargate_anfe_bindings', JSON.stringify(next)); } catch {}
+        return next;
+      });
+      showNotification('success', 'Agent attached to ANFE');
+    };
+
+    const detachAgent = (anfeId: string) => {
+      setAnfeAgentBindings((prev) => {
+        const next = { ...prev };
+        delete next[anfeId];
+        try { localStorage.setItem('stargate_anfe_bindings', JSON.stringify(next)); } catch {}
+        return next;
+      });
+      showNotification('info', 'Agent detached from ANFE');
+    };
+
+    const rarityColor = (r?: string) => {
+      switch (r?.toLowerCase()) {
+        case 'legendary': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+        case 'epic':      return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+        case 'rare':      return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
+        case 'common':    return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+        default:          return 'bg-gray-700/40 text-gray-400 border-gray-600/30';
+      }
+    };
+
     return (
       <div className="space-y-6">
-        {/* Wallet Connection Section */}
+        {/* ── Wallet Header ── */}
         <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Zap size={20} className="text-yellow-400" />
-              Stargate Pool
-            </h3>
-            <button 
-              onClick={() => stargatePoolService.initialize()}
-              className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              <RefreshCw size={18} className="text-gray-400" />
-            </button>
-          </div>
-
-          <div className="mb-4">
-            <div className="text-sm text-gray-400 mb-2">Cardano Wallet</div>
-            {walletAddress ? (
-              <div className="flex items-center gap-2">
-                <div className="flex-1 p-2 bg-gray-900/50 rounded-lg font-mono text-sm text-green-400 break-all">
-                  {walletAddress}
-                </div>
-                <button 
-                  onClick={() => stargatePoolService.disconnectWallet()}
-                  className="p-2 hover:bg-gray-700 rounded-lg text-gray-400"
-                >
-                  <XCircle size={18} />
-                </button>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-yellow-500/20 to-amber-500/20 flex items-center justify-center border border-yellow-500/20">
+                <Wallet size={20} className="text-yellow-400" />
               </div>
-            ) : (
-              <button 
-                onClick={async () => {
-                  try {
-                    await stargatePoolService.connectWallet();
-                  } catch (e) {
-                    showNotification('error', 'Failed to connect wallet');
-                  }
-                }}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-2"
-              >
-                <Wallet size={18} />
-                Connect Wallet
-              </button>
-            )}
+              <div>
+                <h3 className="text-lg font-semibold text-white">Stargate Pool</h3>
+                <p className="text-xs text-gray-400">
+                  {walletAddress
+                    ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
+                    : 'Connect wallet to view ANFEs'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {walletAddress && (
+                <button
+                  onClick={() => stargatePoolService.disconnectWallet()}
+                  className="p-2 bg-gray-700/50 hover:bg-gray-700 rounded-lg text-gray-400 text-xs flex items-center gap-1"
+                  title="Disconnect"
+                >
+                  <XCircle size={14} /> Disconnect
+                </button>
+              )}
+              {walletAddress ? (
+                <button
+                  onClick={() => stargatePoolService.initialize()}
+                  className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                  title="Refresh"
+                >
+                  <RefreshCw size={18} className="text-gray-400" />
+                </button>
+              ) : (
+                <button
+                  onClick={async () => {
+                    try { await stargatePoolService.connectWallet(); }
+                    catch { showNotification('error', 'Failed to connect wallet'); }
+                  }}
+                  className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-2 text-sm"
+                >
+                  <Wallet size={16} /> Connect Wallet
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Node Factories Section */}
+        {/* ── ANFE Card Gallery ── */}
+        {walletAddress && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-white flex items-center gap-2">
+                <Layers size={18} className="text-purple-400" />
+                Your ANFEs
+                <span className="text-xs text-gray-500 ml-1">({walletANFEs.length})</span>
+              </h4>
+              {isLoadingANFEs && <RefreshCw size={16} className="text-cyan-400 animate-spin" />}
+            </div>
+
+            {walletANFEs.length === 0 && !isLoadingANFEs ? (
+              <div className="bg-gray-800/30 rounded-xl p-8 border border-gray-700/50 text-center">
+                <Zap size={40} className="mx-auto mb-3 text-purple-400/40" />
+                <p className="text-gray-400 font-medium">No ANFEs found for this wallet</p>
+                <p className="text-xs text-gray-600 mt-1">Hold ANFE NFTs to see them here</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {walletANFEs.map((anfe, idx) => {
+                  const binding = anfeAgentBindings[anfe.id];
+                  return (
+                    <div
+                      key={anfe.id || idx}
+                      className="bg-gray-800/50 rounded-xl border border-gray-700 p-4 hover:border-purple-500/40 transition-all group"
+                    >
+                      {/* Card Header */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${rarityColor(anfe.rarity)}`}>
+                            <Zap size={24} />
+                          </div>
+                          <div>
+                            <h5 className="font-semibold text-white text-sm leading-tight">{anfe.name || `ANFE #${anfe.tokenId || idx + 1}`}</h5>
+                            <div className="text-xs text-gray-400 mt-0.5">{anfe.chain || 'ethereum'} · Level {anfe.level ?? '?'}</div>
+                          </div>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${rarityColor(anfe.rarity)}`}>
+                          {anfe.rarity || 'Standard'}
+                        </span>
+                      </div>
+
+                      {/* Attributes */}
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="bg-gray-900/40 rounded-lg p-2 border border-gray-700/40">
+                          <div className="text-[10px] uppercase tracking-wider text-gray-500">Status</div>
+                          <div className={`text-xs font-medium mt-0.5 ${anfe.status === 'active' ? 'text-green-400' : 'text-gray-400'}`}>
+                            {anfe.status || 'active'}
+                          </div>
+                        </div>
+                        <div className="bg-gray-900/40 rounded-lg p-2 border border-gray-700/40">
+                          <div className="text-[10px] uppercase tracking-wider text-gray-500">Compute</div>
+                          <div className="text-xs font-medium mt-0.5 text-cyan-400">{anfe.computeUnits || 'Standard'}</div>
+                        </div>
+                      </div>
+
+                      {/* Agent Attachment */}
+                      <div className="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50 mb-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-gray-400 flex items-center gap-1.5">
+                            <Bot size={12} className="text-cyan-400" />
+                            Attached Agent
+                          </span>
+                          {binding && (
+                            <span className="text-[10px] text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded-full">
+                              Live
+                            </span>
+                          )}
+                        </div>
+
+                        {binding ? (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-6 h-6 rounded-md bg-cyan-500/20 flex items-center justify-center shrink-0">
+                                <Bot size={14} className="text-cyan-400" />
+                              </div>
+                              <span className="text-sm text-white truncate">{getAgentDisplay(binding)}</span>
+                            </div>
+                            <button
+                              onClick={() => detachAgent(anfe.id)}
+                              className="p-1 hover:bg-red-500/10 rounded text-gray-500 hover:text-red-400 transition-colors shrink-0"
+                              title="Detach agent"
+                            >
+                              <XCircle size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {userAgents.length === 0 ? (
+                              <p className="text-xs text-gray-500">No agents available. Create one first.</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5">
+                                {userAgents.slice(0, 6).map((agent) => (
+                                  <button
+                                    key={agent.id}
+                                    onClick={() => attachAgent(anfe.id, agent.id)}
+                                    className="px-2 py-1 bg-gray-800 hover:bg-cyan-600/20 border border-gray-600 hover:border-cyan-500/40 rounded-md text-xs text-gray-300 hover:text-cyan-300 transition-colors flex items-center gap-1"
+                                  >
+                                    <Plus size={10} />
+                                    {agent.name}
+                                  </button>
+                                ))}
+                                {userAgents.length > 6 && (
+                                  <span className="px-2 py-1 text-xs text-gray-500">+{userAgents.length - 6} more</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Deploy / Details row */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => showNotification('info', `ANFE ${anfe.id} details coming soon`)}
+                          className="flex-1 py-1.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 text-xs rounded-lg transition-colors"
+                        >
+                          Details
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!binding) {
+                              showNotification('warning', 'Attach an agent first');
+                              return;
+                            }
+                            showNotification('success', `Deploy queued: ${anfe.id}`);
+                          }}
+                          className="flex-1 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-400 border border-cyan-500/30 text-xs rounded-lg transition-colors flex items-center justify-center gap-1"
+                        >
+                          <Server size={12} />
+                          Deploy
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Node Factories (compact) ── */}
         <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="font-semibold text-white">Node Factories</h4>
-            <button 
-              onClick={() => stargatePoolService.addDemoFactories()}
-              className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
+            <h4 className="font-semibold text-white flex items-center gap-2">
+              <Server size={16} className="text-cyan-400" />
+              Node Deploy System
+            </h4>
+            <button
+              onClick={() => ethAddress ? stargatePoolService.loadNodeFactoriesFromChain(ethAddress) : null}
+              disabled={!ethAddress}
+              className="text-[11px] px-2 py-1 bg-gray-700/60 hover:bg-gray-600 disabled:opacity-30 disabled:hover:bg-gray-700 text-gray-300 rounded"
             >
-              + Demo Factories
+              + Load from Chain
             </button>
           </div>
 
           {factories.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Zap size={32} className="mx-auto mb-2 opacity-50" />
-              <p>No factories registered</p>
-              <p className="text-sm mt-1">Connect wallet to register or add demo factories</p>
+            <div className="text-center py-6 text-gray-500 text-sm">
+              <p>No factories registered. Connect wallet and load from chain.</p>
             </div>
           ) : (
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {factories.map(({ factory, isEligible, reason }) => (
-                <div key={factory.factory_id} className="p-3 bg-gray-900/50 rounded-lg border border-gray-700">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <div className="font-semibold text-white">{factory.name}</div>
-                      <div className="text-xs text-gray-400">
-                        {factory.chain} · {factory.network}
-                      </div>
-                    </div>
-                    <div className={`px-2 py-1 rounded text-xs ${isEligible ? 'bg-green-600/30 text-green-400' : 'bg-red-600/30 text-red-400'}`}>
-                      {isEligible ? '✓ Eligible' : '✗ Not Eligible'}
-                    </div>
+                <div key={factory.factory_id} className="bg-gray-900/40 rounded-lg border border-gray-700/60 p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm font-medium text-white">{factory.name}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${isEligible ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+                      {isEligible ? 'Eligible' : 'Locked'}
+                    </span>
                   </div>
-                  <div className="text-sm text-gray-400 mb-2">
-                    Capacity: <span className="text-green-400">{factory.available_capacity}</span> / {factory.total_capacity}
+                  <div className="text-[11px] text-gray-400 mb-1">
+                    {factory.chain} · {factory.network} · Lv.{factory.min_anfe_level ?? '—'}+
                   </div>
-                  <div className="flex flex-wrap gap-1">
-                    {factory.skills_supported?.slice(0, 4).map(skill => (
-                      <span key={skill} className="px-2 py-0.5 bg-cyan-600/30 text-cyan-400 text-xs rounded">
-                        {skill}
-                      </span>
+                  <div className="text-[11px] text-gray-500 mb-2">
+                    Cap: <span className="text-green-400 font-medium">{factory.available_capacity}</span>/{factory.total_capacity}
+                    <span className="ml-1">· {factory.delegation.is_public ? 'Public' : 'NFT-gated'}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {factory.skills_supported?.slice(0, 3).map((skill) => (
+                      <span key={skill} className="px-1.5 py-0.5 bg-cyan-600/15 text-cyan-400 text-[10px] rounded">{skill}</span>
                     ))}
+                    {(factory.skills_supported?.length || 0) > 3 && (
+                      <span className="text-[10px] text-gray-500 px-1">+{(factory.skills_supported!.length - 3)}</span>
+                    )}
                   </div>
-                  {reason && (
-                    <div className="mt-2 text-xs text-gray-500">{reason}</div>
+                  {isEligible && (
+                    <button
+                      onClick={() => showNotification('info', `Selected factory: ${factory.name}`)}
+                      className="w-full py-1 text-[11px] bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-400 border border-cyan-500/20 rounded transition-colors"
+                    >
+                      Select Factory
+                    </button>
                   )}
+                  {reason && <div className="mt-1 text-[10px] text-gray-600">{reason}</div>}
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Dev Tools */}
+        {/* ── Dev Tools (compact row) ── */}
         <div className="flex gap-2">
-          <button 
-            onClick={() => stargatePoolService.addDemoFactories()}
-            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded-lg"
+          <button
+            onClick={() => ethAddress ? stargatePoolService.loadNodeFactoriesFromChain(ethAddress) : null}
+            className="px-3 py-1.5 bg-gray-700/50 hover:bg-gray-600 text-gray-300 text-xs rounded-lg"
           >
-            + Add Demo Factories
+            + Load from Chain
           </button>
-          <button 
+          <button
             onClick={() => stargatePoolService.clearAll()}
-            className="px-3 py-1.5 bg-red-900/50 hover:bg-red-800 text-red-400 text-sm rounded-lg"
+            className="px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 text-red-400 text-xs rounded-lg"
           >
             Clear All
           </button>
@@ -2247,6 +2620,52 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       }
     };
 
+    // Manual ANFE entry handler
+    const handleAddManualANFE = () => {
+      const anfeId = manualANFEId.trim();
+      if (!anfeId) {
+        showNotification('error', 'Please enter an ANFE ID');
+        return;
+      }
+      
+      // Create a manual ANFE from the ID
+      const manualANFE: ANFE = {
+        id: `manual:${anfeId}`,
+        tokenId: anfeId,
+        contractAddress: '',
+        owner: walletAddress || '',
+        chainId: 1,
+        chainName: 'Ethereum',
+        blockNumber: 0,
+        blockTimestamp: Date.now(),
+        transactionHash: '',
+        attributes: {
+          core: {
+            level: { trait_type: 'Level', value: 11 },
+            primaryLicense: { trait_type: 'License', value: 'standard' }
+          },
+          ai: { aiModules: [] },
+          raw: []
+        },
+        verification: {
+          valid: true,
+          anfeId: anfeId,
+          nodeFactoryId: '',
+          tranche: 'T3',
+          uptime: 0.988,
+          reliability: 0.995,
+          status: 'online',
+          lastUpdated: Date.now(),
+        },
+      };
+      
+      setWalletANFEs(prev => [...prev, manualANFE]);
+      setShowManualANFE(false);
+      setManualANFEId('');
+      showNotification('success', `Added ANFE ${anfeId}`);
+      console.log('[AdaPortal] Manual ANFE added:', manualANFE);
+    };
+
     const handleAgentConfirmed = (agent: any, anfe: ANFE | null) => {
       console.log('[AdaPortal] Agent selected:', agent.name, 'ANFE:', anfe?.id || 'none');
       
@@ -2514,3 +2933,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
 };
 
 export default AdaPortalPanel;
+
+
+
+

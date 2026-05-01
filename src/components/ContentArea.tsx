@@ -22,6 +22,7 @@ import {
   INTERNAL_ADAPORTAL_BUNDLES_URL,
   INTERNAL_ADAPORTAL_RANKINGS_URL,
   INTERNAL_ADAPORTAL_STARGATE_URL,
+  INTERNAL_MULTIAGENT_URL,
   Tab,
 } from "../types/types";
 import { LandingPage } from "./LandingPage";
@@ -39,6 +40,7 @@ import IDEPage from "./ide/IDEPage";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
 import { AdaPortalPanel } from "./AdaPortalPanel";
+import { MultiAgentPanel } from "./MultiAgentPanel";
 
 interface ContentAreaProps {
   url: string;
@@ -555,6 +557,23 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     return (
       <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
         <AdaPortalPanel url={url} onNavigate={onNavigate} />
+      </div>
+    );
+  }
+
+  // Multi-Agent URL
+  if (url.startsWith(INTERNAL_MULTIAGENT_URL)) {
+    useEffect(() => {
+      onUpdateTab({
+        title: "Multi-Agent",
+        isLoading: false,
+        favicon: undefined,
+      });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
+        <MultiAgentPanel onCollapse={() => onNavigate(INTERNAL_HOME_URL)} />
       </div>
     );
   }

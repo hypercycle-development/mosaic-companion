@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Loader2, RefreshCw, Shield, Zap, Globe, 
   ChevronRight, CheckCircle, XCircle, Crown,
-  Server, ArrowRight, Wallet, Hash
+  Server, ArrowRight, Wallet, Hash, Clock, Activity
 } from 'lucide-react';
 
 // Types (mirrored from service)
@@ -20,6 +20,28 @@ interface NodeFactory {
   delegation: {
     is_public: boolean;
     access_type: 'public' | 'nft-gated';
+  };
+}
+
+// Merkelizer-verified ANFE info
+interface VerifiedANFE {
+  id: string;
+  tokenId: string;
+  contractAddress: string;
+  owner: string;
+  chainId: number;
+  chainName: string;
+  level?: number;
+  verification: {
+    valid: boolean;
+    anfeId: string;
+    nodeFactoryId?: string;
+    tranche?: string;
+    uptime?: number;
+    reliability?: number;
+    status?: 'online' | 'offline' | 'busy';
+    registeredAt?: number;
+    lastVerified?: number;
   };
 }
 
@@ -45,6 +67,8 @@ export function StargatePoolView() {
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>({ available: false, registered: false });
   const [selectedChain, setSelectedChain] = useState<string>('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [anfes, setAnfes] = useState<VerifiedANFE[]>([]);
+  const [merkelizerAvailable, setMerkelizerAvailable] = useState<boolean>(false);
 
   useEffect(() => {
     init();
@@ -66,16 +90,69 @@ export function StargatePoolView() {
 
       // Get connected wallet (from Web3Page or similar)
       const web3Window = window as any;
-      if (web3Window.ethereum?.selectedAddress) {
-        setWalletAddress(web3Window.ethereum.selectedAddress);
+      const resolvedAddress = web3Window.ethereum?.selectedAddress 
+        || web3Window.mosaic?.wallet?.address 
+        || web3Window.electronAPI?.web3?.getAddress?.()
+        || '';
+      
+      if (resolvedAddress) {
+        setWalletAddress(resolvedAddress);
       }
 
       // Load factories
       await loadFactories();
+
+      // Load ANFEs from Graph/Merkelizer if wallet connected
+      if (resolvedAddress) {
+        await loadANFEs(resolvedAddress);
+      }
     } catch (error) {
       console.error('[StargatePool] Init error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load ANFEs via Graph + Merkelizer
+  const loadANFEs = async (address: string) => {
+    try {
+      // Check if ANFEService is available (exposed via window)
+      const anfeService = (window as any).anfeService;
+      if (anfeService) {
+        const walletANFEs = await anfeService.loadWalletANFEs(address);
+        
+        // Transform to VerifiedANFE format
+        const verified: VerifiedANFE[] = walletANFEs.anfes.map((anfe: any) => ({
+          id: anfe.id,
+          tokenId: anfe.tokenId,
+          contractAddress: anfe.contractAddress,
+          owner: anfe.owner,
+          chainId: anfe.chainId,
+          chainName: anfe.chainName,
+          level: anfe.attributes?.core?.level?.value || anfe.attributes?.raw?.find((a: any) => a.trait_type === 'Level')?.value,
+          verification: {
+            valid: anfe.verification?.valid || false,
+            anfeId: anfe.verification?.anfeId || anfe.id,
+            nodeFactoryId: anfe.verification?.nodeFactoryId,
+            tranche: anfe.verification?.tranche,
+            uptime: anfe.verification?.uptime,
+            reliability: anfe.verification?.reliability,
+            status: anfe.verification?.status,
+            registeredAt: anfe.verification?.registeredAt,
+            lastVerified: anfe.verification?.lastVerified,
+          },
+        }));
+        setAnfes(verified);
+        
+        // Check if ANFEs loaded (indicates Graph/Merkelizer is reachable)
+        // Show verification data if we have any ANFEs
+        setMerkelizerAvailable(verified.length > 0);
+        console.log('[StargatePool] Loaded', verified.length, 'ANFEs, verification valid:', verified.filter(a => a.verification.valid).length);
+      } else {
+        console.warn('[StargatePool] ANFEService not available on window');
+      }
+    } catch (error) {
+      console.error('[StargatePool] Failed to load ANFEs:', error);
     }
   };
 
@@ -87,7 +164,7 @@ export function StargatePoolView() {
         const data = JSON.parse(stored) as NodeFactory[];
         const results: WalletFactoryResult[] = data.map(factory => ({
           factory,
-          isEligible: true, // Default for demo
+          isEligible: true,
         }));
         setFactories(results);
       }
@@ -96,58 +173,30 @@ export function StargatePoolView() {
     }
   };
 
-  const addDemoFactories = async () => {
-    const demos: NodeFactory[] = [
-      {
-        factory_id: 'demo_alpha',
-        name: 'HyperCycle Alpha Node',
-        chain: 'base',
-        network: 'base-mainnet',
-        owner_wallet: '0x742d35Cc6634C0532925a3b844Bc9e7595f',
-        collection_access: [],
-        total_capacity: 100,
-        available_capacity: 45,
-        skills_supported: ['code-generation', 'smart-contracts', 'reasoning'],
-        status: 'active',
-        delegation: { is_public: true, access_type: 'public' },
-      },
-      {
-        factory_id: 'demo_beta',
-        name: 'HyperCycle Beta Node',
-        chain: 'ethereum',
-        network: 'mainnet',
-        owner_wallet: '0x8Ba1f109551bD432803012645Hc136E7a',
-        collection_access: ['0xabc123...'],
-        total_capacity: 50,
-        available_capacity: 12,
-        skills_supported: ['image-generation', 'video-generation'],
-        status: 'active',
-        delegation: { is_public: false, access_type: 'nft-gated' },
-      },
-      {
-        factory_id: 'demo_gamma',
-        name: 'HyperCycle Gamma Node',
-        chain: 'cardano',
-        network: 'mainnet',
-        owner_wallet: 'addr1qx...',
-        collection_access: [],
-        total_capacity: 200,
-        available_capacity: 180,
-        skills_supported: ['text-generation', 'analysis'],
-        status: 'active',
-        delegation: { is_public: true, access_type: 'public' },
-      },
-    ];
+  // Format uptime as percentage
+  const formatUptime = (uptime?: number): string => {
+    if (uptime === undefined) return '—';
+    return `${(uptime * 100).toFixed(1)}%`;
+  };
 
-    const stored = localStorage.getItem('mosaic_stargate_factories');
-    let existing: NodeFactory[] = [];
-    try {
-      existing = stored ? JSON.parse(stored) : [];
-    } catch {}
+  // Format reliability as percentage
+  const formatReliability = (reliability?: number): string => {
+    if (reliability === undefined) return '—';
+    return `${(reliability * 100).toFixed(1)}%`;
+  };
 
-    const updated = [...existing, ...demos.filter(d => !existing.find(e => e.factory_id === d.factory_id))];
-    localStorage.setItem('mosaic_stargate_factories', JSON.stringify(updated));
-    await loadFactories();
+  // Format timestamp to relative time
+  const formatTimeAgo = (timestamp?: number): string => {
+    if (!timestamp) return '—';
+    const diff = Date.now() - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (days > 0) return `${days}d ago`;
+    if (hours > 0) return `${hours}h ago`;
+    if (minutes > 0) return `${minutes}m ago`;
+    return 'just now';
   };
 
   const clearAllFactories = async () => {
@@ -158,6 +207,9 @@ export function StargatePoolView() {
   const refresh = async () => {
     setRefreshing(true);
     await loadFactories();
+    if (walletAddress) {
+      await loadANFEs(walletAddress);
+    }
     setRefreshing(false);
   };
 
@@ -259,17 +311,147 @@ export function StargatePoolView() {
 
       {/* Content */}
       <div className="p-5">
-        {/* Dev Tools */}
-        {factories.length === 0 && (
-          <div className="mb-4 p-4 rounded-lg bg-cyan-500/5 border border-cyan-500/20">
-            <div className="text-sm text-cyan-300 mb-3">No factories registered yet.</div>
-            <div className="flex gap-2">
-              <button 
-                onClick={addDemoFactories}
-                className="px-3 py-1.5 rounded bg-cyan-500/20 text-cyan-300 text-xs font-mono hover:bg-cyan-500/30 transition-colors"
-              >
-                + Add Demo Factories
-              </button>
+        {/* ANFE Section - Show Merkelizer-verified ANFEs */}
+        {anfes.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Shield className="w-4 h-4 text-cyan-400" />
+              <h2 className="text-sm font-semibold text-white">Your ANFEs (Verified via Merkelizer)</h2>
+              {merkelizerAvailable && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-green-500/20 text-green-400 border border-green-500/30">
+                  VERIFIED
+                </span>
+              )}
+            </div>
+            
+            <div className="grid gap-3">
+              {anfes.map((anfe) => (
+                <div 
+                  key={anfe.id}
+                  className="p-4 rounded-lg bg-[#0d1117] border border-cyan-900/30"
+                >
+                  <div className="flex items-start gap-3">
+                    {/* Chain Icon */}
+                    <div 
+                      className="w-10 h-10 rounded-lg flex items-center justify-center text-lg font-bold"
+                      style={{ 
+                        backgroundColor: `${getChainColor(anfe.chainName?.toLowerCase() || 'ethereum')}20`, 
+                        color: getChainColor(anfe.chainName?.toLowerCase() || 'ethereum') 
+                      }}
+                    >
+                      {getChainIcon(anfe.chainName?.toLowerCase() || 'ethereum')}
+                    </div>
+                    
+                    {/* ANFE Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-semibold text-white">
+                          ANFE #{anfe.tokenId}
+                        </h3>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                          Level {anfe.level || 1}
+                        </span>
+                        {anfe.verification.valid ? (
+                          <CheckCircle className="w-3.5 h-3.5 text-green-400" />
+                        ) : (
+                          <XCircle className="w-3.5 h-3.5 text-red-400" />
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 font-mono">
+                        <span>{anfe.chainName}</span>
+                        <span>•</span>
+                        <span className="truncate max-w-[160px]">{anfe.contractAddress.slice(0, 10)}...</span>
+                      </div>
+
+                      {/* Merkelizer Data - show if we have any verification data */}
+                      {merkelizerAvailable && (anfe.verification.valid || anfe.verification.status || anfe.verification.uptime) && (
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                          {/* Node Factory ID */}
+                          {anfe.verification.nodeFactoryId ? (
+                            <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-[#151a24]">
+                              <Hash className="w-3 h-3 text-cyan-400" />
+                              <span className="text-gray-500">Node Factory:</span>
+                              <span className="text-cyan-300 font-mono truncate">
+                                {anfe.verification.nodeFactoryId}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-[#151a24]">
+                              <Hash className="w-3 h-3 text-gray-600" />
+                              <span className="text-gray-500">Node Factory:</span>
+                              <span className="text-gray-600 font-mono">Pending...</span>
+                            </div>
+                          )}
+                          
+                          {/* Tranche */}
+                          {anfe.verification.tranche ? (
+                            <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-[#151a24]">
+                              <Globe className="w-3 h-3 text-purple-400" />
+                              <span className="text-gray-500">Tranche:</span>
+                              <span className="text-purple-300 font-mono">
+                                {anfe.verification.tranche}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-[#151a24]">
+                              <Globe className="w-3 h-3 text-gray-600" />
+                              <span className="text-gray-500">Tranche:</span>
+                              <span className="text-gray-600 font-mono">Pending...</span>
+                            </div>
+                          )}
+                          
+                          {/* Uptime */}
+                          <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-[#151a24]">
+                            <Activity className="w-3 h-3 text-green-400" />
+                            <span className="text-gray-500">Uptime:</span>
+                            <span className="text-green-300 font-mono">
+                              {formatUptime(anfe.verification.uptime)}
+                            </span>
+                          </div>
+                          
+                          {/* Reliability */}
+                          <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-[#151a24]">
+                            <Clock className="w-3 h-3 text-amber-400" />
+                            <span className="text-gray-500">Reliability:</span>
+                            <span className="text-amber-300 font-mono">
+                              {formatReliability(anfe.verification.reliability)}
+                            </span>
+                          </div>
+                          
+                          {/* Status */}
+                          <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-[#151a24]">
+                            <Zap className="w-3 h-3 text-cyan-400" />
+                            <span className="text-gray-500">Status:</span>
+                            <span className={`font-mono ${
+                              anfe.verification.status === 'online' ? 'text-green-400' :
+                              anfe.verification.status === 'busy' ? 'text-amber-400' : 'text-red-400'
+                            }`}>
+                              {anfe.verification.status || 'unknown'}
+                            </span>
+                          </div>
+                          
+                          {/* Last Verified */}
+                          <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-[#151a24]">
+                            <RefreshCw className="w-3 h-3 text-gray-400" />
+                            <span className="text-gray-500">Verified:</span>
+                            <span className="text-gray-300 font-mono">
+                              {formatTimeAgo(anfe.verification.lastVerified)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Show what Merkelizer provides when not available */}
+                      {!merkelizerAvailable && (
+                        <div className="mt-2 text-xs text-amber-400/60 font-mono">
+                          Connecting to Merkelizer: {import.meta.env.VITE_MERKELIZER_URL_MAINNET || 'http://YOUR_HYPERCYCLE_NODE_IP:8003/'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -384,11 +566,11 @@ export function StargatePoolView() {
           })}
         </div>
 
-        {filteredFactories.length === 0 && !loading && (
+        {filteredFactories.length === 0 && !loading && anfes.length === 0 && (
           <div className="text-center py-12 text-gray-500">
             <Server className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <div className="text-sm">No factories found</div>
-            <div className="text-xs mt-1">Connect a wallet or add demo factories</div>
+            <div className="text-sm">No factories or ANFEs found</div>
+            <div className="text-xs mt-1">Connect a wallet to view your ANFEs</div>
           </div>
         )}
       </div>

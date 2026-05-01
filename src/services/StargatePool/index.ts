@@ -24,6 +24,11 @@ export type { GraphConfig, ANFEGraphData } from './GraphService';
 export { merkelizerService } from './MerkelizerService';
 export type { VerificationResult, NodeInfo, UptimeInfo } from './MerkelizerService';
 
+// NEW: Directly attach ANFE singleton to window so plugin renderer can consume it
+// This replaces the broken `window.anfeService = ???` pattern that was never wired.
+import { anfeService } from './ANFEService';
+if (typeof window !== 'undefined') { (window as any).anfeService = anfeService; }
+
 // Wallet Adapter (Mosaic wallet)
 export { walletAdapter } from './WalletAdapter';
 export type { WalletState, WalletProvider } from './WalletAdapter';

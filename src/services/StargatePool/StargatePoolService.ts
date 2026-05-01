@@ -4,6 +4,98 @@
 // Read + Registration only (no agent spawning, no capacity enforcement yet)
 
 // =============================================================================
+// HyperCycle Contract Addresses
+// =============================================================================
+
+const HYPERCYCLE_CONTRACTS: Record<string, Record<ChainType, string>> = {
+  // ERC-1155 Node Factory (main contract for node factories)
+  nodeFactory: {
+    ethereum: '0x4BFbA79CF232361a53eDdd17C67C6c77A6F00379',
+    base: '0x4BFbA79CF232361a53eDdd17C67C6c77A6F00379', // Check if same on Base
+    cardano: '',
+  },
+  // ANFE (Advanced Node Factory Enclosure)
+  anfe: {
+    ethereum: '0x8c0075D087de9588DdF5c1441dF39828d695bc2f',
+    base: '0x8c0075D087de9588DdF5c1441dF39828d695bc2f',
+    cardano: '',
+  },
+  // HyPC (HyperCycle Token)
+  hypc: {
+    ethereum: '0xea7b7dc089c9a4a916b5a7a37617f59fd54e37e4',
+    base: '',
+    cardano: '',
+  },
+  // HyPCL (Node Factory Licence)
+  hypcl: {
+    ethereum: '0xd32CB5f76989A27782e44c5297AAba728Ad61669',
+    base: '0x282b61FcBA0d77a8eE3e0De225AF6BFC11f44659', // ANFE Licence on Base
+    cardano: '',
+  },
+  // c_HyPC (CHyPC - Compressed HyperCycle)
+  c_hypc: {
+    ethereum: '0x21468e63abF3783020750F7b2e57d4B34aFAfba6',
+    base: '0x674DdC6e324142713431a21D3E1BD0140cC700f7',
+    cardano: '',
+  },
+  // c_AIMF (Aimifier)
+  c_aimf: {
+    ethereum: '',
+    base: '0x998d350C59Fd7a4a524fcc987Adc811f25b886F4',
+    cardano: '',
+  },
+  // c_IAIb (IoAI Box)
+  c_iaib: {
+    ethereum: '',
+    base: '0x1dcbEEc07614aB8b3AEe828f19a9299ad0772eC1',
+    cardano: '',
+  },
+  // c_IAIf (IoAI Federated)
+  c_iaif: {
+    ethereum: '',
+    base: '0xf319fea203EB534BE138F86682B42d359424e905',
+    cardano: '',
+  },
+  // c_IAIr (IoAI Registry)
+  c_iair: {
+    ethereum: '',
+    base: '0xaaA03DBEa02373Ce123b02B590265De428B17172',
+    cardano: '',
+  },
+  // c_IAIs (IoAI Search)
+  c_iais: {
+    ethereum: '',
+    base: '0xe283deFF3736C12E313C19dF6FBbC896fcf246d3',
+    cardano: '',
+  },
+  // c_OpnAI (Open IoAI)
+  c_opnai: {
+    ethereum: '',
+    base: '0x4795f8af5c8d2D9bceA287d7448435879A6d46dF',
+    cardano: '',
+  },
+  // c_QntV (Quantum Verify)
+  c_qntv: {
+    ethereum: '',
+    base: '0x1512D4A43596a34593D6913462068F089879E8Cc',
+    cardano: '',
+  },
+  // c_SpcN (Space Nodes)
+  c_spcn: {
+    ethereum: '',
+    base: '0x2Be0d36d961E15879C865B0fA828710C65f60940',
+    cardano: '',
+  },
+};
+
+// ERC-1155 ABI for Node Factory
+const ERC1155_ABI = {
+  balanceOf: '0x00fdd58e', // balanceOf(address account, uint256 id)
+  balanceOfBatch: '0x4e1273f4', // balanceOfBatch(address[] accounts, uint256[] ids)
+  uri: '0x0e89341c', // uri(uint256 id)
+};
+
+// =============================================================================
 // Data Models
 // =============================================================================
 
@@ -126,23 +218,44 @@ class StargatePoolService {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Try to connect to injected wallet (Mosaic or MetaMask)
+    // Priority 1: Electron stored wallet (imported via clipboard/secure input)
     try {
-      if (typeof window !== 'undefined') {
-        // Check for Mosaic wallet
-        const mosaicWallet = (window as any).mosaic?.wallet;
-        if (mosaicWallet?.address) {
-          this.walletAddress = mosaicWallet.address;
-          console.log('[StargatePool] Connected to Mosaic wallet:', this.walletAddress);
-        }
-        // Check for MetaMask
-        else if ((window as any).ethereum?.selectedAddress) {
-          this.walletAddress = (window as any).ethereum.selectedAddress;
-          console.log('[StargatePool] Connected to MetaMask:', this.walletAddress);
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.web3?.getAddress) {
+        const result = await (window as any).electronAPI.web3.getAddress();
+        if (result?.success && result.data?.address) {
+          this.walletAddress = result.data.address;
+          console.log('[StargatePool] Connected to Electron wallet:', this.walletAddress);
         }
       }
     } catch (e) {
-      console.log('[StargatePool] No wallet detected, manual connect required');
+      console.log('[StargatePool] Electron wallet not available');
+    }
+
+    // Priority 2: Mosaic injected wallet
+    if (!this.walletAddress) {
+      try {
+        if (typeof window !== 'undefined') {
+          const mosaicWallet = (window as any).mosaic?.wallet;
+          if (mosaicWallet?.address) {
+            this.walletAddress = mosaicWallet.address;
+            console.log('[StargatePool] Connected to Mosaic wallet:', this.walletAddress);
+          }
+        }
+      } catch (e) {
+        console.log('[StargatePool] Mosaic wallet not available');
+      }
+    }
+
+    // Priority 3: MetaMask / window.ethereum
+    if (!this.walletAddress) {
+      try {
+        if (typeof window !== 'undefined' && (window as any).ethereum?.selectedAddress) {
+          this.walletAddress = (window as any).ethereum.selectedAddress;
+          console.log('[StargatePool] Connected to MetaMask:', this.walletAddress);
+        }
+      } catch (e) {
+        console.log('[StargatePool] MetaMask not available');
+      }
     }
 
     try {
@@ -354,7 +467,7 @@ class StargatePoolService {
       // Use ERC-721 balanceOf to get count, then enumerate
       const nfts: UserNFT[] = [];
 
-      // Common collection addresses to check (demo/placeholder)
+      // Collection addresses to check (production addresses)
       // In production, this would use an indexer like SimpleHash or Moralis
       const collectionAddresses = await this.getCollectionAddresses(chain);
 
@@ -795,75 +908,116 @@ class StargatePoolService {
   }
 
   // =============================================================================
-  // Demo Data (for testing)
+  // Real Node Factory Loading (from blockchain)
   // =============================================================================
 
   /**
-   * Add demo factories for testing
+   * Query real Node Factory contracts from blockchain instead of demo data
+   * Uses ERC-1155 balanceOf to check if wallet owns any factory NFTs
+   */
+  async loadNodeFactoriesFromChain(walletAddress: string): Promise<void> {
+    await this.initialize();
+    
+    console.log('[StargatePool] Loading Node Factories from blockchain for:', walletAddress.slice(0, 8) + '...');
+    
+    const factories: FactoryRegistrationInput[] = [];
+    
+    // Check each chain
+    for (const [chain, contract] of Object.entries(HYPERCYCLE_CONTRACTS.nodeFactory)) {
+      if (!contract) continue;
+      
+      try {
+        // Check balance using ERC-1155 balanceOf
+        // Node Factory uses ERC-1155 with different IDs for different factory types
+        const factoryTypes = [
+          { id: 1, name: 'Standard Node' },
+          { id: 2, name: 'Premium Node' },
+          { id: 3, name: 'Enterprise Node' },
+        ];
+        
+        for (const ft of factoryTypes) {
+          const balance = await this.getERC1155Balance(walletAddress, contract, ft.id);
+          if (balance > 0) {
+            factories.push({
+              name: `HyperCycle ${ft.name}`,
+              chain: chain as ChainType,
+              network: `${chain}-mainnet`,
+              owner_wallet: walletAddress,
+              collection_access: [],
+              total_capacity: balance * 100, // Each NFT represents 100 capacity units
+              skills_supported: ['code-generation', 'smart-contracts', 'defi', 'hypercycle'],
+              is_public: true,
+            });
+            console.log(`[StargatePool] Found ${balance} x ${ft.name} on ${chain}`);
+          }
+        }
+      } catch (e) {
+        console.warn(`[StargatePool] Failed to query Node Factory on ${chain}:`, e);
+      }
+    }
+    
+    // If no factories found, still register empty to avoid demo data
+    if (factories.length === 0) {
+      console.log('[StargatePool] No Node Factory NFTs found - no factories registered');
+    } else {
+      // Register discovered factories
+      for (const factory of factories) {
+        await this.registerFactory(factory);
+      }
+      console.log(`[StargatePool] Registered ${factories.length} Node Factory/ies from blockchain`);
+    }
+  }
+
+  /**
+   * Get ERC-1155 balance for a specific token ID
+   */
+  private async getERC1155Balance(
+    walletAddress: string,
+    contractAddress: string,
+    tokenId: number
+  ): Promise<number> {
+    try {
+      const provider = this.getProvider('ethereum');
+      if (!provider) return 0;
+      
+      // ERC1155 balanceOf(address account, uint256 id)
+      // Pad address to 32 bytes (64 hex chars), pad tokenId to 32 bytes
+      const paddedAddress = walletAddress.slice(2).padStart(64, '0');
+      const paddedTokenId = tokenId.toString(16).padStart(64, '0');
+      const data = '0x00fdd58e' + paddedAddress + paddedTokenId;
+      
+      const result = await provider.send('eth_call', [{
+        to: contractAddress,
+        data: data,
+      }, 'latest']);
+      
+      return parseInt(result, 16) || 0;
+    } catch (e) {
+      console.warn('[StargatePool] ERC1155 balanceOf failed:', e);
+      return 0;
+    }
+  }
+
+  /**
+   * Get provider for a given chain
+   */
+  private getProvider(chain: ChainType): any {
+    // Use window.ethereum for RPC calls
+    if (window.ethereum) {
+      return window.ethereum;
+    }
+    return null;
+  }
+
+  /**
+   * Legacy method - redirects to blockchain query
    */
   async addDemoFactories(): Promise<void> {
-    await this.initialize();
-
-    const demoFactories: FactoryRegistrationInput[] = [
-      {
-        name: 'HyperCycle Alpha Node',
-        chain: 'base',
-        network: 'base-mainnet',
-        owner_wallet: '0x1234567890123456789012345678901234567890',
-        collection_access: [],
-        total_capacity: 100,
-        skills_supported: ['code-generation', 'smart-contracts', 'defi'],
-        is_public: true,
-      },
-      {
-        name: 'HyperCycle Beta Node',
-        chain: 'ethereum',
-        network: 'ethereum-mainnet',
-        owner_wallet: '0x1234567890123456789012345678901234567890',
-        collection_access: ['0xabc123def456'], // NFT-gated
-        total_capacity: 50,
-        skills_supported: ['data-analysis', 'analytics', 'dashboard'],
-        is_public: false,
-      },
-      {
-        name: 'HPEC Elite Node (Lv.5+)',
-        chain: 'ethereum',
-        network: 'ethereum-mainnet',
-        owner_wallet: '0x1234567890123456789012345678901234567890',
-        collection_access: ['0x8c0075D087de9588DdF5c1441dF39828d695bc2f'], // ANFE contract
-        total_capacity: 200,
-        skills_supported: ['code-generation', 'smart-contracts', 'defi', 'hypercycle'],
-        is_public: false,
-        min_anfe_level: 5, // Requires ANFE Level 5+
-      },
-      {
-        name: 'HPEC Premium Node (Lv.11)',
-        chain: 'ethereum',
-        network: 'ethereum-mainnet',
-        owner_wallet: '0x1234567890123456789012345678901234567890',
-        collection_access: ['0x8c0075D087de9588DdF5c1441dF39828d695bc2f'], // ANFE contract
-        total_capacity: 500,
-        skills_supported: ['code-generation', 'smart-contracts', 'defi', 'hypercycle', 'ai-training'],
-        is_public: false,
-        min_anfe_level: 11, // Requires ANFE Level 11 (max)
-      },
-      {
-        name: 'Cardano Compute Node',
-        chain: 'cardano',
-        network: 'cardano-mainnet',
-        owner_wallet: '0x1234567890123456789012345678901234567890',
-        collection_access: [],
-        total_capacity: 75,
-        skills_supported: ['cardano-sdk', 'plutus', 'arien'],
-        is_public: true,
-      },
-    ];
-
-    for (const factory of demoFactories) {
-      await this.registerFactory(factory);
+    if (!this.walletAddress) {
+      console.warn('[StargatePool] No wallet connected - cannot load factories');
+      return;
     }
-
-    console.log('[StargatePool] Added demo factories');
+    await this.loadNodeFactoriesFromChain(this.walletAddress);
   }
 
   /**

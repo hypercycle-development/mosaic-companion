@@ -230,58 +230,6 @@ class StargatePoolService {
   }
 
   /**
-   * Add demo factories for testing
-   */
-  async addDemoFactories(): Promise<void> {
-    await this.init();
-    
-    const demos: NodeFactory[] = [
-      {
-        factory_id: 'demo_alpha',
-        name: 'HyperCycle Alpha Node',
-        chain: 'base',
-        network: 'base-mainnet',
-        owner_wallet: '0x742d35Cc6634C0532925a3b844Bc9e7595f',
-        collection_access: [],
-        total_capacity: 100,
-        available_capacity: 45,
-        skills_supported: ['code-generation', 'smart-contracts', 'reasoning'],
-        status: 'active',
-        delegation: { is_public: true, access_type: 'public' },
-      },
-      {
-        factory_id: 'demo_beta',
-        name: 'HyperCycle Beta Node',
-        chain: 'ethereum',
-        network: 'mainnet',
-        owner_wallet: '0x8Ba1f109551bD432803012645Hc136E7a',
-        collection_access: ['0xabc123...'],
-        total_capacity: 50,
-        available_capacity: 12,
-        skills_supported: ['image-generation', 'video-generation'],
-        status: 'active',
-        delegation: { is_public: false, access_type: 'nft-gated' },
-      },
-      {
-        factory_id: 'demo_gamma',
-        name: 'HyperCycle Gamma Node',
-        chain: 'cardano',
-        network: 'mainnet',
-        owner_wallet: 'addr1qx...',
-        collection_access: [],
-        total_capacity: 200,
-        available_capacity: 180,
-        skills_supported: ['text-generation', 'analysis'],
-        status: 'active',
-        delegation: { is_public: true, access_type: 'public' },
-      },
-    ];
-
-    demos.forEach(d => this.factories.set(d.factory_id, d));
-    this.persist();
-  }
-
-  /**
    * Clear all factories
    */
   async clearAll(): Promise<void> {

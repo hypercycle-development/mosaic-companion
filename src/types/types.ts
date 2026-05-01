@@ -52,6 +52,9 @@ export const INTERNAL_ADAPORTAL_BUNDLES_URL = "browser://adaportal/bundles";
 export const INTERNAL_ADAPORTAL_RANKINGS_URL = "browser://adaportal/rankings";
 export const INTERNAL_ADAPORTAL_STARGATE_URL = "browser://adaportal/stargate";
 
+// Multi-Agent URL
+export const INTERNAL_MULTIAGENT_URL = "browser://multi-agent";
+
 export interface AppSettings {
   homeUrl: string;
   customGreeting: string;

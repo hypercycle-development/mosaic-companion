@@ -1,15 +1,16 @@
 // ============================================
 // ADA PORTAL - Leaderboard Service
 // Layer 4: Agent ranking and scoring system
+// NOW: Uses hyperInsight.getUnifiedLeaderboard() for real data
 // ============================================
 
-import { 
-  LeaderboardCategory, 
-  LeaderboardPeriod, 
+import {
+  LeaderboardCategory,
+  LeaderboardPeriod,
   LeaderboardEntry,
-  AgentProfile 
+  AgentProfile
 } from './types';
-import { agentMarketplace } from './AgentMarketplaceService';
+import { hyperInsight } from './HyperInsightService';
 
 interface LeaderboardData {
   category: LeaderboardCategory;
@@ -20,140 +21,75 @@ interface LeaderboardData {
 
 class LeaderboardService {
   private leaderboards: Map<string, LeaderboardData> = new Map();
-  private updateInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    this.initializeLeaderboards();
-    console.log('[AdaPortal] Leaderboard system initialized');
+    // Defer initialization until data is requested
+    console.log('[AdaPortal] Leaderboard system initialized (deferred load)');
   }
 
-  private initializeLeaderboards(): void {
-    const categories: LeaderboardCategory[] = ['marketing', 'dev', 'uiux', 'roi', 'overall'];
-    const periods: LeaderboardPeriod[] = ['daily', 'weekly', 'all_time'];
+  // Build leaderboard from real HyperInsight data
+  private buildFromHyperInsight(category: LeaderboardCategory): LeaderboardEntry[] {
+    const section = category === 'overall' ? undefined : (category === 'dev' ? 'aims' : 'nodes');
+    const entries = hyperInsight.getUnifiedLeaderboard(section as any);
 
-    categories.forEach(category => {
-      periods.forEach(period => {
-        const key = `${category}-${period}`;
-        this.leaderboards.set(key, {
-          category,
-          period,
-          entries: this.calculateLeaderboard(category, period),
-          lastUpdated: Date.now()
-        });
-      });
-    });
-  }
-
-  private calculateLeaderboard(category: LeaderboardCategory, period: LeaderboardPeriod): LeaderboardEntry[] {
-    const agents = agentMarketplace.getAgents();
-    
-    const entries: LeaderboardEntry[] = agents.map((agent, index) => {
-      // Calculate component scores
-      const skillScore = this.calculateSkillScore(agent);
-      const successScore = agent.performance.successRate * 100;
-      const ratingScore = agent.performance.averageRating * 20; // 5 * 20 = 100
-      const nodeScore = agent.nodeSource === 'hypercycle' ? 95 : 80;
-
-      // Weighted total: (Skill * 0.4) + (Success * 0.3) + (Rating * 0.2) + (Node * 0.1)
-      const score = (skillScore * 0.4) + (successScore * 0.3) + (ratingScore * 0.2) + (nodeScore * 0.1);
-
-      return {
-        rank: index + 1,
-        agentId: agent.agentId,
-        agentName: agent.name,
-        category,
-        score,
-        skillScore,
-        successScore,
-        ratingScore,
-        nodeScore,
-        period
-      };
-    });
-
-    // Sort by score descending
-    entries.sort((a, b) => b.score - a.score);
-
-    // Update ranks
-    entries.forEach((entry, index) => {
-      entry.rank = index + 1;
-    });
-
-    // Filter by category if not 'overall'
-    if (category !== 'overall' && category !== 'roi') {
-      return entries.filter(e => {
-        const agent = agentMarketplace.getAgent(e.agentId);
-        return agent?.roles.includes(category as any);
-      });
-    }
-
-    return entries.slice(0, 10);
-  }
-
-  private calculateSkillScore(agent: AgentProfile): number {
-    // Average of all skill levels * 20 (since levels are 1-5)
-    const skillValues = Object.values(agent.skills);
-    if (skillValues.length === 0) return 0;
-    
-    const avgLevel = skillValues.reduce((sum, s) => sum + s.level, 0) / skillValues.length;
-    return avgLevel * 20; // 0-100 scale
+    return entries.slice(0, 20).map((e, index) => ({
+      rank: index + 1,
+      agentId: e.id,
+      agentName: e.name,
+      category,
+      score: e.score,
+      skillScore: e.type === 'aims' ? (e.activeNodes || 0) * 10 : 0,
+      successScore: e.uptime || (e.reliability || 0) * 100,
+      ratingScore: e.type === 'aims' ? (e.score || 0) : 0,
+      nodeScore: e.type === 'nodes' ? (e.score || 0) : 0,
+      period: 'all_time' as LeaderboardPeriod
+    }));
   }
 
   // Get leaderboard for category and period
   getLeaderboard(category: LeaderboardCategory = 'overall', period: LeaderboardPeriod = 'all_time'): LeaderboardData {
     const key = `${category}-${period}`;
-    const leaderboard = this.leaderboards.get(key);
-    
-    if (!leaderboard) {
-      return {
-        category,
-        period,
-        entries: [],
-        lastUpdated: Date.now()
-      };
+    let data = this.leaderboards.get(key);
+
+    if (!data || Date.now() - data.lastUpdated > 60000) {
+      // Rebuild from HyperInsight data
+      const entries = this.buildFromHyperInsight(category);
+      data = { category, period, entries, lastUpdated: Date.now() };
+      this.leaderboards.set(key, data);
     }
 
-    return leaderboard;
+    return data;
   }
 
   // Refresh specific leaderboard
   refreshLeaderboard(category: LeaderboardCategory, period: LeaderboardPeriod): void {
     const key = `${category}-${period}`;
-    const leaderboard = this.leaderboards.get(key);
-    
-    if (leaderboard) {
-      leaderboard.entries = this.calculateLeaderboard(category, period);
-      leaderboard.lastUpdated = Date.now();
-      console.log(`[AdaPortal] Refreshed leaderboard: ${key}`);
-    }
+    const entries = this.buildFromHyperInsight(category);
+    this.leaderboards.set(key, { category, period, entries, lastUpdated: Date.now() });
+    console.log(`[AdaPortal] Refreshed leaderboard: ${key} (${entries.length} entries)`);
   }
 
   // Refresh all leaderboards
   refreshAll(): void {
     const categories: LeaderboardCategory[] = ['marketing', 'dev', 'uiux', 'roi', 'overall'];
     const periods: LeaderboardPeriod[] = ['daily', 'weekly', 'all_time'];
-
-    categories.forEach(category => {
-      periods.forEach(period => {
+    for (const category of categories) {
+      for (const period of periods) {
         this.refreshLeaderboard(category, period);
-      });
-    });
-
+      }
+    }
     console.log('[AdaPortal] All leaderboards refreshed');
   }
 
   // Get top agents for specific category
   getTopAgents(category: LeaderboardCategory, limit: number = 5): LeaderboardEntry[] {
-    const leaderboard = this.getLeaderboard(category, 'all_time');
-    return leaderboard.entries.slice(0, limit);
+    return this.getLeaderboard(category, 'all_time').entries.slice(0, limit);
   }
 
-  // Get all available categories
   getCategories(): LeaderboardCategory[] {
     return ['marketing', 'dev', 'uiux', 'roi', 'overall'];
   }
 
-  // Get all available periods
   getPeriods(): LeaderboardPeriod[] {
     return ['daily', 'weekly', 'all_time'];
   }

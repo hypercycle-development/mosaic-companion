@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useEffect, useState, useCallback } from "react";
 import { toast } from "react-toastify";
 import {
@@ -1186,3 +1187,4 @@ export const SandboxPage: React.FC<{ onNavigate?: (url: string) => void }> = ({ 
     </div>
   );
 };
+

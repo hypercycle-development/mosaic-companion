@@ -163,6 +163,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     maximize: () => ipcRenderer.invoke("window:maximize"),
     close: () => ipcRenderer.invoke("window:close"),
     isMaximized: () => ipcRenderer.invoke("window:is-maximized"),
+    // HyperCycle Node status (from community installer)
+    getNodeStatus: () => ipcRenderer.invoke("get-node-status"),
+    openExternal: (url: string) => ipcRenderer.send("open-external", url),
   },
   // Web3 wallet & address book bridge
   trading: {
@@ -235,18 +238,34 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getStatus: () => ipcRenderer.invoke("hyperinsight:get-status"),
     ensureKey: () => ipcRenderer.invoke("hyperinsight:ensure-key"),
     resetKey: () => ipcRenderer.invoke("hyperinsight:reset-key"),
+    // AIM Discovery
     getAims: () => ipcRenderer.invoke("hyperinsight:get-aims"),
+    getDiscover: (params?: any) => ipcRenderer.invoke("hyperinsight:get-discover", params),
+    getCatalog: () => ipcRenderer.invoke("hyperinsight:get-catalog"),
     getLeaderboard: () => ipcRenderer.invoke("hyperinsight:get-leaderboard"),
-    getNodes: (params?: any) => ipcRenderer.invoke("hyperinsight:get-nodes", params),
-    getNodeDetail: (license: string) => ipcRenderer.invoke("hyperinsight:get-node-detail", license),
-    getAimManifest: (license: string, aimName: string) => ipcRenderer.invoke("hyperinsight:get-node-aim-manifest", license, aimName),
-    getNetworkStats: () => ipcRenderer.invoke("hyperinsight:get-network-stats"),
-    getNetworkHistory: () => ipcRenderer.invoke("hyperinsight:get-network-history"),
-    getAimStats: (name: string, range?: string) => ipcRenderer.invoke("hyperinsight:get-aim-stats", name, range),
-    getAimStatsCurrent: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-stats-current", name),
+    compareAims: (names: string[]) => ipcRenderer.invoke("hyperinsight:compare-aims", names),
+    // AIM Details
+    getAimProfile: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-profile", name),
     getAimDetails: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-details", name),
+    getAimCapabilities: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-capabilities", name),
+    getAimNodes: (name: string, params?: any) => ipcRenderer.invoke("hyperinsight:get-aim-nodes", name, params),
     getAimReleases: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-releases", name),
     getAimReleaseDetail: (name: string, tag: string) => ipcRenderer.invoke("hyperinsight:get-aim-release-detail", name, tag),
+    getAimReleaseRequirements: (name: string, tag: string) => ipcRenderer.invoke("hyperinsight:get-aim-release-requirements", name, tag),
+    // Stats
+    getAimStats: (name: string, range?: string) => ipcRenderer.invoke("hyperinsight:get-aim-stats", name, range),
+    getAimStatsCurrent: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-stats-current", name),
+    // Nodes
+    getNodes: (params?: any) => ipcRenderer.invoke("hyperinsight:get-nodes", params),
+    getNodeDetail: (license: string) => ipcRenderer.invoke("hyperinsight:get-node-detail", license),
+    getNodeCapabilities: (license: string, includeDeployed?: boolean) => ipcRenderer.invoke("hyperinsight:get-node-capabilities", license, includeDeployed),
+    getAimManifest: (license: string, aimName: string) => ipcRenderer.invoke("hyperinsight:get-node-aim-manifest", license, aimName),
+    // Network
+    getNetworkStats: () => ipcRenderer.invoke("hyperinsight:get-network-stats"),
+    getNetworkHistory: () => ipcRenderer.invoke("hyperinsight:get-network-history"),
+    getNetworkStatus: () => ipcRenderer.invoke("hyperinsight:get-network-status"),
+    getNetworkRegions: () => ipcRenderer.invoke("hyperinsight:get-network-regions"),
+    // Storage
     saveGeneratedImage: (base64Data: string) => ipcRenderer.invoke("hyperinsight:save-generated-image", base64Data),
     // AIM Nodes data
     saveNodeData: (license: string, data: any) => ipcRenderer.invoke("aimnodes:save-node-data", license, data),
