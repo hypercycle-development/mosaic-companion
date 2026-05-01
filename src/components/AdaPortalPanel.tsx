@@ -1275,7 +1275,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                   type="text"
                   value={manualANFEId}
                   onChange={(e) => setManualANFEId(e.target.value)}
-                  placeholder="Enter ANFE ID (e.g., 2324779898006116)"
+                  placeholder="Enter ANFE ID (e.g., 1234567890123456)"
                   className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500"
                   onKeyDown={(e) => e.key === 'Enter' && handleAddManualANFE()}
                 />

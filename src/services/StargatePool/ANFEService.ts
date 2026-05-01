@@ -114,49 +114,24 @@ class ANFEService {
     let anfes: ANFE[] = [];
     const contract = ANFE_CONTRACTS[8453];
 
-    // --- PRIMARY: Known ANFE IDs from HyperInsight ---
-    // HyperInsight /nodes/{licenseKey} knows these tokenIDs even if
-    // /nodes?wallet returns a different license namespace.
-    const knownTokenIds = [
-      '2324779898006116',
-      '2324779898048044',
-    ];
-
+    // --- PRIMARY: HyperInsight /nodes?wallet (wallet-generic discovery) ---
+    // HyperInsight indexes compute nodes by wallet. Each licenseKey is a
+    // potential ANFE tokenId — we verify on-chain via ownerOf before accepting.
     if (contract) {
-      for (const tokenId of knownTokenIds) {
-        try {
-          const owner = await this.ownerOf(contract, tokenId, 8453);
-          if (!owner || owner.toLowerCase() !== walletAddress.toLowerCase()) {
-            console.log(`[ANFEService] Token ${tokenId} owner mismatch or not found`);
-            continue;
-          }
-          console.log(`[ANFEService] Owner match for token ${tokenId}`);
-          const anfe = await this.buildANFE(contract, tokenId, 8453, walletAddress);
-          anfes.push(anfe);
-        } catch (e) {
-          console.warn(`[ANFEService] Failed to verify token ${tokenId}:`, e);
-        }
-      }
-    }
-
-    // --- SECONDARY: HyperInsight /nodes?wallet (for CHyPCe compute nodes) ---
-    if (anfes.length === 0) {
       try {
         const hiNodes = await hiNodesByWallet(walletAddress);
         if (hiNodes.length > 0) {
           console.log(`[ANFEService] HyperInsight found ${hiNodes.length} nodes for wallet`);
-          // These are compute nodes; map to ANFEs if possible
           for (const node of hiNodes) {
             const licenseKey = String(node.licenseKey || '');
             if (!licenseKey) continue;
-            // Check if this license corresponds to an ANFE token
-            const isKnown = knownTokenIds.some(id => id === licenseKey);
-            if (!isKnown) {
-              // Try to verify on-chain anyway
-              const owner = contract ? await this.ownerOf(contract, licenseKey, 8453).catch(() => null) : null;
-              if (!owner || owner.toLowerCase() !== walletAddress.toLowerCase()) continue;
+            const owner = await this.ownerOf(contract, licenseKey, 8453).catch(() => null);
+            if (!owner || owner.toLowerCase() !== walletAddress.toLowerCase()) {
+              console.log(`[ANFEService] HyperInsight node ${licenseKey} owner mismatch`);
+              continue;
             }
-            const anfe = await this.buildANFE(contract || ANFE_CONTRACTS[8453] || '', licenseKey, 8453, walletAddress);
+            console.log(`[ANFEService] Owner match for token ${licenseKey}`);
+            const anfe = await this.buildANFE(contract, licenseKey, 8453, walletAddress);
             if (!anfes.find(a => a.tokenId === licenseKey)) anfes.push(anfe);
           }
         }
@@ -165,11 +140,16 @@ class ANFEService {
       }
     }
 
-    // --- TERTIARY: ERC-721 event-log discovery (for any unknown ANFEs) ---
+    // --- SECONDARY: ERC-721 event-log discovery (on-chain, no API needed) ---
+    // Scans all Transfer events where this wallet was the recipient.
+    // Purely wallet-generic — works for any connected address.
     if (anfes.length === 0 && contract) {
       try {
         const logANFEs = await this.discoverANFEsViaEventLogs(walletAddress, 8453);
-        if (logANFEs.length) anfes.push(...logANFEs);
+        if (logANFEs.length) {
+          console.log(`[ANFEService] Event logs discovered ${logANFEs.length} ANFEs`);
+          anfes.push(...logANFEs);
+        }
       } catch (e) {
         console.warn('[ANFEService] Event log discovery failed:', e);
       }
