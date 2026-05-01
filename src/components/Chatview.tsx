@@ -773,10 +773,149 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || !selectedAgent || isGenerating) return;
-
     const messageContent = input.trim();
+    if (!messageContent || isGenerating) return;
+
     setInput("");
+
+    // ====================================================================
+    // MULTI-AGENT ORCHESTRATION MODE
+    // ====================================================================
+    if (multiAgentMode && selectedAgentIds.length > 1) {
+      // Create a unified session for multi-agent mode
+      const maSessionId = `ma-session-${Date.now()}`;
+      const maSession: ChatSession = {
+        id: maSessionId,
+        agentId: "multi-agent",
+        title: messageContent.slice(0, 40),
+        messages: [{
+          id: `msg-${Date.now()}`,
+          role: "user",
+          content: messageContent,
+          timestamp: Date.now(),
+          agentId: "multi-agent",
+        }],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      setSessions((prev) => [maSession, ...prev]);
+      setActiveSessionId(maSessionId);
+      setIsGenerating(true);
+
+      const targetAgents = activeAgents.filter(a => selectedAgentIds.includes(a.id));
+      const agentResponses: { agent: AIAgentConfig; response: string }[] = [];
+
+      try {
+        if (orchestrationMode === "parallel") {
+          // Parallel: all agents answer simultaneously
+          const promises = targetAgents.map(async (agent) => {
+            try {
+              const msgs: ChatMessage[] = [{
+                id: `sys-${Date.now()}`,
+                role: "user",
+                content: `[System Context]\nYou are ${agent.name} (${agent.model} via ${agent.provider}). Answer independently.`,
+                timestamp: Date.now(),
+                agentId: agent.id,
+              }, {
+                id: `usr-${Date.now()}`,
+                role: "user",
+                content: messageContent,
+                timestamp: Date.now(),
+                agentId: agent.id,
+              }];
+              const resp = await AIService.sendMessage(agent, msgs);
+              return { agent, response: resp };
+            } catch (e: any) {
+              return { agent, response: `⚠️ Error: ${e.message}` };
+            }
+          });
+          const results = await Promise.all(promises);
+          agentResponses.push(...results);
+
+        } else if (orchestrationMode === "sequential") {
+          // Sequential: each agent sees the previous agent's answer
+          let context = messageContent;
+          for (const agent of targetAgents) {
+            const msgs: ChatMessage[] = [{
+              id: `sys-${Date.now()}-${agent.id}`,
+              role: "user",
+              content: `[System Context]\nYou are ${agent.name} (${agent.model}). ${agentResponses.length > 0 ? "Previous agents have answered. Build upon or critique their work." : "Answer first."}`,
+              timestamp: Date.now(),
+              agentId: agent.id,
+            }, {
+              id: `usr-${Date.now()}`,
+              role: "user",
+              content: context,
+              timestamp: Date.now(),
+              agentId: agent.id,
+            }];
+            try {
+              const resp = await AIService.sendMessage(agent, msgs);
+              agentResponses.push({ agent, response: resp });
+              context += `\n\n[${agent.name} said]:\n${resp}`;
+            } catch (e: any) {
+              agentResponses.push({ agent, response: `⚠️ Error: ${e.message}` });
+            }
+          }
+
+        } else if (orchestrationMode === "collaborative") {
+          // Collaborative: all see the same prompt, results merged
+          const promises = targetAgents.map(async (agent) => {
+            try {
+              const msgs: ChatMessage[] = [{
+                id: `sys-${Date.now()}`,
+                role: "user",
+                content: `[System Context]\nYou are ${agent.name} (${agent.model} via ${agent.provider}). You are part of a collaborative swarm. Other agents will also answer — focus on your unique perspective.`,
+                timestamp: Date.now(),
+                agentId: agent.id,
+              }, {
+                id: `usr-${Date.now()}`,
+                role: "user",
+                content: messageContent,
+                timestamp: Date.now(),
+                agentId: agent.id,
+              }];
+              const resp = await AIService.sendMessage(agent, msgs);
+              return { agent, response: resp };
+            } catch (e: any) {
+              return { agent, response: `⚠️ Error: ${e.message}` };
+            }
+          });
+          const results = await Promise.all(promises);
+          agentResponses.push(...results);
+        }
+
+        // Build multi-agent response messages
+        const responseMessages: ChatMessage[] = agentResponses.map(({ agent, response }, idx) => ({
+          id: `msg-resp-${Date.now()}-${idx}`,
+          role: "assistant",
+          content: `**${agent.name}** (${agent.provider} · ${agent.model})\n\n${response}`,
+          timestamp: Date.now(),
+          agentId: agent.id,
+        }));
+
+        const finalSession: ChatSession = {
+          ...maSession,
+          messages: [...maSession.messages, ...responseMessages],
+          updatedAt: Date.now(),
+        };
+
+        setSessions((prev) => prev.map(s => s.id === maSessionId ? finalSession : s));
+        await saveSession(finalSession);
+        setIsGenerating(false);
+        return;
+
+      } catch (e: any) {
+        console.error("Multi-agent error:", e);
+        setIsGenerating(false);
+        return;
+      }
+    }
+
+    // ====================================================================
+    // SINGLE-AGENT MODE (original behavior)
+    // ====================================================================
+    if (!selectedAgent) return;
 
     // Get or create session
     let session = activeSession;
@@ -1062,23 +1201,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
             </div>
 
-            {/* Multi-Agent Toggle */}
-            <button
-              onClick={() => setMultiAgentMode(!multiAgentMode)}
-              className={`p-2 rounded-lg transition-colors ${
-                multiAgentMode
-                  ? "bg-indigo-600 text-white"
-                  : "text-gray-500 hover:text-gray-300 hover:bg-gray-800"
-              }`}
-              title={multiAgentMode ? "Single agent mode" : "Multi-agent orchestration"}
-            >
-              <Users size={18} />
-            </button>
+            {/* Multi-Agent Toggle + Panel */}
+            <div className="relative">
+              <button
+                onClick={() => setMultiAgentMode(!multiAgentMode)}
+                className={`p-2 rounded-lg transition-colors ${
+                  multiAgentMode
+                    ? "bg-indigo-600 text-white"
+                    : "text-gray-500 hover:text-gray-300 hover:bg-gray-800"
+                }`}
+                title={multiAgentMode ? "Single agent mode" : "Multi-agent orchestration"}
+              >
+                <Users size={18} />
+              </button>
 
-            {/* Multi-Agent Selection Panel */}
-            {multiAgentMode && (
-              <div className="absolute top-full left-0 right-0 mt-2 p-4 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl z-50">
-                <div className="max-w-4xl mx-auto">
+              {/* Multi-Agent Selection Panel */}
+              {multiAgentMode && (
+                <div className="absolute top-full right-0 mt-2 w-80 p-4 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl z-50">
                   <p className="text-sm font-medium text-white mb-3">
                     Select agents for orchestration
                   </p>
@@ -1125,8 +1264,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </span>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Actions */}
             <div className="flex items-center gap-2">
@@ -1183,14 +1322,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   <Sparkles className="size-8 text-indigo-400" />
                 </div>
                 <h2 className="text-xl font-semibold text-white mb-2">
-                  Chat with {selectedAgent?.name || "AI"}
+                  {multiAgentMode && selectedAgentIds.length > 1
+                    ? `${selectedAgentIds.length}-Agent Swarm`
+                    : `Chat with ${selectedAgent?.name || "AI"}`}
                 </h2>
                 <p className="text-gray-500 max-w-md">
-                  Start a conversation by typing a message below. Your chat will
-                  be powered by{" "}
-                  <span className="text-indigo-400 font-mono">
-                    {selectedAgent?.model}
-                  </span>
+                  {multiAgentMode && selectedAgentIds.length > 1
+                    ? `All ${selectedAgentIds.length} selected agents will answer in ${orchestrationMode} mode. Each agent uses a different LLM backend.`
+                    : `Start a conversation by typing a message below. Your chat will be powered by `}
+                  {!multiAgentMode && (
+                    <span className="text-indigo-400 font-mono">
+                      {selectedAgent?.model}
+                    </span>
+                  )}
                 </p>
               </div>
             ) : (
@@ -1355,7 +1499,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={`Message ${selectedAgent?.name || "AI"}...`}
+                  placeholder={multiAgentMode && selectedAgentIds.length > 1
+                    ? `Message ${selectedAgentIds.length} agents in ${orchestrationMode} mode...`
+                    : `Message ${selectedAgent?.name || "AI"}...`}
                   className="w-full bg-transparent text-gray-100 placeholder-gray-500 resize-none min-h-[24px] max-h-[150px] px-3 py-2 focus:outline-none"
                   rows={1}
                   disabled={isGenerating}
@@ -1384,23 +1530,53 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
             {/* Status Bar */}
             <div className="flex items-center justify-center gap-2 mt-3 opacity-50">
-              <div
-                className="w-1.5 h-1.5 rounded-full"
-                style={{
-                  backgroundColor: selectedAgent
-                    ? PROVIDER_INFO[selectedAgent.provider]?.color || "#6B7280"
-                    : "#6B7280",
-                  boxShadow: selectedAgent
-                    ? `0 0 6px ${
-                        PROVIDER_INFO[selectedAgent.provider]?.color ||
-                        "#6B7280"
-                      }`
-                    : "none",
-                }}
-              />
-              <span className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">
-                {selectedAgent?.model || "No model selected"}
-              </span>
+              {multiAgentMode && selectedAgentIds.length > 1 ? (
+                <>
+                  <div className="flex items-center gap-1">
+                    {selectedAgentIds.map((aid, i) => {
+                      const ag = activeAgents.find(a => a.id === aid);
+                      if (!ag) return null;
+                      return (
+                        <div key={aid} className="flex items-center gap-1">
+                          <div
+                            className="w-1.5 h-1.5 rounded-full"
+                            style={{
+                              backgroundColor: PROVIDER_INFO[ag.provider]?.color || "#6B7280",
+                            }}
+                          />
+                          <span className="text-[10px] text-gray-500 font-mono">{ag.model}</span>
+                          {i < selectedAgentIds.length - 1 && (
+                            <span className="text-[10px] text-gray-600 mx-0.5">+</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <span className="text-[10px] text-indigo-400 font-mono tracking-widest uppercase">
+                    {orchestrationMode} swarm
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{
+                      backgroundColor: selectedAgent
+                        ? PROVIDER_INFO[selectedAgent.provider]?.color || "#6B7280"
+                        : "#6B7280",
+                      boxShadow: selectedAgent
+                        ? `0 0 6px ${
+                            PROVIDER_INFO[selectedAgent.provider]?.color ||
+                            "#6B7280"
+                          }`
+                        : "none",
+                    }}
+                  />
+                  <span className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">
+                    {selectedAgent?.model || "No model selected"}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
