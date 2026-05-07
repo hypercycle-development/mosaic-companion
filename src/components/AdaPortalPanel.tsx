@@ -40,6 +40,7 @@ import {
 // Stargate Pool - ANFE Integration
 import { 
   anfeService, 
+  hboxPoolService,
   walletAdapter,
   merkelizerService,
   ANFE,
@@ -47,11 +48,12 @@ import {
   WalletState,
   WalletANFEs,
   SupportedChain,
-  NodeInfo
+  NodeInfo,
 } from '../services/StargatePool';
 import { MarketplaceListing, LeaderboardEntry, TrainingListing, AgentPackage, ComputeNode, AIMInfo, UserIntent, ComputeTierInfo, AccessLevel } from '../services/AdaPortal/types';
 import { skillMarketplace } from '../services/AdaPortal';
 import { aspGateway, AspPackage, Company, UsageRecord } from '../services/AspGateway';
+import { KanbanDashboard } from './KanbanDashboard';
 import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus } from 'lucide-react';
 
 interface AdaPortalPanelProps {
@@ -174,6 +176,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [trainingListings, setTrainingListings] = useState<TrainingListing[]>([]);
   const [packages, setPackages] = useState<AgentPackage[]>([]);
   const [nodes, setNodes] = useState<ComputeNode[]>([]);
+  const [hboxNodes, setHboxNodes] = useState<any[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
   const [aims, setAims] = useState<AIMInfo[]>([]);
   const [selectedIntent, setSelectedIntent] = useState<UserIntent | null>(null);
@@ -202,6 +205,14 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [walletState, setWalletState] = useState<WalletState | null>(null);
   const [showManualANFE, setShowManualANFE] = useState(false);
   const [manualANFEId, setManualANFEId] = useState('');
+  const [hyperCycleBalances, setHyperCycleBalances] = useState<{
+    symbol: string; name: string; balance: string; chain: string
+  }[]>([]);
+  // HyperCycle NFT holdings — now per-token ANFEs with Merkelizer data
+  const [hyperCycleNFTsDetailed, setHyperCycleNFTsDetailed] = useState<{
+    symbol: string; name: string; chain: string; standard: string; nfts: ANFE[]
+  }[]>([]);
+  const [isLoadingBalances, setIsLoadingBalances] = useState(false);
 
   // ANFE <-> Agent Bindings (Skill -> Agent -> ANFE deployment model)
   const [anfeAgentBindings, setAnfeAgentBindings] = useState<Record<string, string>>(() => {
@@ -253,6 +264,33 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       }));
       setNodes(mappedNodes);
 
+      // 2b. Load local HyperAIBox appliances from sidebar
+      try {
+        await hboxPoolService.init();
+        const hboxes = hboxPoolService.getNodes();
+        const mappedHBoxes = hboxes.map((h: any) => ({
+          nodeId: h.id,
+          address: h.name,
+          uptime: h.isLive ? 1 : 0,
+          reliability: h.isLive ? 1 : 0,
+          availableCompute: 10, // Default compute units for HBox
+          pricePerHour: 0.0,
+          status: h.status === 'active' ? 'online' : h.status === 'error' ? 'offline' : 'busy',
+          lastChecked: new Date().toISOString(),
+          platform: 'hyperaibox',
+          apiHost: h.apiHost,
+          apiPort: h.apiPort,
+          licenseKey: h.licenseKey,
+          isDelegated: h.isDelegated,
+          hasHermes: h.hasHermes,
+        }));
+        setHboxNodes(mappedHBoxes);
+        console.log('[AdaPortal] Loaded', mappedHBoxes.length, 'HyperAIBox appliances');
+      } catch (e) {
+        console.warn('[AdaPortal] HBox load failed:', e);
+        setHboxNodes([]);
+      }
+
       // 3. Leaderboard from HyperInsight
       const unifiedLb = hyperInsight.getUnifiedLeaderboard();
       setLeaderboardData(unifiedLb.map((e, i) => ({
@@ -274,7 +312,15 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       // 5. ANFE / Stargate Pool — load from wallet
       // NOTE: Must call via anfeService; line wrapped in anon IIFE for useCallback scope
       (async () => {
-        const addr = (window as any).electronAPI?.web3?.getAddress ? await (window as any).electronAPI.web3.getAddress() : null;
+        let addr = null;
+        if ((window as any).electronAPI?.web3?.getAddress) {
+          try {
+            const result = await (window as any).electronAPI.web3.getAddress();
+            if (result?.success && result?.data?.address) {
+              addr = result.data.address;
+            }
+          } catch (e) {}
+        }
         if (addr) {
           try {
             setIsLoadingANFEs(true);
@@ -365,7 +411,14 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       try {
         // Use timeout wrapper to prevent hangs - 5 second timeout for initialization
         await withTimeout(stargatePoolService.initialize(), 5000, undefined);
-        
+
+        // Clear stale demo factories from localStorage (one-time migration)
+        try {
+          stargatePoolService.clearAll();
+        } catch (e) {
+          console.warn('[AdaPortal] Failed to clear stale factories:', e);
+        }
+
         if (!isMounted) return;
         
         // Auto-load Node Factories from blockchain when wallet connects
@@ -379,22 +432,20 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         
         let walletAddress: string | null = null;
 
-        // Priority 1: Use Electron API (same source as Web3Page) for consistency
-        if (window.electronAPI?.web3?.getAddress) {
+        // Priority 1: window.ethereum (MetaMask / external wallet) — user's actual connected wallet
+        if (!walletAddress && window.ethereum) {
           try {
-            const emptyResult = { success: false, data: { address: '' } };
-            const result = await withTimeout<{success: boolean; data?: {address?: string}}>(window.electronAPI.web3.getAddress(), 3000, emptyResult);
-            // Type guard: check for data property existence
-            if (result?.success && result.data?.address) {
-              walletAddress = result.data.address;
-              console.log('[AdaPortal] Initialized with Electron API wallet:', walletAddress.slice(0, 8) + '...');
+            const accounts = await withTimeout(window.ethereum.request({ method: 'eth_accounts' }), 3000, []);
+            if (accounts && accounts.length > 0) {
+              walletAddress = accounts[0];
+              console.log('[AdaPortal] Initialized with window.ethereum (MetaMask):', walletAddress.slice(0, 8) + '...');
             }
           } catch (e) {
-            console.warn('[AdaPortal] Electron API wallet check failed:', e);
+            console.warn('[AdaPortal] window.ethereum check failed:', e);
           }
         }
 
-        // Priority 2: Fallback to walletAdapter (window.mosaic.wallet)
+        // Priority 2: walletAdapter (window.mosaic.wallet)
         if (!walletAddress && walletAdapter.isAvailable()) {
           try {
             const state = walletAdapter.getState();
@@ -408,16 +459,18 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           }
         }
 
-        // Priority 3: Fallback to window.ethereum
-        if (!walletAddress && window.ethereum) {
+        // Priority 3: Electron stored wallet (mosaic safeStorage) — fallback only
+        if (!walletAddress && window.electronAPI?.web3?.getAddress) {
           try {
-            const accounts = await withTimeout(window.ethereum.request({ method: 'eth_accounts' }), 3000, []);
-            if (accounts && accounts.length > 0) {
-              walletAddress = accounts[0];
-              console.log('[AdaPortal] Initialized with window.ethereum:', walletAddress.slice(0, 8) + '...');
+            const emptyResult = { success: false, data: { address: '' } };
+            const result = await withTimeout<{success: boolean; data?: {address?: string}}>(window.electronAPI.web3.getAddress(), 3000, emptyResult);
+            // Type guard: check for data property existence
+            if (result?.success && result.data?.address) {
+              walletAddress = result.data.address;
+              console.log('[AdaPortal] Initialized with Electron API wallet (fallback):', walletAddress.slice(0, 8) + '...');
             }
           } catch (e) {
-            console.warn('[AdaPortal] window.ethereum check failed:', e);
+            console.warn('[AdaPortal] Electron API wallet check failed:', e);
           }
         }
 
@@ -462,10 +515,37 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             if (isMounted) {
               setWalletANFEs(allANFEs);
               console.log('[AdaPortal] Final ANFEs:', allANFEs.length, allANFEs);
-              
+
               // Show notification with result
               if (allANFEs.length > 0) {
                 showNotification('success', `Loaded ${allANFEs.length} ANFE(s)`);
+              }
+            }
+
+            // ---- Load HyperCycle ERC-20 token balances (HyPC, etc.) ----
+            if (isMounted) {
+              setIsLoadingBalances(true);
+              try {
+                const balances = await anfeService.getHyperCycleBalances(walletAddress);
+                if (isMounted) {
+                  setHyperCycleBalances(balances);
+                  console.log('[AdaPortal] HyperCycle balances:', balances.length);
+                  if (balances.length > 0) {
+                    showNotification('success', `Loaded ${balances.length} HyperCycle token balance(s)`);
+                  }
+                }
+
+                // ---- Load HyperCycle NFT holdings (detailed per-token ANFEs with Merkelizer) ----
+                const nftsDetailed = await anfeService.getHyperCycleNFTsDetailed(walletAddress);
+                if (isMounted) {
+                  setHyperCycleNFTsDetailed(nftsDetailed);
+                  const totalItems = nftsDetailed.reduce((sum, g) => sum + g.nfts.length, 0);
+                  console.log('[AdaPortal] HyperCycle NFTs detailed:', totalItems, 'across', nftsDetailed.length, 'groups');
+                }
+              } catch (e) {
+                console.warn('[AdaPortal] HyperCycle balance load failed:', e);
+              } finally {
+                if (isMounted) setIsLoadingBalances(false);
               }
             }
           } catch (e) {
@@ -553,7 +633,15 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     const unsub = window.electronAPI.web3.onWalletImported(() => {
       console.log('[AdaPortal] Wallet imported event received — reloading ANFEs...');
       (async () => {
-        const addr = (window as any).electronAPI?.web3?.getAddress ? await (window as any).electronAPI.web3.getAddress() : null;
+        let addr = null;
+        if ((window as any).electronAPI?.web3?.getAddress) {
+          try {
+            const result = await (window as any).electronAPI.web3.getAddress();
+            if (result?.success && result?.data?.address) {
+              addr = result.data.address;
+            }
+          } catch (e) {}
+        }
         if (addr) {
           try {
             setIsLoadingANFEs(true);
@@ -988,9 +1076,16 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                     }
                     setIsLoadingANFEs(false);
                     
-                    // Also load legacy factories
-                    const walletFactories = await stargatePoolService.getFactoriesByWallet(address);
-                    setFactories(walletFactories);
+                    // Also sync to StargatePoolService so the pool tab works correctly
+                    (stargatePoolService as any).walletAddress = address;
+                    
+                    // Also load legacy factories (best-effort; don't block UI on failure)
+                    try {
+                      const walletFactories = await stargatePoolService.getFactoriesByWallet(address);
+                      setFactories(walletFactories);
+                    } catch (facErr) {
+                      console.warn('[AdaPortal] Factory load skipped:', facErr);
+                    }
                   } catch (e) {
                     console.error('[AdaPortal] Wallet connect error:', e);
                     showNotification('error', 'Failed to connect wallet');
@@ -1150,107 +1245,15 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
               })}
             </div>
           </div>
-        ) : isLoadingFactories ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader size={20} className="text-cyan-400 animate-spin" />
-          </div>
-        ) : factories.length > 0 ? (
-          <div className="grid gap-3">
-            {factories.map(({ factory, isEligible, reason }) => (
-              <div 
-                key={factory.factory_id}
-                className={`p-4 rounded-xl border transition-all ${
-                  isEligible 
-                    ? 'bg-gray-800/50 border-gray-700 hover:border-cyan-500/50' 
-                    : 'bg-gray-900/30 border-gray-800 opacity-60'
-                }`}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-white">{factory.name}</span>
-                    <span className={`px-2 py-0.5 text-xs rounded-full ${
-                      factory.chain === 'ethereum' ? 'bg-blue-500/20 text-blue-400' :
-                      factory.chain === 'base' ? 'bg-purple-500/20 text-purple-400' :
-                      'bg-cardano/20 text-cardano'
-                    }`}>
-                      {factory.chain}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {isEligible ? (
-                      <span className="flex items-center gap-1 text-xs text-green-400">
-                        <Unlock size={12} />
-                        Eligible
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-xs text-red-400">
-                        <Lock size={12} />
-                        Not Eligible
-                      </span>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-4 text-xs text-gray-400 mb-2">
-                  <span className="flex items-center gap-1">
-                    <Cpu size={12} />
-                    {factory.available_capacity}/{factory.total_capacity} capacity
-                  </span>
-                  <span className={`px-1.5 py-0.5 rounded ${
-                    factory.delegation.is_public 
-                      ? 'bg-green-500/20 text-green-400' 
-                      : 'bg-purple-500/20 text-purple-400'
-                  }`}>
-                    {factory.delegation.is_public ? 'Public' : 'NFT-gated'}
-                  </span>
-                  {anfeInfo && anfeInfo.balance > 0 && (
-                    <span className="flex items-center gap-1 text-purple-400">
-                      <Zap size={12} />
-                      {anfeInfo.balance} ANFE{anfeInfo.balance > 1 ? 's' : ''}
-                    </span>
-                  )}
-                </div>
-
-                {/* Show user's ANFE levels */}
-                {(anfeInfo && anfeInfo.balance > 0 && anfeInfo.levels.length > 0) && (
-                  <div className="flex items-center gap-2 mt-2">
-                    {/* Show min level requirement if factory has one */}
-                    {factory.min_anfe_level !== undefined && factory.min_anfe_level > 0 && (
-                      <span className={`px-2 py-0.5 text-xs rounded ${
-                        isEligible 
-                          ? 'bg-green-500/20 text-green-400' 
-                          : 'bg-yellow-500/20 text-yellow-400'
-                      }`}>
-                        Min Lv.{factory.min_anfe_level}
-                      </span>
-                    )}
-                    {/* Show reason if not eligible */}
-                    {!isEligible && reason && (
-                      <p className="text-xs text-yellow-400">
-                        {reason}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex flex-wrap gap-1">
-                  {factory.skills_supported.slice(0, 3).map(skill => (
-                    <span key={skill} className="px-2 py-0.5 text-xs bg-gray-700 rounded-full text-gray-300">
-                      {skill}
-                    </span>
-                  ))}
-                  {factory.skills_supported.length > 3 && (
-                    <span className="px-2 py-0.5 text-xs text-gray-500">+{factory.skills_supported.length - 3}</span>
-                  )}
-                </div>
-              </div>
-            ))}
+        ) : !ethAddress ? (
+          <div className="text-center py-6 text-gray-500 text-sm">
+            <Network size={24} className="mx-auto mb-2 text-cyan-400/40" />
+            <p>Connect wallet to view ANFE eligibility</p>
           </div>
         ) : (
           <div className="text-center py-6 text-gray-500 text-sm">
-            <Network size={24} className="mx-auto mb-2 opacity-50" />
-            <p>No compute factories available</p>
-            <p className="text-xs mt-1">Connect wallet to discover nodes</p>
+            <Network size={24} className="mx-auto mb-2 text-cyan-400/40" />
+            <p>No ANFEs found in connected wallet</p>
           </div>
         )}
 
@@ -1293,6 +1296,196 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           </div>
         )}
 
+        {/* ─── Your HyperCycle ETH Node Factories ─── */}
+        {isLoadingBalances ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader size={16} className="text-cyan-400 animate-spin" />
+            <span className="ml-2 text-xs text-gray-400">Loading ETH assets...</span>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            <h4 className="text-sm font-medium text-gray-400 flex items-center gap-2">
+              <Zap size={14} className="text-yellow-400" />
+              Your HyperCycle ETH Node Factories
+            </h4>
+
+            {/* ETH ERC-20 tokens */}
+            {hyperCycleBalances.filter(t => t.chain === 'ethereum').length > 0 && (
+              <div className="grid gap-2">
+                {hyperCycleBalances
+                  .filter(t => t.chain === 'ethereum')
+                  .map((t) => (
+                    <div key={t.symbol} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-white">{t.symbol}</span>
+                        <span className="text-xs text-gray-500">{t.name}</span>
+                        <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 rounded text-blue-400">ETH</span>
+                      </div>
+                      <span className="text-sm text-yellow-400 font-mono">{t.balance}</span>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {/* ETH NFTs (Node Factories, HyPCL, c_HyPC, ERC-1155) */}
+            {hyperCycleNFTsDetailed.filter(g => g.chain === 'ethereum').length > 0 ? (
+              <div className="space-y-3">
+                {hyperCycleNFTsDetailed
+                  .filter(g => g.chain === 'ethereum')
+                  .map((group) => (
+                    <div key={group.symbol} className="space-y-2">
+                      <div className="flex items-center gap-2 px-1">
+                        <span className="text-xs font-semibold text-white">{group.symbol}</span>
+                        <span className="text-xs text-gray-500">{group.name}</span>
+                        <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 rounded text-blue-400">ETH</span>
+                        <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 rounded text-purple-400">{group.standard}</span>
+                      </div>
+                      <div className="grid gap-2">
+                        {group.nfts.map((nft) => (
+                          <div
+                            key={nft.id}
+                            className="p-3 bg-gray-800/60 rounded-lg border border-gray-700/60 hover:border-blue-500/40 transition-colors cursor-pointer"
+                            onClick={() => setSelectedANFE(nft)}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-sm text-white">#{nft.tokenId}</span>
+                                {nft.verification.valid && (
+                                  <span className="text-xs px-1.5 py-0.5 bg-green-500/20 rounded text-green-400">Verified</span>
+                                )}
+                              </div>
+                              {nft.verification.status && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                  nft.verification.status === 'online' || nft.verification.status === 'alive'
+                                    ? 'bg-green-500/20 text-green-400'
+                                    : nft.verification.status === 'busy'
+                                    ? 'bg-yellow-500/20 text-yellow-400'
+                                    : 'bg-red-500/20 text-red-400'
+                                }`}>
+                                  {nft.verification.status}
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-1 text-xs">
+                              {nft.verification.nodeFactoryId && (
+                                <p className="text-gray-400">Node Factory: <span className="text-white">{nft.verification.nodeFactoryId}</span></p>
+                              )}
+                              {nft.verification.tranche && (
+                                <p className="text-cyan-400">Tranche: {nft.verification.tranche}</p>
+                              )}
+                              {nft.verification.uptime !== undefined && (
+                                <p className="text-gray-400">Uptime: <span className="text-green-400">{(nft.verification.uptime * 100).toFixed(1)}%</span></p>
+                              )}
+                              {nft.metadata?.name && (
+                                <p className="text-gray-500">{nft.metadata.name}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-500 py-2">No Ethereum node factories detected.</div>
+            )}
+          </div>
+        )}
+
+        {/* ─── Your HyperCycle BASE ANFEs ─── */}
+        {isLoadingBalances ? null : (
+          <div className="mt-6 space-y-4">
+            <h4 className="text-sm font-medium text-gray-400 flex items-center gap-2">
+              <Network size={14} className="text-purple-400" />
+              Your HyperCycle BASE ANFEs
+            </h4>
+
+            {/* BASE ERC-20 tokens */}
+            {hyperCycleBalances.filter(t => t.chain === 'base').length > 0 && (
+              <div className="grid gap-2">
+                {hyperCycleBalances
+                  .filter(t => t.chain === 'base')
+                  .map((t) => (
+                    <div key={t.symbol} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-white">{t.symbol}</span>
+                        <span className="text-xs text-gray-500">{t.name}</span>
+                        <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 rounded text-purple-400">BASE</span>
+                      </div>
+                      <span className="text-sm text-yellow-400 font-mono">{t.balance}</span>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {/* BASE NFTs (ANFEs, modules, licences) */}
+            {hyperCycleNFTsDetailed.filter(g => g.chain === 'base').length > 0 ? (
+              <div className="space-y-3">
+                {hyperCycleNFTsDetailed
+                  .filter(g => g.chain === 'base')
+                  .map((group) => (
+                    <div key={group.symbol} className="space-y-2">
+                      <div className="flex items-center gap-2 px-1">
+                        <span className="text-xs font-semibold text-white">{group.symbol}</span>
+                        <span className="text-xs text-gray-500">{group.name}</span>
+                        <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 rounded text-purple-400">BASE</span>
+                        <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 rounded text-purple-400">{group.standard}</span>
+                      </div>
+                      <div className="grid gap-2">
+                        {group.nfts.map((nft) => (
+                          <div
+                            key={nft.id}
+                            className="p-3 bg-gray-800/60 rounded-lg border border-gray-700/60 hover:border-purple-500/40 transition-colors cursor-pointer"
+                            onClick={() => setSelectedANFE(nft)}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-sm text-white">#{nft.tokenId}</span>
+                                {nft.verification.valid && (
+                                  <span className="text-xs px-1.5 py-0.5 bg-green-500/20 rounded text-green-400">Verified</span>
+                                )}
+                              </div>
+                              {nft.verification.status && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                  nft.verification.status === 'online' || nft.verification.status === 'alive'
+                                    ? 'bg-green-500/20 text-green-400'
+                                    : nft.verification.status === 'busy'
+                                    ? 'bg-yellow-500/20 text-yellow-400'
+                                    : 'bg-red-500/20 text-red-400'
+                                }`}>
+                                  {nft.verification.status}
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-1 text-xs">
+                              {nft.verification.nodeFactoryId && (
+                                <p className="text-gray-400">Node Factory: <span className="text-white">{nft.verification.nodeFactoryId}</span></p>
+                              )}
+                              {nft.verification.tranche && (
+                                <p className="text-cyan-400">Tranche: {nft.verification.tranche}</p>
+                              )}
+                              {nft.verification.uptime !== undefined && (
+                                <p className="text-gray-400">Uptime: <span className="text-green-400">{(nft.verification.uptime * 100).toFixed(1)}%</span></p>
+                              )}
+                              {nft.verification.reliability !== undefined && (
+                                <p className="text-gray-400">Reliability: <span className="text-cyan-400">{(nft.verification.reliability * 100).toFixed(1)}%</span></p>
+                              )}
+                              {nft.metadata?.name && (
+                                <p className="text-gray-500">{nft.metadata.name}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-500 py-2">No Base ANFEs detected.</div>
+            )}
+          </div>
+        )}
+
         {/* Dev Tools (shown when ANFEs are loaded) */}
         {walletANFEs.length > 0 && (
           <div className="flex gap-2 mt-4 pt-3 border-t border-gray-800">
@@ -1318,23 +1511,32 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             <button
               onClick={async () => {
                 if (ethAddress) {
-                  // Load Node Factories from blockchain contracts
-                  await stargatePoolService.loadNodeFactoriesFromChain(ethAddress);
-                  const walletFactories = await stargatePoolService.getFactoriesByWallet(ethAddress);
-                  setFactories(walletFactories);
-                  showNotification('success', `Loaded ${walletFactories.length} Node Factory/ies from blockchain`);
+                  // Re-query factories from the blockchain via ANFE service
+                  try {
+                    anfeService.clearCache();
+                    const walletData = await anfeService.loadWalletANFEs(ethAddress);
+                    setWalletANFEs(walletData.anfes || []);
+                    // Also refresh detailed NFT holdings
+                    const nftsDetailed = await anfeService.getHyperCycleNFTsDetailed(ethAddress);
+                    setHyperCycleNFTsDetailed(nftsDetailed);
+                    const totalNfts = nftsDetailed.reduce((s, g) => s + g.nfts.length, 0);
+                    showNotification('success', `Refreshed ${walletData.totalCount} ANFEs, ${totalNfts} NFTs`);
+                  } catch (e) {
+                    console.warn('[AdaPortal] Refresh from chain failed:', e);
+                    showNotification('error', 'On-chain refresh failed');
+                  }
                 }
               }}
               className="px-3 py-1.5 text-xs bg-cyan-700 hover:bg-cyan-600 rounded-lg transition-colors flex items-center gap-1"
             >
               <Network size={12} />
-              Load from Chain
+              Refresh from Chain
             </button>
             <button
               onClick={async () => {
                 // Health check
                 const health = await anfeService.healthCheck();
-                showNotification('info', `Graph: ${health.graph ? '✓' : '✗'} | Merkelizer: ${health.merkelizer ? '✓' : '✗'} | Wallet: ${health.wallet ? '✓' : '✗'}`);
+                showNotification('info', `HyperInsight: ${health.hyperinsight ? '✓' : '✗'} | RPC: ${health.rpc ? '✓' : '✗'} | Wallet: ${health.wallet ? '✓' : '✗'}`);
               }}
               className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
             >
@@ -1437,41 +1639,17 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           </div>
         </div>
 
-        {/* Skill Stats */}
-        <div className="p-4 rounded-xl border border-gray-800 bg-gray-900/50">
-          <h4 className="font-medium text-white mb-3">Skills.sh Ecosystem</h4>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-gray-500">Total Installs:</span>
-              <span className="ml-2 text-white font-medium">{stats.totalInstalls.toLocaleString()}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">Categories:</span>
-              <span className="ml-2 text-white font-medium">{Object.keys(stats.byCategory).length}</span>
-            </div>
+        {/* Multi-Agent Command Center (Kanban Dashboard) */}
+        <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden" style={{ height: '620px' }}>
+          <div className="px-4 pt-4 flex items-center justify-between">
+            <h4 className="font-medium text-white flex items-center gap-2">
+              <LayoutDashboard size={16} className="text-cyan-400" />
+              Multi-Agent Command Center
+            </h4>
+            <span className="text-xs text-gray-500">Backlog → Ready → Running → Aimified</span>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {Object.entries(stats.byCategory).map(([cat, count]) => (
-              <span key={cat} className="px-2 py-1 text-xs rounded-full bg-gray-800 text-gray-400">
-                {cat}: {count}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Top Agents */}
-        <div className="p-4 rounded-xl border border-gray-800 bg-gray-900/50">
-          <h4 className="font-medium text-white mb-3">Top Agents</h4>
-          <div className="space-y-2">
-            {listings.slice(0, 5).map((agent, idx) => (
-              <div key={agent.listingId} className="flex items-center justify-between p-2 rounded-lg bg-gray-950/50">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-500">#{idx + 1}</span>
-                  <span className="text-white">{agent.agentName}</span>
-                </div>
-                <span className="text-xs text-gray-500">{agent.skillCount || 0} skills</span>
-              </div>
-            ))}
+          <div className="h-[calc(100%-40px)]">
+            <KanbanDashboard />
           </div>
         </div>
       </div>
@@ -1942,44 +2120,122 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     </div>
   );
 
-  const renderNodes = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Compute Nodes</h3>
-        <button 
-          onClick={handleRefresh}
-          className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-        >
-          <RefreshCw size={18} className={`text-gray-400 ${isRefreshing ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
+  const renderNodes = () => {
+    const allNodes = [
+      ...nodes.map((n) => ({ ...n, _source: 'hyperinsight' as const })),
+      ...hboxNodes.map((n) => ({ ...n, _source: 'hyperaibox' as const })),
+    ];
 
-      <div className="space-y-2">
-        {nodes.length === 0 ? (
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-white">Compute Nodes</h3>
+          <div className="flex items-center gap-2">
+            {hboxNodes.length > 0 && (
+              <span className="text-xs px-2 py-0.5 bg-violet-500/20 text-violet-400 rounded-full">
+                {hboxNodes.length} HBox{hboxNodes.length !== 1 ? 'es' : ''}
+              </span>
+            )}
+            <button
+              onClick={handleRefresh}
+              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              <RefreshCw size={18} className={`text-gray-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {allNodes.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <Cpu size={32} className="mx-auto mb-2 opacity-50" />
             <p>No compute nodes available</p>
+            <p className="text-xs mt-1">Connect your HyperAIBox from the sidebar to deploy agents.</p>
           </div>
         ) : (
-          nodes.map(node => (
-            <div key={node.nodeId} className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg">
-              <div className={`w-3 h-3 rounded-full ${node.status === 'online' ? 'bg-green-500' : node.status === 'busy' ? 'bg-yellow-500' : 'bg-red-500'}`} />
-              <div className="flex-1">
-                <div className="font-mono text-sm text-white">{node.address.slice(0, 10)}...</div>
-                <div className="text-xs text-gray-500">
-                  Uptime: {(node.uptime * 100).toFixed(1)}% | Reliability: {(node.reliability * 100).toFixed(0)}%
-                </div>
+          <div className="space-y-3">
+            {/* Section header for HyperAIBox nodes */}
+            {hboxNodes.length > 0 && (
+              <div className="mb-2">
+                <h4 className="text-xs font-medium text-violet-400 uppercase tracking-wider mb-2">Your HyperAIBox Appliances</h4>
+                {hboxNodes.map((node: any) => (
+                  <div key={node.nodeId} className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg border border-violet-500/20">
+                    <div className="w-3 h-3 rounded-full bg-violet-500" />
+                    <div className="flex-1">
+                      <div className="font-mono text-sm text-white">{node.address}</div>
+                      <div className="text-xs text-gray-500">
+                        {node.apiHost}:{node.apiPort} |{' '}
+                        {node.licenseKey ? `ANFE #${node.licenseKey}` : 'No license'}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {node.hasHermes ? (
+                        <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded"><CheckCircle size={10} className="inline mr-1" />Hermes</span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            const agent = userAgents[0];
+                            if (agent) {
+                              showNotification('info', `Deploying Hermes to ${node.address}...`);
+                              // In real flow: open HermesAimPanel or trigger Docker build
+                            } else {
+                              showNotification('warning', 'Select an agent first from the Hire Agents tab');
+                            }
+                          }}
+                          className="px-3 py-1 text-xs bg-violet-600 hover:bg-violet-500 text-white rounded flex items-center gap-1"
+                        >
+                          <Rocket size={10} /> Deploy
+                        </button>
+                      )}
+                      {!node.isDelegated ? (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await hboxPoolService.delegateToStargate(node.nodeId, { accessType: 'public' });
+                              showNotification('success', `${node.address} delegated to pool`);
+                              handleRefresh();
+                            } catch (e: any) {
+                              showNotification('error', `Delegation failed: ${e.message}`);
+                            }
+                          }}
+                          className="px-3 py-1 text-xs bg-cyan-600 hover:bg-cyan-500 text-white rounded flex items-center gap-1"
+                        >
+                          <Network size={10} /> Pool
+                        </button>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded"><Zap size={10} className="inline mr-1" />Pooled</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="text-right">
-                <div className="text-sm text-white">{node.availableCompute} units</div>
-                <div className="text-xs text-gray-500">${node.pricePerHour}/hr</div>
+            )}
+
+            {/* Section header for HyperInsight nodes */}
+            {nodes.length > 0 && (
+              <div className="mb-2">
+                <h4 className="text-xs font-medium text-cyan-400 uppercase tracking-wider mb-2">HyperInsight Network</h4>
+                {nodes.map((node) => (
+                  <div key={node.nodeId} className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg">
+                    <div className={`w-3 h-3 rounded-full ${node.status === 'online' ? 'bg-green-500' : node.status === 'busy' ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                    <div className="flex-1">
+                      <div className="font-mono text-sm text-white">{node.address?.slice(0, 10)}...</div>
+                      <div className="text-xs text-gray-500">
+                        Uptime: {(node.uptime * 100).toFixed(1)}% | Reliability: {(node.reliability * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-white">{node.availableCompute} units</div>
+                      <div className="text-xs text-gray-500">${node.pricePerHour}/hr</div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          ))
+            )}
+          </div>
         )}
       </div>
-    </div>
-  );
+    );
+  };
 
   // ============== STARGATE POOL RENDER ==============
   const renderStargatePool = () => {
@@ -2056,15 +2312,32 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                   <RefreshCw size={18} className="text-gray-400" />
                 </button>
               ) : (
-                <button
-                  onClick={async () => {
-                    try { await stargatePoolService.connectWallet(); }
-                    catch { showNotification('error', 'Failed to connect wallet'); }
-                  }}
-                  className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-2 text-sm"
-                >
-                  <Wallet size={16} /> Connect Wallet
-                </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const result = await stargatePoolService.connectWallet();
+                    if (result.success && result.address) {
+                      setEthAddress(result.address);
+                      setWalletState(walletAdapter.getState());
+                      setIsLoadingANFEs(true);
+                      try {
+                        const walletANFEs = await anfeService.loadWalletANFEs(result.address);
+                        setWalletANFEs(walletANFEs.anfes);
+                        if (walletANFEs.anfes.length > 0) {
+                          showNotification('success', `Loaded ${walletANFEs.anfes.length} ANFE(s)`);
+                        }
+                      } catch (e) {
+                        console.warn('[AdaPortal] Stargate ANFE load failed:', e);
+                      } finally {
+                        setIsLoadingANFEs(false);
+                      }
+                    }
+                  } catch { showNotification('error', 'Failed to connect wallet'); }
+                }}
+                className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-2 text-sm"
+              >
+                <Wallet size={16} /> Connect Wallet
+              </button>
               )}
             </div>
           </div>

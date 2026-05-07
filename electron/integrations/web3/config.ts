@@ -175,6 +175,25 @@ const DEFAULT_TOKENS: TokenConfig[] = [
     isNative: false,
     network: "ethereum",
   },
+  // HyperCycle — Ethereum mainnet
+  {
+    id: "hypc-ethereum",
+    symbol: "HyPC",
+    name: "HyperCycle Token",
+    contractAddress: "0xea7b7dc089c9a4a916b5a7a37617f59fd54e37e4",
+    decimals: 18,
+    isNative: false,
+    network: "ethereum",
+  },
+  {
+    id: "chypc-ethereum",
+    symbol: "c_HyPC",
+    name: "CHyPC Identity Collateral",
+    contractAddress: "0x21468e63abF3783020750F7b2e57d4B34aFAfba6",
+    decimals: 0,
+    isNative: false,
+    network: "ethereum",
+  },
   // Base mainnet
   {
     id: "eth-base",
@@ -190,6 +209,16 @@ const DEFAULT_TOKENS: TokenConfig[] = [
     name: "USD Coin",
     contractAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     decimals: 6,
+    isNative: false,
+    network: "base",
+  },
+  // HyperCycle — Base mainnet
+  {
+    id: "chypce-base",
+    symbol: "c_HyPCe",
+    name: "CHyPCe Identity Collateral",
+    contractAddress: "0x674DdC6e324142713431a21D3E1BD0140cC700f7",
+    decimals: 0,
     isNative: false,
     network: "base",
   },

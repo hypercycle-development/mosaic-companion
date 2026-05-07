@@ -7,7 +7,8 @@ export type AIProvider =
   | "gemini"
   | "ollama"
   | "custom"
-  | "hypercycle";
+  | "hypercycle"
+  | "hermes";
 
 /** Hypercycle routing: TODA micropay vs Basechain (EVM) — same direct `host:port` URL shape. */
 export type HypercycleBackend = "toda" | "basechain";
@@ -59,6 +60,8 @@ export interface AIAgentConfig {
    * If omitted, uses the same TODA address as nonce/AIM steps.
    */
   hypercycleStreamTxSender?: string;
+  /** Optional ANFE token ID this agent is deployed to (for Hermes AIM tracking). */
+  anfeTokenId?: string;
 }
 
 export interface ChatMessage {
@@ -111,6 +114,7 @@ export const DEFAULT_MODELS: Record<AIProvider, string[]> = {
   ollama: ["llama3.2", "mistral", "codellama", "deepseek-coder"],
   custom: [],
   hypercycle: ["claude-sonnet-4-5-20250929"],
+  hermes: ["kimi-k2.6", "minimax", "custom"],
 };
 
 export const PROVIDER_INFO: Record<
@@ -146,5 +150,10 @@ export const PROVIDER_INFO: Record<
     name: "Hypercycle Node",
     color: "#22D3EE",
     baseUrl: "http://207.53.252.108",
+  },
+  hermes: {
+    name: "Hermes Agent",
+    color: "#7C3AED",
+    baseUrl: "http://localhost:3000",
   },
 };

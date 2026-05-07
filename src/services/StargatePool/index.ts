@@ -65,3 +65,5 @@ export {
 
 // ANFE Service (Core Engine)
 export { anfeService } from './ANFEService';
+export { hboxPoolService } from './HBoxPoolService';
+export type { HBoxComputeNode, HypercycleNode } from './HBoxPoolService';

@@ -15,83 +15,13 @@ class NodeIntelligenceService {
   }
 
   private initializeNodes(): void {
-    // Initialize demo compute nodes
-    const demoNodes: ComputeNode[] = [
-      {
-        nodeId: 'node-hc-001',
-        address: '0x7a...3f2e',
-        uptime: 0.998,
-        reliability: 0.995,
-        availableCompute: 45,
-        pricePerHour: 0.15,
-        status: 'online',
-        lastChecked: Date.now()
-      },
-      {
-        nodeId: 'node-hc-002',
-        address: '0x8b...4d3f',
-        uptime: 0.992,
-        reliability: 0.988,
-        availableCompute: 30,
-        pricePerHour: 0.12,
-        status: 'online',
-        lastChecked: Date.now()
-      },
-      {
-        nodeId: 'node-hc-003',
-        address: '0x9c...5e4g',
-        uptime: 0.985,
-        reliability: 0.980,
-        availableCompute: 60,
-        pricePerHour: 0.10,
-        status: 'online',
-        lastChecked: Date.now()
-      },
-      {
-        nodeId: 'node-merkelizer-001',
-        address: '0x1a...2b3c',
-        uptime: 0.999,
-        reliability: 0.997,
-        availableCompute: 25,
-        pricePerHour: 0.20,
-        status: 'online',
-        lastChecked: Date.now()
-      },
-      {
-        nodeId: 'node-merkelizer-002',
-        address: '0x2d...4e5f',
-        uptime: 0.996,
-        reliability: 0.992,
-        availableCompute: 40,
-        pricePerHour: 0.18,
-        status: 'online',
-        lastChecked: Date.now()
-      },
-      {
-        nodeId: 'node-hc-004',
-        address: '0x3e...5f6g',
-        uptime: 0.890,
-        reliability: 0.850,
-        availableCompute: 10,
-        pricePerHour: 0.08,
-        status: 'busy',
-        lastChecked: Date.now()
-      }
-    ];
-
-    demoNodes.forEach(node => {
-      this.nodes.set(node.nodeId, node);
-      // Initialize metrics
-      this.metrics.set(node.nodeId, {
-        nodeId: node.nodeId,
-        uptime: node.uptime,
-        successRate: node.reliability,
-        avgResponseTime: 150 + Math.random() * 200,
-        totalTasks: Math.floor(Math.random() * 500) + 100
-      });
-    });
-
-    console.log(`[AdaPortal] Initialized ${this.nodes.size} compute nodes`);
+    // NOTE: No demo / fake nodes seeded here.
+    // Real nodes are loaded from:
+    //   1. HyperInsight API (on-chain compute nodes)
+    //   2. HyperAIBox appliances (local hardware)
+    //   3. ANFE-backed node factories (ERC-721 / ERC-1155)
+    // Demo data removed per user request — only verified on-chain data is displayed.
+    console.log(`[AdaPortal] Node intelligence initialized (no demo nodes)`);
   }
 
   // Get all nodes

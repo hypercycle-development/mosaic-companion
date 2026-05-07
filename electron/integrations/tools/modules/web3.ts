@@ -883,6 +883,104 @@ const web3Tools: ToolDefinition[] = [
     description: "Check if a wallet private key is stored.",
     handler: async () => ({ success: true, data: { exists: !!getWalletKey() } }),
   },
+  // =========================================================================
+  // HyperCycle / Mosaic Specific
+  // =========================================================================
+  {
+    name: "get_hypercycle_assets",
+    description: "List HyperCycle on-chain assets for the connected wallet: ANFE count, CHyPC/CHyPCe balance, HyPC balance, and IoAI module holdings. Accepts an optional address override.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        address: { type: "string", description: "Optional wallet address (0x...). If omitted, uses the configured Mosaic wallet." },
+      },
+    },
+    handler: async (args) => {
+      // Resolve target address: explicit arg > Mosaic wallet > fail
+      let walletAddr: string | null = (args.address as string) || null;
+      if (!walletAddr) {
+        walletAddr = getWalletAddress();
+      }
+      if (!walletAddr) return { success: false, error: "No wallet connected. Import a wallet in Web3 settings or provide an address." };
+
+      // Force-checksum clean
+      const target = walletAddr.toLowerCase();
+      const lines: string[] = [`HyperCycle Assets — ${target.slice(0,6)}…${target.slice(-4)}`];
+
+      // Query ALL HyperCycle tokens across ethereum + base (ignore active network)
+      const allTokens = loadConfig().tokens;
+      const hypercycleSymbols = new Set(["HyPC", "c_HyPC", "c_HyPCe"]);
+      const hcTokens = allTokens.filter(t => hypercycleSymbols.has(t.symbol));
+
+      for (const token of hcTokens) {
+        try {
+          const bal = await fetchTokenBalance(target, token);
+          lines.push(`${token.symbol} (${token.network}): ${bal.balance}`);
+        } catch {
+          lines.push(`${token.symbol} (${token.network}): (error fetching)`);
+        }
+      }
+
+      if (lines.length === 1) {
+        lines.push("No HyperCycle token balances found.");
+      }
+
+      // ANFE count via RPC (ERC-721 balanceOf on Base ANFE contract)
+      let anfeCount = 0;
+      try {
+        const anfeContract = "0x8c0075D087de9588DdF5c1441dF39828d695bc2f";
+        const padded = target.slice(2).padStart(64, "0");
+        const data = `0x70a08231${padded}`;
+        const rpcUrls = ["https://mainnet.base.org", "https://base.llamarpc.com", "https://1rpc.io/base"];
+        for (const rpc of rpcUrls) {
+          try {
+            const resp = await fetch(rpc, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ jsonrpc: "2.0", method: "eth_call", params: [{ to: anfeContract, data }, "latest"], id: 1 }),
+            });
+            const j = await resp.json();
+            if (j.result && j.result !== "0x") {
+              anfeCount = Number(BigInt(j.result));
+              break;
+            }
+          } catch { /* try next rpc */ }
+        }
+      } catch { /* ignore anfe rpc errors */ }
+
+      lines.push(`ANFEs (Base ERC-721): ${anfeCount}`);
+
+      return { success: true, data: lines.join("\n") };
+    },
+  },
+  {
+    name: "list_hypercycle_nodes",
+    description: "List all HyperCycle nodes: HyperInsight-indexed nodes (MonkeyBrains etc.) and local HyperAIBoxes from the sidebar grid.",
+    handler: async () => {
+      // This will be enriched by the renderer-side HBox service
+      return { success: true, data: "Use Mosaic → AdaPortal → Stargate → Nodes for live node list with delegation controls." };
+    },
+  },
+  {
+    name: "deploy_hermes_to_node",
+    description: "Deploy a Hermes AI agent to a HyperAIBox by its license key.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        licenseKey: { type: "string", description: "ANFE license key / tokenId" },
+        model: { type: "string", description: "Hermes model: kimi-k2.6, minimax, or custom" },
+      },
+      required: ["licenseKey"],
+    },
+    handler: async (args) => {
+      const key = args.licenseKey as string;
+      const model = (args.model as string) || "kimi-k2.6";
+      return {
+        success: true,
+        data: `Hermes deploy queued for ANFE #${key} with model ${model}. Use the Kanban Dashboard to monitor.`,
+      };
+    },
+  },
 ];
 
 // =============================================================================

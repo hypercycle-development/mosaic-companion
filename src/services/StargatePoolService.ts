@@ -238,6 +238,15 @@ class StargatePoolService {
   }
 
   /**
+   * Stub: load node factories from on-chain contracts.
+   * The real implementation should query ANFE ERC-721 tokens and map them to factories.
+   */
+  async loadNodeFactoriesFromChain(walletAddress: string): Promise<void> {
+    console.log('[StargatePool] loadNodeFactoriesFromChain stub called for', walletAddress.slice(0, 8) + '...');
+    // TODO: wire to ANFEService.loadWalletANFEs() or direct RPC enumeration
+  }
+
+  /**
    * Fetch wallet's NFTs from chain (using window.ethereum)
    */
   async fetchWalletNFTs(walletAddress: string, collectionAddress: string): Promise<number> {

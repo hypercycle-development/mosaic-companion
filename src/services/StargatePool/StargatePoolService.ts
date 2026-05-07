@@ -4,88 +4,59 @@
 // Read + Registration only (no agent spawning, no capacity enforcement yet)
 
 // =============================================================================
-// HyperCycle Contract Addresses
+// HyperCycle Contract Addresses — Single Source of Truth
 // =============================================================================
+import {
+  HYPERCYCLE_CONTRACTS,
+  BASE_CONTRACTS,
+  HYPERCYCLE_TOKENS,
+  encodeBalanceOf,
+  encodeOwnerOf,
+  encodeERC1155BalanceOf,
+  decodeUint256,
+  decodeAddress,
+  ERC721_TRANSFER_TOPIC,
+} from '../HyperCycleContracts';
 
-const HYPERCYCLE_CONTRACTS: Record<string, Record<ChainType, string>> = {
-  // ERC-1155 Node Factory (main contract for node factories)
+// ---------------------------------------------------------------------------
+// Build a flat lookup map keyed by the legacy internal name (e.g. "nodeFactory").
+// This lets existing code continue using LEGACY_CONTRACTS.nodeFactory.ethereum
+// while the addresses live in one canonical file.
+// ---------------------------------------------------------------------------
+const LEGACY_CONTRACTS: Record<string, Record<ChainType, string>> = {
   nodeFactory: {
-    ethereum: '0x4BFbA79CF232361a53eDdd17C67C6c77A6F00379',
-    base: '0x4BFbA79CF232361a53eDdd17C67C6c77A6F00379', // Check if same on Base
+    ethereum: HYPERCYCLE_CONTRACTS.ethereum.NodeFactory,   // ERC-1155 Node Factory on Ethereum
+    base:     BASE_CONTRACTS.ANFE,                          // ANFE on Base
     cardano: '',
   },
-  // ANFE (Advanced Node Factory Enclosure)
   anfe: {
-    ethereum: '0x8c0075D087de9588DdF5c1441dF39828d695bc2f',
-    base: '0x8c0075D087de9588DdF5c1441dF39828d695bc2f',
+    ethereum: '',                                            // No ANFE on Ethereum
+    base:     BASE_CONTRACTS.ANFE,                            // Canonical Base ANFE
     cardano: '',
   },
-  // HyPC (HyperCycle Token)
   hypc: {
-    ethereum: '0xea7b7dc089c9a4a916b5a7a37617f59fd54e37e4',
-    base: '',
+    ethereum: HYPERCYCLE_CONTRACTS.ethereum.HyPC,
+    base:     '',
     cardano: '',
   },
-  // HyPCL (Node Factory Licence)
   hypcl: {
-    ethereum: '0xd32CB5f76989A27782e44c5297AAba728Ad61669',
-    base: '0x282b61FcBA0d77a8eE3e0De225AF6BFC11f44659', // ANFE Licence on Base
+    ethereum: HYPERCYCLE_CONTRACTS.ethereum.HyPCL,
+    base:     BASE_CONTRACTS.HyPCL,
     cardano: '',
   },
-  // c_HyPC (CHyPC - Compressed HyperCycle)
   c_hypc: {
-    ethereum: '0x21468e63abF3783020750F7b2e57d4B34aFAfba6',
-    base: '0x674DdC6e324142713431a21D3E1BD0140cC700f7',
+    ethereum: HYPERCYCLE_CONTRACTS.ethereum.c_HyPC,
+    base:     BASE_CONTRACTS.c_HyPC,
     cardano: '',
   },
-  // c_AIMF (Aimifier)
-  c_aimf: {
-    ethereum: '',
-    base: '0x998d350C59Fd7a4a524fcc987Adc811f25b886F4',
-    cardano: '',
-  },
-  // c_IAIb (IoAI Box)
-  c_iaib: {
-    ethereum: '',
-    base: '0x1dcbEEc07614aB8b3AEe828f19a9299ad0772eC1',
-    cardano: '',
-  },
-  // c_IAIf (IoAI Federated)
-  c_iaif: {
-    ethereum: '',
-    base: '0xf319fea203EB534BE138F86682B42d359424e905',
-    cardano: '',
-  },
-  // c_IAIr (IoAI Registry)
-  c_iair: {
-    ethereum: '',
-    base: '0xaaA03DBEa02373Ce123b02B590265De428B17172',
-    cardano: '',
-  },
-  // c_IAIs (IoAI Search)
-  c_iais: {
-    ethereum: '',
-    base: '0xe283deFF3736C12E313C19dF6FBbC896fcf246d3',
-    cardano: '',
-  },
-  // c_OpnAI (Open IoAI)
-  c_opnai: {
-    ethereum: '',
-    base: '0x4795f8af5c8d2D9bceA287d7448435879A6d46dF',
-    cardano: '',
-  },
-  // c_QntV (Quantum Verify)
-  c_qntv: {
-    ethereum: '',
-    base: '0x1512D4A43596a34593D6913462068F089879E8Cc',
-    cardano: '',
-  },
-  // c_SpcN (Space Nodes)
-  c_spcn: {
-    ethereum: '',
-    base: '0x2Be0d36d961E15879C865B0fA828710C65f60940',
-    cardano: '',
-  },
+  c_aimf: { ethereum: '', base: BASE_CONTRACTS.c_AIMF, cardano: '' },
+  c_iaib: { ethereum: '', base: BASE_CONTRACTS.c_IAIb, cardano: '' },
+  c_iaif: { ethereum: '', base: BASE_CONTRACTS.c_IAIf, cardano: '' },
+  c_iair: { ethereum: '', base: BASE_CONTRACTS.c_IAIr, cardano: '' },
+  c_iais: { ethereum: '', base: BASE_CONTRACTS.c_IAIs, cardano: '' },
+  c_opnai:{ ethereum: '', base: BASE_CONTRACTS.c_OpnAI, cardano: '' },
+  c_qntv: { ethereum: '', base: BASE_CONTRACTS.c_QntV, cardano: '' },
+  c_spcn: { ethereum: '', base: BASE_CONTRACTS.c_SpcN, cardano: '' },
 };
 
 // ERC-1155 ABI for Node Factory
@@ -190,7 +161,7 @@ const ANFE_CONTRACT_ADDRESS = '0x8c0075D087de9588DdF5c1441dF39828d695bc2f'.toLow
 
 // ERC-721 ABI for balanceOf + tokenOfOwnerByIndex + tokenURI
 const ERC721_ABI = {
-  balanceOf: '0xf242deda', // balanceOf(address)
+  balanceOf: '0x70a08231', // balanceOf(address) — same selector as ERC-20
   tokenOfOwnerByIndex: '0x2f745c59', // tokenOfOwnerByIndex(address,uint256)
   tokenUri: '0x0e89341c', // tokenURI(uint256)
   ownerOf: '0x6352211e', // ownerOf(uint256)
@@ -476,7 +447,7 @@ class StargatePoolService {
           const balance = await this.getERC721Balance(walletAddress, contractAddress);
           if (balance > 0) {
             // Get first token (simplified - would iterate in production)
-            const tokenId = await this.getFirstTokenId(walletAddress, contractAddress, balance);
+            const tokenId = await this.getTokenOfOwnerByIndex(walletAddress, contractAddress, balance);
             if (tokenId !== null) {
               nfts.push({
                 contractAddress,
@@ -514,10 +485,10 @@ class StargatePoolService {
     // HPEC ecosystem collections
     const collections: Record<ChainType, string[]> = {
       ethereum: [
-        '0x8c0075D087de9588DdF5c1441dF39828d695bc2f'.toLowerCase(), // ANFE
+        '0x4BFbA79CF232361a53eDdd17C67C6c77A6F00379'.toLowerCase(), // ERC-1155 Node Factory (Ethereum)
       ],
       base: [
-        // Base NFT collections
+        '0x8c0075D087de9588DdF5c1441dF39828d695bc2f'.toLowerCase(), // ANFE (Base only)
       ],
       cardano: [
         // Cardano Policy IDs (stored as lowercase hex)
@@ -547,7 +518,7 @@ class StargatePoolService {
         method: 'eth_call',
         params: [{
           to: normalizedContract,
-          data: '0xf242deda' + normalizedOwner
+          data: '0x70a08231' + normalizedOwner
         }, 'latest']
       });
 
@@ -587,7 +558,7 @@ class StargatePoolService {
       
       for (let i = 0; i < Math.min(balance, 20); i++) { // Limit to 20 for performance
         try {
-          const tokenId = await this.getFirstTokenId(walletAddress, ANFE_CONTRACT_ADDRESS, i);
+          const tokenId = await this.getTokenOfOwnerByIndex(walletAddress, ANFE_CONTRACT_ADDRESS, i);
           if (tokenId !== null) {
             tokenIds.push(tokenId);
             
@@ -723,7 +694,7 @@ class StargatePoolService {
         method: 'eth_call',
         params: [{
           to: contractAddress,
-          data: '0xf242deda' + owner.slice(2).toLowerCase().padStart(64, '0') // balanceOf(address)
+          data: '0x70a08231' + owner.slice(2).toLowerCase().padStart(64, '0') // balanceOf(address)
         }, 'latest']
       });
 
@@ -737,17 +708,15 @@ class StargatePoolService {
   }
 
   /**
-   * Get first token ID owned by address using ERC-721Enumerable
+   * Get token ID at a specific index for an owner (ERC-721Enumerable)
    */
-  private async getFirstTokenId(owner: string, contractAddress: string, balance: number): Promise<string | null> {
-    if (balance <= 0) return null;
-    
+  private async getTokenOfOwnerByIndex(owner: string, contractAddress: string, index: number): Promise<string | null> {
     try {
       if (!window.ethereum) return null;
 
       // tokenOfOwnerByIndex(address owner, uint256 index)
       const ownerParam = owner.slice(2).toLowerCase().padStart(64, '0');
-      const indexParam = '0000000000000000000000000000000000000000000000000000000000000000';
+      const indexParam = BigInt(index).toString(16).padStart(64, '0');
       
       const result = await window.ethereum.request({
         method: 'eth_call',
@@ -923,7 +892,7 @@ class StargatePoolService {
     const factories: FactoryRegistrationInput[] = [];
     
     // Check each chain
-    for (const [chain, contract] of Object.entries(HYPERCYCLE_CONTRACTS.nodeFactory)) {
+    for (const [chain, contract] of Object.entries(LEGACY_CONTRACTS.nodeFactory)) {
       if (!contract) continue;
       
       try {

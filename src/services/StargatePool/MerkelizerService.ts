@@ -52,8 +52,8 @@ interface MerkelizerNodesResponse {
   nodes: Array<{ id: string; address: string; uptime: string; status: string; lastVerified: string }>;
 }
 
-// Legacy fallback URL (dead — kept for backwards compat only)
-const FALLBACK_MERKELIZER_URL = 'http://YOUR_HYPERCYCLE_NODE_IP:8003';
+// Legacy fallback URL (now points to HyperInsight bridge; old IP-based Merkelizer is dead)
+const FALLBACK_MERKELIZER_URL = 'https://api.hyperinsight.app/v1';
 
 // Primary: HyperInsight API
 const HI_BASE   = 'https://api.hyperinsight.app/v1';
