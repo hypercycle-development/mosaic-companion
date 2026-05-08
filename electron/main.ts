@@ -928,8 +928,7 @@ ipcMain.handle("web3:import-from-clipboard", async () => {
       return { success: false, error: "Clipboard does not contain a valid Ethereum private key (64 hex chars, optional 0x prefix)." };
     }
     const ok = saveWalletKey(text.trim());
-    if (!ok) return { success: false, error: "Failed to save wallet key." };
-    clipboard.clear();
+    if (!ok.success) return { success: false, error: ok.error || "Failed to save wallet key." };
     const address = getWalletAddress();
     mainWindow?.webContents.send("wallet:imported");
     mainWindow?.webContents.send("wallet:changed", { address });
@@ -941,10 +940,17 @@ ipcMain.handle("web3:import-from-clipboard", async () => {
 
 ipcMain.handle("web3:import-wallet-secure", async (_event, privateKey: string) => {
   try {
-    if (!isValidPrivateKey(privateKey)) {
+    // Strip internal whitespace that copy-paste often introduces
+    const cleaned = privateKey.replace(/\s+/g, "").trim();
+    if (!isValidPrivateKey(cleaned)) {
       return { success: false, error: "Invalid private key format." };
     }
-    return { success: saveWalletKey(privateKey.trim()) };
+    const ok = saveWalletKey(cleaned);
+    if (!ok.success) return { success: false, error: ok.error || "Failed to save wallet." };
+    const address = getWalletAddress();
+    mainWindow?.webContents.send("wallet:imported");
+    mainWindow?.webContents.send("wallet:changed", { address });
+    return { success: true, address };
   } catch {
     return { success: false, error: "Failed to save wallet." };
   }

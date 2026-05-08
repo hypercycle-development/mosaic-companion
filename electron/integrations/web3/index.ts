@@ -65,40 +65,64 @@ function getWalletConfigPath(): string {
   return path.join(app.getPath("userData"), WALLET_CONFIG_FILE);
 }
 
-export function saveWalletKey(privateKey: string): boolean {
+export function saveWalletKey(privateKey: string): { success: boolean; error?: string } {
   // If renderer asked main to generate the key, do it here in the main process
   if (privateKey === PRIVATE_KEY_GENERATION_PLACEHOLDER) {
     try {
       privateKey = generatePrivateKey();
     } catch {
       console.error("[Web3] Failed to generate private key in main.");
-      return false;
+      return { success: false, error: "Failed to generate private key." };
     }
   }
+
+  const configPath = getWalletConfigPath();
+
+  // If safeStorage is unavailable, fall back to plaintext with a warning
   if (!safeStorage.isEncryptionAvailable()) {
-    console.error("[Web3] SafeStorage is not available on this system.");
-    return false;
+    console.warn("[Web3] SafeStorage unavailable — falling back to plain JSON wallet storage. Consider installing gnome-keyring or libsecret.");
+    try {
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify({ plainKey: privateKey, _warning: "Stored without encryption — safeStorage not available" }),
+      );
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to write wallet file." };
+    }
   }
+
   try {
     const buffer = safeStorage.encryptString(privateKey);
     fs.writeFileSync(
-      getWalletConfigPath(),
+      configPath,
       JSON.stringify({ encryptedKey: buffer.toString("base64") }),
     );
-    return true;
+    return { success: true };
   } catch {
     console.error("[Web3] Failed to save wallet key.");
-    return false;
+    return { success: false, error: "Failed to encrypt/save wallet key." };
   }
 }
 
 export function getWalletKey(): string | null {
-  if (!safeStorage.isEncryptionAvailable()) return null;
+  const configPath = getWalletConfigPath();
+  if (!fs.existsSync(configPath)) return null;
+
   try {
-    const configPath = getWalletConfigPath();
-    if (!fs.existsSync(configPath)) return null;
     const data = JSON.parse(fs.readFileSync(configPath, "utf8"));
+
+    // Plaintext fallback (when safeStorage was unavailable at save time)
+    if (data.plainKey && typeof data.plainKey === "string") {
+      return data.plainKey;
+    }
+
     if (!data.encryptedKey) return null;
+
+    if (!safeStorage.isEncryptionAvailable()) {
+      console.error("[Web3] Cannot decrypt wallet — safeStorage is unavailable and this wallet was encrypted.");
+      return null;
+    }
 
     const buffer = Buffer.from(data.encryptedKey, "base64");
     return safeStorage.decryptString(buffer);

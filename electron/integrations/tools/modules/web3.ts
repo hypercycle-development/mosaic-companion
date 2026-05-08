@@ -870,7 +870,7 @@ const web3Tools: ToolDefinition[] = [
       if (pk && pk !== PRIVATE_KEY_GENERATION_PLACEHOLDER) {
         return { success: false, error: "Import via tool is disabled. Use the Web3 settings UI to import a wallet." };
       }
-      return { success: saveWalletKey(PRIVATE_KEY_GENERATION_PLACEHOLDER) };
+      return { success: saveWalletKey(PRIVATE_KEY_GENERATION_PLACEHOLDER).success };
     },
   },
   {
