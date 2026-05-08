@@ -1,0 +1,139 @@
+// =============================================================================
+// STARGATE AIM PANEL — Live AIM inventory with slots, ports, status
+// =============================================================================
+// Replaces the empty "AI Models" tab with a live list from the local node.
+// Uses Tailwind CSS + lucide-react to match existing Mosaic styling.
+// =============================================================================
+
+import React, { useEffect, useState } from 'react';
+import { Bot, ExternalLink, CheckCircle2, XCircle, Loader, AlertTriangle } from 'lucide-react';
+import { localNodeBridge, BridgeAIM } from '../../services/LocalNodeBridge';
+import { enhancedLocalNodeBridge, ExtendedBridgeTelemetry } from '../../services/stargate/EnhancedLocalNodeBridge';
+
+const StargateAIMPanel: React.FC = () => {
+  const [aims, setAims] = useState<BridgeAIM[]>([]);
+  const [telemetry, setTelemetry] = useState<ExtendedBridgeTelemetry | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const refresh = async () => {
+      setLoading(true);
+      await localNodeBridge.refresh();
+      setAims(localNodeBridge.getLocalAIMs());
+      const t = await enhancedLocalNodeBridge.refresh();
+      setTelemetry(t);
+      setLoading(false);
+    };
+    refresh();
+    const interval = setInterval(refresh, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading && aims.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (aims.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <Bot size={64} className="text-gray-700 mb-4" />
+        <h3 className="text-xl font-semibold text-gray-400">No AIMs Running</h3>
+        <p className="text-sm text-gray-600 mt-2 max-w-md">
+          The local HyperCycle node has no AIM images loaded. Use the Node Manager to install and start AIM containers.
+        </p>
+        <a
+          href="http://localhost:8006"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 px-4 py-2 rounded-lg border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 transition-colors text-sm"
+        >
+          Open Node Manager
+        </a>
+      </div>
+    );
+  }
+
+  const slotUsage = telemetry ? telemetry.runningAims.length / telemetry.totalAimSlots : 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-white">AI Models</h3>
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+          slotUsage > 0.75 ? 'bg-yellow-500/10 text-yellow-400' : 'bg-green-500/10 text-green-400'
+        }`}>
+          {telemetry?.runningAims.length || 0}/{telemetry?.totalAimSlots || 8} slots
+        </span>
+      </div>
+
+      <div className="h-2 w-full bg-gray-800 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full ${slotUsage > 0.75 ? 'bg-yellow-500' : 'bg-cyan-400'}`}
+          style={{ width: `${slotUsage * 100}%` }}
+        />
+      </div>
+
+      <div className="grid gap-3">
+        {aims.map((aim) => (
+          <div
+            key={aim.imageId}
+            className="p-4 rounded-xl border border-gray-800 bg-gray-900/50 hover:border-gray-700 transition-colors"
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  aim.status === 'running' ? 'bg-green-500/20' : 'bg-gray-700'
+                }`}>
+                  {aim.status === 'running' ? (
+                    <CheckCircle2 size={20} className="text-green-400" />
+                  ) : aim.status === 'error' ? (
+                    <AlertTriangle size={20} className="text-red-400" />
+                  ) : (
+                    <Loader size={20} className="text-gray-400" />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium text-white">{aim.name || 'Unnamed AIM'}</h4>
+                    <span className="text-xs text-gray-500">{aim.tag}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-1.5">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      aim.status === 'running'
+                        ? 'bg-green-500/20 text-green-400'
+                        : aim.status === 'error'
+                        ? 'bg-red-500/20 text-red-400'
+                        : 'bg-gray-700 text-gray-400'
+                    }`}>
+                      {aim.status}
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">Slot {aim.slot}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">Port {aim.port}</span>
+                    {aim.whitelisted && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400">Whitelisted</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <a
+                href={`http://localhost:${aim.port}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-cyan-400 transition-colors"
+                title="Open AIM endpoint"
+              >
+                <ExternalLink size={16} />
+              </a>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default StargateAIMPanel;

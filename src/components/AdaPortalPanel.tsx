@@ -54,6 +54,14 @@ import { MarketplaceListing, LeaderboardEntry, TrainingListing, AgentPackage, Co
 import { skillMarketplace } from '../services/AdaPortal';
 import { aspGateway, AspPackage, Company, UsageRecord } from '../services/AspGateway';
 import { KanbanDashboard } from './KanbanDashboard';
+import StargateTelemetryCard from './stargate/StargateTelemetryCard';
+import StargateAIMPanel from './stargate/StargateAIMPanel';
+import StargateRankingsView from './stargate/StargateRankingsView';
+import StargateFleetPanel from './stargate/StargateFleetPanel';
+import StargateTelemetryCard from './stargate/StargateTelemetryCard';
+import StargateAIMPanel from './stargate/StargateAIMPanel';
+import StargateRankingsView from './stargate/StargateRankingsView';
+import StargateFleetPanel from './stargate/StargateFleetPanel';
 import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus } from 'lucide-react';
 
 interface AdaPortalPanelProps {
@@ -712,6 +720,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   // ============== START TAB (Intent-based Entry) ==============
   const renderStart = () => (
     <div className="space-y-6">
+      <StargateTelemetryCard />
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-white mb-2">What do you want to achieve?</h2>
         <p className="text-gray-400">Select your goal and let AI configure the perfect workforce</p>
@@ -3186,9 +3195,9 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         ) : (
           <>
             {activeTab === 'start' && renderStart()}
-            {activeTab === 'marketplace' && renderMarketplace()}
-            {activeTab === 'aims' && renderAims()}
-            {activeTab === 'leaderboard' && renderLeaderboard()}
+            {activeTab === 'marketplace' && <StargateFleetPanel />}
+            {activeTab === 'aims' && <StargateAIMPanel />}
+            {activeTab === 'leaderboard' && <StargateRankingsView />}
             {activeTab === 'training' && renderTraining()}
             {activeTab === 'packages' && renderPackages()}
             {activeTab === 'skills' && renderSkills()}
