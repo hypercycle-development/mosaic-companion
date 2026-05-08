@@ -67,3 +67,7 @@ export {
 export { anfeService } from './ANFEService';
 export { hboxPoolService } from './HBoxPoolService';
 export type { HBoxComputeNode, HypercycleNode } from './HBoxPoolService';
+
+// Asset Discovery (Multi-chain scanner)
+export { assetDiscovery } from './HyperCycleAssetDiscovery';
+export type { HyperCycleAsset, AssetChain, AssetStandard, AssetCategory } from './HyperCycleAssetDiscovery';

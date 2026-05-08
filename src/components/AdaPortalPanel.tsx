@@ -50,14 +50,13 @@ import {
   SupportedChain,
   NodeInfo,
 } from '../services/StargatePool';
-import { MarketplaceListing, LeaderboardEntry, TrainingListing, AgentPackage, ComputeNode, AIMInfo, UserIntent, ComputeTierInfo, AccessLevel } from '../services/AdaPortal/types';
+import { localNodeBridge } from '../services/LocalNodeBridge';
+import type { BridgeANFE, BridgeComputeNode } from '../services/LocalNodeBridge';
 import { skillMarketplace } from '../services/AdaPortal';
 import { aspGateway, AspPackage, Company, UsageRecord } from '../services/AspGateway';
+import { stargateRegistry, type AgentProfile, type BundleConfig, type TrainingJob } from '../services/StargateSkillRegistry';
 import { KanbanDashboard } from './KanbanDashboard';
-import StargateTelemetryCard from './stargate/StargateTelemetryCard';
-import StargateAIMPanel from './stargate/StargateAIMPanel';
-import StargateRankingsView from './stargate/StargateRankingsView';
-import StargateFleetPanel from './stargate/StargateFleetPanel';
+import UnifiedAssetPanel from './UnifiedAssetPanel';
 import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus } from 'lucide-react';
 
 interface AdaPortalPanelProps {
@@ -218,6 +217,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   }[]>([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
 
+  // Local Node Bridge (R2D2 directly — no wallet / blockchain needed)
+  const [localNodeAvailable, setLocalNodeAvailable] = useState(false);
+  const [localANFE, setLocalANFE] = useState<BridgeANFE | null>(null);
+
   // ANFE <-> Agent Bindings (Skill -> Agent -> ANFE deployment model)
   const [anfeAgentBindings, setAnfeAgentBindings] = useState<Record<string, string>>(() => {
     try {
@@ -308,10 +311,84 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         trend: 'stable' as const
       })));
 
-      // 4. Training/Packages/Skills — still mock, mark them clearly
-      setTrainingListings([]);  // TODO: Wire to real training service
-      setPackages([]);          // TODO: Wire to real package service
-      setSkills([]);            // TODO: Wire to real skills marketplace
+      // 4. Populate Training/Packages/Skills/Agents from StargateSkillRegistry
+      const registryAgents = stargateRegistry.getAgents();
+      const registryBundles = stargateRegistry.getBundles();
+      const registrySkills = stargateRegistry.getSkills();
+      const registryModels = stargateRegistry.getModels();
+      const registryJobs = stargateRegistry.getTrainingJobs();
+
+      // Populate marketplace listings from built-in agent profiles if empty
+      if (listings.length === 0 && registryAgents.length > 0) {
+        setListings(registryAgents.map(a => ({
+          listingId: a.id,
+          agentName: a.name,
+          roles: [a.role.replace('_', ' ')],
+          price: a.hourlyRate || 0.5,
+          skills: a.skills,
+          rating: a.rating,
+          status: a.status,
+          computeNode: a.computeNode,
+        })));
+      }
+
+      // Populate training jobs
+      setTrainingListings(registryJobs.map(j => ({
+        listingId: j.id,
+        trainerName: j.name || `${j.model} Training`,
+        description: `Training ${j.model} on ${j.dataset} — Status: ${j.status}`,
+        specializations: [j.status, j.model],
+        rating: j.status === 'completed' ? 5.0 : j.status === 'running' ? 4.0 : 0,
+        price: 0.0,
+        model: j.model,
+        dataset: j.dataset,
+        progress: j.progress,
+        status: j.status,
+      })));
+
+      // Populate agent bundles
+      setPackages(registryBundles.map(b => ({
+        packageId: b.id,
+        name: b.name,
+        description: b.description,
+        price: b.price,
+        popular: b.popular || false,
+        agents: b.agents.map((ag, idx) => ({
+          agentId: `${b.id}-agent-${idx}`,
+          name: ag.role,
+          role: ag.role,
+        })),
+      })));
+
+      // Populate skills marketplace
+      setSkills(registrySkills.map(s => ({
+        name: s.name,
+        fullName: `${s.category}/${s.name}`,
+        provider: s.category,
+        category: s.category,
+        installs: s.usageCount || 0,
+        description: s.description,
+        tags: s.tags,
+        installed: s.installed,
+      })));
+
+      // Enrich AIMs with registry models if empty
+      if (registryModels.length > 0) {
+        const modelAims = registryModels.map(m => ({
+          name: m.name,
+          version: '1.0.0',
+          description: `${m.provider} — ${m.status} — ${(m.capability || []).join(', ')}`,
+          isActive: m.status === 'loaded',
+          origin: m.provider,
+          rank: m.status === 'loaded' ? 1 : 50,
+          computeStrength: m.local ? 5 : 3,
+          modelId: m.id,
+        }));
+        setAims(prev => {
+          if (prev.length > 0) return prev;
+          return modelAims;
+        });
+      }
 
       // 5. ANFE / Stargate Pool — load from wallet
       // NOTE: Must call via anfeService; line wrapped in anon IIFE for useCallback scope
@@ -386,15 +463,67 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   };
 
   useEffect(() => {
-    // Wrap entire initialization in try-catch to prevent component crash
     try {
       initializeAdaPortal();
+      stargateRegistry.initialize();
       loadData();
       loadUserAgents();
     } catch (e) {
       console.error('[AdaPortal] Initial load failed:', e);
     }
-    
+  }, []);
+
+  // HyperCycle Node Manager local bridge — runs even without a wallet
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const ok = await localNodeBridge.refresh();
+        if (!mounted) return;
+        setLocalNodeAvailable(ok);
+        if (ok) {
+          const anfe = localNodeBridge.getLocalANFE();
+          const node = localNodeBridge.getLocalComputeNode();
+          const hbox = localNodeBridge.getLocalHBoxNode();
+          const aims = localNodeBridge.getLocalAIMs();
+          if (anfe) {
+            // Augment with flat .aims and .level for the UI card
+            const enriched = { ...anfe, aims, level: 11 };
+            setLocalANFE(enriched);
+            // Merge into walletANFEs so Start + Stargate Pool tabs pick it up
+            setWalletANFEs(prev => {
+              const filtered = prev.filter(a => !(a as any).isLocal);
+              return [...filtered, { ...(anfe as any), isLocal: true }];
+            });
+          }
+          if (node) {
+            setNodes(prev => {
+              const filtered = prev.filter(n => n.nodeId !== node.nodeId);
+              return [...filtered, node];
+            });
+          }
+          if (hbox) {
+            setHboxNodes(prev => {
+              const filtered = prev.filter((h: any) => h.nodeId !== hbox.nodeId);
+              return [...filtered, hbox];
+            });
+          }
+          console.log('[AdaPortal] LocalNodeBridge: node discovered — ANFE:', anfe?.license, '| compute:', node?.availableCompute, 'TFLOPS');
+        }
+      } catch (e) {
+        console.warn('[AdaPortal] LocalNodeBridge failed:', e);
+      }
+    })();
+    const timer = setInterval(() => {
+      localNodeBridge.refresh().then(ok => {
+        if (!mounted) return;
+        setLocalNodeAvailable(ok);
+      }).catch(() => {});
+    }, 30000);
+    return () => { mounted = false; clearInterval(timer); };
+  }, []);
+
+  useEffect(() => {
     // Check access and update state - wrapped separately to not block UI
     try {
       accessControl.initialize().then(result => {
@@ -517,7 +646,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             let allANFEs = walletANFEs.anfes || [];
             
             if (isMounted) {
-              setWalletANFEs(allANFEs);
+              setWalletANFEs(prev => {
+                const localOnes = prev.filter((a: any) => a.isLocal);
+                return [...localOnes, ...allANFEs];
+              });
               console.log('[AdaPortal] Final ANFEs:', allANFEs.length, allANFEs);
 
               // Show notification with result
@@ -578,11 +710,50 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         console.error('[AdaPortal] Stargate Pool init failed:', e);
       }
       
-      // Cleanup on unmount
-      return () => {
-        isMounted = false;
-      };
     })();
+  }, []);
+
+  // ---- LOCAL NODE BRIDGE: discover R2D2 on same host ----
+  useEffect(() => {
+    let isMounted = true;
+    const unsub = localNodeBridge.onUpdate(() => {
+      if (!isMounted) return;
+      const avail = localNodeBridge.isAvailable();
+      setLocalNodeAvailable(avail);
+        if (avail) {
+          const anfe = localNodeBridge.getLocalANFE();
+          if (anfe) {
+            setLocalANFE(anfe);
+            // Merge local ANFE into walletANFEs so Start + Stargate Pool tabs show it
+            setWalletANFEs((prev: any[]) => {
+              const filtered = prev.filter((a: any) => !a.isLocal);
+              return [...filtered, anfe];
+            });
+          }
+        // Inject local node into nodes list
+        const localNode = localNodeBridge.getLocalComputeNode();
+        if (localNode) {
+          setNodes((prev) => {
+            const filtered = prev.filter((n) => n.platform !== 'local');
+            return [...filtered, localNode as any];
+          });
+        }
+        // Inject local HBox into hboxNodes
+        const hbox = localNodeBridge.getLocalHBoxNode();
+        if (hbox) {
+          setHboxNodes((prev) => {
+            const filtered = prev.filter((n: any) => n.nodeId !== hbox.nodeId);
+            return [...filtered, hbox];
+          });
+        }
+      }
+    });
+    localNodeBridge.startPolling();
+    return () => {
+      isMounted = false;
+      unsub();
+      localNodeBridge.stopPolling();
+    };
   }, []);
 
   useEffect(() => {
@@ -716,7 +887,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   // ============== START TAB (Intent-based Entry) ==============
   const renderStart = () => (
     <div className="space-y-6">
-      <StargateTelemetryCard />
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-white mb-2">What do you want to achieve?</h2>
         <p className="text-gray-400">Select your goal and let AI configure the perfect workforce</p>
@@ -873,6 +1043,103 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         )}
       </div>
 
+      {/* Unified Multi-Chain Asset Panel — ETH + BASE */}
+      <UnifiedAssetPanel
+        walletAddress={ethAddress || (window.ethereum ? (window.ethereum as any).selectedAddress : null)}
+        onConnectWallet={async () => {
+          try {
+            if (window.ethereum) {
+              const accounts = await (window.ethereum as any).request({ method: 'eth_requestAccounts' });
+              if (accounts?.[0]) {
+                setEthAddress(accounts[0]);
+                showNotification('success', 'Wallet connected: ' + accounts[0].slice(0, 6) + '...');
+              }
+            } else {
+              showNotification('error', 'No MetaMask / EVM wallet detected');
+            }
+          } catch (e: any) {
+            showNotification('error', e.message || 'Wallet connection failed');
+          }
+        }}
+        showNotification={showNotification}
+      />
+
+      {/* Local HyperAIBox Node Card — always visible, no wallet needed */}
+      {localNodeAvailable && localANFE && (
+        <div className="p-5 rounded-xl bg-gradient-to-br from-purple-900/40 to-blue-900/40 border border-purple-500/30 shadow-lg shadow-purple-500/10">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center border border-purple-500/20">
+                <Server size={24} className="text-purple-400" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-white text-base">HyperCycle Node</h4>
+                <p className="text-xs text-purple-300/70">{localANFE.name || 'R2D2'} — Local HyperAIBox</p>
+              </div>
+            </div>
+            <span className="text-[10px] px-2 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/20">
+              Local Node
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
+              <div className="text-[10px] uppercase tracking-wider text-gray-500">ANFE License</div>
+              <div className="text-sm font-medium text-white mt-0.5">#{localANFE.license}</div>
+            </div>
+            <div className="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
+              <div className="text-[10px] uppercase tracking-wider text-gray-500">Level</div>
+              <div className="text-sm font-medium text-cyan-400 mt-0.5">{localANFE.level || 11}</div>
+            </div>
+            <div className="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
+              <div className="text-[10px] uppercase tracking-wider text-gray-500">Compute</div>
+              <div className="text-sm font-medium text-green-400 mt-0.5">{localANFE.computeUnits || 'Standard'}</div>
+            </div>
+            <div className="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
+              <div className="text-[10px] uppercase tracking-wider text-gray-500">Uptime</div>
+              <div className="text-sm font-medium text-yellow-400 mt-0.5">{localANFE.status === 'active' ? 'Online' : 'Loading'}</div>
+            </div>
+          </div>
+
+          {/* AIM Status */}
+          {Array.isArray(localANFE.aims) && localANFE.aims.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {(localANFE.aims as any[]).slice(0, 4).map((aim, i) => (
+                <span key={i} className={`text-[10px] px-2 py-1 rounded-full border ${
+                  aim.status === 'running' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                  aim.status === 'error' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                  'bg-gray-700/30 text-gray-400 border-gray-600/20'
+                }`}>
+                  {aim.name || aim.image_name || 'AIM'}{aim.slot !== undefined ? ` #${aim.slot}` : ''}
+                </span>
+              ))}
+              {(localANFE.aims as any[]).length > 4 && (
+                <span className="text-[10px] px-2 py-1 rounded-full bg-gray-700/30 text-gray-400 border border-gray-600/20">
+                  +{(localANFE.aims as any[]).length - 4}
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('nodes')}
+              className="flex-1 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/20 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1"
+            >
+              <Cpu size={14} />
+              Nodes
+            </button>
+            <button
+              onClick={() => setActiveTab('stargate')}
+              className="flex-1 py-2 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/20 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1"
+            >
+              <Zap size={14} />
+              Stargate
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Autonomous Mode Toggle */}
       <div className="flex items-center justify-between p-4 rounded-xl bg-gray-900/50 border border-gray-800">
         <div className="flex items-center gap-3">
@@ -997,6 +1264,86 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           <div className="text-xs text-gray-500">Nodes</div>
         </div>
       </div>
+
+      {/* Local HyperAIBox ANFE — always visible, no wallet needed */}
+      {localANFE && (
+        <div className="p-4 rounded-xl bg-gradient-to-r from-violet-900/30 to-purple-900/30 border border-violet-500/30">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                <Zap size={20} className="text-violet-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-white">{localANFE.name || `HyperAIBox #${localANFE.tokenId}`}</h3>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full">Local</span>
+                  <span className="text-xs text-violet-400">{localANFE.chainName}</span>
+                  {localANFE.verification?.status === 'online' && (
+                    <span className="text-xs text-green-400">• Online</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <span className="text-xs font-mono text-gray-400">#{localANFE.tokenId}</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="p-2 bg-gray-900/40 rounded-lg text-center">
+              <div className="text-xs text-gray-500">Compute</div>
+              <div className="text-sm text-cyan-400 font-medium">{localANFE.computeUnits}</div>
+            </div>
+            <div className="p-2 bg-gray-900/40 rounded-lg text-center">
+              <div className="text-xs text-gray-500">Uptime</div>
+              <div className="text-sm text-green-400 font-medium">
+                {((localANFE.verification?.uptime ?? 0) * 100).toFixed(1)}%
+              </div>
+            </div>
+            <div className="p-2 bg-gray-900/40 rounded-lg text-center">
+              <div className="text-xs text-gray-500">AIMs</div>
+              <div className="text-sm text-yellow-400 font-medium">
+                {localANFE.attributes?.ai?.aiModules?.length ?? 0}
+              </div>
+            </div>
+          </div>
+
+          {/* Local AIM list */}
+          {localANFE.attributes?.ai?.aiModules && localANFE.attributes.ai.aiModules.length > 0 && (
+            <div className="space-y-1.5 mb-3">
+              {localANFE.attributes.ai.aiModules.slice(0, 4).map((aim: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 p-1.5 bg-gray-900/30 rounded-lg">
+                  <Server size={12} className={
+                    aim.value === 'running' ? 'text-green-400' :
+                    aim.value === 'error' ? 'text-red-400' : 'text-yellow-400'
+                  } />
+                  <span className="text-xs text-white truncate">{aim.trait_type.replace(/^c_/, '')}</span>
+                  <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded ${
+                    aim.value === 'running' ? 'bg-green-500/20 text-green-400' :
+                    aim.value === 'error' ? 'bg-red-500/20 text-red-400' :
+                    'bg-yellow-500/20 text-yellow-400'
+                  }`}>
+                    {aim.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('nodes')}
+              className="flex-1 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded-lg transition-colors"
+            >
+              View Node
+            </button>
+            <button
+              onClick={() => setActiveTab('stargate')}
+              className="flex-1 px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded-lg transition-colors"
+            >
+              Stargate Pool
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stargate Pool - Multi-chain ANFE Integration */}
       <div className="pt-4 border-t border-gray-800">
@@ -2348,8 +2695,29 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           </div>
         </div>
 
+        {/* Unified Multi-Chain Asset Panel — ETH + BASE */}
+        <UnifiedAssetPanel
+          walletAddress={ethAddress}
+          onConnectWallet={async () => {
+            try {
+              if (window.ethereum) {
+                const accounts = await (window.ethereum as any).request({ method: 'eth_requestAccounts' });
+                if (accounts?.[0]) {
+                  setEthAddress(accounts[0]);
+                  showNotification('success', 'Wallet connected: ' + accounts[0].slice(0, 6) + '...');
+                }
+              } else {
+                showNotification('error', 'No MetaMask / EVM wallet detected');
+              }
+            } catch (e: any) {
+              showNotification('error', e.message || 'Wallet connection failed');
+            }
+          }}
+          showNotification={showNotification}
+        />
+
         {/* ── ANFE Card Gallery ── */}
-        {walletAddress && (
+        {(walletAddress || walletANFEs.length > 0) && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold text-white flex items-center gap-2">
@@ -2363,8 +2731,8 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             {walletANFEs.length === 0 && !isLoadingANFEs ? (
               <div className="bg-gray-800/30 rounded-xl p-8 border border-gray-700/50 text-center">
                 <Zap size={40} className="mx-auto mb-3 text-purple-400/40" />
-                <p className="text-gray-400 font-medium">No ANFEs found for this wallet</p>
-                <p className="text-xs text-gray-600 mt-1">Hold ANFE NFTs to see them here</p>
+                <p className="text-gray-400 font-medium">No ANFEs found{walletAddress ? ' for this wallet' : ''}</p>
+                <p className="text-xs text-gray-600 mt-1">{walletAddress ? 'Hold ANFE NFTs to see them here' : 'Connect wallet or wait for local node to appear'}</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -3191,9 +3559,9 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         ) : (
           <>
             {activeTab === 'start' && renderStart()}
-            {activeTab === 'marketplace' && <StargateFleetPanel />}
-            {activeTab === 'aims' && <StargateAIMPanel />}
-            {activeTab === 'leaderboard' && <StargateRankingsView />}
+            {activeTab === 'marketplace' && renderMarketplace()}
+            {activeTab === 'aims' && renderAims()}
+            {activeTab === 'leaderboard' && renderLeaderboard()}
             {activeTab === 'training' && renderTraining()}
             {activeTab === 'packages' && renderPackages()}
             {activeTab === 'skills' && renderSkills()}

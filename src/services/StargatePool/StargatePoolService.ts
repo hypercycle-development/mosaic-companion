@@ -189,17 +189,14 @@ class StargatePoolService {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Priority 1: Electron stored wallet (imported via clipboard/secure input)
+    // Priority 1: MetaMask / window.ethereum (user's active browser wallet)
     try {
-      if (typeof window !== 'undefined' && (window as any).electronAPI?.web3?.getAddress) {
-        const result = await (window as any).electronAPI.web3.getAddress();
-        if (result?.success && result.data?.address) {
-          this.walletAddress = result.data.address;
-          console.log('[StargatePool] Connected to Electron wallet:', this.walletAddress);
-        }
+      if (typeof window !== 'undefined' && (window as any).ethereum?.selectedAddress) {
+        this.walletAddress = (window as any).ethereum.selectedAddress;
+        console.log('[StargatePool] Connected to MetaMask:', this.walletAddress);
       }
     } catch (e) {
-      console.log('[StargatePool] Electron wallet not available');
+      console.log('[StargatePool] MetaMask not available');
     }
 
     // Priority 2: Mosaic injected wallet
@@ -217,15 +214,18 @@ class StargatePoolService {
       }
     }
 
-    // Priority 3: MetaMask / window.ethereum
+    // Priority 3: Electron stored wallet (imported via clipboard/secure input) — fallback only
     if (!this.walletAddress) {
       try {
-        if (typeof window !== 'undefined' && (window as any).ethereum?.selectedAddress) {
-          this.walletAddress = (window as any).ethereum.selectedAddress;
-          console.log('[StargatePool] Connected to MetaMask:', this.walletAddress);
+        if (typeof window !== 'undefined' && (window as any).electronAPI?.web3?.getAddress) {
+          const result = await (window as any).electronAPI.web3.getAddress();
+          if (result?.success && result.data?.address) {
+            this.walletAddress = result.data.address;
+            console.log('[StargatePool] Connected to Electron wallet:', this.walletAddress);
+          }
         }
       } catch (e) {
-        console.log('[StargatePool] MetaMask not available');
+        console.log('[StargatePool] Electron wallet not available');
       }
     }
 
@@ -482,16 +482,28 @@ class StargatePoolService {
    * This would integrate with an indexer in production
    */
   private async getCollectionAddresses(chain: ChainType): Promise<string[]> {
-    // HPEC ecosystem collections
+    // Full HyperCycle ecosystem — imported from canonical contract registry
     const collections: Record<ChainType, string[]> = {
       ethereum: [
-        '0x4BFbA79CF232361a53eDdd17C67C6c77A6F00379'.toLowerCase(), // ERC-1155 Node Factory (Ethereum)
+        '0x4BFbA79CF232361a53eDdd17C67C6c77A6F00379'.toLowerCase(), // ERC-1155 Node Factory
+        '0xea7b7dc089c9a4a916b5a7a37617f59fd54e37e4'.toLowerCase(), // HyPC (ERC-20)
+        '0xd32CB5f76989A27782e44c5297AAba728Ad61669'.toLowerCase(), // HyPCL (ERC-721)
+        '0x21468e63abF3783020750F7b2e57d4B34aFAfba6'.toLowerCase(), // c_HyPC (ERC-721)
       ],
       base: [
-        '0x8c0075D087de9588DdF5c1441dF39828d695bc2f'.toLowerCase(), // ANFE (Base only)
+        '0x8c0075D087de9588DdF5c1441dF39828d695bc2f'.toLowerCase(), // ANFE
+        '0x674DdC6e324142713431a21D3E1BD0140cC700f7'.toLowerCase(), // c_HyPC
+        '0x282b61FcBA0d77a8eE3e0De225AF6BFC11f44659'.toLowerCase(), // HyPCL
+        '0x998d350C59Fd7a4a524fcc987Adc811f25b886F4'.toLowerCase(), // c_AIMF
+        '0x1dcbEEc07614aB8b3AEe828f19a9299ad0772eC1'.toLowerCase(), // c_IAIb
+        '0xf319fea203EB534BE138F86682B42d359424e905'.toLowerCase(), // c_IAIf
+        '0xaaA03DBEa02373Ce123b02B590265De428B17172'.toLowerCase(), // c_IAIr
+        '0xe283deFF3736C12E313C19dF6FBbC896fcf246d3'.toLowerCase(), // c_IAIs
+        '0x4795f8af5c8d2D9bceA287d7448435879A6d46dF'.toLowerCase(), // c_OpnAI
+        '0x1512D4A43596a34593D6913462068F089879E8Cc'.toLowerCase(), // c_QntV
+        '0x2Be0d36d961E15879C865B0fA828710C65f60940'.toLowerCase(), // c_SpcN
       ],
       cardano: [
-        // Cardano Policy IDs (stored as lowercase hex)
         'a222abf06e562a5acc7d5bb3bec3d0b29414082e6fe5650026f92d46', // HPEC DAO PASS
       ],
     };
