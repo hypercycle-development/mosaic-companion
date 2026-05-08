@@ -58,10 +58,6 @@ import StargateTelemetryCard from './stargate/StargateTelemetryCard';
 import StargateAIMPanel from './stargate/StargateAIMPanel';
 import StargateRankingsView from './stargate/StargateRankingsView';
 import StargateFleetPanel from './stargate/StargateFleetPanel';
-import StargateTelemetryCard from './stargate/StargateTelemetryCard';
-import StargateAIMPanel from './stargate/StargateAIMPanel';
-import StargateRankingsView from './stargate/StargateRankingsView';
-import StargateFleetPanel from './stargate/StargateFleetPanel';
 import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus } from 'lucide-react';
 
 interface AdaPortalPanelProps {

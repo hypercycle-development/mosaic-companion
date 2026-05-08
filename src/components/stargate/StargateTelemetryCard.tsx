@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { Cpu, HardDrive, MemoryStick, Bot, Activity, Server, ExternalLink, CheckCircle2, XCircle, Loader } from 'lucide-react';
 import { enhancedLocalNodeBridge, ExtendedBridgeTelemetry } from '../../services/stargate/EnhancedLocalNodeBridge';
-import { BridgeAIM } from '../../services/LocalNodeBridge';
+import { BridgeAIM } from '../../services/stargate/LocalNodeBridge';
 
 const TelemetryCard: React.FC = () => {
   const [telemetry, setTelemetry] = useState<ExtendedBridgeTelemetry | null>(null);

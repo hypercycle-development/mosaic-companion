@@ -7,7 +7,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Bot, ExternalLink, CheckCircle2, XCircle, Loader, AlertTriangle } from 'lucide-react';
-import { localNodeBridge, BridgeAIM } from '../../services/LocalNodeBridge';
+import { localNodeBridge, BridgeAIM } from '../../services/stargate/LocalNodeBridge';
 import { enhancedLocalNodeBridge, ExtendedBridgeTelemetry } from '../../services/stargate/EnhancedLocalNodeBridge';
 
 const StargateAIMPanel: React.FC = () => {
