@@ -235,7 +235,9 @@ const StargateFleetPanel: React.FC = () => {
                   if (!trainForm.skillName || !selectedNode) return;
                   const task = await hermesAgentOrchestrator.bookTraining({
                     skillName: trainForm.skillName,
-                    trainerNodeId: selectedNode.nodeId,
+                    trainerName: selectedNode.name,
+                    agentId: selectedNode.nodeId,
+                    targetNodeId: selectedNode.nodeId,
                   });
                   console.log('[Fleet] Training booked:', task.taskId);
                   setTrainOpen(false);

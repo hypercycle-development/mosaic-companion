@@ -119,10 +119,8 @@ export const KanbanDashboard: React.FC = () => {
   useEffect(() => {
     const loadFleet = async () => {
       setFleetLoading(true);
-      const ok = await fleetDiscoveryService.refresh();
-      if (ok) {
-        setFleetNodes(fleetDiscoveryService.getCachedFleet());
-      }
+      await fleetDiscoveryService.loadFleetRegistry();
+      setFleetNodes(fleetDiscoveryService.getCachedFleet());
       setFleetLoading(false);
     };
     loadFleet();
@@ -249,7 +247,7 @@ export const KanbanDashboard: React.FC = () => {
             });
 
             const result = await hermesAgentOrchestrator.hireAgent({
-              nodeId: node.nodeId,
+              targetNodeId: node.nodeId,
               agentName: 'StargateMission',
               role: 'fleet_worker',
               skills: ['analysis', 'execution'],
@@ -261,10 +259,10 @@ export const KanbanDashboard: React.FC = () => {
               agentName: `Node ${node.name}`,
               agentId: node.nodeId,
               provider: 'hermes',
-              content: result.success
+              content: result.status !== 'failed'
                 ? `Task created on ${node.name}: ${result.taskId || 'ok'}`
-                : `Failed to dispatch to ${node.name}: ${result.error || 'unknown error'}`,
-              status: result.success ? 'success' : 'error',
+                : `Failed to dispatch to ${node.name}: ${result.logs[result.logs.length - 1] || 'unknown error'}`,
+              status: result.status !== 'failed' ? 'success' : 'error',
               timestamp: Date.now(),
             });
           } catch (err: any) {
