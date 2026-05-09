@@ -35,7 +35,7 @@ export interface FleetNodeStatus {
   info?: any;
 }
 
-const DEFAULT_REGISTRY_URL = 'https://gist.githubusercontent.com/mauro-hyperaibox/fleet-registry/main/nodes.json';
+const DEFAULT_REGISTRY_URL = 'YOUR_FLEET_REGISTRY_URL';
 
 class FleetDiscoveryService {
   private registryUrl: string;
@@ -67,6 +67,8 @@ class FleetDiscoveryService {
       const data: FleetRegistry = await res.json();
       this.cache = data.nodes || [];
       this.lastFetch = Date.now();
+      // Persist for SSH dispatch lookups
+      localStorage.setItem('fleet_registry_nodes', JSON.stringify(this.cache));
       return this.cache;
     } catch (err: any) {
       console.error('[FleetDiscovery] Registry fetch failed:', err.message);

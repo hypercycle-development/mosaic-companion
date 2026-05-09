@@ -60,23 +60,38 @@ class HermesAgentOrchestrator {
       logs: [`Created hire task for ${params.agentName} (${params.role})`],
     };
 
-    // Try Electron spawn first
+    // 1. Try Tailscale SSH dispatch to target node
+    const targetNodeId = params.targetNodeId;
+    if (targetNodeId) {
+      const sshOut = await this._dispatchViaSSH(
+        targetNodeId,
+        `hermes kanban create --title "Deploy ${params.agentName} (${params.role})" --description "Skills: ${params.skills.join(', ')} | Tier: ${params.computeTier}"`
+      );
+      if (sshOut !== null) {
+        task.taskId = sshOut.trim() || task.taskId;
+        task.status = 'ready';
+        task.assignedNode = targetNodeId;
+        task.logs.push(`Dispatched via Tailscale SSH to ${targetNodeId}`);
+        return task;
+      }
+    }
+
+    // 2. Fallback: Electron spawn (local machine only)
     const electronTaskId = await this._spawnKanbanTask(
       `Deploy ${params.agentName} (${params.role})`,
-      `Skills: ${params.skills.join(', ')} | Tier: ${params.computeTier} | Node: ${params.targetNodeId || 'any'}`,
-      params.targetNodeId
+      `Skills: ${params.skills.join(', ')} | Tier: ${params.computeTier} | Node: ${targetNodeId || 'any'}`,
+      targetNodeId
     );
-
     if (electronTaskId) {
       task.taskId = electronTaskId;
       task.status = 'ready';
       task.logs.push(`Dispatched via Electron to kanban: ${electronTaskId}`);
-    } else {
-      // Fallback: append to fleet registry task queue
-      await this._appendToFleetRegistry(task);
-      task.logs.push(`Appended to fleet registry task queue`);
+      return task;
     }
 
+    // 3. Last resort: fleet registry queue
+    await this._appendToFleetRegistry(task);
+    task.logs.push(`Appended to fleet registry task queue`);
     return task;
   }
 
@@ -134,6 +149,38 @@ class HermesAgentOrchestrator {
     }
 
     return task;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internal: Tailscale SSH dispatch to fleet node
+  // ---------------------------------------------------------------------------
+  private async _dispatchViaSSH(nodeId: string, command: string): Promise<string | null> {
+    try {
+      // Look up node tailscale IP from fleet registry
+      const registryRaw = localStorage.getItem('fleet_registry_nodes') || '[]';
+      const nodes = JSON.parse(registryRaw);
+      const node = nodes.find((n: any) => n.nodeId === nodeId);
+      if (!node?.apiHost) return null;
+
+      // Use backend proxy to avoid browser CORS restrictions
+      const res = await fetch('/mesh/dispatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: node.apiHost,
+          user: 'hyperai',
+          command,
+          timeout: 30000,
+        }),
+        signal: AbortSignal.timeout(35000),
+      });
+      if (!res.ok) return null;
+      const body = await res.json();
+      return body.exitCode === 0 ? (body.stdout || '') : null;
+    } catch (e: any) {
+      console.error('[Orchestrator] SSH dispatch failed:', e.message);
+      return null;
+    }
   }
 
   // ---------------------------------------------------------------------------
