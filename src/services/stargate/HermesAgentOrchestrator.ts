@@ -63,9 +63,10 @@ class HermesAgentOrchestrator {
     // 1. Try Tailscale SSH dispatch to target node
     const targetNodeId = params.targetNodeId;
     if (targetNodeId) {
+      const profileName = targetNodeId === 'c-3po' ? 'c-3po-worker' : 'r2d2-orchestrator';
       const sshOut = await this._dispatchViaSSH(
         targetNodeId,
-        `hermes kanban create --title "Deploy ${params.agentName} (${params.role})" --description "Skills: ${params.skills.join(', ')} | Tier: ${params.computeTier}"`
+        `~/.local/bin/hermes kanban create "Deploy ${params.agentName} (${params.role})" --body "Skills: ${params.skills.join(', ')} | Tier: ${params.computeTier}" --assignee ${profileName}`
       );
       if (sshOut !== null) {
         task.taskId = sshOut.trim() || task.taskId;
@@ -162,13 +163,16 @@ class HermesAgentOrchestrator {
       const node = nodes.find((n: any) => n.nodeId === nodeId);
       if (!node?.apiHost) return null;
 
+      // Rewrite hermes → absolute path for non-interactive SSH (.bashrc not sourced)
+      const safeCommand = command.replace(/\bhermes\b/g, '~/.local/bin/hermes');
+
       // Electron IPC bridge (production)
       const meshDispatch = (window as any).electronAPI?.mesh?.dispatch;
       if (meshDispatch) {
         const result = await meshDispatch({
           host: node.apiHost,
           user: 'hyperai',
-          command,
+          command: safeCommand,
           timeout: 30000,
         });
         return result.exitCode === 0 ? (result.stdout || '') : null;
@@ -181,7 +185,7 @@ class HermesAgentOrchestrator {
         body: JSON.stringify({
           host: node.apiHost,
           user: 'hyperai',
-          command,
+          command: safeCommand,
           timeout: 30000,
         }),
         signal: AbortSignal.timeout(35000),
@@ -203,12 +207,13 @@ class HermesAgentOrchestrator {
       const spawn = (window as any).electronAPI?.system?.spawn;
       if (!spawn) return null;
 
-      const cmd = `hermes kanban create`;
+      const cmd = `~/.local/bin/hermes`;
       const args = [
-        '--title', title,
-        '--description', description,
+        'kanban', 'create',
+        title,
+        '--body', description,
       ];
-      if (profile) args.push('--profile', profile);
+      if (profile) args.push('--assignee', profile);
 
       const result = await spawn(cmd, args);
       return result?.taskId || null;
@@ -264,3 +269,4 @@ class HermesAgentOrchestrator {
 
 export const hermesAgentOrchestrator = new HermesAgentOrchestrator();
 export default HermesAgentOrchestrator;
+

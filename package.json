@@ -84,7 +84,6 @@
     "@electron-forge/publisher-s3": "^7.11.1",
     "@playwright/test": "^1.58.2",
     "@reforged/maker-appimage": "^5.1.1",
-    "@rollup/rollup-linux-x64-gnu": "^4.60.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.0.10",
     "@types/react": "^19.2.8",

@@ -78,6 +78,8 @@ export const KanbanDashboard: React.FC = () => {
   const [fleetLoading, setFleetLoading] = useState(false);
   const [globalPrompt, setGlobalPrompt] = useState('');
   const [isOrchestrating, setIsOrchestrating] = useState(false);
+  const [nodeKanban, setNodeKanban] = useState<Map<string, {id:string;status:string;assignee:string;title:string}[]>>(new Map());
+  const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const [showAimPanel, setShowAimPanel] = useState(false);
   const [responses, setResponses] = useState<AgentResponse[]>([]);
   const [showChat, setShowChat] = useState(true);
@@ -93,6 +95,41 @@ export const KanbanDashboard: React.FC = () => {
       responseEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [responses]);
+
+  // Fetch kanban tasks from a fleet node via mesh:dispatch (bidirectional visibility)
+  const fetchNodeKanban = useCallback(async (node: FleetNode) => {
+    try {
+      const meshDispatch = (window as any).electronAPI?.mesh?.dispatch;
+      if (!meshDispatch) return;
+      const result = await meshDispatch({
+        host: node.apiHost,
+        user: 'hyperai',
+        command: `python3 -c "import sqlite3,json;db='/home/hyperai/.hermes/kanban/boards/stargate/kanban.db';conn=sqlite3.connect(db);cur=conn.cursor();cur.execute('SELECT id,status,assignee,title FROM tasks');rows=cur.fetchall();print(json.dumps([{'id':r[0],'status':r[1],'assignee':r[2],'title':r[3]} for r in rows]))"`,
+        timeout: 15000,
+      });
+      if (result.exitCode === 0 && result.stdout) {
+        const tasks = JSON.parse(result.stdout);
+        setNodeKanban(prev => {
+          const next = new Map(prev);
+          next.set(node.nodeId, tasks);
+          return next;
+        });
+      }
+    } catch (e: any) {
+      console.error('[Kanban] fetchNodeKanban failed:', e.message);
+    }
+  }, []);
+
+  // Poll kanban tasks from all online fleet nodes every 60s
+  useEffect(() => {
+    const poll = async () => {
+      const online = fleetNodes.filter(n => n.lastSeen > Date.now() - 120000);
+      await Promise.all(online.map(fetchNodeKanban));
+    };
+    poll();
+    const iv = setInterval(poll, 60000);
+    return () => clearInterval(iv);
+  }, [fleetNodes, fetchNodeKanban]);
 
   // Load agents from Mosaic electron API
   useEffect(() => {
@@ -419,42 +456,80 @@ export const KanbanDashboard: React.FC = () => {
                         <Loader2 size={12} className="animate-spin" /> Polling fleet...
                       </div>
                     )}
-                    {fleetNodes.map((node) => (
-                      <div
-                        key={node.nodeId}
-                        onClick={() => toggleNodeSelect(node.nodeId)}
-                        className={`relative p-3 rounded border cursor-pointer transition ${
-                          selectedNodeIds.has(node.nodeId)
-                            ? 'border-orange-500 bg-orange-500/10'
-                            : 'border-gray-700 bg-gray-800 hover:border-gray-600'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium text-sm truncate flex items-center gap-1.5">
-                            <Server size={12} className="text-orange-400" />
-                            {node.name}
-                          </span>
-                          {node.lastSeen > Date.now() - 60000 ? (
-                            <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-800 text-emerald-200">
-                              <Wifi size={10} /> Online
+                    {fleetNodes.map((node) => {
+                      const tasks = nodeKanban.get(node.nodeId) || [];
+                      const readyCount = tasks.filter(t => t.status === 'ready').length;
+                      const runCount   = tasks.filter(t => t.status === 'running' || t.status === 'pending').length;
+                      const doneCount  = tasks.filter(t => t.status === 'done' || t.status === 'completed').length;
+                      const blockCount = tasks.filter(t => t.status === 'blocked').length;
+                      const isExpanded = expandedNodeId === node.nodeId;
+                      return (
+                        <div
+                          key={node.nodeId}
+                          onClick={() => toggleNodeSelect(node.nodeId)}
+                          className={`relative p-3 rounded border cursor-pointer transition ${
+                            selectedNodeIds.has(node.nodeId)
+                              ? 'border-orange-500 bg-orange-500/10'
+                              : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-sm truncate flex items-center gap-1.5">
+                              <Server size={12} className="text-orange-400" />
+                              {node.name}
                             </span>
-                          ) : (
-                            <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
-                              <WifiOff size={10} /> Offline
-                            </span>
+                            {node.lastSeen > Date.now() - 60000 ? (
+                              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-800 text-emerald-200">
+                                <Wifi size={10} /> Online
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
+                                <WifiOff size={10} /> Offline
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                            <MapPin size={10} />
+                            <span>{node.apiHost}:{node.apiPort}</span>
+                            <span className="text-orange-400">{node.computeGrade}</span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {readyCount > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900 text-emerald-300 border border-emerald-700">Ready {readyCount}</span>}
+                            {runCount > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900 text-blue-300 border border-blue-700">Run {runCount}</span>}
+                            {doneCount > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-300 border border-gray-600">Done {doneCount}</span>}
+                            {blockCount > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-900 text-red-300 border border-red-700">Block {blockCount}</span>}
+                            {tasks.length > 0 && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setExpandedNodeId(isExpanded ? null : node.nodeId); }}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-300 hover:bg-gray-600 border border-gray-600"
+                              >
+                                {isExpanded ? '▲ Hide' : '▼ Tasks'}
+                              </button>
+                            )}
+                          </div>
+                          {isExpanded && (
+                            <div className="mt-2 space-y-1 max-h-[140px] overflow-y-auto pr-1">
+                              {tasks.map(t => (
+                                <div key={t.id} className="flex items-center justify-between text-[10px] px-2 py-1 rounded bg-gray-900 border border-gray-800">
+                                  <span className="truncate flex-1 text-gray-300">{t.id}</span>
+                                  <span className={`shrink-0 ml-1 px-1 rounded ${
+                                    t.status === 'ready' ? 'bg-emerald-900 text-emerald-300' :
+                                    t.status === 'done' ? 'bg-gray-700 text-gray-300' :
+                                    t.status === 'blocked' ? 'bg-red-900 text-red-300' :
+                                    'bg-blue-900 text-blue-300'
+                                  }`}>{t.status}</span>
+                                  <span className="shrink-0 ml-1 text-gray-500 truncate max-w-[80px]">{t.assignee}</span>
+                                </div>
+                              ))}
+                            </div>
                           )}
+                          <div className="mt-1 text-[10px] text-gray-500">
+                            License: {node.anfeLicense?.slice(0, 12) || '—'}…
+                            {node.hasHermes && <span className="text-violet-400 ml-1">● Hermes</span>}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                          <MapPin size={10} />
-                          <span>{node.apiHost}:{node.apiPort}</span>
-                          <span className="text-orange-400">{node.computeGrade}</span>
-                        </div>
-                        <div className="mt-1 text-[10px] text-gray-500">
-                          License: {node.anfeLicense?.slice(0, 12) || '—'}…
-                          {node.hasHermes && <span className="text-violet-400 ml-1">● Hermes</span>}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {!fleetLoading && fleetNodes.length === 0 && (
                       <div className="text-xs text-gray-600 text-center py-4">
                         No fleet nodes found.<br/>
@@ -604,3 +679,4 @@ const ProviderIcon: React.FC<{ provider: AIProvider }> = ({ provider }) => {
 };
 
 export default KanbanDashboard;
+
