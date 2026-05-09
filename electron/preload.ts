@@ -354,6 +354,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     deleteEntry: (boxId: string, entryId: string) =>
       ipcRenderer.invoke("vault:delete-entry", boxId, entryId),
   },
+  // Fleet mesh dispatch (Tailscale SSH)
+  mesh: {
+    dispatch: (payload: { host: string; user: string; command: string; timeout?: number }) =>
+      ipcRenderer.invoke("mesh:dispatch", payload),
+  },
 });
 
 contextBridge.exposeInMainWorld("chatAPI", chatAPI);

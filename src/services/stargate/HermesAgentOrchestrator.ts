@@ -162,7 +162,19 @@ class HermesAgentOrchestrator {
       const node = nodes.find((n: any) => n.nodeId === nodeId);
       if (!node?.apiHost) return null;
 
-      // Use backend proxy to avoid browser CORS restrictions
+      // Electron IPC bridge (production)
+      const meshDispatch = (window as any).electronAPI?.mesh?.dispatch;
+      if (meshDispatch) {
+        const result = await meshDispatch({
+          host: node.apiHost,
+          user: 'hyperai',
+          command,
+          timeout: 30000,
+        });
+        return result.exitCode === 0 ? (result.stdout || '') : null;
+      }
+
+      // Browser dev mode fallback (requires Vite proxy to local SSH endpoint)
       const res = await fetch('/mesh/dispatch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

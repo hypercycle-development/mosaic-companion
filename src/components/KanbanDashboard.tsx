@@ -1,12 +1,12 @@
 // =============================================================================
-// Kanban Multi-Agent Dashboard
-// Mosaic-wide orchestration panel for Node Factory agents.
-// ---------------------------------------------------------------------------
+// Kanban Multi-Agent Dashboard  v2 — With HyperCycle Node Fleet Column
+// =============================================================================
 // Columns:
 //   Backlog   → Agents waiting to be configured or deployed
 //   Ready     → Configured agents (local/cloud/HyperCycle)
 //   Running   → Active inference sessions
 //   Aimified  → Hermes agents wrapped as HyperCycle AIM modules
+//   HyperCycle Node → Fleet boxes (R2D2, C-3PO, ...) with Hermes + selection
 // =============================================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -29,10 +29,16 @@ import {
   Bot,
   User,
   Clock,
+  Server,
+  Wifi,
+  WifiOff,
+  MapPin,
 } from 'lucide-react';
 import type { AIAgentConfig, AIProvider } from '../types/ai';
 import { PROVIDER_INFO } from '../types/ai';
 import { HermesAimPanel } from './HermesAimPanel';
+import { fleetDiscoveryService, FleetNode } from '../services/stargate/FleetDiscoveryService';
+import { hermesAgentOrchestrator } from '../services/stargate/HermesAgentOrchestrator';
 
 export interface AgentResponse {
   id: string;
@@ -45,7 +51,7 @@ export interface AgentResponse {
   column?: KanbanColumn;
 }
 
-type KanbanColumn = 'backlog' | 'ready' | 'running' | 'aimified';
+type KanbanColumn = 'backlog' | 'ready' | 'running' | 'aimified' | 'hypercycle';
 
 interface KanbanAgent extends AIAgentConfig {
   column: KanbanColumn;
@@ -57,15 +63,19 @@ interface KanbanAgent extends AIAgentConfig {
 }
 
 const COLUMNS: { id: KanbanColumn; label: string; icon: React.ReactNode; color: string }[] = [
-  { id: 'backlog',  label: 'Backlog',   icon: <Box    size={16}/>, color: 'bg-slate-700' },
-  { id: 'ready',    label: 'Ready',     icon: <CheckCircle2 size={16}/>, color: 'bg-emerald-700' },
-  { id: 'running',  label: 'Running',   icon: <Play   size={16}/>, color: 'bg-blue-700' },
-  { id: 'aimified', label: 'Aimified',  icon: <Anchor size={16}/>, color: 'bg-violet-700' },
+  { id: 'backlog',   label: 'Backlog',     icon: <Box    size={16}/>, color: 'bg-slate-700' },
+  { id: 'ready',     label: 'Ready',       icon: <CheckCircle2 size={16}/>, color: 'bg-emerald-700' },
+  { id: 'running',   label: 'Running',     icon: <Play   size={16}/>, color: 'bg-blue-700' },
+  { id: 'aimified',  label: 'Aimified',    icon: <Anchor size={16}/>, color: 'bg-violet-700' },
+  { id: 'hypercycle',label: 'HyperCycle Node', icon: <Server size={16}/>, color: 'bg-orange-700' },
 ];
 
 export const KanbanDashboard: React.FC = () => {
   const [agents, setAgents] = useState<KanbanAgent[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
+  const [fleetNodes, setFleetNodes] = useState<FleetNode[]>([]);
+  const [fleetLoading, setFleetLoading] = useState(false);
   const [globalPrompt, setGlobalPrompt] = useState('');
   const [isOrchestrating, setIsOrchestrating] = useState(false);
   const [showAimPanel, setShowAimPanel] = useState(false);
@@ -105,6 +115,21 @@ export const KanbanDashboard: React.FC = () => {
     load();
   }, []);
 
+  // Load fleet nodes on mount and every 30s
+  useEffect(() => {
+    const loadFleet = async () => {
+      setFleetLoading(true);
+      const ok = await fleetDiscoveryService.refresh();
+      if (ok) {
+        setFleetNodes(fleetDiscoveryService.getCachedFleet());
+      }
+      setFleetLoading(false);
+    };
+    loadFleet();
+    const iv = setInterval(loadFleet, 30000);
+    return () => clearInterval(iv);
+  }, []);
+
   const moveAgent = useCallback((agentId: string, to: KanbanColumn) => {
     setAgents(prev => prev.map(a =>
       a.id === agentId ? { ...a, column: to, status: to === 'aimified' ? 'aimified' : a.status } : a
@@ -119,24 +144,17 @@ export const KanbanDashboard: React.FC = () => {
     });
   };
 
-  const runSelected = async () => {
-    if (selectedIds.size === 0 || !globalPrompt.trim()) return;
-    setIsOrchestrating(true);
+  const toggleNodeSelect = (nodeId: string) => {
+    setSelectedNodeIds(prev => {
+      const n = new Set(prev);
+      n.has(nodeId) ? n.delete(nodeId) : n.add(nodeId);
+      return n;
+    });
+  };
 
-    const selected = agents.filter(a => selectedIds.has(a.id) && a.column === 'ready');
-    if (selected.length === 0) {
-      addResponse({
-        id: Date.now().toString(),
-        agentName: 'System',
-        agentId: 'system',
-        provider: 'openai',
-        content: 'Select agents in Ready column before running.',
-        status: 'error',
-        timestamp: Date.now(),
-      });
-      setIsOrchestrating(false);
-      return;
-    }
+  const runSelected = async () => {
+    if ((!globalPrompt.trim()) || (selectedIds.size === 0 && selectedNodeIds.size === 0)) return;
+    setIsOrchestrating(true);
 
     // Add user prompt as first message in chat
     addResponse({
@@ -149,68 +167,120 @@ export const KanbanDashboard: React.FC = () => {
       timestamp: Date.now(),
     });
 
-    // Move to Running
-    selected.forEach(a => moveAgent(a.id, 'running'));
+    // ---------- 1. Run selected AI agents (existing logic) ----------
+    const selected = agents.filter(a => selectedIds.has(a.id) && a.column === 'ready');
+    if (selected.length > 0) {
+      selected.forEach(a => moveAgent(a.id, 'running'));
+      await Promise.all(
+        selected.map(async (agent) => {
+          const startTime = Date.now();
+          try {
+            setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: 'running' } : a));
 
-    // Parallel dispatch
-    await Promise.all(
-      selected.map(async (agent) => {
-        const startTime = Date.now();
-        try {
-          setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: 'running' } : a));
+            let reply = '';
+            if (agent.provider === 'hermes') {
+              const { completeWithHermes } = await import('../services/HermesAgentService');
+              const msg = { id: '1', role: 'user' as const, content: globalPrompt, timestamp: Date.now(), agentId: agent.id };
+              reply = await completeWithHermes(agent, [msg]);
+            } else if (agent.provider === 'hypercycle') {
+              const r = await fetch(`${agent.baseUrl}${agent.hypercycleBackend === 'basechain' ? '/api/aim/2/request' : '/api/aim/0/request'}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: agent.model, messages: [{ role: 'user', content: globalPrompt }] }),
+              });
+              const j = await r.json();
+              reply = j.content || JSON.stringify(j);
+            } else {
+              const r = await fetch(`${agent.baseUrl || PROVIDER_INFO[agent.provider].baseUrl}/v1/chat/completions`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(agent.apiKey ? { Authorization: `Bearer ${agent.apiKey}` } : {}),
+                },
+                body: JSON.stringify({ model: agent.model, messages: [{ role: 'user', content: globalPrompt }] }),
+              });
+              const j = await r.json();
+              reply = j.choices?.[0]?.message?.content || JSON.stringify(j);
+            }
 
-          let reply = '';
-          if (agent.provider === 'hermes') {
-            const { completeWithHermes } = await import('../services/HermesAgentService');
-            const msg = { id: '1', role: 'user' as const, content: globalPrompt, timestamp: Date.now(), agentId: agent.id };
-            reply = await completeWithHermes(agent, [msg]);
-          } else if (agent.provider === 'hypercycle') {
-            const r = await fetch(`${agent.baseUrl}${agent.hypercycleBackend === 'basechain' ? '/api/aim/2/request' : '/api/aim/0/request'}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ model: agent.model, messages: [{ role: 'user', content: globalPrompt }] }),
+            addResponse({
+              id: `${agent.id}-${startTime}`,
+              agentName: agent.name,
+              agentId: agent.id,
+              provider: agent.provider,
+              content: reply,
+              status: 'success',
+              timestamp: Date.now(),
+              column: 'ready',
             });
-            const j = await r.json();
-            reply = j.content || JSON.stringify(j);
-          } else {
-            const r = await fetch(`${agent.baseUrl || PROVIDER_INFO[agent.provider].baseUrl}/v1/chat/completions`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...(agent.apiKey ? { Authorization: `Bearer ${agent.apiKey}` } : {}),
-              },
-              body: JSON.stringify({ model: agent.model, messages: [{ role: 'user', content: globalPrompt }] }),
+
+            setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: 'idle', column: 'ready' } : a));
+          } catch (err: any) {
+            setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: 'error', lastError: err.message, column: 'ready' } : a));
+            addResponse({
+              id: `${agent.id}-${startTime}-err`,
+              agentName: agent.name,
+              agentId: agent.id,
+              provider: agent.provider,
+              content: `Failed: ${err.message}`,
+              status: 'error',
+              timestamp: Date.now(),
             });
-            const j = await r.json();
-            reply = j.choices?.[0]?.message?.content || JSON.stringify(j);
           }
+        })
+      );
+    }
 
-          addResponse({
-            id: `${agent.id}-${startTime}`,
-            agentName: agent.name,
-            agentId: agent.id,
-            provider: agent.provider,
-            content: reply,
-            status: 'success',
-            timestamp: Date.now(),
-            column: 'ready',
-          });
+    // ---------- 2. Dispatch to selected fleet nodes (NEW) ----------
+    if (selectedNodeIds.size > 0) {
+      const selectedNodes = fleetNodes.filter(n => selectedNodeIds.has(n.nodeId));
+      await Promise.all(
+        selectedNodes.map(async (node) => {
+          const startTime = Date.now();
+          try {
+            addResponse({
+              id: `node-${node.nodeId}-${startTime}`,
+              agentName: `Node ${node.name}`,
+              agentId: node.nodeId,
+              provider: 'hermes',
+              content: `Dispatching mission to ${node.name} via Tailscale...`,
+              status: 'success',
+              timestamp: Date.now(),
+            });
 
-          setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: 'idle', column: 'ready' } : a));
-        } catch (err: any) {
-          setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: 'error', lastError: err.message, column: 'ready' } : a));
-          addResponse({
-            id: `${agent.id}-${startTime}-err`,
-            agentName: agent.name,
-            agentId: agent.id,
-            provider: agent.provider,
-            content: `Failed: ${err.message}`,
-            status: 'error',
-            timestamp: Date.now(),
-          });
-        }
-      })
-    );
+            const result = await hermesAgentOrchestrator.hireAgent({
+              nodeId: node.nodeId,
+              agentName: 'StargateMission',
+              role: 'fleet_worker',
+              skills: ['analysis', 'execution'],
+              computeTier: node.computeGrade === 'high' ? 'high_performance' : 'standard',
+            });
+
+            addResponse({
+              id: `node-${node.nodeId}-${startTime}-ok`,
+              agentName: `Node ${node.name}`,
+              agentId: node.nodeId,
+              provider: 'hermes',
+              content: result.success
+                ? `Task created on ${node.name}: ${result.taskId || 'ok'}`
+                : `Failed to dispatch to ${node.name}: ${result.error || 'unknown error'}`,
+              status: result.success ? 'success' : 'error',
+              timestamp: Date.now(),
+            });
+          } catch (err: any) {
+            addResponse({
+              id: `node-${node.nodeId}-${startTime}-err`,
+              agentName: `Node ${node.name}`,
+              agentId: node.nodeId,
+              provider: 'hermes',
+              content: `SSH dispatch failed: ${err.message}`,
+              status: 'error',
+              timestamp: Date.now(),
+            });
+          }
+        })
+      );
+    }
 
     setIsOrchestrating(false);
   };
@@ -228,6 +298,8 @@ export const KanbanDashboard: React.FC = () => {
       timestamp: Date.now(),
     });
   };
+
+  const totalSelected = selectedIds.size + selectedNodeIds.size;
 
   // ---------------------------------------------------------------------------
   // Render
@@ -249,7 +321,7 @@ export const KanbanDashboard: React.FC = () => {
           </button>
           <button
             onClick={isOrchestrating ? stopAll : runSelected}
-            disabled={selectedIds.size === 0}
+            disabled={totalSelected === 0}
             className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm transition ${
               isOrchestrating
                 ? 'bg-red-700 hover:bg-red-600'
@@ -267,29 +339,32 @@ export const KanbanDashboard: React.FC = () => {
           <input
             value={globalPrompt}
             onChange={(e) => setGlobalPrompt(e.target.value)}
-            placeholder="Enter a mission prompt for all selected agents..."
+            placeholder="Enter a mission prompt for all selected agents / fleet nodes..."
             className="flex-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
             onKeyDown={(e) => e.key === 'Enter' && runSelected()}
           />
           <span className="text-xs text-gray-500 self-center">
-            {selectedIds.size} selected
+            {totalSelected} selected
           </span>
         </div>
       </div>
 
       {/* Kanban Board */}
       <div className="flex-1 overflow-x-auto">
-        <div className="flex gap-4 p-4 min-w-[900px]">
+        <div className="flex gap-4 p-4 min-w-[1100px]">
           {COLUMNS.map((col) => (
             <div key={col.id} className="flex-1 min-w-[220px]">
               <div className={`flex items-center gap-2 px-3 py-2 rounded-t ${col.color} text-white text-sm font-medium`}>
                 {col.icon} {col.label}
                 <span className="ml-auto bg-black/30 px-1.5 rounded-full text-xs">
-                  {agents.filter(a => a.column === col.id).length}
+                  {col.id === 'hypercycle'
+                    ? fleetNodes.length
+                    : agents.filter(a => a.column === col.id).length}
                 </span>
               </div>
               <div className="bg-gray-900/60 border border-gray-800 border-t-0 rounded-b p-2 space-y-2 min-h-[200px]">
-                {agents
+                {/* Agent cards (existing) */}
+                {col.id !== 'hypercycle' && agents
                   .filter((a) => a.column === col.id)
                   .map((agent) => (
                     <div
@@ -337,15 +412,67 @@ export const KanbanDashboard: React.FC = () => {
                       </div>
                     </div>
                   ))}
+
+                {/* Fleet node cards (NEW) */}
+                {col.id === 'hypercycle' && (
+                  <>
+                    {fleetLoading && (
+                      <div className="text-xs text-gray-500 text-center py-4 flex items-center justify-center gap-1">
+                        <Loader2 size={12} className="animate-spin" /> Polling fleet...
+                      </div>
+                    )}
+                    {fleetNodes.map((node) => (
+                      <div
+                        key={node.nodeId}
+                        onClick={() => toggleNodeSelect(node.nodeId)}
+                        className={`relative p-3 rounded border cursor-pointer transition ${
+                          selectedNodeIds.has(node.nodeId)
+                            ? 'border-orange-500 bg-orange-500/10'
+                            : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-sm truncate flex items-center gap-1.5">
+                            <Server size={12} className="text-orange-400" />
+                            {node.name}
+                          </span>
+                          {node.lastSeen > Date.now() - 60000 ? (
+                            <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-800 text-emerald-200">
+                              <Wifi size={10} /> Online
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
+                              <WifiOff size={10} /> Offline
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                          <MapPin size={10} />
+                          <span>{node.apiHost}:{node.apiPort}</span>
+                          <span className="text-orange-400">{node.computeGrade}</span>
+                        </div>
+                        <div className="mt-1 text-[10px] text-gray-500">
+                          License: {node.anfeLicense?.slice(0, 12) || '—'}…
+                          {node.hasHermes && <span className="text-violet-400 ml-1">● Hermes</span>}
+                        </div>
+                      </div>
+                    ))}
+                    {!fleetLoading && fleetNodes.length === 0 && (
+                      <div className="text-xs text-gray-600 text-center py-4">
+                        No fleet nodes found.<br/>
+                        Check Tailscale + registry Gist.
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* AI Agent Chat Feed — Replaces ephemeral toast popups */}
+      {/* AI Agent Chat Feed */}
       <div className={`border-t border-gray-800 bg-[#0b0e14] transition-all duration-300 ${showChat ? 'h-[240px]' : 'h-[36px]'}`}>
-        {/* Chat Header / Collapse Bar */}
         <div
           className="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-gray-800/50"
           onClick={() => setShowChat(!showChat)}
@@ -374,14 +501,13 @@ export const KanbanDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Messages */}
         {showChat && (
           <div className="h-[calc(100%-36px)] overflow-y-auto px-4 py-2 space-y-2">
             {responses.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-gray-600">
                 <Bot size={24} className="mb-2 opacity-50" />
                 <p className="text-xs">Run selected agents to see their responses here</p>
-                <p className="text-[10px] mt-1">No more lost pop-ups — every answer is tracked</p>
+                <p className="text-[10px] mt-1">Select agents or fleet nodes + enter prompt → Run Selected</p>
               </div>
             ) : (
               <>
@@ -396,7 +522,6 @@ export const KanbanDashboard: React.FC = () => {
                         : 'bg-gray-800/60 border border-gray-700'
                     }`}
                   >
-                    {/* Avatar / Icon */}
                     <div className="mt-0.5 shrink-0">
                       {res.agentId === 'user' ? (
                         <User size={14} className="text-cyan-400" />
@@ -407,7 +532,6 @@ export const KanbanDashboard: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className={`font-medium ${

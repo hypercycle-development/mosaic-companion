@@ -1139,3 +1139,31 @@ ipcMain.handle("media:set-auto-display", (_event, enabled: boolean) => {
   const result = setAutoDisplayMedia(enabled);
   return { ...result, enabled: getAutoDisplayMedia() };
 });
+
+// =============================================================================
+// Fleet Mesh Dispatch — Tailscale SSH cross-node command execution
+// =============================================================================
+
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
+
+ipcMain.handle(
+  "mesh:dispatch",
+  async (_event: IpcMainInvokeEvent, payload: { host: string; user: string; command: string; timeout?: number }) => {
+    try {
+      const { host, user, command, timeout = 30000 } = payload;
+      const sshCmd = `ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${user}@${host} '${command.replace(/'/g, "'\\''")}'`;
+      const { stdout, stderr } = await execAsync(sshCmd, { timeout });
+      return { success: true, exitCode: 0, stdout: stdout.trim(), stderr: stderr.trim() };
+    } catch (error: any) {
+      return {
+        success: false,
+        exitCode: error.code || 1,
+        stdout: error.stdout || '',
+        stderr: error.stderr || error.message,
+      };
+    }
+  },
+);
