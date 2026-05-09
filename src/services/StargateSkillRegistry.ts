@@ -602,3 +602,7 @@ class StargateSkillRegistry {
 }
 
 export const stargateRegistry = new StargateSkillRegistry();
+
+export function getInstalledSkills(): HermesSkill[] {
+  return stargateRegistry.getInstalledSkills();
+}
