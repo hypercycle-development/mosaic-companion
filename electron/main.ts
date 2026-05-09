@@ -1152,12 +1152,16 @@ const execAsync = promisify(exec);
 ipcMain.handle(
   "mesh:dispatch",
   async (_event: IpcMainInvokeEvent, payload: { host: string; user: string; command: string; timeout?: number }) => {
+    const start = Date.now();
     try {
       const { host, user, command, timeout = 30000 } = payload;
+      console.log(`[MAIN mesh:dispatch] start — host=${host}, user=${user}, timeout=${timeout}ms, cmdChars=${command.length}`);
       const sshCmd = `ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${user}@${host} '${command.replace(/'/g, "'\\''")}'`;
       const { stdout, stderr } = await execAsync(sshCmd, { timeout });
+      console.log(`[MAIN mesh:dispatch] success — host=${host}, stdoutChars=${stdout.trim().length}, stderrChars=${stderr.trim().length}, latency=${Date.now()-start}ms`);
       return { success: true, exitCode: 0, stdout: stdout.trim(), stderr: stderr.trim() };
     } catch (error: any) {
+      console.error(`[MAIN mesh:dispatch] FAILED — host=${payload.host}, code=${error.code || '?'}, latency=${Date.now()-start}ms, stderr=${(error.stderr || error.message).slice(0, 200)}`);
       return {
         success: false,
         exitCode: error.code || 1,

@@ -43,6 +43,7 @@
     "arm64"
   ],
   "dependencies": {
+    "@esbuild/linux-arm64": "^0.28.0",
     "@extism/extism": "^2.0.0-rc13",
     "@modelcontextprotocol/sdk": "^1.27.0",
     "@monaco-editor/react": "^4.7.0",
@@ -94,7 +95,7 @@
     "@vitejs/plugin-react": "^5.1.2",
     "dotenv": "^17.2.3",
     "electron": "^39.3.0",
-    "esbuild": "^0.27.2",
+    "esbuild": "^0.27.7",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
   }

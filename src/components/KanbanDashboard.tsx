@@ -289,7 +289,7 @@ export const KanbanDashboard: React.FC = () => {
       );
     }
 
-    // ---------- 2. Dispatch to selected fleet nodes (NEW) ----------
+    // ---------- 2. Dispatch to selected fleet nodes — now with AI inference ----------
     if (selectedNodeIds.size > 0) {
       const selectedNodes = fleetNodes.filter(n => selectedNodeIds.has(n.nodeId));
       await Promise.all(
@@ -301,28 +301,26 @@ export const KanbanDashboard: React.FC = () => {
               agentName: `Node ${node.name}`,
               agentId: node.nodeId,
               provider: 'hermes',
-              content: `Dispatching mission to ${node.name} via Tailscale...`,
+              content: `Dispatching mission to ${node.name} (${node.apiHost}) via Tailscale mesh...`,
               status: 'success',
               timestamp: Date.now(),
             });
 
-            const result = await hermesAgentOrchestrator.hireAgent({
-              targetNodeId: node.nodeId,
-              agentName: 'StargateMission',
-              role: 'fleet_worker',
-              skills: ['analysis', 'execution'],
-              computeTier: node.computeGrade === 'high' ? 'high_performance' : 'standard',
-            });
+            const hermesResult = await hermesAgentOrchestrator.dispatchPrompt(
+              node.nodeId,
+              globalPrompt,
+              'default',
+            );
 
             addResponse({
               id: `node-${node.nodeId}-${startTime}-ok`,
               agentName: `Node ${node.name}`,
               agentId: node.nodeId,
               provider: 'hermes',
-              content: result.status !== 'failed'
-                ? `Task created on ${node.name}: ${result.taskId || 'ok'}`
-                : `Failed to dispatch to ${node.name}: ${result.logs[result.logs.length - 1] || 'unknown error'}`,
-              status: result.status !== 'failed' ? 'success' : 'error',
+              content: `**${node.name}** responded via fleet mesh (${Date.now() - startTime}ms):
+
+${hermesResult.response}`,
+              status: 'success',
               timestamp: Date.now(),
             });
           } catch (err: any) {
@@ -331,7 +329,7 @@ export const KanbanDashboard: React.FC = () => {
               agentName: `Node ${node.name}`,
               agentId: node.nodeId,
               provider: 'hermes',
-              content: `SSH dispatch failed: ${err.message}`,
+              content: `Fleet dispatch failed: ${err.message}`,
               status: 'error',
               timestamp: Date.now(),
             });

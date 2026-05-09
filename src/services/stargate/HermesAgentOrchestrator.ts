@@ -248,6 +248,46 @@ class HermesAgentOrchestrator {
   }
 
   // ---------------------------------------------------------------------------
+  // dispatchPrompt: send a prompt to a fleet node's Ollama and return the AI text
+  // ---------------------------------------------------------------------------
+  async dispatchPrompt(
+    nodeId: string,
+    prompt: string,
+    model: string = 'llama3',
+  ): Promise<{ response: string; taskId: string }> {
+    const start = Date.now();
+    const taskId = `dispatch-${start}`;
+    console.log('[Orchestrator] dispatchPrompt start', { nodeId, model, taskId });
+
+    // Encode JSON payload to base64 so the SSH command is 100% shell-safe
+    const jsonStr = JSON.stringify({ model, prompt, stream: false });
+    const b64 = Buffer.from(jsonStr).toString('base64');
+    console.log('[Orchestrator] dispatchPrompt JSON chars:', jsonStr.length, '| base64 chars:', b64.length);
+
+    const tmpPath = `/tmp/mosaic-dispatch-${start}.json`;
+    const command = `echo '${b64}' | base64 -d > ${tmpPath} && curl -sS --max-time 30 http://localhost:11434/api/generate -d @${tmpPath} --header 'Content-Type: application/json' && rm -f ${tmpPath}`;
+
+    const stdout = await this._dispatchViaSSH(nodeId, command);
+    console.log('[Orchestrator] dispatchPrompt raw stdout length:', stdout?.length ?? null, 'for', nodeId);
+
+    if (stdout === null) {
+      throw new Error(`SSH dispatch to ${nodeId} returned null (non-zero exit or timeout)`);
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(stdout);
+    } catch (e: any) {
+      console.error('[Orchestrator] dispatchPrompt JSON parse failed:', e.message, 'raw:', stdout.slice(0, 200));
+      throw new Error(`Invalid JSON from remote Ollama: ${stdout.slice(0, 120)}`);
+    }
+
+    const responseText = parsed.response ?? parsed.choices?.[0]?.message?.content ?? '';
+    console.log('[Orchestrator] dispatchPrompt success — chars:', responseText.length, 'latency:', Date.now() - start);
+    return { response: responseText, taskId };
+  }
+
+  // ---------------------------------------------------------------------------
   // Internal: Gateway message (Telegram/Discord bot)
   // ---------------------------------------------------------------------------
   private async _sendViaGateway(nodeId: string, message: string): Promise<boolean> {

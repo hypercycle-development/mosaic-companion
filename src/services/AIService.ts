@@ -288,6 +288,46 @@ export class AIService {
     }
   }
 
+  // Send message to Hermes (OpenAI-compatible endpoint)
+  static async sendToHermes(
+    config: AIAgentConfig,
+    messages: ChatMessage[],
+    callbacks?: StreamCallbacks
+  ): Promise<string> {
+    console.log('[AIService.sendToHermes] start — model:', config.model, 'baseUrl:', config.baseUrl || 'http://localhost:3000');
+    const url = `${config.baseUrl || "http://localhost:3000"}/v1/chat/completions`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: config.model || "default",
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        stream: !!callbacks,
+        max_tokens: config.maxTokens || 4096,
+        temperature: config.temperature || 0.7,
+      }),
+      signal: AbortSignal.timeout(120000),
+    });
+
+    if (!response.ok) {
+      const txt = await response.text();
+      console.error('[AIService.sendToHermes] HTTP error:', response.status, txt.slice(0, 200));
+      throw new Error(`Hermes error ${response.status}: ${txt}`);
+    }
+
+    if (callbacks && response.body) {
+      const result = await this.handleStream(response.body, callbacks, "openai");
+      console.log('[AIService.sendToHermes] streaming complete — length:', result.length);
+      return result;
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || "";
+    console.log('[AIService.sendToHermes] non-streaming response — length:', content.length);
+    return content;
+  }
+
   /** Hypercycle: GET /nonce → POST /api/aim/{index}/request → POST /stream with `{ token }`. */
   static async sendToHypercycle(
     config: AIAgentConfig,
@@ -395,6 +435,8 @@ export class AIService {
         return this.sendToOpenAI(config, messages, callbacks);
       case "hypercycle":
         return this.sendToHypercycle(config, messages, callbacks);
+      case "hermes":
+        return this.sendToHermes(config, messages, callbacks);
       default:
         throw new Error(`Unknown provider: ${config.provider}`);
     }
