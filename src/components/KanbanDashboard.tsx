@@ -37,7 +37,7 @@ import {
 import type { AIAgentConfig, AIProvider } from '../types/ai';
 import { PROVIDER_INFO } from '../types/ai';
 import { HermesAimPanel } from './HermesAimPanel';
-import { fleetDiscoveryService, FleetNode } from '../services/stargate/FleetDiscoveryService';
+import { fleetDiscoveryService, FleetNode, FleetNodeStatus, EnrichedFleetNode } from '../services/stargate/FleetDiscoveryService';
 import { hermesAgentOrchestrator } from '../services/stargate/HermesAgentOrchestrator';
 
 export interface AgentResponse {
@@ -74,7 +74,7 @@ export const KanbanDashboard: React.FC = () => {
   const [agents, setAgents] = useState<KanbanAgent[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
-  const [fleetNodes, setFleetNodes] = useState<FleetNode[]>([]);
+  const [fleetNodes, setFleetNodes] = useState<EnrichedFleetNode[]>([]);
   const [fleetLoading, setFleetLoading] = useState(false);
   const [globalPrompt, setGlobalPrompt] = useState('');
   const [isOrchestrating, setIsOrchestrating] = useState(false);
@@ -119,8 +119,9 @@ export const KanbanDashboard: React.FC = () => {
   useEffect(() => {
     const loadFleet = async () => {
       setFleetLoading(true);
-      await fleetDiscoveryService.loadFleetRegistry();
-      setFleetNodes(fleetDiscoveryService.getCachedFleet());
+      const registry = await fleetDiscoveryService.loadFleetRegistry();
+      const enriched = await fleetDiscoveryService.enrichWithHyperInsight(registry);
+      setFleetNodes(enriched);
       setFleetLoading(false);
     };
     loadFleet();
@@ -449,6 +450,28 @@ export const KanbanDashboard: React.FC = () => {
                           <span>{node.apiHost}:{node.apiPort}</span>
                           <span className="text-orange-400">{node.computeGrade}</span>
                         </div>
+                        {node.hyperinsight && (
+                          <div className="mt-1.5 space-y-0.5">
+                            <div className="flex items-center gap-2 text-[10px] text-gray-300">
+                              <span className="text-gray-500">ANFE:</span>
+                              <span>{node.hyperinsight.name || 'Unnamed'}</span>
+                              {node.hyperinsight.region && (
+                                <span className="text-gray-500">· {node.hyperinsight.region}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px]">
+                              <span className="text-emerald-400">
+                                Uptime {(node.hyperinsight.uptimePercent * 100).toFixed(1)}%
+                              </span>
+                              {node.hyperinsight.gpuName && (
+                                <span className="text-violet-400">· {node.hyperinsight.gpuName}</span>
+                              )}
+                              <span className="text-gray-500">
+                                · {node.hyperinsight.aimsCount} AIMs
+                              </span>
+                            </div>
+                          </div>
+                        )}
                         <div className="mt-1 text-[10px] text-gray-500">
                           License: {node.anfeLicense?.slice(0, 12) || '—'}…
                           {node.hasHermes && <span className="text-violet-400 ml-1">● Hermes</span>}

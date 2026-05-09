@@ -158,11 +158,10 @@ class UnifiedLeaderboardService {
       const api = (window as any).electronAPI?.hyperinsight;
       if (!api) return [];
       const [nodesRes, aimsRes] = await Promise.all([
-        api.getNodes({ gpuOnly: 'true', onlineOnly: 'true', sortBy: 'computeTflops', pageSize: '50' }).catch(() => null),
+        api.getNodes({ pageSize: '500' }).catch(() => null),
         api.getLeaderboard().catch(() => null),
       ]);
       const entries: UnifiedRankEntry[] = [];
-      // Nodes
       const nodesData = nodesRes?.data || [];
       for (const n of nodesData) {
         entries.push({
@@ -171,8 +170,8 @@ class UnifiedLeaderboardService {
           type: 'node',
           chain: 'base',
           rank: 0,
-          score: (n.compositeScore || n.composite_score || 0),
-          uptime: n.measuredUptime7d || n.uptimePercent || 0,
+          score: (n.uptimePercent || 0) * 100,
+          uptime: n.uptimePercent || 0,
           reliability: n.isAlive !== false ? 0.99 : 0,
           computeTFLOPS: n.computeTflops || n.computeTFLOPS || 0,
           lastUpdated: Date.now(),
