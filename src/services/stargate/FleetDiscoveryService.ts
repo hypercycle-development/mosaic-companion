@@ -35,6 +35,24 @@ export interface FleetNodeStatus {
   info?: any;
 }
 
+export interface EnrichedFleetNode extends FleetNode {
+  hyperinsight?: {
+    licenseKey: string;
+    name: string | null;
+    region: string | null;
+    isAlive: boolean;
+    uptimePercent: number;
+    gpuName: string | null;
+    gpuCount: number;
+    cpuCount: number;
+    ramBytes: number;
+    aimsCount: number;
+    platform: string;
+    lastContactAt: string | null;
+    compatibleAims?: number;
+  };
+}
+
 const DEFAULT_REGISTRY_URL = 'YOUR_FLEET_REGISTRY_URL';
 
 class FleetDiscoveryService {
@@ -98,6 +116,46 @@ class FleetDiscoveryService {
       })
     );
     return results;
+  }
+
+  async enrichWithHyperInsight(nodes: FleetNode[]): Promise<EnrichedFleetNode[]> {
+    try {
+      const api = (window as any).electronAPI?.hyperinsight;
+      if (!api) return nodes as EnrichedFleetNode[];
+
+      const hiNodesRes = await api.getNodes({ pageSize: '500' }).catch(() => null);
+      const hiNodesData = hiNodesRes?.data || [];
+      const hiMap = new Map<string, any>();
+      for (const n of hiNodesData) {
+        const key = String(n.licenseKey || n.license || '');
+        if (key) hiMap.set(key, n);
+      }
+
+      return nodes.map((node) => {
+        const hi = hiMap.get(String(node.anfeLicense));
+        if (!hi) return node as EnrichedFleetNode;
+        return {
+          ...node,
+          hyperinsight: {
+            licenseKey: String(hi.licenseKey || hi.license || ''),
+            name: hi.name || null,
+            region: hi.region || null,
+            isAlive: hi.isAlive !== false,
+            uptimePercent: hi.uptimePercent || 0,
+            gpuName: hi.gpuName || null,
+            gpuCount: hi.gpuCount || 0,
+            cpuCount: hi.cpuCount || 0,
+            ramBytes: hi.ramBytes || 0,
+            aimsCount: hi.aimsCount || 0,
+            platform: hi.platform || '',
+            lastContactAt: hi.lastContactAt || null,
+          },
+        };
+      });
+    } catch (e: any) {
+      console.error('[FleetDiscovery] HyperInsight enrichment failed:', e.message);
+      return nodes as EnrichedFleetNode[];
+    }
   }
 
   async discoverLocalPeers(): Promise<FleetNode[]> {

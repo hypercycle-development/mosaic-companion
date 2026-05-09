@@ -37,7 +37,7 @@ import {
 import type { AIAgentConfig, AIProvider } from '../types/ai';
 import { PROVIDER_INFO } from '../types/ai';
 import { HermesAimPanel } from './HermesAimPanel';
-import { fleetDiscoveryService, FleetNode } from '../services/stargate/FleetDiscoveryService';
+import { fleetDiscoveryService, FleetNode, FleetNodeStatus, EnrichedFleetNode } from '../services/stargate/FleetDiscoveryService';
 import { hermesAgentOrchestrator } from '../services/stargate/HermesAgentOrchestrator';
 
 export interface AgentResponse {
@@ -74,7 +74,8 @@ export const KanbanDashboard: React.FC = () => {
   const [agents, setAgents] = useState<KanbanAgent[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
-  const [fleetNodes, setFleetNodes] = useState<FleetNode[]>([]);
+  const [fleetNodes, setFleetNodes] = useState<EnrichedFleetNode[]>([]);
+  const [fleetStatus, setFleetStatus] = useState<Map<string, FleetNodeStatus>>(new Map());
   const [fleetLoading, setFleetLoading] = useState(false);
   const [globalPrompt, setGlobalPrompt] = useState('');
   const [isOrchestrating, setIsOrchestrating] = useState(false);
@@ -156,8 +157,30 @@ export const KanbanDashboard: React.FC = () => {
   useEffect(() => {
     const loadFleet = async () => {
       setFleetLoading(true);
-      await fleetDiscoveryService.loadFleetRegistry();
-      setFleetNodes(fleetDiscoveryService.getCachedFleet());
+      const registry = await fleetDiscoveryService.loadFleetRegistry();
+      const enriched = await fleetDiscoveryService.enrichWithHyperInsight(registry);
+      // Poll live /api/info from each node for direct NM data (aims, hardware, name)
+      const polled = await fleetDiscoveryService.pollFleetStatus(enriched);
+      const merged = enriched.map((node) => {
+        const status = polled.find((p) => p.node.nodeId === node.nodeId);
+        if (status?.info) {
+          return {
+            ...node,
+            hyperinsight: {
+              ...(node.hyperinsight || {}),
+              name: status.info.name || node.hyperinsight?.name || null,
+              aimsCount: (status.info.aim?.aims?.length || node.hyperinsight?.aimsCount || 0),
+              cpuCount: (status.info.hardware?.cpu_count || node.hyperinsight?.cpuCount || 0),
+              ramBytes: (status.info.hardware?.memory || node.hyperinsight?.ramBytes || 0),
+            } as any,
+          };
+        }
+        return node;
+      });
+      const statusMap = new Map<string, FleetNodeStatus>();
+      for (const s of polled) statusMap.set(s.node.nodeId, s);
+      setFleetStatus(statusMap);
+      setFleetNodes(merged);
       setFleetLoading(false);
     };
     loadFleet();
@@ -478,21 +501,47 @@ export const KanbanDashboard: React.FC = () => {
                               <Server size={12} className="text-orange-400" />
                               {node.name}
                             </span>
-                            {node.lastSeen > Date.now() - 60000 ? (
-                              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-800 text-emerald-200">
-                                <Wifi size={10} /> Online
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
-                                <WifiOff size={10} /> Offline
-                              </span>
-                            )}
+                            {(() => {
+                              const status = fleetStatus.get(node.nodeId);
+                              const isOnline = status?.online || false;
+                              return isOnline ? (
+                                <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-800 text-emerald-200">
+                                  <Wifi size={10} /> Online
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
+                                  <WifiOff size={10} /> Offline
+                                </span>
+                              );
+                            })()}
                           </div>
-                          <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                            <MapPin size={10} />
-                            <span>{node.apiHost}:{node.apiPort}</span>
-                            <span className="text-orange-400">{node.computeGrade}</span>
+                        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                          <MapPin size={10} />
+                          <span>{node.apiHost}:{node.apiPort}</span>
+                          <span className="text-orange-400">{node.computeGrade}</span>
+                        </div>
+                        {node.hyperinsight && (
+                          <div className="mt-1.5 space-y-0.5">
+                            <div className="flex items-center gap-2 text-[10px] text-gray-300">
+                              <span className="text-gray-500">ANFE:</span>
+                              <span>{node.hyperinsight.name || 'Unnamed'}</span>
+                              {node.hyperinsight.region && (
+                                <span className="text-gray-500">· {node.hyperinsight.region}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px]">
+                              <span className="text-emerald-400">
+                                Uptime {(node.hyperinsight.uptimePercent * 100).toFixed(1)}%
+                              </span>
+                              {node.hyperinsight.gpuName && (
+                                <span className="text-violet-400">· {node.hyperinsight.gpuName}</span>
+                              )}
+                              <span className="text-gray-500">
+                                · {node.hyperinsight.aimsCount} AIMs
+                              </span>
+                            </div>
                           </div>
+                        )}
                           <div className="mt-2 flex flex-wrap gap-1">
                             {readyCount > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900 text-emerald-300 border border-emerald-700">Ready {readyCount}</span>}
                             {runCount > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900 text-blue-300 border border-blue-700">Run {runCount}</span>}
@@ -679,4 +728,5 @@ const ProviderIcon: React.FC<{ provider: AIProvider }> = ({ provider }) => {
 };
 
 export default KanbanDashboard;
+
 

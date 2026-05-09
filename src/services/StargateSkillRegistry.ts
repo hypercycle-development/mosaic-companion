@@ -579,10 +579,6 @@ class StargateSkillRegistry {
     };
   }
 
-  getInstalledSkills(): HermesSkill[] {
-    return this.skills.filter(s => s.installed);
-  }
-
   getAgentStats(): { total: number; idle: number; busy: number; topRated: AgentProfile[] } {
     return {
       total: this.agents.length,
@@ -604,5 +600,9 @@ class StargateSkillRegistry {
 export const stargateRegistry = new StargateSkillRegistry();
 
 export function getInstalledSkills(): HermesSkill[] {
-  return stargateRegistry.getInstalledSkills();
+  return stargateRegistry.getSkills().filter(s => s.installed);
+}
+
+export function initializeRegistry(): Promise<void> {
+  return stargateRegistry.initialize();
 }

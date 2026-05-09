@@ -65,7 +65,8 @@ function saveKeyData(clientId, apiKey, tier) {
 async function apiRequest(endpoint, method = 'GET', body = null, apiKey = null) {
   const headers = {
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
+    'Accept': 'application/json',
+    'User-Agent': 'MosaicCompanion/0.1.7 (Electron; Linux arm64)'
   };
 
   if (apiKey) {
