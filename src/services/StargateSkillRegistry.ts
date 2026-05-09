@@ -579,6 +579,10 @@ class StargateSkillRegistry {
     };
   }
 
+  getInstalledSkills(): HermesSkill[] {
+    return this.skills.filter(s => s.installed);
+  }
+
   getAgentStats(): { total: number; idle: number; busy: number; topRated: AgentProfile[] } {
     return {
       total: this.agents.length,
