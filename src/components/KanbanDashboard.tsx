@@ -75,6 +75,7 @@ export const KanbanDashboard: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
   const [fleetNodes, setFleetNodes] = useState<EnrichedFleetNode[]>([]);
+  const [fleetStatus, setFleetStatus] = useState<Map<string, FleetNodeStatus>>(new Map());
   const [fleetLoading, setFleetLoading] = useState(false);
   const [globalPrompt, setGlobalPrompt] = useState('');
   const [isOrchestrating, setIsOrchestrating] = useState(false);
@@ -121,7 +122,28 @@ export const KanbanDashboard: React.FC = () => {
       setFleetLoading(true);
       const registry = await fleetDiscoveryService.loadFleetRegistry();
       const enriched = await fleetDiscoveryService.enrichWithHyperInsight(registry);
-      setFleetNodes(enriched);
+      // Poll live /api/info from each node for direct NM data (aims, hardware, name)
+      const polled = await fleetDiscoveryService.pollFleetStatus(enriched);
+      const merged = enriched.map((node) => {
+        const status = polled.find((p) => p.node.nodeId === node.nodeId);
+        if (status?.info) {
+          return {
+            ...node,
+            hyperinsight: {
+              ...(node.hyperinsight || {}),
+              name: status.info.name || node.hyperinsight?.name || null,
+              aimsCount: (status.info.aim?.aims?.length || node.hyperinsight?.aimsCount || 0),
+              cpuCount: (status.info.hardware?.cpu_count || node.hyperinsight?.cpuCount || 0),
+              ramBytes: (status.info.hardware?.memory || node.hyperinsight?.ramBytes || 0),
+            } as any,
+          };
+        }
+        return node;
+      });
+      const statusMap = new Map<string, FleetNodeStatus>();
+      for (const s of polled) statusMap.set(s.node.nodeId, s);
+      setFleetStatus(statusMap);
+      setFleetNodes(merged);
       setFleetLoading(false);
     };
     loadFleet();
@@ -435,15 +457,19 @@ export const KanbanDashboard: React.FC = () => {
                             <Server size={12} className="text-orange-400" />
                             {node.name}
                           </span>
-                          {node.lastSeen > Date.now() - 60000 ? (
-                            <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-800 text-emerald-200">
-                              <Wifi size={10} /> Online
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
-                              <WifiOff size={10} /> Offline
-                            </span>
-                          )}
+                          {(() => {
+                            const status = fleetStatus.get(node.nodeId);
+                            const isOnline = status?.online || false;
+                            return isOnline ? (
+                              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-800 text-emerald-200">
+                                <Wifi size={10} /> Online
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
+                                <WifiOff size={10} /> Offline
+                              </span>
+                            );
+                          })()}
                         </div>
                         <div className="flex items-center gap-1.5 text-xs text-gray-400">
                           <MapPin size={10} />
