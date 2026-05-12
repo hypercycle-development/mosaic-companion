@@ -59,6 +59,20 @@ import { KanbanDashboard } from './KanbanDashboard';
 import UnifiedAssetPanel from './UnifiedAssetPanel';
 import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus } from 'lucide-react';
 
+// ---- Module-level helper: ensure wallet is on Base chain ----
+async function ensureOnBaseChain(): Promise<void> {
+  const state = walletAdapter.getState();
+  if (!state.isConnected || state.chainId === 8453) return;
+  try {
+    console.log('[AdaPortal] Switching wallet from chain', state.chainId, 'to Base (8453)...');
+    await walletAdapter.switchNetwork(8453);
+    console.log('[AdaPortal] Wallet switched to Base');
+  } catch (e) {
+    console.warn('[AdaPortal] Failed to auto-switch to Base:', e);
+    // Continue anyway — RPC fallback may work
+  }
+}
+
 interface AdaPortalPanelProps {
   url?: string;
   onNavigate?: (url: string) => void;
@@ -624,6 +638,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           
           // Load ANFEs via Graph + Merkelizer - with timeout
           setIsLoadingANFEs(true);
+          
+          // Ensure wallet is on Base chain so on-chain reads use the provider (not flaky RPC)
+          await ensureOnBaseChain();
+          
           try {
             console.log('[AdaPortal] Loading ANFEs for wallet:', walletAddress);
             
@@ -1410,6 +1428,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                     
                     // Load ANFEs via Graph + Merkelizer
                     setIsLoadingANFEs(true);
+                    await ensureOnBaseChain();
                     try {
                       console.log('[AdaPortal] Loading ANFEs for wallet:', address);
                       
@@ -2671,6 +2690,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                       setWalletState(walletAdapter.getState());
                       setIsLoadingANFEs(true);
                       try {
+                        await ensureOnBaseChain();
                         const walletANFEs = await anfeService.loadWalletANFEs(result.address);
                         setWalletANFEs(walletANFEs.anfes);
                         if (walletANFEs.anfes.length > 0) {

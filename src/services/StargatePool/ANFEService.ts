@@ -62,6 +62,7 @@ const HI_KEY    = 'wq2YvVU4SXPekQzAKJfmDJ4cdSV0yquHEihaY3vMYwk';
 const HI_HEADERS = {
   'Authorization': `Bearer ${HI_KEY}`,
   'Accept': 'application/json',
+  'User-Agent': 'Mosaic-Companion/1.0',
 };
 
 function padAddr(addr: string): string {
@@ -196,29 +197,9 @@ class ANFEService {
     let anfes: ANFE[] = [];
     const contract = ANFE_CONTRACTS[8453];
 
-    // --- PRIMARY: HyperInsight /nodes?wallet ---
+    // --- PRIMARY: On-chain ERC-721 enumeration (balanceOf → tokenOfOwnerByIndex)
+    // Most reliable when a wallet provider is available (after chain switch to Base).
     if (contract) {
-      try {
-        const hiNodes = await hiNodesByWallet(walletAddress);
-        if (hiNodes.length > 0) {
-          console.log(`[ANFEService] HyperInsight found ${hiNodes.length} nodes for wallet`);
-          for (const node of hiNodes) {
-            const licenseKey = String(node.licenseKey || '');
-            if (!licenseKey) continue;
-            const owner = await this.ownerOf(contract, licenseKey, 8453).catch(() => null);
-            if (!owner || owner.toLowerCase() !== walletAddress.toLowerCase()) continue;
-            const anfe = await this.buildANFE(contract, licenseKey, 8453, walletAddress);
-            if (!anfes.find(a => a.tokenId === licenseKey)) anfes.push(anfe);
-          }
-        }
-      } catch (e) {
-        console.warn('[ANFEService] HyperInsight wallet lookup failed:', e);
-      }
-    }
-
-    // --- SECONDARY: ERC-721 enumeration (balanceOf → tokenOfOwnerByIndex) ---
-    // Most reliable for OpenZeppelin ERC-721Enumerable contracts.
-    if (anfes.length === 0 && contract) {
       try {
         const enumANFEs = await this.discoverANFEsViaERC721Enumeration(walletAddress, 8453);
         if (enumANFEs.length) {
@@ -230,16 +211,42 @@ class ANFEService {
       }
     }
 
-    // --- TERTIARY: ERC-721 event-log discovery ---
-    if (anfes.length === 0 && contract) {
+    // --- SECONDARY: On-chain ERC-721 event-log discovery (fills gaps if enumeration unsupported)
+    if (contract) {
       try {
         const logANFEs = await this.discoverANFEsViaEventLogs(walletAddress, 8453);
         if (logANFEs.length) {
           console.log(`[ANFEService] Event logs discovered ${logANFEs.length} ANFEs`);
-          anfes.push(...logANFEs);
+          // Merge, dedup by tokenId
+          for (const a of logANFEs) {
+            if (!anfes.find(x => x.tokenId === a.tokenId)) anfes.push(a);
+          }
         }
       } catch (e) {
         console.warn('[ANFEService] Event log discovery failed:', e);
+      }
+    }
+
+    // --- TERTIARY: HyperInsight enrichment (node uptime, compute stats)
+    // Only enriches what on-chain already found; does NOT replace on-chain discovery.
+    if (contract && anfes.length > 0) {
+      try {
+        for (const anfe of anfes) {
+          const nodeData = await hiNode(anfe.tokenId);
+          if (nodeData) {
+            const merkelizerData = await this.fetchMerkelizerData(anfe.tokenId, walletAddress);
+            anfe.verification.status = nodeData.isAlive ? 'online' : (merkelizerData?.status || 'offline');
+            anfe.verification.uptime = nodeData.measuredUptime ?? merkelizerData?.uptime ?? anfe.verification.uptime;
+            anfe.verification.reliability = nodeData.measuredUptime ?? merkelizerData?.uptime ?? anfe.verification.reliability;
+            anfe.verification.merkelizer = {
+              uptime: merkelizerData?.uptime ?? null,
+              compute: merkelizerData?.compute ?? null,
+              nodeInfo: merkelizerData?.nodeInfo ?? null,
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('[ANFEService] HyperInsight enrichment failed:', e);
       }
     }
 
