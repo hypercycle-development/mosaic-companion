@@ -70,7 +70,7 @@ interface AdaPortalPanelProps {
   onNavigateToChat?: (message: string) => void;
 }
 
-type TabId = 'start' | 'marketplace' | 'aims' | 'leaderboard' | 'training' | 'packages' | 'skills' | 'compute' | 'dashboard' | 'stargate' | 'nodes' | 'asp';
+type TabId = 'start' | 'marketplace' | 'aims' | 'leaderboard' | 'training' | 'packages' | 'skills' | 'compute' | 'dashboard' | 'stargate' | 'asp';
 type LeaderboardPeriod = 'daily' | 'weekly' | 'all_time';
 type ComputeTier = 'standard' | 'high_performance' | 'dedicated';
 
@@ -133,10 +133,9 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'training', label: 'Train Agents', icon: <GraduationCap size={18} /> },
   { id: 'packages', label: 'Bundles', icon: <Package size={18} /> },
   { id: 'skills', label: 'Skills', icon: <Zap size={18} /> },
-  { id: 'compute', label: 'Compute', icon: <Cpu size={18} /> },
+  { id: 'compute', label: 'Compute & Nodes', icon: <Cpu size={18} /> },
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
   { id: 'stargate', label: 'Stargate Pool', icon: <Zap size={18} /> },
-  { id: 'nodes', label: 'Nodes', icon: <Network size={18} /> },
   { id: 'asp', label: 'Deploy System', icon: <Building2 size={18} /> }
 ];
 
@@ -162,11 +161,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     if (url.includes('/start')) return 'start';
     if (url.includes('/skills')) return 'skills';
     if (url.includes('/train')) return 'training';
-    if (url.includes('/compute')) return 'compute';
+    if (url.includes('/compute') || url.includes('/nodes')) return 'compute';
     if (url.includes('/bundles')) return 'packages';
     if (url.includes('/rankings')) return 'leaderboard';
     if (url.includes('/stargate')) return 'stargate';
-    if (url.includes('/nodes')) return 'nodes';
     if (url.includes('/asp')) return 'asp';
     return 'start';
   };
@@ -1122,13 +1120,13 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           )}
 
           <div className="flex gap-2">
-            <button
-              onClick={() => setActiveTab('nodes')}
-              className="flex-1 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/20 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1"
-            >
-              <Cpu size={14} />
-              Nodes
-            </button>
+          <button
+            onClick={() => setActiveTab('compute')}
+            className="flex-1 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/20 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1"
+          >
+            <Cpu size={14} />
+            Nodes
+          </button>
             <button
               onClick={() => setActiveTab('stargate')}
               className="flex-1 py-2 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/20 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1"
@@ -1330,7 +1328,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
 
           <div className="flex gap-2">
             <button
-              onClick={() => setActiveTab('nodes')}
+              onClick={() => setActiveTab('compute')}
               className="flex-1 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded-lg transition-colors"
             >
               View Node
@@ -3565,10 +3563,9 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             {activeTab === 'training' && renderTraining()}
             {activeTab === 'packages' && renderPackages()}
             {activeTab === 'skills' && renderSkills()}
-            {activeTab === 'compute' && renderCompute()}
+            {activeTab === 'compute' && <>{renderCompute()}{renderNodes()}</>}
             {activeTab === 'dashboard' && renderDashboard()}
             {activeTab === 'stargate' && renderStargatePool()}
-            {activeTab === 'nodes' && renderNodes()}
             {activeTab === 'asp' && renderAspGateway()}
           </>
         )}
