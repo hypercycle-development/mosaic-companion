@@ -43,7 +43,6 @@
     "arm64"
   ],
   "dependencies": {
-    "@esbuild/linux-arm64": "^0.28.0",
     "@extism/extism": "^2.0.0-rc13",
     "@modelcontextprotocol/sdk": "^1.27.0",
     "@monaco-editor/react": "^4.7.0",

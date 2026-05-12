@@ -260,8 +260,9 @@ class HermesAgentOrchestrator {
     console.log('[Orchestrator] dispatchPrompt start', { nodeId, model, taskId });
 
     // Encode JSON payload to base64 so the SSH command is 100% shell-safe
+    // Uses btoa (browser safe) instead of Buffer (Node only)
     const jsonStr = JSON.stringify({ model, prompt, stream: false });
-    const b64 = Buffer.from(jsonStr).toString('base64');
+    const b64 = btoa(encodeURIComponent(jsonStr).replace(/%([0-9A-F]{2})/g, (_: string, p1: string) => String.fromCharCode(parseInt(p1, 16))));
     console.log('[Orchestrator] dispatchPrompt JSON chars:', jsonStr.length, '| base64 chars:', b64.length);
 
     const tmpPath = `/tmp/mosaic-dispatch-${start}.json`;
