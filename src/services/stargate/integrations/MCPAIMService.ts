@@ -173,6 +173,20 @@ class MCPAIMService {
     return { refreshed, failed };
   }
 
+  /** Adapter: register a BridgeAIM (from LocalNodeBridge) as MCP server */
+  async registerAIMFromBridge(bridgeAim: any): Promise<MCPRegisterResult> {
+    const aimInfo: AIMInfo = {
+      name: bridgeAim.name || 'Unnamed AIM',
+      version: '1.0',
+      description: `HyperCycle AIM on port ${bridgeAim.port}`,
+      origin: 'hypercycle',
+      hypercycle_id: bridgeAim.imageId,
+      isActive: bridgeAim.status === 'running',
+      bestEndpointUrl: `http://localhost:${bridgeAim.port}`,
+    };
+    return this.registerAIM(aimInfo);
+  }
+
   // ---------------------------------------------------------------------------
   // Internal helpers
   // ---------------------------------------------------------------------------

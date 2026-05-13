@@ -14,10 +14,20 @@ import {
   CheckCircle2,
   XCircle,
   X,
+  Shield,
+  Lock,
+  ScrollText,
 } from 'lucide-react';
+
 import { fleetDiscoveryService, FleetNode, FleetNodeStatus } from '../../services/stargate/FleetDiscoveryService';
 import { hermesAgentOrchestrator, HireAgentParams, BookTrainingParams } from '../../services/stargate/HermesAgentOrchestrator';
 
+// ===== P2 INTEGRATIONS: Sandbox + Gatekeeper + Chronicle =====
+import {
+  fleetSandboxLauncher,
+  fleetGatekeeperFilter,
+  fleetChronicleLogger,
+} from '../../services/stargate/integrations';
 const ROLES = ['developer', 'marketing', 'growth', 'uiux', 'data_analyst'] as const;
 const TIERS = ['standard', 'high_performance', 'dedicated'] as const;
 
@@ -142,6 +152,53 @@ const StargateFleetPanel: React.FC = () => {
                   className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-gray-800 border border-gray-600/30 flex items-center gap-1.5 transition-colors"
                 >
                   <GraduationCap size={14} /> Train
+                </button>
+                {/* ===== P2: SANDBOX — Create container isolation ===== */}
+                <button
+                  onClick={async () => {
+                    // Two-step sandbox: create config then launch container
+                    const tier = node.computeGrade === 'dedicated' ? 'elevated' : 'standard';
+                    fleetSandboxLauncher.createSandbox(node.nodeId, tier);
+                    const result = await fleetSandboxLauncher.launchSandbox(node.nodeId);
+                    if (result.success) {
+                      alert(`Sandbox launched for ${node.name}`);
+                      fleetChronicleLogger.logSandbox(node.nodeId, 'sandbox:create', 'success');
+                    } else {
+                      alert(`Sandbox failed: ${result.error}`);
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs text-green-400 hover:bg-green-400/10 border border-green-400/30 flex items-center gap-1.5 transition-colors"
+                  title="Create Docker Sandbox"
+                >
+                  <Cpu size={14} /> Sandbox
+                </button>
+                {/* ===== P2: GATEKEEPER — Register node in traffic filter ===== */}
+                <button
+                  onClick={() => {
+                    fleetGatekeeperFilter.registerNode(node.nodeId, 'unknown');
+                    fleetGatekeeperFilter.applySandboxPolicy(node.nodeId);
+                    alert(`Node ${node.name} registered in gatekeeper filter`);
+                    fleetChronicleLogger.logGatekeeper(node.nodeId, 'gatekeeper:register', 'success');
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs text-orange-400 hover:bg-orange-400/10 border border-orange-400/30 flex items-center gap-1.5 transition-colors"
+                  title="Register in Gatekeeper"
+                >
+                  <Shield size={14} /> Filter
+                </button>
+                {/* ===== P2: CHRONICLE — Show audit log for node ===== */}
+                <button
+                  onClick={async () => {
+                    const events = await fleetChronicleLogger.queryChronicle({
+                      nodeId: node.nodeId,
+                      limit: 10,
+                    });
+                    console.log(`[Fleet] Chronicle events for ${node.nodeId}:`, events);
+                    alert(`Chronicle: ${events.length} recent events for ${node.name}`);
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs text-blue-400 hover:bg-blue-400/10 border border-blue-400/30 flex items-center gap-1.5 transition-colors"
+                  title="View Audit Log"
+                >
+                  <ScrollText size={14} /> Log
                 </button>
               </div>
             </div>

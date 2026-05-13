@@ -288,6 +288,66 @@ class AgentToolService {
     return this.registeredManifests.get(`stargate-anfe-${tokenId}`);
   }
 
+  /** Adapter: generate + register a manifest from a fleet node */
+  async registerFromFleetNode(node: {
+    nodeId: string;
+    label: string;
+    host: string;
+    port: number;
+    computeTier: string;
+  }): Promise<AgentToolRegistrationResult> {
+    const manifest: AgentToolManifest = {
+      manifestVersion: '1.0',
+      id: `stargate-fleet-${node.nodeId}`,
+      version: '1.0.0',
+      displayName: node.label,
+      description: `Stargate fleet node @ ${node.host}:${node.port}`,
+      author: 'stargate-fleet',
+      license: 'Fleet License',
+      runtime: { type: 'docker', entry: `http://${node.host}:${node.port}` },
+      permissions: {
+        internet: true,
+        allowed_domains: [node.host, '*.hypercycle.io'],
+        files: [],
+        services: ['hypercycle'],
+      },
+      resources: {
+        memory: node.computeTier === 'dedicated' ? '2g' : '512m',
+        timeout: '10m',
+      },
+      tools: {
+        chat: {
+          description: 'Chat with the fleet node agent',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              prompt: { type: 'string' },
+            },
+            required: ['prompt'],
+          },
+          displayHint: 'analyze' as const,
+        },
+      },
+      ui: {
+        panels: [
+          { id: 'agent', title: 'Agent', icon: 'server', description: 'Fleet agent panel' },
+        ],
+      },
+      inputs: {
+        api_key: { type: 'secret', description: 'Fleet node API key', required: false },
+      },
+      tier: node.computeTier === 'dedicated' ? 'premium' : 'standard',
+      walletCapable: true,
+      // Required ANFE fields (using nodeId as tokenId for fleet nodes)
+      anfeTokenId: node.nodeId,
+      anfeChainId: 0,
+      anfeOwner: 'stargate-fleet',
+      aiModules: ['chat'],
+      delegated: false,
+    };
+    return this.registerManifest(manifest);
+  }
+
   // ---------------------------------------------------------------------------
   // Internal helpers
   // ---------------------------------------------------------------------------

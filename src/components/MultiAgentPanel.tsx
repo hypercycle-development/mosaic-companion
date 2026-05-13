@@ -11,6 +11,16 @@ import {
   MultiAgentState
 } from '../services/MultiAgentService';
 
+// ===== P1 INTEGRATIONS: Unified Orchestration + Fleet + Sandbox + Gatekeeper + Chronicle =====
+import {
+  unifiedOrchestrator,
+  fleetSandboxLauncher,
+  fleetGatekeeperFilter,
+  fleetChronicleLogger,
+  type FleetNode,
+  type FleetJobResult,
+} from '../services/stargate/integrations';
+
 interface MultiAgentPanelProps {
   onRun?: (agentIds: string[], prompt: string, mode: OrchestrationMode) => void;
   onCollapse?: () => void;
@@ -200,13 +210,39 @@ export const MultiAgentPanel: React.FC<MultiAgentPanelProps> = ({
             />
           </div>
 
-          <div className="panel-actions">
+          <div className="panel-actions" style={{ display: 'flex', gap: '8px' }}>
             <button
               className="run-btn"
               onClick={handleRun}
               disabled={selectedIds.length === 0 || !prompt.trim() || isRunning}
             >
-              {isRunning ? 'Running...' : `Run (${selectedIds.length})`}
+              {isRunning ? 'Running...' : `Run Local (${selectedIds.length})`}
+            </button>
+            {/* ===== P1: UNIFIED ORCHESTRATION — Deploy to Fleet ===== */}
+            <button
+              className="run-btn"
+              style={{ background: '#10b981' }}
+              onClick={async () => {
+                if (selectedIds.length === 0 || !prompt.trim()) return;
+                setIsRunning(true);
+                try {
+                  const result = await unifiedOrchestrator.dispatchToFleet(
+                    prompt,
+                    selectedIds,
+                    mode === 'parallel' ? 'fanout' : 'parallel',
+                  );
+                  const done = result.nodeResults.filter((r) => r.status === 'completed').length;
+                  alert(`Fleet dispatch complete: ${done}/${result.nodeResults.length} nodes succeeded`);
+                  fleetChronicleLogger.logOrch(undefined, 'multiagent:fleet-dispatch', 'success', `${done}/${result.nodeResults.length}`);
+                } catch (e: any) {
+                  alert(`Fleet dispatch failed: ${e.message}`);
+                } finally {
+                  setIsRunning(false);
+                }
+              }}
+              disabled={selectedIds.length === 0 || !prompt.trim() || isRunning}
+            >
+              Deploy to Fleet
             </button>
           </div>
 

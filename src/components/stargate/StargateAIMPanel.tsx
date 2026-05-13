@@ -6,9 +6,13 @@
 // =============================================================================
 
 import React, { useEffect, useState } from 'react';
-import { Bot, ExternalLink, CheckCircle2, XCircle, Loader, AlertTriangle } from 'lucide-react';
+import { Bot, ExternalLink, CheckCircle2, XCircle, Loader, AlertTriangle, Plug, Box } from 'lucide-react';
 import { localNodeBridge, BridgeAIM } from '../../services/stargate/LocalNodeBridge';
 import { enhancedLocalNodeBridge, ExtendedBridgeTelemetry } from '../../services/stargate/EnhancedLocalNodeBridge';
+
+// ===== P0 INTEGRATIONS: AIM as Tool + MCP Everywhere =====
+import { agentToolService } from '../../services/stargate/integrations';
+import { mcpAIMService } from '../../services/stargate/integrations';
 
 const StargateAIMPanel: React.FC = () => {
   const [aims, setAims] = useState<BridgeAIM[]>([]);
@@ -128,6 +132,42 @@ const StargateAIMPanel: React.FC = () => {
               >
                 <ExternalLink size={16} />
               </a>
+              {/* ===== P0: MCP EVERYWHERE — Expose as MCP Server ===== */}
+              <button
+                onClick={async () => {
+                  const result = await mcpAIMService.registerAIMFromBridge(aim);
+                  if (result.success) {
+                    alert(`AIM "${aim.name}" exposed as MCP server: ${result.serverName}`);
+                  } else {
+                    alert(`MCP registration failed: ${result.error}`);
+                  }
+                }}
+                className="p-2 rounded-lg hover:bg-purple-500/20 text-gray-500 hover:text-purple-400 transition-colors"
+                title="Expose as MCP Server"
+              >
+                <Plug size={16} />
+              </button>
+              {/* ===== P0: AGENT-AS-TOOL — Register ANFE Manifest ===== */}
+              <button
+                onClick={async () => {
+                  const result = await agentToolService.registerFromFleetNode({
+                    nodeId: aim.imageId,
+                    label: aim.name || 'Unnamed AIM',
+                    host: 'localhost',
+                    port: aim.port,
+                    computeTier: 'standard',
+                  });
+                  if (result.success) {
+                    alert(`AIM "${aim.name}" registered as tool: ${result.toolId}`);
+                  } else {
+                    alert(`Tool registration failed: ${result.error}`);
+                  }
+                }}
+                className="p-2 rounded-lg hover:bg-cyan-500/20 text-gray-500 hover:text-cyan-400 transition-colors"
+                title="Register as Tool"
+              >
+                <Box size={16} />
+              </button>
             </div>
           </div>
         ))}
