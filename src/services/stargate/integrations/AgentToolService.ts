@@ -353,7 +353,7 @@ class AgentToolService {
   // ---------------------------------------------------------------------------
 
   private getLevel(attrs: ANFEAttributes): number {
-    const levelAttr = attrs.core.level;
+    const levelAttr = attrs?.core?.level;
     if (!levelAttr) return 1;
     if (typeof levelAttr.value === 'number') return levelAttr.value;
     if (typeof levelAttr.value === 'string') return parseInt(levelAttr.value, 10) || 1;
@@ -368,7 +368,7 @@ class AgentToolService {
   }
 
   private getAIModules(attrs: ANFEAttributes): string[] {
-    return attrs.ai.aiModules.map(m => {
+    return attrs?.ai?.aiModules?.map(m => {
       const name = m.trait_type.replace('c_', '');
       const mappings: Record<string, string> = {
         OpnAI: 'OpenAI',
@@ -381,7 +381,7 @@ class AgentToolService {
         SpcN: 'SpaceN',
       };
       return mappings[name] || name;
-    });
+    }) || [];
   }
 
   private buildAllowedDomains(anfe: ANFE): string[] {

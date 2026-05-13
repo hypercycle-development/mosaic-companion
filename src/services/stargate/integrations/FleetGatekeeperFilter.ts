@@ -289,6 +289,10 @@ class FleetGatekeeperFilter {
     status: string,
     detail?: string,
   ): void {
+    if (typeof window === 'undefined') {
+      // In Node.js / test environment, skip Chronicle IPC logging
+      return;
+    }
     const chronicle = (window as any).electronAPI?.chronicle;
     if (chronicle?.write) {
       chronicle.write('fleet-gatekeeper', {
