@@ -9,8 +9,15 @@ export {
   type AgentToolRegistrationResult,
 } from './AgentToolService';
 
-// Future integrations (P0-P2) will be added here:
-// export { mcpAIMService } from './MCPAIMService';           // P0-2
+export {
+  mcpAIMService,
+  default as MCPAIMService,
+  type MCPServerConfig,
+  type MCPRegisterResult,
+  type AIMServerStatus,
+} from './MCPAIMService';
+
+// Future integrations (P1-P2) will be added here:
 // export { unifiedOrchestrator } from './UnifiedOrchestrator'; // P1-3
 // export { ideAgentForge } from './IDEAgentForge';           // P1-4
 // export { fleetSandboxLauncher } from './FleetSandboxLauncher'; // P2-5

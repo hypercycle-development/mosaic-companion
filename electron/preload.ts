@@ -153,6 +153,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("stargate:unregisterAgentTool", toolId),
     listAgentTools: () =>
       ipcRenderer.invoke("stargate:listAgentTools"),
+    registerAIM: (config: Record<string, unknown>) =>
+      ipcRenderer.invoke("stargate:registerAIM", config),
+    unregisterAIM: (serverName: string) =>
+      ipcRenderer.invoke("stargate:unregisterAIM", serverName),
     dispatchPrompt: (nodeId: string, prompt: string) =>
       ipcRenderer.invoke("stargate:dispatchPrompt", nodeId, prompt),
     runJob: (jobType: string, params: Record<string, unknown>) =>
