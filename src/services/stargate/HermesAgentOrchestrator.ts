@@ -17,6 +17,7 @@ export interface HireAgentParams {
   computeTier: 'standard' | 'high_performance' | 'dedicated';
   targetNodeId?: string; // null = "any available fleet node"
   description?: string;
+  missionPrompt?: string; // The actual user prompt to execute on remote node
 }
 
 export interface BookTrainingParams {
@@ -64,9 +65,13 @@ class HermesAgentOrchestrator {
     const targetNodeId = params.targetNodeId;
     if (targetNodeId) {
       const profileName = targetNodeId === 'c-3po' ? 'c-3po-worker' : 'r2d2-orchestrator';
+      // Build task body: include missionPrompt if provided, otherwise fallback to skills/tier
+      const taskBody = params.missionPrompt
+        ? `Mission: ${params.missionPrompt}`
+        : `Skills: ${params.skills.join(', ')} | Tier: ${params.computeTier}`;
       const sshOut = await this._dispatchViaSSH(
         targetNodeId,
-        `~/.local/bin/hermes kanban create "Deploy ${params.agentName} (${params.role})" --body "Skills: ${params.skills.join(', ')} | Tier: ${params.computeTier}" --assignee ${profileName}`
+        `~/.local/bin/hermes kanban create "Deploy ${params.agentName} (${params.role})" --body "${taskBody}" --assignee ${profileName}`
       );
       if (sshOut !== null) {
         task.taskId = sshOut.trim() || task.taskId;
@@ -245,47 +250,6 @@ class HermesAgentOrchestrator {
     } catch (e: any) {
       console.error('[Orchestrator] Registry append failed:', e.message);
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // dispatchPrompt: send a prompt to a fleet node's Ollama and return the AI text
-  // ---------------------------------------------------------------------------
-  async dispatchPrompt(
-    nodeId: string,
-    prompt: string,
-    model: string = 'llama3',
-  ): Promise<{ response: string; taskId: string }> {
-    const start = Date.now();
-    const taskId = `dispatch-${start}`;
-    console.log('[Orchestrator] dispatchPrompt start', { nodeId, model, taskId });
-
-    // Encode JSON payload to base64 so the SSH command is 100% shell-safe
-    // Uses btoa (browser safe) instead of Buffer (Node only)
-    const jsonStr = JSON.stringify({ model, prompt, stream: false });
-    const b64 = btoa(encodeURIComponent(jsonStr).replace(/%([0-9A-F]{2})/g, (_: string, p1: string) => String.fromCharCode(parseInt(p1, 16))));
-    console.log('[Orchestrator] dispatchPrompt JSON chars:', jsonStr.length, '| base64 chars:', b64.length);
-
-    const tmpPath = `/tmp/mosaic-dispatch-${start}.json`;
-    const command = `echo '${b64}' | base64 -d > ${tmpPath} && curl -sS --max-time 30 http://localhost:11434/api/generate -d @${tmpPath} --header 'Content-Type: application/json' && rm -f ${tmpPath}`;
-
-    const stdout = await this._dispatchViaSSH(nodeId, command);
-    console.log('[Orchestrator] dispatchPrompt raw stdout length:', stdout?.length ?? null, 'for', nodeId);
-
-    if (stdout === null) {
-      throw new Error(`SSH dispatch to ${nodeId} returned null (non-zero exit or timeout)`);
-    }
-
-    let parsed: any;
-    try {
-      parsed = JSON.parse(stdout);
-    } catch (e: any) {
-      console.error('[Orchestrator] dispatchPrompt JSON parse failed:', e.message, 'raw:', stdout.slice(0, 200));
-      throw new Error(`Invalid JSON from remote Ollama: ${stdout.slice(0, 120)}`);
-    }
-
-    const responseText = parsed.response ?? parsed.choices?.[0]?.message?.content ?? '';
-    console.log('[Orchestrator] dispatchPrompt success — chars:', responseText.length, 'latency:', Date.now() - start);
-    return { response: responseText, taskId };
   }
 
   // ---------------------------------------------------------------------------
