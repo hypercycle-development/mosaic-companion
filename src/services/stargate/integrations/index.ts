@@ -35,8 +35,12 @@ export {
   type ForgeDeployConfig,
 } from './IDEAgentForge';
 
-// Future integrations (P2) will be added here:
-// export { fleetSandboxLauncher } from './FleetSandboxLauncher'; // P2-5
+// P2 integrations:
+export {
+  fleetSandboxLauncher,
+  default as FleetSandboxLauncher,
+} from './FleetSandboxLauncher';
+
 // export { secureAspGateway } from './SecureAspGateway';     // P2-6
 // export { fleetGatekeeperFilter } from './FleetGatekeeperFilter'; // P2-7
 // export { fleetChronicleLogger } from './FleetChronicleLogger'; // P2-8
