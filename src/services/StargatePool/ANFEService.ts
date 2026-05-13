@@ -30,12 +30,12 @@ import {
 
 const RPC_CONFIG: Record<SupportedChain, string> = {
   1:    import.meta.env.VITE_RPC_ETHEREUM || 'https://eth.llamarpc.com',
-  8453: import.meta.env.VITE_RPC_BASE     || 'https://mainnet.base.org',
+  8453: import.meta.env.VITE_RPC_BASE     || 'https://base.llamarpc.com',
 };
 
 const RPC_FALLBACKS: Record<SupportedChain, string[]> = {
   1:    ['https://1rpc.io/eth', 'https://rpc.ankr.com/eth'],
-  8453: ['https://base.llamarpc.com', 'https://1rpc.io/base'],
+  8453: ['https://1rpc.io/base', 'https://base-mainnet.g.alchemy.com/v2/demo'],
 };
 
 // ANFE contract addresses by chain — Base only (ANFE lives on Base)
@@ -98,6 +98,14 @@ async function getLogsPaginated(
     });
     const j = await resp.json();
     end = j.result ? BigInt(j.result) : null;
+  }
+
+  // Estimate Base mainnet launched ~Aug 2023. For ANFE discovery we don't
+  // need to scan from genesis. A recent range (last ~30 days ≈ 2M blocks)
+  // catches all transfers for actively-held NFTs and avoids RPC rate limits.
+  if (fromBlock === '0x0' || fromBlock === BigInt(0)) {
+    start = end - BigInt(2_000_000);
+    if (start < BigInt(0)) start = BigInt(0);
   }
 
   if (!end) return allLogs;

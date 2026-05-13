@@ -417,6 +417,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         if (addr) {
           try {
             setIsLoadingANFEs(true);
+            await ensureOnBaseChain();
             const walletANFEs = await anfeService.loadWalletANFEs(addr);
             setWalletANFEs(walletANFEs.anfes || []);
             console.log('[AdaPortal] loadData loaded', walletANFEs.totalCount, 'ANFEs');
@@ -1863,6 +1864,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                 if (ethAddress) {
                   setIsLoadingANFEs(true);
                   try {
+                    await ensureOnBaseChain();
                     const walletANFEs = await anfeService.loadWalletANFEs(ethAddress);
                     setWalletANFEs(walletANFEs.anfes);
                     showNotification('success', `Refreshed: ${walletANFEs.totalCount} ANFE(s)`);
@@ -1882,6 +1884,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                 if (ethAddress) {
                   // Re-query factories from the blockchain via ANFE service
                   try {
+                    await ensureOnBaseChain();
                     anfeService.clearCache();
                     const walletData = await anfeService.loadWalletANFEs(ethAddress);
                     setWalletANFEs(walletData.anfes || []);
@@ -2608,7 +2611,8 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
 
   // ============== STARGATE POOL RENDER ==============
   const renderStargatePool = () => {
-    const walletAddress = stargatePoolService.getWalletAddress();
+    // Use React state (ethAddress) — always in sync with UI — not stale service field
+    const walletAddress = ethAddress;
 
     const getAgentDisplay = (id: string) => {
       const a = userAgents.find((x) => x.id === id);
