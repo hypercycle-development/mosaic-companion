@@ -54,6 +54,8 @@ import { localNodeBridge } from '../services/LocalNodeBridge';
 import type { BridgeANFE, BridgeComputeNode } from '../services/LocalNodeBridge';
 import { skillMarketplace } from '../services/AdaPortal';
 import { aspGateway, AspPackage, Company, UsageRecord } from '../services/AspGateway';
+// ===== P2: VAULT-BACKED ASP =====
+import { secureAspGateway } from '../services/stargate/integrations';
 import { stargateRegistry, type AgentProfile, type BundleConfig, type TrainingJob } from '../services/StargateSkillRegistry';
 import { KanbanDashboard } from './KanbanDashboard';
 import UnifiedAssetPanel from './UnifiedAssetPanel';

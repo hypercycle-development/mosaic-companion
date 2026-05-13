@@ -6,7 +6,9 @@ import {
   PanelBottomOpen,
   Bot,
   FolderOpen,
+  Rocket,
 } from "lucide-react";
+import { ideAgentForge } from '../../services/stargate/integrations';
 import { useIDEStore } from "./useIDEStore";
 import FileExplorer from "./FileExplorer";
 import EditorTabs from "./EditorTabs";
@@ -203,6 +205,19 @@ export default function IDEPage({ url }: IDEPageProps) {
           title="Toggle AI Assist (Ctrl+J)"
         >
           <Bot size={14} />
+        </button>
+        {/* ===== P1: AGENT FORGE ===== */}
+        <button
+          onClick={() => {
+            const session = ideAgentForge.createSession('anfe-minter', projectPath || '');
+            if (session) {
+              alert(`Agent Forge session: ${session.id} (${session.templateId})`);
+            }
+          }}
+          className="p-1 rounded hover:bg-white/10 text-cyan-400 hover:text-cyan-300"
+          title="Forge Agent (Stargate)"
+        >
+          <Rocket size={14} />
         </button>
 
         <div className="mx-2 h-3 w-px bg-gray-700" />
