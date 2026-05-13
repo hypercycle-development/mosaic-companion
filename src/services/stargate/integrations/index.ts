@@ -41,6 +41,18 @@ export {
   default as FleetSandboxLauncher,
 } from './FleetSandboxLauncher';
 
-// export { secureAspGateway } from './SecureAspGateway';     // P2-6
-// export { fleetGatekeeperFilter } from './FleetGatekeeperFilter'; // P2-7
-// export { fleetChronicleLogger } from './FleetChronicleLogger'; // P2-8
+export {
+  secureAspGateway,
+  default as SecureAspGateway,
+  type SecureKeyRef,
+} from './SecureAspGateway';
+
+export {
+  fleetGatekeeperFilter,
+  default as FleetGatekeeperFilter,
+} from './FleetGatekeeperFilter';
+
+export {
+  fleetChronicleLogger,
+  default as FleetChronicleLogger,
+} from './FleetChronicleLogger';
