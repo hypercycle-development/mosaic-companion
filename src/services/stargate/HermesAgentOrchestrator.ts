@@ -253,6 +253,21 @@ class HermesAgentOrchestrator {
   }
 
   // ---------------------------------------------------------------------------
+  // Dispatch a prompt to a fleet node via SSH mesh
+  // ---------------------------------------------------------------------------
+  async dispatchPrompt(
+    nodeId: string,
+    prompt: string,
+    _profile?: string
+  ): Promise<{ response: string }> {
+    const result = await this._dispatchViaSSH(
+      nodeId,
+      `~/.local/bin/hermes chat -q ${JSON.stringify(prompt)}`
+    );
+    return { response: result ?? '(no response from node)' };
+  }
+
+  // ---------------------------------------------------------------------------
   // Internal: Gateway message (Telegram/Discord bot)
   // ---------------------------------------------------------------------------
   private async _sendViaGateway(nodeId: string, message: string): Promise<boolean> {

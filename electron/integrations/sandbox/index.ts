@@ -450,6 +450,76 @@ export class ToolManager {
   }
 
   // ---------------------------------------------------------------------------
+  // Agent-as-Tool Manifest Registration (Stargate Integration)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Install a tool from a manifest object (no WASM binary required).
+   * Used by Stargate Agent-as-Tool to register ANFE-backed agents.
+   */
+  installManifest(manifest: ToolManifest, persist?: boolean): InstalledTool {
+    const toolId = manifest.id;
+
+    // Prevent duplicate registration
+    if (this.installed.has(toolId)) {
+      throw new Error(`Agent tool "${toolId}" is already registered`);
+    }
+
+    const installed: InstalledTool = {
+      manifest,
+      installedAt: new Date().toISOString(),
+      enabled: true,
+      pinned: false,
+      entryPath: manifest.runtime.entry,
+      sourcePath: 'stargate-anfe',
+      approvals: [{
+        approvedAt: new Date().toISOString(),
+        approvedVersion: manifest.version,
+        approvedFileHash: 'manifest-only',
+        approvedPermissions: { ...manifest.permissions },
+        approvedFunctions: Object.keys(manifest.tools),
+        action: 'install',
+      }],
+    };
+
+    this.installed.set(toolId, installed);
+
+    if (persist) {
+      this.saveInstalled();
+    }
+
+    getChronicle().logLifecycle(toolId, 'manifest-installed', {
+      source: 'stargate-anfe',
+      runtime: manifest.runtime.type,
+      version: manifest.version,
+    });
+
+    console.log(`[ToolManager] Manifest installed: ${toolId} (${manifest.runtime.type})`);
+    return installed;
+  }
+
+  uninstallManifest(toolId: string): boolean {
+    const installed = this.installed.get(toolId);
+    if (!installed) return false;
+
+    if (this.isToolRunning(toolId)) {
+      this.stopTool(toolId).catch((e) =>
+        console.error(`[ToolManager] Failed to stop ${toolId} during uninstall:`, e),
+      );
+    }
+
+    this.installed.delete(toolId);
+    this.saveInstalled();
+
+    getChronicle().logLifecycle(toolId, 'manifest-uninstalled', {
+      source: 'stargate-anfe',
+    });
+
+    console.log(`[ToolManager] Manifest uninstalled: ${toolId}`);
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------
   // IPC Handlers
   // ---------------------------------------------------------------------------
 
@@ -627,6 +697,46 @@ export class ToolManager {
         return { success: true, data: getChronicle().hasEntries(toolId) };
       },
     );
+
+    // ─── Stargate Agent-as-Tool IPC ───
+
+    ipcMain.handle("stargate:registerAgentTool", async (_event, manifest: ToolManifest) => {
+      try {
+        const installed = this.installManifest(manifest, true);
+
+        const canLaunch = await this.launcher.isAvailable();
+        if (canLaunch && manifest.runtime.type === 'docker') {
+          console.log(`[ToolManager] Docker launch deferred for ${manifest.id}`);
+        }
+
+        if (this.onRegister) {
+          const bridge = createToolBridge(manifest, this.launcher);
+          this.bridges.set(`ext:${manifest.id}`, bridge);
+          this.onRegister(bridge);
+        }
+
+        return { success: true, data: { toolId: manifest.id, installedAt: installed.installedAt } };
+      } catch (err) {
+        console.error(`[ToolManager] Failed to register agent tool ${manifest.id}:`, err);
+        return { success: false, error: (err as Error).message };
+      }
+    });
+
+    ipcMain.handle("stargate:unregisterAgentTool", async (_event, toolId: string) => {
+      try {
+        const removed = this.uninstallManifest(toolId);
+        return { success: removed };
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
+      }
+    });
+
+    ipcMain.handle("stargate:listAgentTools", async () => {
+      const agentTools = this.getInstalledTools().filter(
+        t => t.sourcePath === 'stargate-anfe',
+      );
+      return { success: true, data: agentTools };
+    });
   }
 
   // ---------------------------------------------------------------------------

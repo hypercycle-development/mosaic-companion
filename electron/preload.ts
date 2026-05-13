@@ -145,6 +145,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
     callFunction: (toolId: string, functionName: string, args: Record<string, unknown>) =>
       ipcRenderer.invoke("toolSandbox:callFunction", toolId, functionName, args),
   },
+  // Stargate Agent-as-Tool integration
+  stargate: {
+    registerAgentTool: (manifest: Record<string, unknown>) =>
+      ipcRenderer.invoke("stargate:registerAgentTool", manifest),
+    unregisterAgentTool: (toolId: string) =>
+      ipcRenderer.invoke("stargate:unregisterAgentTool", toolId),
+    listAgentTools: () =>
+      ipcRenderer.invoke("stargate:listAgentTools"),
+    dispatchPrompt: (nodeId: string, prompt: string) =>
+      ipcRenderer.invoke("stargate:dispatchPrompt", nodeId, prompt),
+    runJob: (jobType: string, params: Record<string, unknown>) =>
+      ipcRenderer.invoke("stargate:runJob", jobType, params),
+  },
   // Chronicle (tool activity log)
   chronicle: {
     read: (toolId: string, query?: Record<string, unknown>) =>
