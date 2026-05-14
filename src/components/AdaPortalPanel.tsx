@@ -53,6 +53,13 @@ import {
 import { localNodeBridge } from '../services/LocalNodeBridge';
 import type { BridgeANFE, BridgeComputeNode } from '../services/LocalNodeBridge';
 import { skillMarketplace } from '../services/AdaPortal';
+import type { AccessCheck } from '../services/AdaPortal';
+import {
+  NFTCollectionGrid,
+  NFTAssetModal,
+} from './NFTCollectionCards';
+import type { ResolvedNFTAsset, ResolvedCollectionGroup } from '../services/AdaPortal/MetadataResolver';
+import { metadataResolver } from '../services/AdaPortal/MetadataResolver';
 import { aspGateway, AspPackage, Company, UsageRecord } from '../services/AspGateway';
 // ===== P2: VAULT-BACKED ASP =====
 import { secureAspGateway } from '../services/stargate/integrations';
@@ -211,7 +218,13 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     assetName: string;
     fingerprint: string;
     quantity: number;
+    unit?: string;
   }> | null>(null);
+
+  // Resolved collection groups with metadata + infrastructure
+  const [collectionGroups, setCollectionGroups] = useState<ResolvedCollectionGroup[]>([]);
+  const [resolvingMetadata, setResolvingMetadata] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<ResolvedNFTAsset | null>(null);
   const [nftPolicyIds, setNftPolicyIds] = useState<string[]>([
     'a222abf06e562a5acc7d5bb3bec3d0b29414082e6fe5650026f92d46', // HPEC DAO PASS
     '454fb57214730cb34f83d7b377308a76ab6e7140ea634a7fc63affa5', // CMHPEC DAO PASS
@@ -960,7 +973,23 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                           const assets = r.data.assets || [];
                           if (assets.length > 0) {
                             setCardanoAssets(assets);
-                            showNotification('success', `Lace wallet connected! Found ${assets.length} native asset(s).`);
+                            // Resolve rich metadata + group collections
+                            setResolvingMetadata(true);
+                            try {
+                              const units = assets.map((a: any) => ({
+                                ...a,
+                                unit: a.unit || a.policyId + a.assetName,
+                              }));
+                              const groups = await metadataResolver.resolveCollectionGroups(units);
+                              setCollectionGroups(groups);
+                              const verifiedCount = groups.filter(g => g.isVerified).length;
+                              showNotification('success', `Lace connected! ${assets.length} assets · ${groups.length} collection(s) · ${verifiedCount} verified`);
+                            } catch (metaErr: any) {
+                              console.warn('[AdaPortal] Metadata resolution failed:', metaErr);
+                              showNotification('success', `Lace wallet connected! Found ${assets.length} native asset(s).`);
+                            } finally {
+                              setResolvingMetadata(false);
+                            }
                           } else {
                             showNotification('success', 'Lace wallet connected via CIP-30 bridge!');
                           }
@@ -1099,8 +1128,17 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         )}
       </div>
 
-      {/* ── Cardano Wallet NFT Asset Cards ── */}
-      {tokeoConnected && cardanoAssets && cardanoAssets.length > 0 && (
+      {/* ── Cardano Wallet NFT Collection Cards ── */}
+      {tokeoConnected && collectionGroups.length > 0 && (
+        <NFTCollectionGrid
+          groups={collectionGroups}
+          onAssetClick={(asset) => setSelectedAsset(asset)}
+          title="Cardano Collections"
+        />
+      )}
+
+      {/* Fallback: show old simple cards if metadata resolver failed but assets exist */}
+      {tokeoConnected && !resolvingMetadata && collectionGroups.length === 0 && cardanoAssets && cardanoAssets.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h4 className="font-semibold text-white flex items-center gap-2">
@@ -1111,7 +1149,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {(() => {
-              // Group assets by policy ID
               const byPolicy = new Map<string, typeof cardanoAssets>();
               for (const a of cardanoAssets!) {
                 const list = byPolicy.get(a.policyId) || [];
@@ -1132,7 +1169,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                     key={policyId}
                     className="bg-gray-800/50 rounded-xl border border-gray-700 p-4 hover:border-blue-500/40 transition-all group"
                   >
-                    {/* Card Header */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-xl flex items-center justify-center border bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-500/20">
@@ -1149,8 +1185,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                         </span>
                       )}
                     </div>
-
-                    {/* Asset list (scrollable if many) */}
                     <div className="max-h-32 overflow-y-auto space-y-1 pr-1 mb-3">
                       {assets.map((asset, idx) => (
                         <div key={idx} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-gray-900/40">
@@ -1161,8 +1195,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                         </div>
                       ))}
                     </div>
-
-                    {/* Footer: total + explorer link */}
                     <div className="flex items-center justify-between pt-2 border-t border-gray-700/50">
                       <span className="text-xs text-gray-500">
                         Total: <span className="text-blue-400 font-medium">{assets.reduce((sum, a) => sum + a.quantity, 0)}</span> items
@@ -1183,6 +1215,12 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           </div>
         </div>
       )}
+
+      {/* Asset detail modal */}
+      <NFTAssetModal
+        asset={selectedAsset}
+        onClose={() => setSelectedAsset(null)}
+      />
 
       {/* Unified Multi-Chain Asset Panel — ETH + BASE */}
       <UnifiedAssetPanel
