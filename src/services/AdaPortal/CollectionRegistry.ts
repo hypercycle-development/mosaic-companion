@@ -28,6 +28,7 @@ export interface StargateCollectionConfig {
   // HyperCycle / Stargate infrastructure metadata
   infrastructure?: {
     nodeFactories: number;
+    nodeFactoryLicenses?: string[]; // License IDs for HyperInsight live lookup
     activeNodes: number;
     computePowerTFLOPS: number;
     rewardPoolHYPC: number;
@@ -63,8 +64,17 @@ export const STARGATE_VERIFIED_COLLECTIONS: StargateCollectionConfig[] = [
     website: 'https://hpecdao.net/',
     twitter: 'https://x.com/HPEC_DAO',
     infrastructure: {
-      nodeFactories: 24,
-      activeNodes: 180,
+      // Computed: sumNodeFactories(nodeFactoryLicenses) === 148 (74 ETH + 74 BASE)
+      nodeFactories: 148,
+      nodeFactoryLicenses: [
+        // Ethereum (74 factories)
+        '2251937252696722', '2251937252696723', '2251937252698800', '281492156587987',
+        '281492156594455', '1125968626377606', '281492156594452', '281492156594453',
+        // Base (74 factories)
+        '2324779898053522', '2324779898053523', '2324779898055600', '290597487257587',
+        '290597487264052', '1162389949056006', '290597487264053', '290597487264055',
+      ],
+      activeNodes: 151552,
       computePowerTFLOPS: 2400,
       rewardPoolHYPC: 125000,
       delegatedSince: '2024-03-15',
@@ -92,6 +102,7 @@ export const STARGATE_VERIFIED_COLLECTIONS: StargateCollectionConfig[] = [
     twitter: 'https://x.com/HPEC_DAO',
     infrastructure: {
       nodeFactories: 36,
+      nodeFactoryLicenses: [], // TODO: populate from CMHPEC DAO PASS CSV when available
       activeNodes: 320,
       computePowerTFLOPS: 4800,
       rewardPoolHYPC: 280000,
@@ -119,6 +130,7 @@ export const STARGATE_VERIFIED_COLLECTIONS: StargateCollectionConfig[] = [
     twitter: 'https://x.com/HyperDegens',
     infrastructure: {
       nodeFactories: 8,
+      nodeFactoryLicenses: [], // TODO: populate from HyperDegens node-factory CSV when available
       activeNodes: 64,
       computePowerTFLOPS: 640,
       rewardPoolHYPC: 45000,
@@ -167,6 +179,41 @@ export function getCollectionAccentColor(policyId: string): string {
 
 export function getAllVerifiedPolicyIds(): string[] {
   return STARGATE_VERIFIED_COLLECTIONS.map(c => c.policyId);
+}
+
+// ============================================================
+// NODE FACTORY TABLE — License ID prefix → multiplier
+// ============================================================
+// To derive Node-Factory count for any license, grab its first
+// 3 digits and match against the table below.
+//
+// Column A: ANFE (BASE network) first-3-digit signatures
+// Column B: NF   (ETH network)   first-3-digit signatures
+// Multiplier = max number of physical Node Factories held by that licence.
+
+export const NODE_FACTORY_TABLE = [
+  { level: 10, multiplier:  1,  anfePrefix: '464', nfPrefix: '450' },
+  { level: 11, multiplier:  2,  anfePrefix: '232', nfPrefix: '225' },
+  { level: 12, multiplier:  4,  anfePrefix: '116', nfPrefix: '112' },
+  { level: 13, multiplier:  8,  anfePrefix: '581', nfPrefix: '562' },
+  { level: 14, multiplier: 16,  anfePrefix: '290', nfPrefix: '281' },
+  { level: 15, multiplier: 32,  anfePrefix: '145', nfPrefix: '140' },
+  { level: 16, multiplier: 64,  anfePrefix: '726', nfPrefix: '703' },
+  { level: 17, multiplier: 128, anfePrefix: '363', nfPrefix: '351' },
+  { level: 18, multiplier: 256, anfePrefix: '181', nfPrefix: '175' },
+  { level: 19, multiplier: 512, anfePrefix: '908', nfPrefix: '879' },
+] as const;
+
+export function getNodeFactoryCountFromLicenseId(licenseId: string): number {
+  const prefix = licenseId.trim().slice(0, 3);
+  const row = NODE_FACTORY_TABLE.find(
+    r => r.anfePrefix === prefix || r.nfPrefix === prefix
+  );
+  return row?.multiplier ?? 0;
+}
+
+export function sumNodeFactories(licenseIds: string[]): number {
+  return licenseIds.reduce((sum, id) => sum + getNodeFactoryCountFromLicenseId(id), 0);
 }
 
 // ============================================================

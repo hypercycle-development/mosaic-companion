@@ -118,8 +118,8 @@ function InfrastructurePanel({ config }: { config?: StargateCollectionConfig }) 
         <div className="flex items-center gap-2">
           <TrendingUp size={12} className="text-pink-400" />
           <div>
-            <div className="text-[10px] text-gray-500">Reward Pool</div>
-            <div className="text-sm font-bold text-white">{infra.rewardPoolHYPC.toLocaleString()} HYPC</div>
+            <div className="text-[10px] text-gray-500">cHYPC Pool</div>
+            <div className="text-sm font-bold text-white">{infra.rewardPoolHYPC.toLocaleString()} cHYPC</div>
           </div>
         </div>
       </div>
