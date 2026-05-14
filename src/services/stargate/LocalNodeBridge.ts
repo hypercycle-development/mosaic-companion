@@ -357,12 +357,18 @@ class LocalNodeBridge {
   // ---- Internal fetchers ---------------------------------------------------
 
   private async _fetchInfo(): Promise<LocalNodeInfo | null> {
-    // Try through Vite proxy first, then direct backend
-    const urls = [
-      `http://localhost:${UI_PORT}/api/info`,    // Direct admin UI port (8006)
-      `/api/info`,                                // Vite proxy path
-      `http://localhost:${ADMIN_PORT}/info`,     // Direct backend (8005)
-    ];
+    // In Electron renderer with file:// protocol, relative URLs fail.
+    const isElectronFileProtocol = typeof window !== 'undefined' && window.location?.protocol === 'file:';
+    const urls = isElectronFileProtocol
+      ? [
+          `http://localhost:${UI_PORT}/api/info`,
+          `http://localhost:${ADMIN_PORT}/info`,
+        ]
+      : [
+          `http://localhost:${UI_PORT}/api/info`,
+          `/api/info`,
+          `http://localhost:${ADMIN_PORT}/info`,
+        ];
     for (const url of urls) {
       try {
         const ctrl = new AbortController();
@@ -380,11 +386,18 @@ class LocalNodeBridge {
   }
 
   private async _fetchConfig(): Promise<LocalNodeConfig | null> {
-    const urls = [
-      `/api/config`,
-      `http://localhost:${UI_PORT}/api/config`,
-      `http://localhost:${ADMIN_PORT}/config`,
-    ];
+    // In Electron renderer, relative URLs resolve to file:// protocol and always fail.
+    const isElectronFileProtocol = typeof window !== 'undefined' && window.location?.protocol === 'file:';
+    const urls = isElectronFileProtocol
+      ? [
+          `http://localhost:${UI_PORT}/api/config`,
+          `http://localhost:${ADMIN_PORT}/config`,
+        ]
+      : [
+          `/api/config`,
+          `http://localhost:${UI_PORT}/api/config`,
+          `http://localhost:${ADMIN_PORT}/config`,
+        ];
     for (const url of urls) {
       try {
         const ctrl = new AbortController();

@@ -74,6 +74,16 @@ const DEFAULT_ACCESS_POLICIES: NFTAccessPolicy[] = [
     policyId: 'a222abf06e562a5acc7d5bb3bec3d0b29414082e6fe5650026f92d46', // HPEC DAO PASS
     collectionName: 'HPEC DAO PASS',
     required: true
+  },
+  {
+    policyId: '454fb57214730cb34f83d7b377308a76ab6e7140ea634a7fc63affa5', // CMHPEC DAO PASS
+    collectionName: 'CMHPEC DAO PASS',
+    required: true
+  },
+  {
+    policyId: 'bc963a07e32da4d22b77c8cba7ab9f3df6241f37d7bfc9b0deb48f65', // HyperDegens
+    collectionName: 'HyperDegens',
+    required: true
   }
 ];
 
@@ -122,22 +132,16 @@ class CardanoWalletService {
    */
   async detectWalletsAsync(): Promise<WalletInfo[]> {
     try {
-      // Use Electron IPC bridge
+      // Use Electron IPC bridge (CIP-30 WebView Bridge)
       if (window.electronAPI?.cardano?.detectWallets) {
         const result = await window.electronAPI.cardano.detectWallets() as any;
-        if (result?.success && result?.data) {
-          // Parse the wallet list from result
-          const dataStr = result.data as string;
-          const walletLines = dataStr.split('\n').filter((line: string) => line.startsWith('•'));
-          return walletLines.map((line: string) => {
-            const match = line.match(/• (\w+)/);
-            const name = match ? match[1] : 'unknown';
-            return {
-              walletName: name as SupportedWallet,
-              displayName: name,
-              connected: false
-            };
-          });
+        if (result?.success && result?.data?.available && result?.data?.wallets) {
+          return result.data.wallets.map((w: any) => ({
+            walletName: w.key as SupportedWallet,
+            displayName: w.name,
+            icon: w.icon,
+            connected: false
+          }));
         }
       }
       
@@ -176,12 +180,8 @@ class CardanoWalletService {
    */
   async isLaceAvailable(): Promise<boolean> {
     try {
-      if (window.electronAPI?.cardano?.isAvailable) {
-        const result = await window.electronAPI.cardano.isAvailable() as any;
-        return result?.success && result?.data?.available;
-      }
-      // @ts-ignore
-      return !!window.cardano?.lace;
+      const wallets = await this.detectWalletsAsync();
+      return wallets.some(w => w.walletName === 'lace');
     } catch {
       return false;
     }
@@ -208,20 +208,18 @@ class CardanoWalletService {
       
       console.log(`[CardanoWallet] Connecting to ${targetWallet} via IPC bridge...`);
 
-      // Use Electron IPC bridge
-      if (window.electronAPI?.cardano?.connect) {
-        const result = await window.electronAPI.cardano.connect(targetWallet) as any;
+      // Use Electron IPC bridge (CIP-30 WebView Bridge)
+      if (window.electronAPI?.cardano?.connectWallet) {
+        const result = await window.electronAPI.cardano.connectWallet(targetWallet) as any;
         
         if (result?.success) {
-          // Get status to build session
-          const statusResult = await window.electronAPI.cardano.getStatus() as any;
-          
-          if (statusResult?.success && statusResult?.data) {
-            const status = statusResult.data;
+          // Build session from result data
+          const data = result.data;
+          if (data) {
             this.session = {
-              connected: status.connected,
-              walletName: status.wallet as SupportedWallet,
-              address: status.address,
+              connected: data.connected,
+              walletName: data.walletName as SupportedWallet,
+              address: data.address,
               utxos: [],
               assets: [],
               verified: false,
@@ -315,9 +313,9 @@ class CardanoWalletService {
    */
   async disconnectWallet(): Promise<void> {
     // Use Electron IPC bridge
-    if (window.electronAPI?.cardano?.disconnect) {
+    if (window.electronAPI?.cardano?.disconnectWallet) {
       try {
-        await window.electronAPI.cardano.disconnect();
+        await window.electronAPI.cardano.disconnectWallet();
       } catch (error) {
         console.error('[CardanoWallet] Error disconnecting via IPC:', error);
       }

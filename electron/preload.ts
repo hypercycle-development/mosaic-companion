@@ -376,6 +376,40 @@ contextBridge.exposeInMainWorld("electronAPI", {
     dispatch: (payload: { host: string; user: string; command: string; timeout?: number }) =>
       ipcRenderer.invoke("mesh:dispatch", payload),
   },
+  // ─── Cardano / Tokeo Wallet Bridge ───
+  cardano: {
+    // Tokeo Mobile (QR-based)
+    tokeoDetect: () =>
+      ipcRenderer.invoke("cardano:tokeoDetect"),
+    tokeoConnect: () =>
+      ipcRenderer.invoke("cardano:tokeoConnect"),
+    tokeoQRPairing: (policyIds?: string[]) =>
+      ipcRenderer.invoke("cardano:tokeoQRPairing", policyIds),
+    tokeoCheckQR: (sessionId?: string) =>
+      ipcRenderer.invoke("cardano:tokeoCheckQR", sessionId),
+    tokeoVerifyCollection: (policyIds: string[], strict?: boolean) =>
+      ipcRenderer.invoke("cardano:tokeoVerifyCollection", policyIds, strict),
+    tokeoCancelQR: (sessionId?: string) =>
+      ipcRenderer.invoke("cardano:tokeoCancelQR", sessionId),
+    tokeoStatus: () =>
+      ipcRenderer.invoke("cardano:tokeoStatus"),
+    tokeoDisconnect: () =>
+      ipcRenderer.invoke("cardano:tokeoDisconnect"),
+
+    // CIP-30 Browser Wallets (Lace, Eternl, Nami, etc.) via WebView Bridge
+    detectWallets: () =>
+      ipcRenderer.invoke("cardano:detectWallets"),
+    connectWallet: (walletKey: string) =>
+      ipcRenderer.invoke("cardano:connectWallet", walletKey),
+    getWalletAssets: () =>
+      ipcRenderer.invoke("cardano:getWalletAssets"),
+    signTx: (walletKey: string, txHex: string, partialSign?: boolean) =>
+      ipcRenderer.invoke("cardano:signTx", walletKey, txHex, partialSign),
+    getBridgeStatus: () =>
+      ipcRenderer.invoke("cardano:getBridgeStatus"),
+    disconnectWallet: () =>
+      ipcRenderer.invoke("cardano:disconnectWallet"),
+  },
 });
 
 contextBridge.exposeInMainWorld("chatAPI", chatAPI);

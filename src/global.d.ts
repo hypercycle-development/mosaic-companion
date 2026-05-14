@@ -71,6 +71,7 @@ interface Window {
       [key: string]: any;
     };
     cardano?: ElectronAPIAny & {
+      // Legacy methods (kept for backward compatibility)
       detect: () => Promise<boolean>;
       connect: () => Promise<{ success: boolean; address?: string; error?: string }>;
       getBalance: () => Promise<string>;
@@ -78,6 +79,22 @@ interface Window {
       signData: (data: string) => Promise<{ success: boolean; signature?: string; error?: string }>;
       networkId: () => Promise<number>;
       getAddress: () => Promise<string>;
+      // ─── Tokeo QR Bridge ───
+      tokeoDetect: () => Promise<{ available: boolean; name?: string; message?: string }>;
+      tokeoConnect: () => Promise<{ success: boolean; address?: string; error?: string }>;
+      tokeoQRPairing: (policyIds?: string[]) => Promise<{ success: boolean; data?: { sessionId: string; uri: string; callbackUrl: string; port: number }; error?: string }>;
+      tokeoCheckQR: (sessionId?: string) => Promise<{ success: boolean; data?: { connected: boolean; address?: string; sessionId?: string; status?: string }; error?: string }>;
+      tokeoVerifyCollection: (policyIds: string[], strict?: boolean) => Promise<{ success: boolean; data?: { hasAccess: boolean; hasAll: boolean; matchedPolicies: string[]; assets: any[] }; error?: string }>;
+      tokeoCancelQR: (sessionId?: string) => Promise<{ success: boolean; error?: string }>;
+      tokeoStatus: () => Promise<{ success: boolean; data?: { connected: boolean; address?: string; networkId?: number } }>;
+      tokeoDisconnect: () => Promise<{ success: boolean }>;
+      // ─── CIP-30 Browser Wallet Bridge (Lace, Eternl, Nami, etc.) ───
+      detectWallets: () => Promise<{ success: boolean; data?: { available: boolean; wallets: Array<{ name: string; key: string; version: string }> }; error?: string }>;
+      connectWallet: (walletKey: string) => Promise<{ success: boolean; data?: { connected: boolean; walletName: string; address: string; rewardAddress?: string; networkId?: number; assets?: Array<{ policyId: string; assetName: string; fingerprint: string; quantity: number }> }; error?: string }>;
+      getWalletAssets: () => Promise<{ success: boolean; data?: { address: string; assets: Array<{ policyId: string; assetName: string; fingerprint: string; quantity: number }> }; error?: string }>;
+      signTx: (walletKey: string, txHex: string, partialSign?: boolean) => Promise<{ success: boolean; data?: { signedTx: string }; error?: string }>;
+      getBridgeStatus: () => Promise<{ success: boolean; data?: { connected: boolean; state: any } }>;
+      disconnectWallet: () => Promise<{ success: boolean }>;
     };
     tokeo?: {
       detect: () => Promise<boolean>;

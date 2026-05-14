@@ -206,7 +206,17 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [accessCheck, setAccessCheck] = useState<AccessCheck | null>(null);
   const [tokeoConnected, setTokeoConnected] = useState(false);
   const [tokeoAddress, setTokeoAddress] = useState<string | null>(null);
-  const [nftPolicyIds, setNftPolicyIds] = useState<string[]>([]);
+  const [cardanoAssets, setCardanoAssets] = useState<Array<{
+    policyId: string;
+    assetName: string;
+    fingerprint: string;
+    quantity: number;
+  }> | null>(null);
+  const [nftPolicyIds, setNftPolicyIds] = useState<string[]>([
+    'a222abf06e562a5acc7d5bb3bec3d0b29414082e6fe5650026f92d46', // HPEC DAO PASS
+    '454fb57214730cb34f83d7b377308a76ab6e7140ea634a7fc63affa5', // CMHPEC DAO PASS
+    'bc963a07e32da4d22b77c8cba7ab9f3df6241f37d7bfc9b0deb48f65', // HyperDegens
+  ]);
   const [isConnectingTokeo, setIsConnectingTokeo] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrData, setQrData] = useState<{uri: string; sessionId: string} | null>(null);
@@ -935,49 +945,66 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                 onClick={async () => {
                   setIsConnectingTokeo(true);
                   try {
-                    const detectResult = await window.electronAPI?.cardano?.tokeoDetect();
+                    const detectResult = await window.electronAPI?.cardano?.detectWallets();
                     const detect = detectResult as any;
                     if (detect?.success && detect?.data?.available) {
-                      const result = await window.electronAPI?.cardano?.tokeoConnect();
-                      const r = result as any;
-                      if (r?.success && r?.data?.connected) {
-                        setTokeoConnected(true);
-                        setTokeoAddress(r.data.address);
-                        showNotification('success', 'Tokeo wallet connected!');
-                        if (nftPolicyIds.length > 0) {
-                          const verifyResult = await window.electronAPI?.cardano?.tokeoVerifyCollection(nftPolicyIds, false);
-                          const v = verifyResult as any;
-                          if (v?.success && v?.data?.hasAccess) {
-                            showNotification('success', 'NFT access verified! Premium features unlocked.');
+                      const wallets = detect.data.wallets || [];
+                      const hasLace = wallets.some((w: any) => w.key === 'lace' || /lace/i.test(w.name));
+                      if (hasLace) {
+                        const result = await window.electronAPI?.cardano?.connectWallet('lace');
+                        const r = result as any;
+                        if (r?.success && r?.data?.connected) {
+                          setTokeoConnected(true);
+                          setTokeoAddress(r.data.address);
+                          // Store wallet assets from bridge
+                          const assets = r.data.assets || [];
+                          if (assets.length > 0) {
+                            setCardanoAssets(assets);
+                            showNotification('success', `Lace wallet connected! Found ${assets.length} native asset(s).`);
+                          } else {
+                            showNotification('success', 'Lace wallet connected via CIP-30 bridge!');
                           }
+                          if (nftPolicyIds.length > 0) {
+                            const verifyResult = await window.electronAPI?.cardano?.tokeoVerifyCollection(nftPolicyIds, false);
+                            const v = verifyResult as any;
+                            if (v?.success && v?.data?.hasAccess) {
+                              const matched = v.data.matchedPolicies || [];
+                              showNotification('success', `NFT verified! Found: ${matched.length} collection(s)`);
+                            } else {
+                              showNotification('error', 'No matching NFTs found in Lace wallet');
+                            }
+                          }
+                        } else {
+                          showNotification('error', r?.error || 'Failed to connect Lace wallet');
                         }
                       } else {
-                        showNotification('error', r?.error || 'Failed to connect');
+                        showNotification('error', 'Lace wallet not detected. Ensure Lace extension is installed in Chrome/Brave/Edge.');
                       }
                     } else {
-                      showNotification('error', 'Tokeo not detected. Try QR option.');
+                      showNotification('error', 'No CIP-30 wallets detected. Ensure Lace extension is installed in Chrome/Brave/Edge.');
                     }
                   } catch (e: any) {
-                    showNotification('error', e.message || 'Connection failed');
+                    showNotification('error', e.message || 'Lace connection failed');
                   } finally {
                     setIsConnectingTokeo(false);
                   }
                 }}
                 disabled={isConnectingTokeo}
-                className="px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium disabled:opacity-50 transition-colors"
+                className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium disabled:opacity-50 transition-colors"
               >
-                {isConnectingTokeo ? '...' : 'Extension'}
+                {isConnectingTokeo ? '...' : 'LACE'}
               </button>
               <button
                 onClick={async () => {
                   setIsConnectingTokeo(true);
                   try {
-                    const qrResult = await window.electronAPI?.cardano?.tokeoQRPairing();
+                    const qrResult = await window.electronAPI?.cardano?.tokeoQRPairing(nftPolicyIds);
                     const qr = qrResult as any;
                     if (qr?.success && qr?.data?.uri) {
                       setQrData({ uri: qr.data.uri, sessionId: qr.data.sessionId });
                       setShowQRModal(true);
-                      showNotification('info', 'Scan QR with Tokeo mobile app');
+                      const host = qr.data.host || 'localhost';
+                      showNotification('info', `Scan QR with Tokeo mobile app → ${host}:${qr.data.port}`);
                       const pollInterval = setInterval(async () => {
                         const checkResult = await window.electronAPI?.cardano?.tokeoCheckQR();
                         const c = checkResult as any;
@@ -986,16 +1013,26 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                           setTokeoConnected(true);
                           setTokeoAddress(c.data.address);
                           setShowQRModal(false);
-                          showNotification('success', 'Tokeo mobile connected!');
+                          showNotification('success', `Tokeo connected: ${c.data.address?.slice(0, 12)}...`);
                           if (nftPolicyIds.length > 0) {
                             const verifyResult = await window.electronAPI?.cardano?.tokeoVerifyCollection(nftPolicyIds, false);
                             const v = verifyResult as any;
                             if (v?.success && v?.data?.hasAccess) {
-                              showNotification('success', 'NFT access verified!');
+                              const matched = v.data.matchedPolicies || [];
+                              showNotification('success', `NFT verified! Found: ${matched.length} collection(s)`);
+                            } else {
+                              showNotification('error', 'No matching NFTs found in wallet');
                             }
                           }
                         }
+                        if (c?.success === false) {
+                          // Session expired or error - stop polling
+                          clearInterval(pollInterval);
+                          showNotification('error', c.error || 'QR session expired');
+                        }
                       }, 3000);
+                      // Stop polling after 5 minutes (session expiry)
+                      setTimeout(() => clearInterval(pollInterval), 5 * 60 * 1000);
                     } else {
                       showNotification('error', 'Failed to generate QR code');
                     }
@@ -1061,6 +1098,91 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           </div>
         )}
       </div>
+
+      {/* ── Cardano Wallet NFT Asset Cards ── */}
+      {tokeoConnected && cardanoAssets && cardanoAssets.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-white flex items-center gap-2">
+              <Layers size={18} className="text-blue-400" />
+              Cardano Assets
+              <span className="text-xs text-gray-500 ml-1">({cardanoAssets.length})</span>
+            </h4>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {(() => {
+              // Group assets by policy ID
+              const byPolicy = new Map<string, typeof cardanoAssets>();
+              for (const a of cardanoAssets!) {
+                const list = byPolicy.get(a.policyId) || [];
+                list.push(a);
+                byPolicy.set(a.policyId, list);
+              }
+              return Array.from(byPolicy.entries()).map(([policyId, assets]) => {
+                const matchedPolicy = nftPolicyIds.find(pid => pid === policyId);
+                const collectionName = matchedPolicy
+                  ? (policyId === 'a222abf06e562a5acc7d5bb3bec3d0b29414082e6fe5650026f92d46' ? 'HPEC DAO PASS'
+                    : policyId === '454fb57214730cb34f83d7b377308a76ab6e7140ea634a7fc63affa5' ? 'CMHPEC DAO PASS'
+                    : policyId === 'bc963a07e32da4d22b77c8cba7ab9f3df6241f37d7bfc9b0deb48f65' ? 'HyperDegens'
+                    : `Collection ${policyId.slice(0, 8)}...`)
+                  : `Policy ${policyId.slice(0, 8)}...`;
+                const isVerified = !!matchedPolicy;
+                return (
+                  <div
+                    key={policyId}
+                    className="bg-gray-800/50 rounded-xl border border-gray-700 p-4 hover:border-blue-500/40 transition-all group"
+                  >
+                    {/* Card Header */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center border bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-500/20">
+                          <Layers size={24} className="text-blue-400" />
+                        </div>
+                        <div>
+                          <h5 className="font-semibold text-white text-sm leading-tight">{collectionName}</h5>
+                          <div className="text-xs text-gray-400 mt-0.5">cardano · {assets.length} NFT{assets.length > 1 ? 's' : ''}</div>
+                        </div>
+                      </div>
+                      {isVerified && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/20">
+                          Verified
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Asset list (scrollable if many) */}
+                    <div className="max-h-32 overflow-y-auto space-y-1 pr-1 mb-3">
+                      {assets.map((asset, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-gray-900/40">
+                          <span className="text-gray-300 truncate" title={asset.assetName}>
+                            {asset.assetName || `Asset #${idx + 1}`}
+                          </span>
+                          <span className="text-blue-400 font-mono ml-2 shrink-0">×{asset.quantity}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Footer: total + explorer link */}
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-700/50">
+                      <span className="text-xs text-gray-500">
+                        Total: <span className="text-blue-400 font-medium">{assets.reduce((sum, a) => sum + a.quantity, 0)}</span> items
+                      </span>
+                      <a
+                        href={`https://pool.pm/${policyId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+                      >
+                        View on pool.pm <ArrowRight size={10} />
+                      </a>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* Unified Multi-Chain Asset Panel — ETH + BASE */}
       <UnifiedAssetPanel
