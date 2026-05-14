@@ -43,6 +43,48 @@ const KOIOS_CONFIG: KoiosConfig = {
   timeoutMs: 30000,
 };
 
+// ─── Koios: fetch ALL assets at an address (no policy filter) ──────────────
+
+interface AddressAssetRaw {
+  policy_id: string;
+  asset_name: string;
+  fingerprint: string;
+  quantity: string;
+}
+
+async function fetchAddressAssets(address: string): Promise<Array<{ policyId: string; assetName: string; fingerprint: string; quantity: number }>> {
+  try {
+    const endpoint = 'https://api.koios.rest/api/v1';
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 30000);
+    const res = await fetch(`${endpoint}/address_assets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ _addresses: [address] }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      console.warn('[CardanoIPC] Koios address_assets failed:', res.status);
+      return [];
+    }
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return [];
+    const list: AddressAssetRaw[] = data[0]?.asset_list || [];
+    return list
+      .filter(a => parseInt(a.quantity || '0', 10) > 0)
+      .map(a => ({
+        policyId: (a.policy_id || '').toLowerCase(),
+        assetName: a.asset_name || '',
+        fingerprint: a.fingerprint || '',
+        quantity: parseInt(a.quantity || '1', 10),
+      }));
+  } catch (e: any) {
+    console.warn('[CardanoIPC] fetchAddressAssets error:', e.message);
+    return [];
+  }
+}
+
 /**
  * Register all Cardano IPC handlers
  */
@@ -295,6 +337,20 @@ export function registerCardanoIpc(): void {
             address: chromeResult.address,
             networkId: chromeResult.networkId,
           };
+          // Chrome bridge assets extraction is unreliable (CBOR hex UTXOs); query Koios
+          let assets = chromeResult.assets || [];
+          if (chromeResult.address && assets.length === 0) {
+            console.log('[CardanoIPC] Fetching assets via Koios for', chromeResult.address.slice(0, 20) + '...');
+            try {
+              const koiosAssets = await fetchAddressAssets(chromeResult.address);
+              if (koiosAssets.length > 0) {
+                assets = koiosAssets;
+                console.log(`[CardanoIPC] Koios returned ${assets.length} assets`);
+              }
+            } catch (fetchErr: any) {
+              console.warn('[CardanoIPC] Koios asset fetch failed:', fetchErr.message);
+            }
+          }
           return {
             success: true,
             data: {
@@ -303,7 +359,7 @@ export function registerCardanoIpc(): void {
               address: chromeResult.address,
               rewardAddress: chromeResult.rewardAddress,
               networkId: chromeResult.networkId,
-              assets: chromeResult.assets || [],
+              assets,
             },
           };
         }
@@ -318,6 +374,16 @@ export function registerCardanoIpc(): void {
           address: legacyResult.address || undefined,
           networkId: legacyResult.networkId || undefined,
         };
+        // Fetch assets via Koios (legacy bridge doesn't return assets)
+        let assets: Array<{ policyId: string; assetName: string; fingerprint: string; quantity: number }> = [];
+        if (legacyResult.address) {
+          try {
+            const koiosAssets = await fetchAddressAssets(legacyResult.address);
+            if (koiosAssets.length > 0) assets = koiosAssets;
+          } catch (e: any) {
+            console.warn('[CardanoIPC] Legacy bridge Koios asset fetch failed:', e.message);
+          }
+        }
         return {
           success: true,
           data: {
@@ -326,7 +392,7 @@ export function registerCardanoIpc(): void {
             address: legacyResult.address,
             rewardAddress: legacyResult.rewardAddress,
             networkId: legacyResult.networkId,
-            assets: [],
+            assets,
           },
         };
       }
@@ -341,6 +407,16 @@ export function registerCardanoIpc(): void {
             address: firefoxResult.address || undefined,
             networkId: firefoxResult.networkId || undefined,
           };
+          // Fetch assets via Koios (Firefox bridge doesn't extract UTXO assets)
+          let assets: Array<{ policyId: string; assetName: string; fingerprint: string; quantity: number }> = [];
+          if (firefoxResult.address) {
+            try {
+              const koiosAssets = await fetchAddressAssets(firefoxResult.address);
+              if (koiosAssets.length > 0) assets = koiosAssets;
+            } catch (e: any) {
+              console.warn('[CardanoIPC] Firefox Koios asset fetch failed:', e.message);
+            }
+          }
           return {
             success: true,
             data: {
@@ -349,7 +425,7 @@ export function registerCardanoIpc(): void {
               address: firefoxResult.address,
               rewardAddress: firefoxResult.rewardAddress,
               networkId: firefoxResult.networkId,
-              assets: [],
+              assets,
             },
           };
         }
