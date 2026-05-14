@@ -969,29 +969,33 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                         if (r?.success && r?.data?.connected) {
                           setTokeoConnected(true);
                           setTokeoAddress(r.data.address);
-                          // Store wallet assets from bridge
-                          const assets = r.data.assets || [];
-                          if (assets.length > 0) {
-                            setCardanoAssets(assets);
+                          // Store wallet assets from bridge — FILTER to verified policies only
+                          const rawAssets = r.data.assets || [];
+                          const verifiedAssets = rawAssets.filter((a: any) =>
+                            nftPolicyIds.includes(a.policyId?.toLowerCase())
+                          );
+                          if (verifiedAssets.length > 0) {
+                            setCardanoAssets(verifiedAssets);
                             // Resolve rich metadata + group collections
                             setResolvingMetadata(true);
                             try {
-                              const units = assets.map((a: any) => ({
+                              const units = verifiedAssets.map((a: any) => ({
                                 ...a,
                                 unit: a.unit || a.policyId + a.assetName,
                               }));
                               const groups = await metadataResolver.resolveCollectionGroups(units);
-                              setCollectionGroups(groups);
-                              const verifiedCount = groups.filter(g => g.isVerified).length;
-                              showNotification('success', `Lace connected! ${assets.length} assets · ${groups.length} collection(s) · ${verifiedCount} verified`);
+                              // Only show verified collection groups
+                              const verifiedGroups = groups.filter(g => g.isVerified);
+                              setCollectionGroups(verifiedGroups);
+                              showNotification('success', `Lace connected! ${verifiedAssets.length} verified NFT(s) · ${verifiedGroups.length} collection(s)`);
                             } catch (metaErr: any) {
                               console.warn('[AdaPortal] Metadata resolution failed:', metaErr);
-                              showNotification('success', `Lace wallet connected! Found ${assets.length} native asset(s).`);
+                              showNotification('success', `Lace wallet connected! Found ${verifiedAssets.length} verified NFT(s).`);
                             } finally {
                               setResolvingMetadata(false);
                             }
                           } else {
-                            showNotification('success', 'Lace wallet connected via CIP-30 bridge!');
+                            showNotification('info', 'Lace connected — no verified NFTs from allowed collections found.');
                           }
                           if (nftPolicyIds.length > 0) {
                             const verifyResult = await window.electronAPI?.cardano?.tokeoVerifyCollection(nftPolicyIds, false);
