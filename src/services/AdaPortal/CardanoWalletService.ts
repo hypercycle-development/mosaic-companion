@@ -221,7 +221,7 @@ class CardanoWalletService {
               walletName: data.walletName as SupportedWallet,
               address: data.address,
               utxos: [],
-              assets: [],
+              assets: data.assets || [],
               verified: false,
               accessLevel: 'none',
               connectedAt: Date.now()
@@ -344,24 +344,40 @@ class CardanoWalletService {
    * Fetch all wallet data via Electron IPC bridge
    */
   async fetchWalletData(): Promise<{ success: boolean; error?: string }> {
-    // Try IPC bridge first
-    if (window.electronAPI?.cardano?.getBalance) {
+    // Try IPC bridge for assets first (Electron)
+    if (window.electronAPI?.cardano?.getWalletAssets) {
       try {
-        const result = await window.electronAPI.cardano.getBalance() as any;
-        if (result?.success) {
-          // Balance data is in result.data
-          console.log('[CardanoWallet] Balance fetched via IPC:', result.data);
-          return { success: true };
+        const result = await window.electronAPI.cardano.getWalletAssets() as any;
+        if (result?.success && result.data) {
+          this.session.address = result.data.address || this.session.address;
+          this.session.assets = result.data.assets || [];
+          console.log('[CardanoWallet] Assets fetched via IPC:', this.session.assets.length);
+          this.logAssetDetails();
         }
       } catch (error) {
-        console.error('[CardanoWallet] Error fetching balance via IPC:', error);
+        console.error('[CardanoWallet] Error fetching assets via IPC:', error);
       }
+      // Also verify via direct wallet API if available (for UTXOs)
+      if (this.walletAPI) {
+        try {
+          const utxos = await this.walletAPI.getUtxos();
+          if (utxos && utxos.length > 0) {
+            this.session.utxos = this.parseUTXOs(utxos);
+            // Merge direct API assets if IPC returned none
+            if (this.session.assets.length === 0) {
+              this.session.assets = this.extractAssetsFromUTXOs(this.session.utxos);
+            }
+          }
+        } catch (e) {
+          console.warn('[CardanoWallet] Direct UTXO fetch failed:', e);
+        }
+      }
+      await this.verifyNFTAccess();
+      this.notifySessionChange();
+      return { success: true };
     }
-    
-    // Fallback: use walletAPI if available (browser dev mode)
-    if (!this.walletAPI) {
-      return { success: false, error: 'Wallet not connected' };
-    }
+
+    // Fallback: direct window.cardano access (browser dev mode)
     if (!this.walletAPI) {
       return { success: false, error: 'Wallet not connected' };
     }

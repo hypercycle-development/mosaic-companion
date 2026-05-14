@@ -540,7 +540,8 @@ export async function connectChromeWallet(
     return new Promise((resolve) => {
       const check = setInterval(() => {
         const result = getResult();
-        if (result) {
+        // Detect payloads have no address; only resolve on connect payloads
+        if (result && result.address) {
           clearInterval(check);
           if (server) { server.close(); server = null; }
           resolve(result);
@@ -599,7 +600,7 @@ export async function signTxChrome(
     return new Promise((resolve) => {
       const check = setInterval(() => {
         const result = getResult();
-        if (result) {
+        if (result && result.signedTx) {
           clearInterval(check);
           if (server) { server.close(); server = null; }
           resolve(result);

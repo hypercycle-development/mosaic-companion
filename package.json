@@ -43,6 +43,7 @@
     "arm64"
   ],
   "dependencies": {
+    "@emurgo/cardano-serialization-lib-asmjs": "^15.0.3",
     "@extism/extism": "^2.0.0-rc13",
     "@modelcontextprotocol/sdk": "^1.27.0",
     "@monaco-editor/react": "^4.7.0",

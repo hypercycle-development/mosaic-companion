@@ -28,12 +28,15 @@ import {
   disconnectFirefoxWallet,
 } from './CIP30FirefoxBridge';
 
+import { toBech32Address } from './addressUtils';
+
 // In-memory store for connected tokeo state (QR-based)
 interface TokeoConnectionState {
   connected: boolean;
   address?: string;
   networkId?: number;
   sessionId?: string;
+  assets?: Array<{ policyId: string; assetName: string; fingerprint: string; quantity: number }>;
 }
 
 let tokeoState: TokeoConnectionState = { connected: false };
@@ -69,15 +72,20 @@ async function fetchAddressAssets(address: string): Promise<Array<{ policyId: st
       return [];
     }
     const data = await res.json();
+    console.log('[CardanoIPC] Koios raw response: count', Array.isArray(data) ? data.length : 'not-array', '; first keys:', data?.[0] ? Object.keys(data[0]).slice(0, 5) : 'none');
+
     if (!Array.isArray(data) || data.length === 0) return [];
-    const list: AddressAssetRaw[] = data[0]?.asset_list || [];
-    return list
-      .filter(a => parseInt(a.quantity || '0', 10) > 0)
+
+    // Koios v1 returns a flat array: [{ address, policy_id, asset_name, fingerprint, quantity }, ...]
+    // Older code expected data[0].asset_list which is NO LONGER present in v1.
+    const flatList: Array<{ policy_id?: string; asset_name?: string; fingerprint?: string; quantity?: string | number; decimals?: number }> = data;
+    return flatList
+      .filter(a => parseInt(String(a.quantity || '0'), 10) > 0)
       .map(a => ({
         policyId: (a.policy_id || '').toLowerCase(),
         assetName: a.asset_name || '',
         fingerprint: a.fingerprint || '',
-        quantity: parseInt(a.quantity || '1', 10),
+        quantity: parseInt(String(a.quantity || '1'), 10),
       }));
   } catch (e: any) {
     console.warn('[CardanoIPC] fetchAddressAssets error:', e.message);
@@ -332,17 +340,13 @@ export function registerCardanoIpc(): void {
         console.log(`[CardanoIPC] Trying Chrome bridge for ${walletKey}...`);
         const chromeResult = await connectChromeWallet(walletKey);
         if (chromeResult.success) {
-          tokeoState = {
-            connected: true,
-            address: chromeResult.address,
-            networkId: chromeResult.networkId,
-          };
           // Chrome bridge assets extraction is unreliable (CBOR hex UTXOs); query Koios
           let assets = chromeResult.assets || [];
-          if (chromeResult.address && assets.length === 0) {
-            console.log('[CardanoIPC] Fetching assets via Koios for', chromeResult.address.slice(0, 20) + '...');
+          const bech32Address = chromeResult.address ? await toBech32Address(chromeResult.address) : null;
+          if (bech32Address && assets.length === 0) {
+            console.log('[CardanoIPC] Fetching assets via Koios for', bech32Address.slice(0, 20) + '...');
             try {
-              const koiosAssets = await fetchAddressAssets(chromeResult.address);
+              const koiosAssets = await fetchAddressAssets(bech32Address);
               if (koiosAssets.length > 0) {
                 assets = koiosAssets;
                 console.log(`[CardanoIPC] Koios returned ${assets.length} assets`);
@@ -351,6 +355,12 @@ export function registerCardanoIpc(): void {
               console.warn('[CardanoIPC] Koios asset fetch failed:', fetchErr.message);
             }
           }
+          tokeoState = {
+            connected: true,
+            address: chromeResult.address,
+            networkId: chromeResult.networkId,
+            assets,
+          };
           return {
             success: true,
             data: {
@@ -369,11 +379,6 @@ export function registerCardanoIpc(): void {
       // Fallback: try legacy WebView bridge (for users on older systems)
       const legacyResult = await bridgeConnectWallet(walletKey);
       if (legacyResult.success) {
-        tokeoState = {
-          connected: true,
-          address: legacyResult.address || undefined,
-          networkId: legacyResult.networkId || undefined,
-        };
         // Fetch assets via Koios (legacy bridge doesn't return assets)
         let assets: Array<{ policyId: string; assetName: string; fingerprint: string; quantity: number }> = [];
         if (legacyResult.address) {
@@ -384,6 +389,12 @@ export function registerCardanoIpc(): void {
             console.warn('[CardanoIPC] Legacy bridge Koios asset fetch failed:', e.message);
           }
         }
+        tokeoState = {
+          connected: true,
+          address: legacyResult.address || undefined,
+          networkId: legacyResult.networkId || undefined,
+          assets,
+        };
         return {
           success: true,
           data: {
@@ -402,27 +413,29 @@ export function registerCardanoIpc(): void {
         console.log('[CardanoIPC] Chrome bridge failed, trying Firefox bridge...');
         const firefoxResult = await connectFirefoxWallet(walletKey);
         if (firefoxResult.success) {
-          tokeoState = {
-            connected: true,
-            address: firefoxResult.address || undefined,
-            networkId: firefoxResult.networkId || undefined,
-          };
           // Fetch assets via Koios (Firefox bridge doesn't extract UTXO assets)
           let assets: Array<{ policyId: string; assetName: string; fingerprint: string; quantity: number }> = [];
-          if (firefoxResult.address) {
+          const bech32Addr = firefoxResult.address ? await toBech32Address(firefoxResult.address) : null;
+          if (bech32Addr) {
             try {
-              const koiosAssets = await fetchAddressAssets(firefoxResult.address);
+              const koiosAssets = await fetchAddressAssets(bech32Addr);
               if (koiosAssets.length > 0) assets = koiosAssets;
             } catch (e: any) {
               console.warn('[CardanoIPC] Firefox Koios asset fetch failed:', e.message);
             }
           }
+          tokeoState = {
+            connected: true,
+            address: bech32Addr || firefoxResult.address || undefined,
+            networkId: firefoxResult.networkId || undefined,
+            assets,
+          };
           return {
             success: true,
             data: {
               connected: true,
               walletName: 'lace',
-              address: firefoxResult.address,
+              address: bech32Addr || firefoxResult.address,
               rewardAddress: firefoxResult.rewardAddress,
               networkId: firefoxResult.networkId,
               assets,
@@ -445,7 +458,7 @@ export function registerCardanoIpc(): void {
     }
   });
 
-  // getWalletAssets — return assets from the last successful connect (stored in tokeoState)
+      // getWalletAssets — return assets from the last successful connect (stored in tokeoState)
   ipcMain.handle('cardano:getWalletAssets', async () => {
     try {
       if (!tokeoState.connected || !tokeoState.address) {
@@ -454,14 +467,11 @@ export function registerCardanoIpc(): void {
           error: 'No wallet connected',
         };
       }
-      // If we had assets from Chrome bridge, they would have been returned in connectWallet.
-      // For standalone asset refresh, re-run Chrome bridge in asset-only mode.
-      // For now, return whatever is in memory.
       return {
         success: true,
         data: {
           address: tokeoState.address,
-          assets: [], // populated by renderer from connectWallet response
+          assets: tokeoState.assets || [],
         },
       };
     } catch (error: any) {

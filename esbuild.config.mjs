@@ -43,6 +43,8 @@ await esbuild.build({
     "sqlite-vec",
     "chokidar",
     "node-pty",
+    // WASM-based Cardano serialization lib
+    "@emurgo/cardano-serialization-lib-asmjs",
   ],
 
 });
