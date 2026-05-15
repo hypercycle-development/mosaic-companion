@@ -65,10 +65,11 @@ interface MetricCardProps {
     value: string | number;
     chartData?: any[];
     subtext?: string;
+    subtextNode?: React.ReactNode;
     tooltipText?: string;
 }
 
-export const MetricCard = ({ title, value, chartData, subtext, tooltipText = "default text" }: MetricCardProps) => {
+export const MetricCard = ({ title, value, chartData, subtext, subtextNode, tooltipText = "default text" }: MetricCardProps) => {
     return (
         <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-3 flex flex-col h-full relative group">
             <div className="flex items-start justify-between mb-2">
@@ -76,6 +77,7 @@ export const MetricCard = ({ title, value, chartData, subtext, tooltipText = "de
                     <h3 className="text-[var(--textMuted)] text-sm font-medium">{title}</h3>
                     <div className="text-2xl font-bold text-[var(--text)] mt-1">{value}</div>
                     {subtext && <div className="text-xs text-[var(--textMuted)] mt-1">{subtext}</div>}
+                    {subtextNode && <div className="text-xs text-[var(--textMuted)] mt-1">{subtextNode}</div>}
                 </div>
                 
                 {/* Help Icon with Tooltip */}
