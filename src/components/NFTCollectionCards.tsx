@@ -29,7 +29,6 @@ import type {
   CIP25Metadata,
 } from '../services/AdaPortal/MetadataResolver';
 import type { StargateCollectionConfig } from '../services/AdaPortal/CollectionRegistry';
-import { PROJECT_TYPE_LABELS } from '../services/AdaPortal/CollectionRegistry';
 
 // ─── Helper: IPFS image with fallback ───────────────────────────
 
@@ -119,7 +118,7 @@ function InfrastructurePanel({ config }: { config?: StargateCollectionConfig }) 
           <TrendingUp size={12} className="text-pink-400" />
           <div>
             <div className="text-[10px] text-gray-500">cHYPC Pool</div>
-            <div className="text-sm font-bold text-white">{infra.rewardPoolHYPC.toLocaleString()} cHYPC</div>
+            <div className="text-sm font-bold text-white">{infra.activeNodes.toLocaleString()} cHYPC</div>
           </div>
         </div>
       </div>
@@ -253,7 +252,7 @@ export function NFTCollectionCard({ group, onAssetClick }: NFTCollectionCardProp
               )}
             </div>
             <div className="text-xs text-gray-400 mt-0.5">
-              {config?.projectType && PROJECT_TYPE_LABELS[config.projectType]}
+              {'NFT'}
               {' · '}
               <span className="text-gray-300 font-medium">{group.assets.length} NFT{group.assets.length > 1 ? 's' : ''}</span>
               {' · '}
