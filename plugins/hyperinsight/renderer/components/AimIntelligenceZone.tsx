@@ -54,6 +54,8 @@ interface MergedDeploymentRow {
   currency: string | null;
   endpointUrl: string | null;
   hasDeploymentData: boolean;
+  isRoutable: boolean;
+  isLocalOnly: boolean;
 }
 
 function buildMergedRows(
@@ -100,6 +102,8 @@ function buildMergedRows(
       currency: dep?.currency ?? null,
       endpointUrl: dep?.endpointUrl ?? null,
       hasDeploymentData: dep !== undefined,
+      isRoutable: node.isRoutable,
+      isLocalOnly: node.isLocalOnly,
     };
   });
 
@@ -332,6 +336,8 @@ const MergedNodeRow = ({ row, hasUserGeo, onSelect }: MergedNodeRowProps) => {
     distanceKm: row.distanceKm,
     primaryEndpointUrl: row.primaryEndpointUrl,
     lastContactAt: row.lastContactAt,
+    isRoutable: row.isRoutable,
+    isLocalOnly: row.isLocalOnly,
   };
 
   const versionLabel = row.releaseTagName ?? row.tagName;
