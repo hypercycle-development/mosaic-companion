@@ -86,6 +86,8 @@ export interface AimProfileDto {
     latestStats: AimStatsDto | null;
     versions: AimVersionSummaryDto[];
     completenessScore: number | null;
+    totalActiveNodeCount: number;
+    routableNodeCount: number;
 }
 
 export interface AimNodeInstanceDto {
@@ -103,7 +105,7 @@ export interface AimNodeInstanceDto {
     primaryEndpointUrl: string;
     lastContactAt: string;
     isRoutable: boolean;
-    isLocalOnly: boolean;
+    isLocalOnly?: boolean;
 }
 
 export interface AimNodesOpts {
@@ -245,7 +247,6 @@ export interface AimDeploymentDto {
     costMinMicroUsdc: number | null;
     costMaxMicroUsdc: number | null;
     isRoutable: boolean;
-    isLocalOnly: boolean;
 }
 
 export interface ToolScoreData {

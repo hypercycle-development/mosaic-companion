@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, CheckCircle, AlertCircle, Loader2, Copy, Check, ExternalLink } from 'lucide-react';
+import { Play, CheckCircle, AlertCircle, Loader2, Copy, Check, ExternalLink, Lock } from 'lucide-react';
 import { AimNodeInstanceDto, AimDeploymentDto, SubscriptionDto, SubscribePayload } from '../types';
 import { relativeTime } from '../utils';
 import { useNodeConnect } from '../hooks/useNodeConnect';
@@ -16,7 +16,12 @@ interface AimActivationZoneProps {
   subscriptions?: SubscriptionDto[];
   aimId?: number | null;
   onSubscriptionsChange?: (subs: SubscriptionDto[]) => void;
+  routableNodeCount?: number;
+  totalActiveNodeCount?: number;
+  hasCallableEndpoints?: boolean | null;
 }
+
+type ActivationState = 'ready' | 'none-routable' | 'no-nodes' | 'no-callable-endpoints';
 
 export const AimActivationZone = ({
   aimName,
@@ -28,6 +33,9 @@ export const AimActivationZone = ({
   subscriptions = [],
   aimId,
   onSubscriptionsChange,
+  routableNodeCount = 0,
+  totalActiveNodeCount = 0,
+  hasCallableEndpoints = null,
 }: AimActivationZoneProps) => {
   const { connect, isConnecting, isConnected, error } = useNodeConnect();
   const [connectSuccess, setConnectSuccess] = useState(false);
@@ -38,6 +46,12 @@ export const AimActivationZone = ({
 
   const endpointUrl = bestNode?.primaryEndpointUrl ?? null;
   const alreadyConnected = endpointUrl ? isConnected(endpointUrl) : false;
+
+  const activationState: ActivationState =
+    hasCallableEndpoints === false                               ? 'no-callable-endpoints' :
+    bestNode && bestNode.isRoutable                             ? 'ready' :
+    totalActiveNodeCount > 0 && routableNodeCount === 0        ? 'none-routable' :
+    'no-nodes';
 
   // Subscription derived state
   const isSubscribed = subscriptions.some(
@@ -54,7 +68,10 @@ export const AimActivationZone = ({
       licenseKey: String(bestNode.nodeLicense),
       nodeName: bestNode.nodeName ?? undefined,
     });
-    if (!error) setConnectSuccess(true);
+    // Check isConnected instead of relying on the async error state update
+    if (isConnected(endpointUrl)) {
+      setConnectSuccess(true);
+    }
   };
 
   const handleCopyMcp = async () => {
@@ -132,11 +149,11 @@ export const AimActivationZone = ({
 
       {/* Primary CTA */}
       <div className="space-y-3">
-        {bestNode ? (
+        {activationState === 'ready' ? (
           <>
             <button
               onClick={handleConnect}
-              disabled={isConnecting || alreadyConnected || bestNode?.isRoutable === false}
+              disabled={isConnecting || alreadyConnected}
               className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[var(--primary)] text-white rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isConnecting ? (
@@ -191,6 +208,42 @@ export const AimActivationZone = ({
               {nodeRegion && <span> · {nodeRegion}</span>}
             </p>
           </>
+        ) : activationState === 'no-callable-endpoints' ? (
+          <div className="flex flex-col items-start gap-2">
+            <button
+              disabled
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl font-semibold text-sm text-[var(--textMuted)] cursor-not-allowed opacity-50"
+            >
+              Not Callable
+            </button>
+            <div className="flex items-start gap-2 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-lg w-full">
+              <AlertCircle size={14} className="text-[var(--textMuted)] mt-0.5 shrink-0" />
+              <p className="text-xs text-[var(--textMuted)] leading-relaxed">
+                This AIM operates as an internal process and does not expose callable HTTP endpoints.
+                It cannot be added to your AI workflow.
+              </p>
+            </div>
+          </div>
+        ) : activationState === 'none-routable' ? (
+          <div className="flex flex-col items-start gap-2">
+            <button
+              disabled
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl font-semibold text-sm text-[var(--textMuted)] cursor-not-allowed opacity-50"
+            >
+              Cannot Connect
+            </button>
+            <p className="text-xs text-red-400 flex items-center gap-1">
+              <Lock size={12} />
+              No publicly accessible nodes are running this AIM.
+              Node operators have not exposed a public endpoint.
+            </p>
+            <button
+              onClick={onChooseNode}
+              className="text-xs underline text-gray-400 hover:text-gray-200"
+            >
+              View all nodes →
+            </button>
+          </div>
         ) : (
           <div className="space-y-2">
             <button
@@ -215,22 +268,33 @@ export const AimActivationZone = ({
         </button>
       </div>
 
-      {/* MCP / Workflow section */}
-      <div className="border-t border-[var(--border)] pt-4 space-y-3">
+      {/* MCP / Workflow section — hidden for non-callable AIMs */}
+      {activationState !== 'no-callable-endpoints' && <div className="border-t border-[var(--border)] pt-4 space-y-3">
         <h3 className="text-xs font-semibold text-[var(--textMuted)] uppercase tracking-wider">
           Use in Your AI Workflow
         </h3>
 
         <div className="flex flex-col sm:flex-row gap-2">
-          {/* Add to Mosaic (secondary) */}
-          <button
-            onClick={handleConnect}
-            disabled={isConnecting || alreadyConnected || !bestNode}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-[var(--primary)] text-[var(--primary)] rounded-lg text-sm font-medium hover:bg-[color-mix(in_srgb,var(--primary),transparent_90%)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Play size={14} />
-            Add to Mosaic
-          </button>
+          {/* Add to Mosaic — only shown when a routable node is available */}
+          {activationState === 'ready' && (
+            <button
+              onClick={handleConnect}
+              disabled={isConnecting || alreadyConnected}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-[var(--primary)] text-[var(--primary)] rounded-lg text-sm font-medium hover:bg-[color-mix(in_srgb,var(--primary),transparent_90%)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {alreadyConnected || connectSuccess ? (
+                <>
+                  <CheckCircle size={14} />
+                  Added
+                </>
+              ) : (
+                <>
+                  <Play size={14} />
+                  Add to Mosaic
+                </>
+              )}
+            </button>
+          )}
 
           {/* Copy MCP config */}
           <button
@@ -258,7 +322,7 @@ export const AimActivationZone = ({
               Until wired up, show fallback message. */}
           Cost varies by endpoint — see capabilities above.
         </p>
-      </div>
+      </div>}
 
       {/* Monitor This AIM section */}
       <div className="border-t border-[var(--border)] pt-4 space-y-3">

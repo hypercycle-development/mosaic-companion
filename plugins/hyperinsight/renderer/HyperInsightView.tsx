@@ -138,11 +138,20 @@ export const HyperInsightView = () => {
           <NodeDetailPanel
             licenseKey={selectedNode}
             onClose={() => setSelectedNode(null)}
+            toolScores={toolScores}
           />
         )}
       </>
     );
   }
+
+  const networkFreshnessUtc: string | null = data.stats?.data_freshness_utc ?? null;
+
+  const computeCghzFormatted = data.stats?.totalComputeCghz
+    ? (data.stats.totalComputeCghz >= 1000
+        ? (data.stats.totalComputeCghz / 1000).toFixed(1) + 'k'
+        : data.stats.totalComputeCghz.toFixed(0))
+    : '0';
 
   return (
     <div className="flex h-full w-full flex-col bg-[var(--background)] text-[var(--text)] font-sans overflow-hidden relative">
@@ -164,10 +173,7 @@ export const HyperInsightView = () => {
         <div className="flex items-center space-x-4">
             <ActiveNodesDisplay stats={data.stats} history={data.history} />
             <button
-                onClick={async () => {
-                  await window.electronAPI?.hyperinsight?.clearCache?.();
-                  fetchData();
-                }}
+                onClick={fetchData}
                 disabled={dataLoading}
                 className="p-2 rounded-full hover:bg-[var(--surface)] transition-colors disabled:opacity-50"
             >
@@ -217,7 +223,7 @@ export const HyperInsightView = () => {
                             tooltipText="TFLOPs is a sum of the feasible current GPU computational capacity of the network. Core-GHZ is an estimation of the current number of cores x avg ghz of cores on the network."
                             subtextNode={
                               <span className="flex flex-col gap-0.5">
-                                <span>{data.stats?.totalComputeCghz ? (data.stats.totalComputeCghz >= 1000 ? (data.stats.totalComputeCghz / 1000).toFixed(1) + 'k' : data.stats.totalComputeCghz.toFixed(0)) : '0'} core-GHz</span>
+                                <span>{computeCghzFormatted} core-GHz</span>
                                 <span>From {healthBreakdown.verifiedCount} verified endpoints (24h)</span>
                               </span>
                             }
@@ -225,19 +231,19 @@ export const HyperInsightView = () => {
                     </div>
 
                     {/* Data Freshness */}
-                    {(data.stats?.data_freshness_utc || scoresLastUpdated) && (
+                    {(networkFreshnessUtc || scoresLastUpdated) && (
                       <div className="px-6 pt-2 pb-1 flex items-center gap-6 text-xs">
-                        {data.stats?.data_freshness_utc && (() => {
-                          const fStatus = freshnessStatus(data.stats.data_freshness_utc);
-                          const cls = fStatus === 'fresh' ? 'text-[var(--textMuted)]'
-                                    : fStatus === 'stale' ? 'text-amber-400'
+                        {networkFreshnessUtc && (() => {
+                          const status = freshnessStatus(networkFreshnessUtc);
+                          const cls = status === 'fresh' ? 'text-[var(--textMuted)]'
+                                    : status === 'stale' ? 'text-amber-400'
                                     : 'text-red-400';
-                          return <span className={cls}>Network data as of {relativeTime(data.stats.data_freshness_utc)}</span>;
+                          return <span className={cls}>Network data as of {relativeTime(networkFreshnessUtc)}</span>;
                         })()}
                         {scoresLastUpdated && (() => {
-                          const fStatus = freshnessStatus(scoresLastUpdated);
-                          const cls = fStatus === 'fresh' ? 'text-[var(--textMuted)]'
-                                    : fStatus === 'stale' ? 'text-amber-400'
+                          const status = freshnessStatus(scoresLastUpdated);
+                          const cls = status === 'fresh' ? 'text-[var(--textMuted)]'
+                                    : status === 'stale' ? 'text-amber-400'
                                     : 'text-red-400';
                           return <span className={cls}>Scores updated {relativeTime(scoresLastUpdated)}</span>;
                         })()}
@@ -262,9 +268,10 @@ export const HyperInsightView = () => {
 
           {/* Node Detail Panel Overlay */}
           {selectedNode && (
-              <NodeDetailPanel 
-                licenseKey={selectedNode} 
-                onClose={() => setSelectedNode(null)} 
+              <NodeDetailPanel
+                licenseKey={selectedNode}
+                onClose={() => setSelectedNode(null)}
+                toolScores={toolScores}
               />
           )}
       </div>

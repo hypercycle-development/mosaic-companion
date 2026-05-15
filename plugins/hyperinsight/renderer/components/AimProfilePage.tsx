@@ -12,6 +12,7 @@ import { relativeTime } from '../utils';
 import { useUserGeo } from '../hooks/useUserGeo';
 import { AimProfileHeader } from './AimProfileHeader';
 import { AimVersionSelector } from './AimVersionSelector';
+import { RoutabilityBanner } from './RoutabilityBanner';
 import { AimIntelligenceZone } from './AimIntelligenceZone';
 import { AimCapabilityZone } from './AimCapabilityZone';
 import { AimActivationZone } from './AimActivationZone';
@@ -123,6 +124,8 @@ export const AimProfilePage = ({ aimName, onBack, onNodeSelect }: AimProfilePage
   const [error, setError] = useState<string | null>(null);
   const [nodeTableExpanded, setNodeTableExpanded] = useState(false);
   const [verHistExpanded, setVerHistExpanded] = useState(false);
+
+  const [aimHasCallableEndpoints, setAimHasCallableEndpoints] = useState<boolean | null>(null);
 
   const [showTryIt, setShowTryIt] = useState(false);
   const [tryItEndpoint, setTryItEndpoint] = useState<ManifestEndpoint | null>(null);
@@ -316,6 +319,11 @@ export const AimProfilePage = ({ aimName, onBack, onNodeSelect }: AimProfilePage
           onVersionChange={setSelectedVersion}
         />
 
+        <RoutabilityBanner
+          totalActiveNodeCount={profile?.totalActiveNodeCount ?? 0}
+          routableNodeCount={profile?.routableNodeCount ?? 0}
+        />
+
         {/* Liveness dot strip (shown only when deployment data is present) */}
         {livenessDots.length > 0 && (
           <div className="px-6 py-2 flex items-center gap-1.5 overflow-x-auto border-b border-[var(--border)]">
@@ -342,7 +350,6 @@ export const AimProfilePage = ({ aimName, onBack, onNodeSelect }: AimProfilePage
             expanded={nodeTableExpanded}
             onExpandChange={setNodeTableExpanded}
             onNodeSelect={onNodeSelect}
-            deployments={[]}
           />
 
           <AimCapabilityZone
@@ -350,6 +357,7 @@ export const AimProfilePage = ({ aimName, onBack, onNodeSelect }: AimProfilePage
             releases={releases}
             selectedVersion={selectedVersion}
             completenessScore={profile?.completenessScore ?? null}
+            onEndpointsResolved={setAimHasCallableEndpoints}
             onTryEndpoint={(endpoint, nodeUrl) => {
               setTryItEndpoint(endpoint);
               setTryItNodeUrl(nodeUrl);
@@ -413,10 +421,13 @@ export const AimProfilePage = ({ aimName, onBack, onNodeSelect }: AimProfilePage
             aimName={aimName}
             bestNode={bestNode}
             selectedVersion={selectedVersion}
+            hasCallableEndpoints={aimHasCallableEndpoints}
             deployments={deployments}
             subscriptions={subscriptions}
             aimId={profile?.id}
             onSubscriptionsChange={setSubscriptions}
+            routableNodeCount={profile?.routableNodeCount ?? 0}
+            totalActiveNodeCount={profile?.totalActiveNodeCount ?? 0}
             onChooseNode={() => {
               setNodeTableExpanded(true);
               // Scroll Intelligence Zone into view
