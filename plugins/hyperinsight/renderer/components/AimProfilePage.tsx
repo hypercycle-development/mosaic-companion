@@ -199,6 +199,7 @@ export const AimProfilePage = ({ aimName, onBack, onNodeSelect }: AimProfilePage
             expanded={nodeTableExpanded}
             onExpandChange={setNodeTableExpanded}
             onNodeSelect={onNodeSelect}
+            deployments={[]}
           />
 
           <AimCapabilityZone
