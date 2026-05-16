@@ -466,10 +466,15 @@ export const MCPPage: React.FC = () => {
 
     const offConnected = api.onServerConnected(() => { loadServers(); loadOsStatus(); });
     const offDisconnected = api.onServerDisconnected(() => { loadServers(); loadOsStatus(); });
+    const offError = api.onServerError(({ name, error }) => {
+      console.error(`[MCP] Server error from "${name}":`, error);
+      setError(`MCP server "${name}" error: ${error}`);
+    });
 
     return () => {
       offConnected();
       offDisconnected();
+      offError();
     };
   }, [loadPlugins, loadServers, loadOsStatus]);
 

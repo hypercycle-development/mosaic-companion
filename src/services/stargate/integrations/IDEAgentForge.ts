@@ -4,6 +4,7 @@
 // =============================================================================
 
 import { unifiedOrchestrator } from './UnifiedOrchestrator';
+import { fleetChronicleLogger } from './FleetChronicleLogger';
 
 // =============================================================================
 // Agent Template System
@@ -21,16 +22,25 @@ export interface AgentTemplate {
   inputs?: string[];
 }
 
+export interface ForgeChronicleEvent {
+  id: string;
+  timestamp: number;
+  event: string;
+  status: 'success' | 'failed' | 'warning' | 'info';
+  detail?: string;
+}
+
 export interface AgentForgeSession {
   id: string;
   templateId: AgentTemplateType;
   projectPath: string;
   filePath: string;
   code: string;
-  status: 'draft' | 'compiling' | 'testing' | 'ready' | 'deployed';
+  status: 'draft' | 'compiling' | 'testing' | 'ready' | 'deployed' | 'failed';
   testOutput?: string;
   deployedNodeId?: string;
   lastModified: number;
+  chronicleEvents: ForgeChronicleEvent[];
 }
 
 export interface ForgeDeployConfig {
@@ -234,9 +244,11 @@ class IDEAgentForge {
       code: template.defaultCode,
       status: 'draft',
       lastModified: Date.now(),
+      chronicleEvents: [],
     };
 
     this.sessions.set(session.id, session);
+    this.logLifecycle(session.id, 'session_created');
     return session;
   }
 
@@ -247,6 +259,7 @@ class IDEAgentForge {
     session.code = code;
     session.lastModified = Date.now();
     session.status = 'draft';
+    this.logLifecycle(sessionId, 'code_updated');
   }
 
   getSession(sessionId: string): AgentForgeSession | undefined {
@@ -259,6 +272,7 @@ class IDEAgentForge {
 
   // ---------------------------------------------------------------------------
   // Phase 2: Test
+  // v2: delegates to AgentForgeEngine (main process) via IPC
   // ---------------------------------------------------------------------------
 
   async runTest(sessionId: string): Promise<{ success: boolean; output: string }> {
@@ -266,30 +280,36 @@ class IDEAgentForge {
     if (!session) throw new Error(`Session not found: ${sessionId}`);
 
     session.status = 'testing';
+    this.logLifecycle(sessionId, 'test_started');
 
     try {
-      const ipc = (window as any).electronAPI?.stargate;
-      if (!ipc?.testAgentCode) {
-        return {
-          success: false,
-          output: 'Agent test runner not available. Run in production build.',
-        };
-      }
+      // Persist code first
+      ideAgentForge.updateCode(session.id, session.code);
 
-      const result = await ipc.testAgentCode(session.code, session.templateId);
+      const result = await this._ipc('testAgentCode', session.code, session.templateId);
       session.testOutput = result.output;
-      session.status = result.success ? 'ready' : 'draft';
+      session.status = result.success ? 'ready' : 'failed';
+
+      this.logLifecycle(
+        sessionId,
+        result.success ? 'test_passed' : 'test_failed',
+        result.output,
+      );
+      this._persistSessions();
+
+      // Sync back
+      const updated = ideAgentForge.getSession(session.id);
+      if (updated) {
+        this.sessions.set(session.id, updated);
+      }
 
       return result;
     } catch (e: any) {
-      session.status = 'draft';
+      session.status = 'failed';
+      this.logLifecycle(sessionId, 'test_error', e.message);
       return { success: false, output: `Test error: ${e.message}` };
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Phase 3: Deploy
-  // ---------------------------------------------------------------------------
 
   async deployToFleet(
     sessionId: string,
@@ -298,56 +318,29 @@ class IDEAgentForge {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`Session not found: ${sessionId}`);
 
-    if (session.status !== 'ready' && session.status !== 'draft') {
-      return { success: false, error: 'Agent must be tested before deployment' };
-    }
+    this.logLifecycle(sessionId, 'deploy_started', `nodeId=${config.nodeId || 'local'}`);
 
     try {
-      // Option A: Deploy via UnifiedOrchestrator to a specific node
-      if (config.nodeId) {
-        const result = await unifiedOrchestrator.dispatchToFleet(
-          `Deploy agent: ${session.code}`,
-          [config.nodeId],
-          'parallel',
-        );
+      const result = await this._ipc('deployAgentCode', session.code, {
+        templateId: session.templateId,
+        autoStart: config.autoStart ?? true,
+        enableWallet: config.enableWallet ?? false,
+        tier: config.tier ?? 'standard',
+        nodeId: config.nodeId,
+      });
 
-        const nodeResult = result.nodeResults[0];
-        if (nodeResult?.status === 'completed') {
-          session.status = 'deployed';
-          session.deployedNodeId = config.nodeId;
-          return {
-            success: true,
-            taskId: result.jobId,
-            nodeId: config.nodeId,
-          };
-        }
-
-        return {
-          success: false,
-          error: nodeResult?.error || 'Deployment failed',
-        };
+      if (result.success) {
+        session.status = 'deployed';
+        session.deployedNodeId = result.nodeId || config.nodeId || 'local';
+        this.logLifecycle(sessionId, 'deploy_success', `nodeId=${session.deployedNodeId}`);
+      } else {
+        this.logLifecycle(sessionId, 'deploy_failed', result.error);
       }
+      this._persistSessions();
 
-      // Option B: Deploy to local ANFE via main process
-      const ipc = (window as any).electronAPI?.stargate;
-      if (ipc?.deployAgentCode) {
-        const result = await ipc.deployAgentCode(session.code, {
-          templateId: session.templateId,
-          autoStart: config.autoStart ?? true,
-          enableWallet: config.enableWallet ?? false,
-          tier: config.tier ?? 'standard',
-        });
-
-        if (result.success) {
-          session.status = 'deployed';
-          session.deployedNodeId = result.nodeId;
-        }
-
-        return result;
-      }
-
-      return { success: false, error: 'No deployment target available' };
+      return result;
     } catch (e: any) {
+      this.logLifecycle(sessionId, 'deploy_error', e.message);
       return { success: false, error: e.message };
     }
   }
@@ -386,10 +379,11 @@ class IDEAgentForge {
   // Chronicle integration: log forge lifecycle
   // ---------------------------------------------------------------------------
 
-  logLifecycle(sessionId: string, event: string): void {
+  logLifecycle(sessionId: string, event: string, detail?: string): void {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
+    // Log to renderer bridge if available
     const chronicle = (window as any).electronAPI?.chronicle;
     if (chronicle?.write) {
       chronicle.write('ide-agent-forge', {
@@ -399,6 +393,125 @@ class IDEAgentForge {
         timestamp: Date.now(),
       });
     }
+
+    // Log to FleetChronicleLogger for unified audit trail
+    try {
+      fleetChronicleLogger.logIDE(sessionId, event, 'info', detail);
+    } catch {
+      // FleetChronicleLogger may not be fully initialized in all contexts
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Session persistence
+  // ---------------------------------------------------------------------------
+
+  private readonly PERSIST_KEY = 'forge_sessions_v2';
+
+  private _persistSessions(): void {
+    try {
+      const data = Array.from(this.sessions.values());
+      localStorage.setItem(this.PERSIST_KEY, JSON.stringify(data));
+    } catch {}
+  }
+
+  restoreSessions(): void {
+    try {
+      const raw = localStorage.getItem(this.PERSIST_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as AgentForgeSession[];
+      parsed.forEach((s) => this.sessions.set(s.id, s));
+    } catch {}
+  }
+
+  // ---------------------------------------------------------------------------
+  // Typed IPC helper
+  // ---------------------------------------------------------------------------
+
+  private _ipc(method: string, ...args: any[]): Promise<any> {
+    const api = (window as any).electronAPI?.stargate;
+    if (!api?.[method]) {
+      return Promise.reject(new Error(`IPC method stargate.${method} not available`));
+    }
+    return api[method](...args);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle queries (v2)
+  // ---------------------------------------------------------------------------
+
+  async listDeployedAgents(): Promise<{ success: boolean; agents: any[] }> {
+    return this._ipc('listDeployedAgents');
+  }
+
+  async listRunningAgents(): Promise<{ success: boolean; agents: any[] }> {
+    return this._ipc('listRunningAgents');
+  }
+
+  async stopAgent(agentId: string): Promise<{ success: boolean }> {
+    return this._ipc('stopAgent', agentId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cross-node Deploy (v2.1)
+  // ---------------------------------------------------------------------------
+
+  async deployToNode(
+    sessionId: string,
+    nodeConfig: { host: string; user: string; agentDir?: string },
+  ): Promise<{ success: boolean; taskId?: string; nodeId?: string; error?: string }> {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error(`Session not found: ${sessionId}`);
+
+    this.logLifecycle(sessionId, 'deploy_node_started', `host=${nodeConfig.host}`);
+
+    try {
+      const result = await this._ipc('deployAgentToNode', session.code, {
+        templateId: session.templateId,
+        nodeConfig: {
+          host: nodeConfig.host,
+          user: nodeConfig.user,
+          agentDir: nodeConfig.agentDir,
+        },
+        autoStart: true,
+        enableWallet: false,
+        tier: 'standard',
+      });
+
+      if (result.success) {
+        session.status = 'deployed';
+        session.deployedNodeId = result.nodeId;
+        this.logLifecycle(sessionId, 'deploy_node_success', `nodeId=${result.nodeId}`);
+      } else {
+        this.logLifecycle(sessionId, 'deploy_node_failed', result.error);
+      }
+      this._persistSessions();
+
+      return result;
+    } catch (e: any) {
+      this.logLifecycle(sessionId, 'deploy_node_error', e.message);
+      return { success: false, error: e.message };
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Health Monitoring (v2.2)
+  // ---------------------------------------------------------------------------
+
+  async enableHealthCheck(
+    agentId: string,
+    intervalMs?: number,
+    maxRestarts?: number,
+  ): Promise<{ success: boolean }> {
+    return this._ipc('enableHealthCheck', agentId, intervalMs, maxRestarts);
+  }
+
+  async disableHealthCheck(agentId: string): Promise<{ success: boolean }> {
+    return this._ipc('disableHealthCheck', agentId);
+  }
+
+  async isHealthy(agentId: string): Promise<{ healthy: boolean }> {
+    return this._ipc('isHealthy', agentId);
   }
 }
 
@@ -408,3 +521,6 @@ class IDEAgentForge {
 
 export const ideAgentForge = new IDEAgentForge();
 export default IDEAgentForge;
+
+// Restore persisted sessions on module load
+ideAgentForge.restoreSessions();
