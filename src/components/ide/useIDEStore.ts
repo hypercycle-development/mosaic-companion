@@ -1,6 +1,13 @@
 import { useState, useCallback, useRef } from "react";
-import type { OpenFile, TerminalInstance, IDEState } from "./types";
+import type {
+  OpenFile,
+  TerminalInstance,
+  IDEState,
+  AgentForgeSession,
+  AgentTemplateType,
+} from "./types";
 import { detectLanguage } from "./utils";
+import { ideAgentForge } from "../../services/stargate/integrations";
 
 const STORAGE_KEY = "mosaic_ide_state";
 
@@ -47,6 +54,11 @@ export function useIDEStore(initialProjectPath?: string | null) {
   const [showTerminal, setShowTerminal] = useState(persisted.showTerminal ?? true);
   const [showAIPanel, setShowAIPanel] = useState(persisted.showAIPanel ?? false);
   const [showFileExplorer, setShowFileExplorer] = useState(persisted.showFileExplorer ?? true);
+
+  // Agent Forge state
+  const [forgeSessions, setForgeSessions] = useState<AgentForgeSession[]>([]);
+  const [activeForgeSessionId, setActiveForgeSessionId] = useState<string | null>(null);
+  const [showForgePanel, setShowForgePanel] = useState(false);
 
   const persist = useCallback(() => {
     persistState({
@@ -135,6 +147,58 @@ export function useIDEStore(initialProjectPath?: string | null) {
     [activeTerminalId, terminals],
   );
 
+  // ---------------------------------------------------------------------------
+  // Agent Forge actions
+  // ---------------------------------------------------------------------------
+
+  const createForgeSession = useCallback(
+    (templateId: AgentTemplateType) => {
+      if (!projectPath) return null;
+      const rawSession = ideAgentForge.createSession(templateId, projectPath);
+      const session: AgentForgeSession = {
+        ...rawSession,
+        chronicleEvents: [],
+      };
+      setForgeSessions((prev) => [...prev, session]);
+      setActiveForgeSessionId(session.id);
+      setShowForgePanel(true);
+      // Also write the template file to disk so it appears in the file explorer
+      window.electronAPI.ide.fs.writeFile(session.filePath, session.code).then(() => {
+        // Update with potentially saved code
+        const updated = ideAgentForge.getSession(session.id);
+        if (updated) {
+          setForgeSessions((prev) =>
+            prev.map((s) => (s.id === session.id ? { ...s, code: updated.code } : s)),
+          );
+        }
+      });
+      return session;
+    },
+    [projectPath],
+  );
+
+  const updateForgeSession = useCallback((session: AgentForgeSession) => {
+    setForgeSessions((prev) =>
+      prev.map((s) => (s.id === session.id ? session : s)),
+    );
+  }, []);
+
+  const closeForgeSession = useCallback((sessionId: string) => {
+    setForgeSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    setActiveForgeSessionId((prev) => {
+      if (prev === sessionId) {
+        const remaining = forgeSessions.filter((s) => s.id !== sessionId);
+        return remaining.length > 0 ? remaining[0].id : null;
+      }
+      return prev;
+    });
+  }, [forgeSessions]);
+
+  const selectForgeSession = useCallback((sessionId: string | null) => {
+    setActiveForgeSessionId(sessionId);
+    if (sessionId) setShowForgePanel(true);
+  }, []);
+
   return {
     projectPath,
     setProjectPath,
@@ -157,5 +221,14 @@ export function useIDEStore(initialProjectPath?: string | null) {
     showFileExplorer,
     setShowFileExplorer,
     persist,
+    // Forge
+    forgeSessions,
+    activeForgeSessionId,
+    showForgePanel,
+    setShowForgePanel,
+    createForgeSession,
+    updateForgeSession,
+    closeForgeSession,
+    selectForgeSession,
   };
 }

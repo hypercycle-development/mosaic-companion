@@ -31,11 +31,38 @@ export function setMainWindow(win: BrowserWindow): void {
 // Auto-connect plugins
 // =============================================================================
 
+/** Ensure default built-in plugins are registered in the plugin manager. */
+function ensureDefaultPlugins(): void {
+  const existing = pluginManager.list();
+
+  // Midnight MCP server — auto-connect on startup (use local install to avoid npx npm-registry corruption)
+  const midnightName = "midnight-mcp";
+  if (!existing.some((p) => p.name === midnightName)) {
+    const localBin = require("path").join(
+      require("path").dirname(require.resolve("midnight-mcp/package.json")),
+      "dist",
+      "bin.js",
+    );
+    pluginManager.add({
+      name: midnightName,
+      description: "Midnight blockchain MCP server (Compact language, ZK contracts, private compute)",
+      transport: "stdio",
+      command: "node",
+      args: [localBin],
+      autoConnect: true,
+    });
+    console.log(`[MCP] Registered default plugin: ${midnightName} (${localBin})`);
+  }
+}
+
 export async function initPlugins(): Promise<void> {
+  // Ensure default built-in plugins are registered
+  ensureDefaultPlugins();
+
   const plugins = pluginManager.list().filter((p) => p.autoConnect);
   for (const plugin of plugins) {
     try {
-      await mcpClient.connect({
+      const result = await mcpClient.connect({
         name: plugin.name,
         transport: plugin.transport,
         command: plugin.command,
@@ -44,8 +71,20 @@ export async function initPlugins(): Promise<void> {
         url: plugin.url,
         apiKey: plugin.apiKey,
       });
+      console.log(`[MCP] Connected: ${plugin.name} (${result.serverInfo?.name} v${result.serverInfo?.version})`);
+      notifyRenderer("mcp:server-connected", {
+        name: plugin.name,
+        tools: result.capabilities.tools ? [] : undefined,
+        resources: result.capabilities.resources ? [] : undefined,
+        prompts: result.capabilities.prompts ? [] : undefined,
+      });
     } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
       console.error(`[MCP] Auto-connect failed for plugin "${plugin.name}":`, e);
+      notifyRenderer("mcp:server-error", {
+        name: plugin.name,
+        error: errMsg,
+      });
     }
   }
 }
