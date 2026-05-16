@@ -161,6 +161,28 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("stargate:dispatchPrompt", nodeId, prompt),
     runJob: (jobType: string, params: Record<string, unknown>) =>
       ipcRenderer.invoke("stargate:runJob", jobType, params),
+    // IDE Agent Forge (P1)
+    testAgentCode: (code: string, templateId: string) =>
+      ipcRenderer.invoke("stargate:testAgentCode", code, templateId),
+    deployAgentCode: (code: string, config: Record<string, unknown>) =>
+      ipcRenderer.invoke("stargate:deployAgentCode", code, config),
+    // IDE Agent Forge (P2) — lifecycle
+    listDeployedAgents: () =>
+      ipcRenderer.invoke("stargate:forge:listDeployed"),
+    listRunningAgents: () =>
+      ipcRenderer.invoke("stargate:forge:listRunning"),
+    stopAgent: (agentId: string) =>
+      ipcRenderer.invoke("stargate:forge:stopAgent", agentId),
+    // v2.2: Health Monitoring
+    enableHealthCheck: (agentId: string, intervalMs?: number, maxRestarts?: number) =>
+      ipcRenderer.invoke("stargate:forge:enableHealthCheck", agentId, intervalMs, maxRestarts),
+    disableHealthCheck: (agentId: string) =>
+      ipcRenderer.invoke("stargate:forge:disableHealthCheck", agentId),
+    isHealthy: (agentId: string) =>
+      ipcRenderer.invoke("stargate:forge:isHealthy", agentId),
+    // v2.1: Cross-node Deploy
+    deployAgentToNode: (code: string, config: Record<string, unknown>) =>
+      ipcRenderer.invoke("stargate:deployAgentToNode", code, config),
   },
   // Chronicle (tool activity log)
   chronicle: {
@@ -375,6 +397,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   mesh: {
     dispatch: (payload: { host: string; user: string; command: string; timeout?: number }) =>
       ipcRenderer.invoke("mesh:dispatch", payload),
+  },
+  // Skill delivery pipeline (sync Hermes skills to fleet nodes)
+  skills: {
+    syncToNode: (payload: { skillNames: string[]; nodeId: string; nodeHost?: string }) =>
+      ipcRenderer.invoke("stargate:skill:syncToNode", payload),
   },
   // ─── Cardano / Tokeo Wallet Bridge ───
   cardano: {

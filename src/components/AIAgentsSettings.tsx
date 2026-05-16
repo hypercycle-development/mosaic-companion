@@ -17,6 +17,8 @@ import {
   Thermometer,
   Zap,
   Info,
+  BookOpen,
+  X,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -1304,6 +1306,106 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                           `}
                         />
                       </button>
+                    </div>
+
+                    {/* ─── Attached Skills ─────────────────────────── */}
+                    <div className="pt-4 border-t border-gray-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-300 flex items-center gap-1.5">
+                          <BookOpen size={14} />
+                          Attached Skills
+                          <span className="relative group">
+                            <Info size={13} className="text-gray-500 cursor-help" />
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-xs text-gray-300 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50 shadow-lg"
+                            >
+                              Skill files from ~/.hermes/skills/ are injected into the
+                              agent's system prompt before every API call. The agent
+                              acquires the full skill context during conversation.
+                            </span>
+                          </span>
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {agent.skills?.length || 0} attached
+                        </span>
+                      </div>
+
+                      {/* Skill chips */}
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {(agent.skills || []).map((skillName) => (
+                          <span
+                            key={skillName}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-cyan-900/20 border border-cyan-500/30 rounded-lg text-xs text-cyan-400"
+                          >
+                            {skillName}
+                            <button
+                              onClick={() =>
+                                updateAgent(agent.id, {
+                                  skills: (agent.skills || []).filter((s) => s !== skillName),
+                                })
+                              }
+                              className="hover:text-cyan-200 transition-colors"
+                              title={`Remove ${skillName}`}
+                            >
+                              <X size={12} />
+                            </button>
+                          </span>
+                        ))}
+                        {(agent.skills || []).length === 0 && (
+                          <span className="text-xs text-gray-600 italic">
+                            No skills attached. Add skills to enhance this agent.
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Add skill dropdown */}
+                      <div className="flex items-center gap-2">
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const skillName = e.target.value;
+                            if (!skillName) return;
+                            if (agent.skills?.includes(skillName)) {
+                              toast.info(`Skill "${skillName}" is already attached`);
+                              return;
+                            }
+                            updateAgent(agent.id, {
+                              skills: [...(agent.skills || []), skillName],
+                            });
+                            toast.success(`Attached skill: ${skillName}`);
+                          }}
+                          className="flex-1 px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all text-gray-100 text-sm"
+                        >
+                          <option value="">+ Add a skill...</option>
+                          {/* Available skills — loaded from StargateSkillRegistry or local scan */}
+                          {(() => {
+                            // Static list for now; in production this would be fetched
+                            const availableSkills = [
+                              "github-code-review",
+                              "systematic-debugging",
+                              "test-driven-development",
+                              "cardano-cli-transactions",
+                              "cardano-cli-wallets",
+                              "aiken-smart-contracts",
+                              "kanban-orchestrator",
+                              "mosaic-agent-forge",
+                            ].filter((s) => !(agent.skills || []).includes(s));
+                            return availableSkills.map((s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ));
+                          })()}
+                        </select>
+                      </div>
+
+                      {/* Skill preload status */}
+                      {agent.skills && agent.skills.length > 0 && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          💡 When you chat with {agent.name}, the full skill content from{" "}
+                          <code className="text-gray-400">~/.hermes/skills/...</code>
+                          will be injected into the system prompt before each API call.
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex flex-col gap-2 pt-4 border-t border-gray-800">

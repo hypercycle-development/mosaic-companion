@@ -38,6 +38,7 @@ import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integrations/chat/index";
 import { initIDE, cleanupIDE } from "./integrations/ide/index";
 import { registerCardanoIpc } from "./integrations/cardano/ipcHandlers";
+import { agentForgeEngine } from "./integrations/forge/AgentForgeEngine";
 // Plugin IPC handler registrations
 import { registerHyperInsightIpc } from "../plugins/hyperinsight/main/index.js";
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
@@ -1172,4 +1173,229 @@ ipcMain.handle(
       };
     }
   },
+);
+
+// =============================================================================
+// IDE Agent Forge — Test + Deploy IPC handlers (v2: AgentForgeEngine)
+// =============================================================================
+
+ipcMain.handle("stargate:testAgentCode", async (_event, code: string, templateId: string) => {
+  return agentForgeEngine.runTest(code, templateId);
+});
+
+ipcMain.handle("stargate:deployAgentCode", async (_event, code: string, config: Record<string, unknown>) => {
+  return agentForgeEngine.deploy(code, config as any);
+});
+
+ipcMain.handle("stargate:forge:listDeployed", async () => {
+  return { success: true, agents: agentForgeEngine.getDeployedAgents() };
+});
+
+ipcMain.handle("stargate:forge:listRunning", async () => {
+  return { success: true, agents: agentForgeEngine.getRunningAgents() };
+});
+
+ipcMain.handle("stargate:forge:stopAgent", async (_event, agentId: string) => {
+  return { success: agentForgeEngine.stopAgent(agentId) };
+});
+
+// =============================================================================
+// IDE Agent Forge — Cross-node Deploy (v2.1: SSH to Fleet Nodes)
+// =============================================================================
+
+ipcMain.handle("stargate:deployAgentToNode", async (_event, code: string, config: Record<string, unknown>) => {
+  const { templateId, nodeConfig, autoStart, enableWallet, tier } = config as any;
+  if (!nodeConfig?.host || !nodeConfig?.user) {
+    return { success: false, error: "nodeConfig requires host and user fields" };
+  }
+  return agentForgeEngine.deployToNode(code, {
+    templateId,
+    nodeConfig: { host: nodeConfig.host, user: nodeConfig.user, agentDir: nodeConfig.agentDir },
+    autoStart: autoStart ?? true,
+    enableWallet: enableWallet ?? false,
+    tier: tier ?? "standard",
+  });
+});
+
+// =============================================================================
+// IDE Agent Forge — Health Monitoring (v2.2)
+// =============================================================================
+
+ipcMain.handle("stargate:forge:enableHealthCheck", async (_event, agentId: string, intervalMs?: number, maxRestarts?: number) => {
+  const manifest = agentForgeEngine.getDeployedAgents().find(m => m.id === agentId);
+  if (!manifest) return { success: false, error: "Agent not found" };
+  agentForgeEngine.enableHealthCheck(agentId, manifest, { intervalMs, maxRestarts });
+  return { success: true };
+});
+
+ipcMain.handle("stargate:forge:disableHealthCheck", async (_event, agentId: string) => {
+  agentForgeEngine.disableHealthCheck(agentId);
+  return { success: true };
+});
+
+ipcMain.handle("stargate:forge:isHealthy", async (_event, agentId: string) => {
+  return { healthy: agentForgeEngine.isHealthy(agentId) };
+});
+
+// =============================================================================
+// Skill Delivery Pipeline — sync Hermes skills to fleet node before dispatch
+// =============================================================================
+// PHASE 1+2+3 combined: resolve skill path → SCP to node → verify → activate
+// =============================================================================
+
+ipcMain.handle(
+  "stargate:skill:syncToNode",
+  async (
+    _event: IpcMainInvokeEvent,
+    payload: { skillNames: string[]; nodeId: string; nodeHost?: string }
+  ): Promise<{
+    success: boolean;
+    synced: string[];
+    failed: string[];
+    verified: string[];
+    activated: string[];
+    remoteSkillDir: string;
+    logs: string[];
+  }> => {
+    const { skillNames, nodeId, nodeHost } = payload;
+    const logs: string[] = [];
+    const remoteSkillDir = '~/.hermes/skills/stargate-incoming';
+
+    logs.push(`[SkillDelivery] Starting sync of ${skillNames.length} skills to ${nodeId}`);
+
+    // Resolve node host
+    const host = nodeHost || (() => {
+      try {
+        const registryRaw = localStorage.getItem('fleet_registry_nodes') || '[]';
+        const nodes = JSON.parse(registryRaw);
+        const node = nodes.find((n: any) => n.nodeId === nodeId);
+        return node?.apiHost || null;
+      } catch { return null; }
+    })();
+
+    if (!host) {
+      logs.push(`[SkillDelivery] ERROR: no host resolved for node ${nodeId}`);
+      return { success: false, synced: [], failed: skillNames, verified: [], activated: [], remoteSkillDir, logs };
+    }
+    logs.push(`[SkillDelivery] Resolved host: ${host}`);
+
+    const synced: string[] = [];
+    const failed: string[] = [];
+
+    // PHASE 1: Sync each skill via SCP
+    for (const skillName of skillNames) {
+      try {
+        // Resolve skill path
+        const skillPath = (() => {
+          const path = require('path');
+          const fs = require('fs');
+          const hermesHome = process.env.HERMES_HOME || path.join(require('os').homedir(), '.hermes');
+          const skillsBase = path.join(hermesHome, 'skills');
+          if (!fs.existsSync(skillsBase)) return null;
+
+          const direct = path.join(skillsBase, skillName, 'SKILL.md');
+          if (fs.existsSync(direct)) return path.join(skillsBase, skillName);
+
+          try {
+            const cats = fs.readdirSync(skillsBase, { withFileTypes: true })
+              .filter((d: any) => d.isDirectory()).map((d: any) => d.name);
+            for (const cat of cats) {
+              const nested = path.join(skillsBase, cat, skillName, 'SKILL.md');
+              if (fs.existsSync(nested)) return path.join(skillsBase, cat, skillName);
+            }
+          } catch { }
+          return null;
+        })();
+
+        if (!skillPath) {
+          failed.push(`${skillName}: path not found`);
+          logs.push(`[SkillDelivery] FAIL: skill path not found for ${skillName}`);
+          continue;
+        }
+
+        // Create remote directory via SSH
+        const mkdirResult = await (async () => {
+          try {
+            const { exec } = require('child_process');
+            const { promisify } = require('util');
+            const execAsync = promisify(exec);
+            const sshCmd = `ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no hyperai@${host} 'mkdir -p ${remoteSkillDir}/${skillName}'`;
+            await execAsync(sshCmd, { timeout: 10000 });
+            return true;
+          } catch { return false; }
+        })();
+
+        if (!mkdirResult) {
+          failed.push(`${skillName}: mkdir failed`);
+          logs.push(`[SkillDelivery] FAIL: mkdir failed for ${skillName}`);
+          continue;
+        }
+
+        // SCP skill directory
+        const scpResult = await (async () => {
+          try {
+            const { execSync } = require('child_process');
+            const cmd = `scp -r -o ConnectTimeout=5 -o StrictHostKeyChecking=no "${skillPath}" hyperai@${host}:${remoteSkillDir}/${skillName}`;
+            execSync(cmd, { timeout: 30000, stdio: 'pipe' });
+            return true;
+          } catch { return false; }
+        })();
+
+        if (!scpResult) {
+          failed.push(`${skillName}: scp failed`);
+          logs.push(`[SkillDelivery] FAIL: scp failed for ${skillName}`);
+          continue;
+        }
+
+        synced.push(skillName);
+        logs.push(`[SkillDelivery] OK: ${skillName} synced to ${nodeId}`);
+      } catch (e: any) {
+        failed.push(`${skillName}: ${e.message}`);
+        logs.push(`[SkillDelivery] FAIL: ${skillName} exception: ${e.message}`);
+      }
+    }
+
+    // PHASE 3: Verify
+    const verified: string[] = [];
+    for (const skillName of synced) {
+      try {
+        const { exec } = require('child_process');
+        const { promisify } = require('util');
+        const execAsync = promisify(exec);
+        const checkCmd = `ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no hyperai@${host} 'test -f ${remoteSkillDir}/${skillName}/SKILL.md && echo OK || echo MISSING'`;
+        const { stdout } = await execAsync(checkCmd, { timeout: 10000 });
+        if (stdout.trim() === 'OK') {
+          verified.push(skillName);
+          logs.push(`[SkillDelivery] VERIFY: ${skillName} present`);
+        } else {
+          logs.push(`[SkillDelivery] VERIFY: ${skillName} MISSING`);
+        }
+      } catch {
+        logs.push(`[SkillDelivery] VERIFY: ${skillName} check failed`);
+      }
+    }
+
+    // PHASE 4: Activate into Hermes skills path
+    const activated: string[] = [];
+    for (const skillName of verified) {
+      try {
+        const { exec } = require('child_process');
+        const { promisify } = require('util');
+        const execAsync = promisify(exec);
+        const activateCmd = `ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no hyperai@${host} 'mkdir -p ~/.hermes/skills && cp -r ${remoteSkillDir}/${skillName} ~/.hermes/skills/ && echo OK || echo FAIL'`;
+        const { stdout } = await execAsync(activateCmd, { timeout: 10000 });
+        if (stdout.trim() === 'OK') {
+          activated.push(skillName);
+          logs.push(`[SkillDelivery] ACTIVATE: ${skillName} ready`);
+        } else {
+          logs.push(`[SkillDelivery] ACTIVATE: ${skillName} failed`);
+        }
+      } catch {
+        logs.push(`[SkillDelivery] ACTIVATE: ${skillName} exception`);
+      }
+    }
+
+    logs.push(`[SkillDelivery] DONE: synced=${synced.length}, verified=${verified.length}, activated=${activated.length}`);
+    return { success: activated.length > 0, synced, failed, verified, activated, remoteSkillDir, logs };
+  }
 );

@@ -202,6 +202,8 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [nodes, setNodes] = useState<ComputeNode[]>([]);
   const [hboxNodes, setHboxNodes] = useState<any[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
+  const [selectedSkill, setSelectedSkill] = useState<any | null>(null);
+  const [skillSyncStatus, setSkillSyncStatus] = useState<{ syncing: boolean; result?: any }>({ syncing: false });
   const [aims, setAims] = useState<AIMInfo[]>([]);
   const [selectedIntent, setSelectedIntent] = useState<UserIntent | null>(null);
   const [executionPlan, setExecutionPlan] = useState<any>(null);
@@ -2574,14 +2576,101 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           </div>
         </div>
 
+        {/* Skill Sync Status */}
+        {skillSyncStatus.syncing && (
+          <div className="bg-cyan-900/20 border border-cyan-500/30 rounded-lg p-3 flex items-center gap-3">
+            <Loader size={16} className="text-cyan-400 animate-spin" />
+            <span className="text-sm text-cyan-400">Syncing skills to fleet node...</span>
+          </div>
+        )}
+        {skillSyncStatus.result && !skillSyncStatus.syncing && (
+          <div className={`border rounded-lg p-3 ${skillSyncStatus.result.success ? 'bg-green-900/20 border-green-500/30' : 'bg-red-900/20 border-red-500/30'}`}>
+            <div className="text-sm font-medium">
+              {skillSyncStatus.result.success ? (
+                <span className="text-green-400">✓ Skills activated: {skillSyncStatus.result.activated?.join(', ') || 'none'}</span>
+              ) : (
+                <span className="text-red-400">✗ Skill sync failed</span>
+              )}
+            </div>
+            {skillSyncStatus.result.logs?.length > 0 && (
+              <div className="text-xs text-gray-500 mt-1 max-h-24 overflow-y-auto">
+                {skillSyncStatus.result.logs.slice(-5).map((l: string, i: number) => (
+                  <div key={i}>{l}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Selected Skill Actions */}
+        {selectedSkill && (
+          <div className="bg-gray-800/80 border border-cyan-500/30 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-white font-medium">{selectedSkill.name}</p>
+                <p className="text-xs text-gray-400">{selectedSkill.description}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    if (!window.electronAPI?.skills?.syncToNode) {
+                      showNotification('error', 'Skill sync not available — check Electron bridge');
+                      return;
+                    }
+                    setSkillSyncStatus({ syncing: true });
+                    try {
+                      const result = await window.electronAPI.skills.syncToNode({
+                        skillNames: [selectedSkill.name],
+                        nodeId: 'r2d2',  // Default fleet node; user should select
+                      });
+                      setSkillSyncStatus({ syncing: false, result });
+                      showNotification(
+                        result.success ? 'success' : 'error',
+                        result.success
+                          ? `Activated: ${result.activated?.join(', ')}`
+                          : `Failed: ${result.failed?.join(', ')}`
+                      );
+                    } catch (e: any) {
+                      setSkillSyncStatus({ syncing: false, result: { success: false, logs: [e.message] } });
+                      showNotification('error', `Sync error: ${e.message}`);
+                    }
+                  }}
+                  disabled={skillSyncStatus.syncing}
+                  className="px-3 py-1.5 text-xs bg-cyan-600 hover:bg-cyan-500 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <Zap size={12} className="inline mr-1" />
+                  Deploy to Node
+                </button>
+                <button
+                  onClick={() => setSelectedSkill(null)}
+                  className="p-1.5 hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  <XCircle size={14} className="text-gray-400" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid gap-2 sm:grid-cols-2">
           {skills.slice(0, 20).map((skill: any) => (
-            <div key={skill.name} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700 hover:border-cyan-500/30 transition-colors cursor-pointer">
+            <div
+              key={skill.name}
+              onClick={() => setSelectedSkill(selectedSkill?.name === skill.name ? null : skill)}
+              className={`bg-gray-800/50 rounded-lg p-3 border transition-colors cursor-pointer ${
+                selectedSkill?.name === skill.name
+                  ? 'border-cyan-500 bg-cyan-900/10'
+                  : 'border-gray-700 hover:border-cyan-500/30'
+              }`}
+            >
               <div className="flex items-center justify-between">
                 <p className="text-sm text-white font-medium">{skill.name}</p>
                 <span className="text-xs text-cyan-400">{skill.installs.toLocaleString()} ⚡</span>
               </div>
               <p className="text-xs text-gray-400 mt-1">{skill.category} • {skill.provider}</p>
+              {selectedSkill?.name === skill.name && (
+                <p className="text-xs text-cyan-400 mt-1">Click "Deploy to Node" to sync this skill to fleet</p>
+              )}
             </div>
           ))}
         </div>

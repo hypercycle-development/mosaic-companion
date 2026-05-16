@@ -18,17 +18,20 @@ export interface AIAgentConfig {
   name: string;
   provider: AIProvider;
   apiKey: string;
-  baseUrl?: string; // Custom/Ollama endpoint, or Hypercycle node base (see hypercycleBackend)
+  baseUrl?: string;
   model: string;
   maxTokens?: number;
   temperature?: number;
   isActive: boolean;
   createdAt: number;
-  boxAccess?: string[]; // IDs of vault boxes this agent can access
-  richUI?: boolean; // Allow agent to render charts, tables, cards inline via <mosaic_ui>
+  boxAccess?: string[];
+  richUI?: boolean;
   /**
-   * Hypercycle: `toda` (default) or `basechain` — node base is scheme + host; ports are configured separately.
+   * Hermes skills attached to this agent. The skill content (SKILL.md + references/)
+   * is injected into the system prompt before each API call.
+   * Format: skill names as registered in ~/.hermes/skills/
    */
+  skills?: string[];
   hypercycleBackend?: HypercycleBackend;
   /** @deprecated TODA always uses TDN in code; kept for legacy saved agents. */
   hypercycleCurrencyType?: string;

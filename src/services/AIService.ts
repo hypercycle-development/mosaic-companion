@@ -421,22 +421,69 @@ export class AIService {
     messages: ChatMessage[],
     callbacks?: StreamCallbacks
   ): Promise<string> {
+    // ─── Skill Injection (v2.5) ─────────────────────────────────────────────
+    // If the agent has skills[] configured, load them from ~/.hermes/skills/
+    // and inject their content as a system prompt before the first message.
+    // ─────────────────────────────────────────────────────────────────────
+    let enrichedMessages = messages;
+    if (config.skills && config.skills.length > 0) {
+      try {
+        // Lazy import to avoid circular dependency at module load time
+        const { skillInjector } = await import("./skillInjector");
+        const result = skillInjector.buildSystemPrompt("", config.skills);
+        if (result.loadedSkills.length > 0) {
+          // Prepend a system message containing all loaded skill content
+          const skillSystemMsg: ChatMessage = {
+            id: `skill-system-${Date.now()}`,
+            role: "system",
+            content: result.systemPrompt,
+            timestamp: Date.now(),
+            agentId: config.id,
+          };
+          // Find if there's already a system message
+          const firstSystemIdx = messages.findIndex((m) => m.role === "system");
+          if (firstSystemIdx !== -1) {
+            // Prepend skills BEFORE the existing system message
+            enrichedMessages = [
+              skillSystemMsg,
+              ...messages.slice(0, firstSystemIdx),
+              {
+                ...messages[firstSystemIdx],
+                content: messages[firstSystemIdx].content + "\n\n" + result.systemPrompt,
+              },
+              ...messages.slice(firstSystemIdx + 1),
+            ];
+          } else {
+            // Prepend as the first message
+            enrichedMessages = [skillSystemMsg, ...messages];
+          }
+          console.log(`[AIService] Skills injected for ${config.name}: ${result.loadedSkills.join(", ")} (${result.totalTokens}T)`);
+        }
+        if (result.failedSkills.length > 0) {
+          console.warn(`[AIService] Failed to load skills for ${config.name}: ${result.failedSkills.join(", ")}`);
+        }
+      } catch (e) {
+        console.error("[AIService] Skill injection failed:", e);
+        // Continue without skills — don't break the chat
+      }
+    }
+
     switch (config.provider) {
       case "claude":
-        return this.sendToClaude(config, messages, callbacks);
+        return this.sendToClaude(config, enrichedMessages, callbacks);
       case "openai":
-        return this.sendToOpenAI(config, messages, callbacks);
+        return this.sendToOpenAI(config, enrichedMessages, callbacks);
       case "gemini":
-        return this.sendToGemini(config, messages, callbacks);
+        return this.sendToGemini(config, enrichedMessages, callbacks);
       case "ollama":
-        return this.sendToOllama(config, messages, callbacks);
+        return this.sendToOllama(config, enrichedMessages, callbacks);
       case "custom":
         // Custom endpoints assume OpenAI-compatible API
-        return this.sendToOpenAI(config, messages, callbacks);
+        return this.sendToOpenAI(config, enrichedMessages, callbacks);
       case "hypercycle":
-        return this.sendToHypercycle(config, messages, callbacks);
+        return this.sendToHypercycle(config, enrichedMessages, callbacks);
       case "hermes":
-        return this.sendToHermes(config, messages, callbacks);
+        return this.sendToHermes(config, enrichedMessages, callbacks);
       default:
         throw new Error(`Unknown provider: ${config.provider}`);
     }
