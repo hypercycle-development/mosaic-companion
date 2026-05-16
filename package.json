@@ -60,6 +60,7 @@
     "jwa": "^2.0.1",
     "jws": "^4.0.1",
     "lucide-react": "^0.562.0",
+    "midnight-mcp": "^0.2.18",
     "monaco-editor": "^0.55.1",
     "node-pty": "^1.1.0",
     "open": "^11.0.0",
