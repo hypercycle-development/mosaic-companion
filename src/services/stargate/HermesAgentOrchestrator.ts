@@ -285,7 +285,7 @@ class HermesAgentOrchestrator {
 
       // PHASE 2: Structured skill metadata embedded in task body
       // The kanban worker on the remote node will parse this JSON block
-      const skillPayload = {
+      const kanbanPayload = {
         __stargate_skills__: {
           required: params.skills,
           synced: synced,
@@ -295,7 +295,7 @@ class HermesAgentOrchestrator {
           skillDelivery: 'scp+activate',
         },
       };
-      const skillMetaJSON = JSON.stringify(skillPayload);
+      const skillMetaJSON = JSON.stringify(kanbanPayload);
 
       const taskBody = params.missionPrompt
         ? `Mission: ${params.missionPrompt}\nSkills: ${params.skills.join(', ')}\nTier: ${params.computeTier}\nMETA: ${skillMetaJSON}`

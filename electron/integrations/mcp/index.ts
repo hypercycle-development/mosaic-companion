@@ -34,25 +34,7 @@ export function setMainWindow(win: BrowserWindow): void {
 /** Ensure default built-in plugins are registered in the plugin manager. */
 function ensureDefaultPlugins(): void {
   const existing = pluginManager.list();
-
-  // Midnight MCP server — auto-connect on startup (use local install to avoid npx npm-registry corruption)
-  const midnightName = "midnight-mcp";
-  if (!existing.some((p) => p.name === midnightName)) {
-    const localBin = require("path").join(
-      require("path").dirname(require.resolve("midnight-mcp/package.json")),
-      "dist",
-      "bin.js",
-    );
-    pluginManager.add({
-      name: midnightName,
-      description: "Midnight blockchain MCP server (Compact language, ZK contracts, private compute)",
-      transport: "stdio",
-      command: "node",
-      args: [localBin],
-      autoConnect: true,
-    });
-    console.log(`[MCP] Registered default plugin: ${midnightName} (${localBin})`);
-  }
+  // No default plugins registered — all are user-configured or injected via IPC.
 }
 
 export async function initPlugins(): Promise<void> {

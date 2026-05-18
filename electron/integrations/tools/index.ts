@@ -14,7 +14,6 @@ import { ToolRegistry } from "./registry";
 import { GmailModule } from "./modules/gmail";
 import { Web3Module } from "./modules/web3";
 import { VaultToolModule } from "./modules/vault-tools";
-import { MidnightModule } from "./modules/midnight";
 import { toolManager } from "../sandbox";
 
 // =============================================================================
@@ -31,7 +30,6 @@ const registry = new ToolRegistry();
 registry.register(new GmailModule());
 registry.register(new Web3Module());
 registry.register(new VaultToolModule());
-registry.register(new MidnightModule());
 
 // Layer 2: Sandbox tools (WASM) — dynamically registered via ToolManager
 
