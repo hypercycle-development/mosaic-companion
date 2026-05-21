@@ -183,6 +183,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     // v2.1: Cross-node Deploy
     deployAgentToNode: (code: string, config: Record<string, unknown>) =>
       ipcRenderer.invoke("stargate:deployAgentToNode", code, config),
+    // Aimifier: Hermes → HyperCycle AIM Pipeline
+    aimify: {
+      exec: (command: string, args: string[], options?: { cwd?: string; timeout?: number }) =>
+        ipcRenderer.invoke("aimify:exec", command, args, options),
+      writeFile: (filePath: string, content: string) =>
+        ipcRenderer.invoke("aimify:write-file", filePath, content),
+      readFile: (filePath: string) =>
+        ipcRenderer.invoke("aimify:read-file", filePath),
+    },
   },
   // Chronicle (tool activity log)
   chronicle: {

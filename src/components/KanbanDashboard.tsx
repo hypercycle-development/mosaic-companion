@@ -5,11 +5,12 @@
 //   Backlog   → Agents waiting to be configured or deployed
 //   Ready     → Configured agents (local/cloud/HyperCycle)
 //   Running   → Active inference sessions
-//   Aimified  → Hermes agents wrapped as HyperCycle AIM modules
+//   Aimified  → Hermes agents wrapped as REAL HyperCycle AIM modules (v2.0.0 — embedded AIAgent, no proxy)
 //   HyperCycle Node → Fleet boxes (R2D2, C-3PO, ...) with Hermes + selection
 // =============================================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { toast } from 'react-toastify';
 import {
   LayoutDashboard,
   Play,
@@ -33,6 +34,7 @@ import {
   Wifi,
   WifiOff,
   MapPin,
+  Rocket,
 } from 'lucide-react';
 import type { AIAgentConfig, AIProvider } from '../types/ai';
 import { PROVIDER_INFO } from '../types/ai';
@@ -59,7 +61,7 @@ interface KanbanAgent extends AIAgentConfig {
   lastError?: string;
   nodeFactoryId?: string;    // ANFE tokenId if deployed on-chain
   aimIndex?: number;         // HyperCycle AIM slot
-  health?: 'healthy' | 'busy' | 'error' | 'unknown';
+  imageTag?: string;         // Docker image tag if aimified
 }
 
 const COLUMNS: { id: KanbanColumn; label: string; icon: React.ReactNode; color: string }[] = [
@@ -82,6 +84,7 @@ export const KanbanDashboard: React.FC = () => {
   const [nodeKanban, setNodeKanban] = useState<Map<string, {id:string;status:string;assignee:string;title:string}[]>>(new Map());
   const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const [showAimPanel, setShowAimPanel] = useState(false);
+  const [aimifyAgentId, setAimifyAgentId] = useState<string | null>(null);
   const [responses, setResponses] = useState<AgentResponse[]>([]);
   const [showChat, setShowChat] = useState(true);
   const responseEndRef = useRef<HTMLDivElement>(null);
@@ -139,11 +142,8 @@ export const KanbanDashboard: React.FC = () => {
         const raw = await window.electronAPI.aiAgents.get();
         const mapped: KanbanAgent[] = raw.map((a: any) => ({
           ...a,
-          column: a.provider === 'hermes' ? 'aimified'
-                : a.isActive ? 'ready'
-                : 'backlog',
+          column: a.isActive ? 'ready' : 'backlog',
           status: a.isActive ? 'idle' : 'idle',
-          health: 'unknown',
         }));
         setAgents(mapped);
       } catch (e) {
@@ -461,7 +461,12 @@ ${hermesResult.response}`,
                         )}
                         {agent.provider === 'hermes' && col.id !== 'aimified' && (
                           <button
-                            onClick={(e) => { e.stopPropagation(); moveAgent(agent.id, 'aimified'); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Open Aimify pipeline panel for this agent
+                              setAimifyAgentId(agent.id);
+                              setShowAimPanel(true);
+                            }}
                             className="text-xs px-2 py-0.5 bg-violet-800 rounded hover:bg-violet-700"
                           >Aimify</button>
                         )}
@@ -684,12 +689,37 @@ ${hermesResult.response}`,
       {/* Hermes Aimification Panel (modal) */}
       {showAimPanel && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg w-[600px] max-h-[80vh] overflow-y-auto p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg w-[700px] max-h-[85vh] overflow-y-auto p-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Aimify Hermes Agent</h2>
-              <button onClick={() => setShowAimPanel(false)} className="text-gray-400 hover:text-white">×</button>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Rocket size={18} className="text-violet-400" />
+                {aimifyAgentId
+                  ? `Aimify: ${agents.find(a => a.id === aimifyAgentId)?.name || 'Agent'}`
+                  : 'Aimify Hermes Agent'
+                }
+              </h2>
+              <button
+                onClick={() => { setShowAimPanel(false); setAimifyAgentId(null); }}
+                className="text-gray-400 hover:text-white"
+              >×</button>
             </div>
-            <HermesAimPanel agents={agents.filter(a => a.provider === 'hermes')} />
+            <HermesAimPanel
+              agents={
+                aimifyAgentId
+                  ? agents.filter(a => a.id === aimifyAgentId)
+                  : agents.filter(a => a.provider === 'hermes')
+              }
+              onClose={() => { setShowAimPanel(false); setAimifyAgentId(null); }}
+              onAimified={(agentId, imageTag) => {
+                // Move agent to aimified column on success
+                setAgents(prev => prev.map(a =>
+                  a.id === agentId
+                    ? { ...a, column: 'aimified' as KanbanColumn, status: 'aimified' as const, imageTag }
+                    : a
+                ));
+                toast.success(`Agent aimified: ${imageTag}`);
+              }}
+            />
           </div>
         </div>
       )}
@@ -707,7 +737,7 @@ const StatusBadge: React.FC<{ status: KanbanAgent['status'] }> = ({ status }) =>
     starting:   { text: 'Start',   cls: 'bg-yellow-700 text-yellow-200' },
     running:    { text: 'Run',     cls: 'bg-blue-700 text-blue-200' },
     error:      { text: 'Error',   cls: 'bg-red-700 text-red-200' },
-    aimified:   { text: 'AIM',     cls: 'bg-violet-700 text-violet-200' },
+    aimified:   { text: 'AIM v2',  cls: 'bg-violet-700 text-violet-200' },
   };
   const s = map[status] || map.idle;
   return <span className={`text-[10px] px-1.5 py-0.5 rounded ${s.cls}`}>{s.text}</span>;

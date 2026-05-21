@@ -1,0 +1,20 @@
+starlette<0.30
+uvicorn<0.30
+anyio<4
+httptools
+click
+h11
+sniffio
+python-dotenv
+filelock
+pyyaml
+markupsafe
+websockets
+requests
+urllib3
+certifi
+charset-normalizer
+idna
+propcache
+# Install pyhypercycle_aim from source (bundled in Docker context)
+-e ./pyhypercycle-aim/

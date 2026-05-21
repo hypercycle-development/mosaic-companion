@@ -1,0 +1,45 @@
+{
+  "name": "MosaicHermesAIM",
+  "short_name": "hermes",
+  "version": "1.0.2",
+  "documentation_url": "https://github.com/YOUR_GITHUB_USERNAME/mosaic-companion",
+  "license": "Open",
+  "terms_of_service": "https://example.com/tos",
+  "endpoints": [
+    {
+      "uri": "/chat",
+      "methods": ["POST"],
+      "documentation": "Chat with Hermes AI agent via Ollama. POST JSON body {message, system_prompt?, temperature?, max_tokens?}. Returns {response, model, usage}."
+    },
+    {
+      "uri": "/health",
+      "methods": ["GET"],
+      "documentation": "Health check. Returns AIM and Hermes backend status."
+    },
+    {
+      "uri": "/capabilities",
+      "methods": ["GET"],
+      "documentation": "Returns AIM capabilities metadata."
+    }
+  ],
+  "mosaic_aim": {
+    "aim_type": "hermes_bridge",
+    "aim_version": "1.0.2",
+    "hermes_spec_version": "1.0.0",
+    "capabilities": ["chat", "completion", "tool_use", "analysis"],
+    "models": ["kimi-k2.5:cloud", "minimax-m2.5:cloud", "gemma:2b", "qwen2.5-coder:7b", "qwen2.5:32b", "llama3.2:3b", "gpt-oss:20b"],
+    "max_tokens": 4096,
+    "supports_streaming": false,
+    "supports_tools": true,
+    "supports_system_prompt": true,
+    "supports_memory": false,
+    "gpu_required": false,
+    "gpu_memory_gb": 0,
+    "cost_model": {
+      "type": "per_token",
+      "currency": "ProcessingUnits",
+      "base_cost": 0,
+      "per_token": 0.0001
+    }
+  }
+}

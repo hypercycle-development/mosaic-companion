@@ -598,6 +598,54 @@ ipcMain.handle("nodes:delete", async (_event: IpcMainInvokeEvent, id: string) =>
   return result;
 });
 
+// =============================================================================
+// AIMIFIER IPC — Hermes → HyperCycle AIM Pipeline
+// =============================================================================
+
+import { spawn } from "child_process";
+
+ipcMain.handle("aimify:exec", async (_event, command: string, args: string[], options?: { cwd?: string; timeout?: number }) => {
+  return new Promise((resolve) => {
+    const { cwd, timeout = 300000 } = options || {};
+    const proc = spawn(command, args, { cwd, shell: false });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      proc.kill("SIGTERM");
+      resolve({ success: false, exitCode: -1, stdout, stderr: stderr + "\n[TIMEOUT]" });
+    }, timeout);
+    proc.stdout.on("data", (data) => { stdout += data.toString(); });
+    proc.stderr.on("data", (data) => { stderr += data.toString(); });
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({ success: code === 0, exitCode: code || 0, stdout, stderr });
+    });
+  });
+});
+
+ipcMain.handle("aimify:write-file", async (_event, filePath: string, content: string) => {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(filePath, content, "utf8");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("aimify:read-file", async (_event, filePath: string) => {
+  try {
+    const fs = require("fs");
+    const content = fs.readFileSync(filePath, "utf8");
+    return { success: true, content };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
 // Sandbox State
 ipcMain.handle("sandbox:get-state", async () => sandboxState);
 
