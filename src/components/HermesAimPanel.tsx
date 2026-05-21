@@ -1,13 +1,15 @@
 // =============================================================================
-// HERMES AIM PANEL — Multi-Stage Pipeline UI for Aimification
+// HERMES AIM PANEL — Discovery-First Orchestration v2
 // Connected to AimifierService + streaming stage events
+// Default path: CONNECT TO EXISTING if detected; BUILD is opt-in only.
 // =============================================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Anchor, Box, Cpu, Globe, Loader2, CheckCircle2, AlertCircle,
   XCircle, ChevronDown, ChevronUp, Terminal, Rocket, Settings,
-  Activity, FileJson, ShieldCheck, Container, Server
+  Activity, FileJson, ShieldCheck, Container, Server, Eye,
+  ExternalLink, RefreshCw, Play, LogIn
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import type { AIAgentConfig } from '../types/ai';
@@ -16,13 +18,14 @@ import {
   PipelineStage,
   PipelineStageStatus,
   type StageState,
+  type AIMDiscoveryResult,
 } from '../services/stargate/AimifierService';
 import {
   createDefaultAdapters,
 } from '../services/stargate/AimifierAdapters';
 
 // ---------------------------------------------------------------------------
-// Stage Configuration
+// Stage Configuration — Discovery-first ordering
 // ---------------------------------------------------------------------------
 
 interface StageConfig {
@@ -33,15 +36,17 @@ interface StageConfig {
 }
 
 const STAGES: StageConfig[] = [
-  { stage: PipelineStage.PREFLIGHT,       label: 'Preflight',       icon: <Settings size={16} />, description: 'Docker, aim-py-gen, Hermes health checks' },
-  { stage: PipelineStage.CONFIG_GENERATE, label: 'Config',          icon: <FileJson size={16} />, description: 'Generate real hermes-agent config (embedded, no proxy)' },
-  { stage: PipelineStage.CODE_GENERATE,   label: 'Generate',        icon: <Cpu size={16} />,    description: 'Generate embedded wrapper + main.py + Dockerfile' },
-  { stage: PipelineStage.CODE_FIX,         label: 'Fix',             icon: <ShieldCheck size={16} />, description: 'Post-process template bugs' },
-  { stage: PipelineStage.VALIDATE_SPEC,   label: 'Validate',        icon: <ShieldCheck size={16} />, description: 'Validate generated manifest + Dockerfile' },
-  { stage: PipelineStage.BUILD_DOCKER,     label: 'Build',           icon: <Container size={16} />, description: 'Build Docker image' },
-  { stage: PipelineStage.TEST_LOCAL,       label: 'Test',            icon: <Activity size={16} />, description: 'Local integration tests' },
-  { stage: PipelineStage.DEPLOY_NODE,      label: 'Deploy',          icon: <Server size={16} />, description: 'Register on HyperCycle node' },
-  { stage: PipelineStage.POST_DEPLOY,      label: 'Verify',          icon: <CheckCircle2 size={16} />, description: 'Verify on node' },
+  { stage: PipelineStage.DISCOVERY,     label: 'Discovery',     icon: <Eye size={16} />, description: 'Probe existing AIM, NM registry, container state' },
+  { stage: PipelineStage.CONNECT,       label: 'Connect',       icon: <LogIn size={16} />, description: 'Link to existing deployed AIM' },
+  { stage: PipelineStage.PREFLIGHT,     label: 'Preflight',     icon: <Settings size={16} />, description: 'Docker, aim-py-gen, Hermes health checks' },
+  { stage: PipelineStage.CONFIG_GENERATE, label: 'Config',    icon: <FileJson size={16} />, description: 'Generate real hermes-agent config (embedded, no proxy)' },
+  { stage: PipelineStage.CODE_GENERATE,   label: 'Generate',  icon: <Cpu size={16} />,    description: 'Generate embedded wrapper + main.py + Dockerfile' },
+  { stage: PipelineStage.CODE_FIX,         label: 'Fix',       icon: <ShieldCheck size={16} />, description: 'Post-process template bugs' },
+  { stage: PipelineStage.VALIDATE_SPEC,   label: 'Validate',  icon: <ShieldCheck size={16} />, description: 'Validate generated manifest + Dockerfile' },
+  { stage: PipelineStage.BUILD_DOCKER,     label: 'Build',     icon: <Container size={16} />, description: 'Build Docker image' },
+  { stage: PipelineStage.TEST_LOCAL,       label: 'Test',      icon: <Activity size={16} />, description: 'Local integration tests' },
+  { stage: PipelineStage.DEPLOY_NODE,      label: 'Deploy',    icon: <Server size={16} />, description: 'Register on HyperCycle node' },
+  { stage: PipelineStage.POST_DEPLOY,      label: 'Verify',    icon: <CheckCircle2 size={16} />, description: 'Verify on node' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -70,6 +75,12 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
   const [imageTag, setImageTag] = useState('');
   const [logs, setLogs] = useState<string[]>([]);
   const logsEndRef = useRef<HTMLDivElement>(null);
+
+  // Discovery / Connect mode state
+  const [discoveryResult, setDiscoveryResult] = useState<AIMDiscoveryResult | null>(null);
+  const [forceRebuild, setForceRebuild] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectUrl, setConnectUrl] = useState('');
 
   // Lazy-init service
   const serviceRef = useRef<AimifierService | null>(null);
@@ -156,14 +167,26 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
       setIsRunning(false);
       setImageTag(tag);
       setCurrentStage(PipelineStage.DONE);
-      if (selectedAgent && onAimified) {
-        onAimified(selectedAgent.id, tag);
+      // If tag starts with "connected-to-existing", we are in connect mode
+      if (tag?.startsWith('connected-to-existing:')) {
+        const port = tag.split(':')[1];
+        setConnectUrl(`http://localhost:${port}`);
+        setIsConnected(true);
+        toast.success('Connected to existing AIM. No rebuild performed.');
+      } else {
+        if (selectedAgent && onAimified) {
+          onAimified(selectedAgent.id, tag);
+        }
       }
     };
 
     const onPipelineError = ({ error }: any) => {
       setIsRunning(false);
       toast.error(`Pipeline failed: ${error}`);
+    };
+
+    const onDiscoveryComplete = ({ result }: any) => {
+      setDiscoveryResult(result);
     };
 
     service.on('stage:start', onStageStart);
@@ -173,6 +196,7 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
     service.on('test:endpoint', onTestEndpoint);
     service.on('pipeline:done', onPipelineDone);
     service.on('pipeline:error', onPipelineError);
+    service.on('discovery:complete', onDiscoveryComplete);
 
     return () => {
       service.off('stage:start', onStageStart);
@@ -182,11 +206,12 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
       service.off('test:endpoint', onTestEndpoint);
       service.off('pipeline:done', onPipelineDone);
       service.off('pipeline:error', onPipelineError);
+      service.off('discovery:complete', onDiscoveryComplete);
     };
-  }, [getService]);
+  }, [getService, selectedAgent, onAimified]);
 
   // -------------------------------------------------------------------------
-  // Start Pipeline
+  // Start Pipeline (Discovery-First)
   // -------------------------------------------------------------------------
   const startAimification = async () => {
     if (!selectedAgent) {
@@ -200,12 +225,17 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
     setTestResults([]);
     setLogs([]);
     setImageTag('');
+    setDiscoveryResult(null);
+    setIsConnected(false);
+    setConnectUrl('');
 
     try {
       const service = getService();
       await service.aimifyAgent(selectedAgent, {
         target,
         nodeUrl: target === 'node' ? nodeUrl : undefined,
+        forceRebuild,
+        discoveryPort: 9000,
       });
     } catch (e: any) {
       // Error handled by event listener
@@ -221,6 +251,13 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
     const service = getService();
     service.cancelPipeline(selectedAgent.id);
     setIsRunning(false);
+  };
+
+  // -------------------------------------------------------------------------
+  // Quick actions for CONNECT MODE
+  // -------------------------------------------------------------------------
+  const openWindow = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // -------------------------------------------------------------------------
@@ -250,9 +287,8 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
       {/* Header */}
       <div className="text-sm text-gray-300">
         <p className="mb-2">
-          <strong className="text-violet-400">Aimification Pipeline</strong> wraps a Hermes agent
-          as a real HyperCycle AIM module (v2.0.0). The container imports AIAgent directly from
-          NousResearch/hermes-agent — no HTTP proxy, no mock wrapper.
+          <strong className="text-violet-400">Hermes AIM Orchestration</strong>{' '}
+          Discovery-first: detects existing AIMs before any build. Connect or rebuild at will.
         </p>
       </div>
 
@@ -321,6 +357,110 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
           />
         )}
       </div>
+
+      {/* Force Rebuild toggle */}
+      <div className="flex items-center gap-2">
+        <input
+          id="forceRebuild"
+          type="checkbox"
+          checked={forceRebuild}
+          onChange={(e) => setForceRebuild(e.target.checked)}
+          disabled={isRunning}
+          className="rounded border-gray-600 bg-gray-800 text-violet-500 focus:ring-violet-500"
+        />
+        <label htmlFor="forceRebuild" className="text-xs text-gray-400 cursor-pointer select-none">
+          Force Rebuild (ignore existing AIM and rebuild from scratch)
+        </label>
+      </div>
+
+      {/* CONNECTED STATE — Action Panel */}
+      {isConnected && discoveryResult && (
+        <div className="rounded border border-emerald-500/30 bg-emerald-900/10 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={18} className="text-emerald-400" />
+            <span className="text-sm font-semibold text-emerald-300">AIM Connected — Live Runtime</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs text-emerald-200/70">
+            <div>Port: {discoveryResult?.url?.split(':').pop()}</div>
+            <div>Endpoints: {discoveryResult?.endpoints?.length || 0} OK</div>
+            <div>Version: {discoveryResult?.version || 'unknown'}</div>
+            <div>Model: {discoveryResult?.activeBackendModel || 'unknown'}</div>
+            {discoveryResult?.container && (
+              <>
+                <div>Container: {discoveryResult.container.id?.slice(0, 12)}</div>
+                <div>Uptime: {discoveryResult.container.uptime}</div>
+              </>
+            )}
+            {discoveryResult?.nodeManagerRouting && (
+              <>
+                <div>NM Slot: {discoveryResult.nodeManagerRouting.slot}</div>
+                <div>NM Status: {discoveryResult.nodeManagerRouting.status}</div>
+              </>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              onClick={() => openWindow(discoveryResult.url)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded bg-emerald-700/40 hover:bg-emerald-600/40 text-emerald-200 text-xs transition"
+            >
+              <ExternalLink size={12} /> Open AIM Dashboard
+            </button>
+            <button
+              onClick={() => openWindow('http://127.0.0.1:9119')}
+              className="flex items-center gap-1 px-3 py-1.5 rounded bg-emerald-700/40 hover:bg-emerald-600/40 text-emerald-200 text-xs transition"
+            >
+              <ExternalLink size={12} /> Open Kanban
+            </button>
+            <button
+              onClick={() => {
+                // Trigger a health re-check
+                setIsConnected(false);
+                setDiscoveryResult(null);
+                startAimification();
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 rounded bg-emerald-700/40 hover:bg-emerald-600/40 text-emerald-200 text-xs transition"
+            >
+              <RefreshCw size={12} /> Restart / Re-check
+            </button>
+            <button
+              onClick={() => {
+                setForceRebuild(true);
+                setIsConnected(false);
+                setDiscoveryResult(null);
+                startAimification();
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 rounded bg-red-700/30 hover:bg-red-600/30 text-red-300 text-xs transition"
+            >
+              <Rocket size={12} /> Force Rebuild
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Discovery results summary (shown during/after discovery) */}
+      {!isConnected && discoveryResult && (
+        <div className="rounded border border-gray-700 bg-gray-900/50 p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            {discoveryResult.found ? (
+              <CheckCircle2 size={16} className="text-emerald-400" />
+            ) : (
+              <AlertCircle size={16} className="text-yellow-400" />
+            )}
+            <span className="text-xs font-medium text-gray-200">
+              {discoveryResult.found
+                ? `Existing AIM detected on ${discoveryResult.url}`
+                : 'No existing AIM detected — build path required'}
+            </span>
+          </div>
+          {discoveryResult.found && (
+            <div className="text-[10px] text-gray-400 space-y-0.5">
+              <div>Endpoints checked: {discoveryResult.endpointChecks.map(c => `${c.uri}(${c.ok ? 'OK' : 'FAIL'})`).join(', ')}</div>
+              {discoveryResult.version && <div>Version: {discoveryResult.version}</div>}
+              {discoveryResult.activeBackendModel && <div>Backend model: {discoveryResult.activeBackendModel}</div>}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Pipeline stage visualizer */}
       <div className="space-y-1">
@@ -395,7 +535,7 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
       )}
 
       {/* Image tag */}
-      {imageTag && (
+      {imageTag && !imageTag.startsWith('connected-to-existing:') && (
         <div className="space-y-1">
           <label className="text-xs font-medium text-gray-400">Built Image</label>
           <div className="text-xs font-mono text-violet-400 bg-violet-900/20 rounded px-3 py-2">
@@ -406,13 +546,26 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
 
       {/* Action buttons */}
       <div className="flex gap-2 pt-2">
-        {!isRunning ? (
+        {!isRunning && !isConnected ? (
           <button
             onClick={startAimification}
             disabled={!selectedAgent || (target === 'node' && !nodeUrl)}
             className="flex items-center gap-2 px-4 py-2 bg-violet-700 hover:bg-violet-600 disabled:opacity-40 rounded text-sm transition"
           >
-            <Rocket size={14} /> Aimify Agent
+            <Eye size={14} /> Discover &amp; Connect
+          </button>
+        ) : isConnected ? (
+          <button
+            onClick={() => {
+              setIsConnected(false);
+              setDiscoveryResult(null);
+              setForceRebuild(true);
+              startAimification();
+            }}
+            disabled={!selectedAgent || (target === 'node' && !nodeUrl)}
+            className="flex items-center gap-2 px-4 py-2 bg-red-700 hover:bg-red-600 disabled:opacity-40 rounded text-sm transition"
+          >
+            <Rocket size={14} /> Force Rebuild
           </button>
         ) : (
           <button

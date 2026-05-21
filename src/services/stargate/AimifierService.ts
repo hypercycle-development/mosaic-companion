@@ -1,6 +1,6 @@
 // =============================================================================
 // AIMIFIER SERVICE — Orchestration Core for Hermes → HyperCycle AIM Pipeline
-// Path 1: Architectural integrity first, rapid expansion later
+// Discovery-First Orchestration (v2): Runtime truth over generated assumptions.
 // =============================================================================
 
 import { EventEmitter } from 'events';
@@ -13,7 +13,9 @@ import type { AIAgentConfig } from '../../types/ai';
 
 export enum PipelineStage {
   IDLE = 'idle',
-  PREFLIGHT = 'preflight',           // Docker check, repo check
+  DISCOVERY = 'discovery',             // Introspection-first: probe existing AIM, NM, registry
+  PREFLIGHT = 'preflight',             // Docker check, repo check
+  CONNECT = 'connect',                 // Connect to existing AIM (skips build/deploy)
   CONFIG_GENERATE = 'config_generate', // Write config.yml
   CODE_GENERATE = 'code_generate',     // Run aim-py-gen
   CODE_FIX = 'code_fix',               // Post-process template bugs
@@ -40,6 +42,50 @@ export interface StageState {
 }
 
 // ---------------------------------------------------------------------------
+// AIM Introspection / Discovery Result
+// ---------------------------------------------------------------------------
+
+export interface AIMEndpointCheck {
+  uri: string;
+  status: number;
+  ok: boolean;
+  latencyMs: number;
+  data?: any;
+}
+
+export interface AIMDiscoveryResult {
+  found: boolean;
+  url: string;
+  version?: string;
+  endpoints: string[];
+  endpointChecks: AIMEndpointCheck[];
+  nodeManagerRouting?: {
+    slot: number;
+    port: number;
+    status: string;
+  };
+  registryTag?: {
+    name: string;
+    tag: string;
+    digest?: string;
+  };
+  container?: {
+    id: string;
+    image: string;
+    uptime?: string;
+    health?: string;
+    port: number;
+  };
+  activeBackendModel?: string;
+  error?: string;
+}
+
+export interface DiscoveryEvent {
+  stage: PipelineStage;
+  result: AIMDiscoveryResult;
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline Events (typed for streaming UI updates)
 // ---------------------------------------------------------------------------
 
@@ -49,6 +95,7 @@ export interface PipelineEventMap {
   'stage:log': { stage: PipelineStage; log: string };
   'stage:success': { stage: PipelineStage; result?: any };
   'stage:failed': { stage: PipelineStage; error: string };
+  'discovery:complete': { result: AIMDiscoveryResult };
   'pipeline:start': { agentId: string; target: string };
   'pipeline:done': { agentId: string; imageTag: string; nodeUrl?: string };
   'pipeline:error': { agentId: string; stage: PipelineStage; error: string };
@@ -81,6 +128,8 @@ export interface DockerAdapter {
   runContainer(imageName: string, tag: string, port: number, env: Record<string, string>): Promise<{ containerId: string; logs: string }>;
   stopContainer(containerId: string): Promise<void>;
   testEndpoint(url: string, method: string, body?: any, headers?: Record<string, string>): Promise<{ status: number; data: any }>;
+  inspectContainer(imageName: string): Promise<{ id: string; image: string; uptime?: string; health?: string; port: number } | null>;
+  getLocalImageInfo(imageName: string, tag: string): Promise<{ digest?: string; created?: string } | null>;
 }
 
 export interface AimPyGenAdapter {
@@ -99,6 +148,8 @@ export interface HermesAdapter {
 export interface NodeManagerAdapter {
   registerAIM(nodeUrl: string, manifest: any, imageTag: string): Promise<{ success: boolean; aimIndex?: number; error?: string }>;
   verifyAIM(nodeUrl: string, aimIndex: number, manifest?: any): Promise<{ running: boolean; health?: any }>;
+  queryNodeInfo(nodeUrl: string): Promise<{ ok: boolean; name?: string; aims?: any[]; error?: string }>;
+  queryRegistry(tag: string): Promise<{ ok: boolean; digest?: string; tags?: string[]; error?: string }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +168,7 @@ export class AimifierService extends EventEmitter {
     imageTag: string;
     containerId?: string;
     nodeUrl?: string;
+    discoveryResult?: AIMDiscoveryResult;
   }> = new Map();
 
   private _dockerAdapter: DockerAdapter;
@@ -138,7 +190,105 @@ export class AimifierService extends EventEmitter {
   }
 
   // -------------------------------------------------------------------------
-  // Public: Start Pipeline
+  // Public: Introspection — Discover existing AIM before any build
+  // -------------------------------------------------------------------------
+  async discoverExistingAIM(
+    target: 'local' | 'node' = 'local',
+    nodeUrl?: string,
+    options: {
+      probeEndpoints?: string[];
+      expectedImageName?: string;
+      expectedImageTag?: string;
+      expectedPort?: number;
+    } = {}
+  ): Promise<AIMDiscoveryResult> {
+    const {
+      probeEndpoints = ['/health', '/manifest.json', '/costs', '/'],
+      expectedImageName = 'mosaic-hermes-aim',
+      expectedImageTag = '1.0.4',
+      expectedPort = 9000,
+    } = options;
+
+    const result: AIMDiscoveryResult = {
+      found: false,
+      url: `http://localhost:${expectedPort}`,
+      endpoints: [],
+      endpointChecks: [],
+    };
+
+    // 1. Probe AIM HTTP endpoints
+    for (const endpoint of probeEndpoints) {
+      const probeUrl = `http://localhost:${expectedPort}${endpoint}`;
+      const start = Date.now();
+      try {
+        const resp = await this._dockerAdapter.testEndpoint(probeUrl, 'GET');
+        const latencyMs = Date.now() - start;
+        result.endpointChecks.push({ uri: endpoint, status: resp.status, ok: resp.status === 200, latencyMs, data: resp.data });
+        if (resp.status === 200) {
+          result.found = true;
+          result.endpoints.push(endpoint);
+
+          if (endpoint === '/manifest.json' && resp.data) {
+            result.version = resp.data.version || resp.data.aim_version;
+          }
+        }
+      } catch (e: any) {
+        result.endpointChecks.push({ uri: endpoint, status: 0, ok: false, latencyMs: Date.now() - start, data: e.message });
+      }
+    }
+
+    // 2. Detect active backend model from health endpoint
+    const healthCheck = result.endpointChecks.find(c => c.uri === '/health' && c.ok);
+    if (healthCheck?.data) {
+      result.activeBackendModel = healthCheck.data.model || healthCheck.data.status?.model;
+    }
+
+    // 3. Inspect Docker container
+    try {
+      const container = await this._dockerAdapter.inspectContainer(expectedImageName);
+      if (container) {
+        result.container = container;
+      }
+    } catch (_e) {
+      // container inspection optional
+    }
+
+    // 4. Check Node Manager routing
+    try {
+      const nmInfo = await this._nmAdapter.queryNodeInfo(nodeUrl || 'http://localhost');
+      if (nmInfo.ok && nmInfo.aims) {
+        const slot = nmInfo.aims.find((a: any) => a.port === expectedPort || a.image_name?.includes(expectedImageName));
+        if (slot) {
+          result.nodeManagerRouting = {
+            slot: slot.aim_index ?? 0,
+            port: slot.port ?? expectedPort,
+            status: slot.status || 'unknown',
+          };
+        }
+      }
+    } catch (_e) {
+      // Node Manager query optional
+    }
+
+    // 5. Check local Docker registry
+    try {
+      const regInfo = await this._nmAdapter.queryRegistry(`${expectedImageName}:${expectedImageTag}`);
+      if (regInfo.ok) {
+        result.registryTag = {
+          name: expectedImageName,
+          tag: expectedImageTag,
+          digest: regInfo.digest,
+        };
+      }
+    } catch (_e) {
+      // registry query optional
+    }
+
+    return result;
+  }
+
+  // -------------------------------------------------------------------------
+  // Public: Start Pipeline (Discovery-First)
   // -------------------------------------------------------------------------
   async aimifyAgent(
     agent: AIAgentConfig,
@@ -146,9 +296,11 @@ export class AimifierService extends EventEmitter {
       target?: 'local' | 'node';
       nodeUrl?: string;
       skipStages?: PipelineStage[];
+      forceRebuild?: boolean;
+      discoveryPort?: number;
     } = {}
   ): Promise<string> {
-    const { target = 'local', nodeUrl, skipStages = [] } = options;
+    const { target = 'local', nodeUrl, skipStages = [], forceRebuild = false, discoveryPort = 9000 } = options;
     const pipelineId = `aim-${agent.id}-${Date.now()}`;
     const projectDir = `/tmp/aimifier-pipelines/${pipelineId}`;
     const imageTag = `mosaic-hermes-aim:${agent.id}-v${Date.now()}`;
@@ -167,7 +319,64 @@ export class AimifierService extends EventEmitter {
     this.emit('pipeline:start', { agentId: agent.id, target });
 
     try {
-      // STAGE 1: PREFLIGHT
+      // -------------------------------------------------------------
+      // PHASE 1: DISCOVERY FIRST
+      // Probe existing AIM before any generation/build/deploy.
+      // -------------------------------------------------------------
+      let discoveryResult: AIMDiscoveryResult | undefined;
+      if (!skipStages.includes(PipelineStage.DISCOVERY)) {
+        discoveryResult = await this._runStage(pipelineId, PipelineStage.DISCOVERY, async (log) => {
+          log(`[DISCOVERY] Probing existing AIM on port ${discoveryPort}...`);
+          const d = await this.discoverExistingAIM(target, nodeUrl, { expectedPort: discoveryPort });
+          this._currentPipeline.get(pipelineId)!.discoveryResult = d;
+          log(`[DISCOVERY] Found: ${d.found}`);
+
+          if (d.found) {
+            log(`[DISCOVERY] Endpoints OK: ${d.endpoints.join(', ')}`);
+            if (d.version) log(`[DISCOVERY] Version: ${d.version}`);
+            if (d.activeBackendModel) log(`[DISCOVERY] Active model: ${d.activeBackendModel}`);
+            if (d.container) log(`[DISCOVERY] Container: ${d.container.id?.slice(0, 12)} port ${d.container.port}`);
+            if (d.nodeManagerRouting) log(`[DISCOVERY] NM slot ${d.nodeManagerRouting.slot} -> port ${d.nodeManagerRouting.port} (${d.nodeManagerRouting.status})`);
+          } else {
+            log('[DISCOVERY] No existing AIM detected — build path required.');
+          }
+          this.emit('discovery:complete', { result: d });
+          return d;
+        });
+      }
+
+      // -------------------------------------------------------------
+      // BRANCH: DISCOVERED + NOT FORCE REBUILD → CONNECT MODE
+      // Skip build/deploy entirely.
+      // -------------------------------------------------------------
+      if (discoveryResult?.found && !forceRebuild) {
+        if (!skipStages.includes(PipelineStage.CONNECT)) {
+          await this._runStage(pipelineId, PipelineStage.CONNECT, async (log) => {
+            log('[CONNECT] Existing AIM detected. Skipping generation/build/deploy.');
+            log(`[CONNECT] Dashboard: http://localhost:${discoveryPort}/`);
+            log(`[CONNECT] Health:    http://localhost:${discoveryPort}/health`);
+            log(`[CONNECT] Manifest:  http://localhost:${discoveryPort}/manifest.json`);
+            log('[CONNECT] Kanban:    http://127.0.0.1:9119');
+            return { discoveryResult };
+          });
+        }
+        this._currentPipeline.get(pipelineId)!.active = false;
+        this.emit('pipeline:done', { agentId: agent.id, imageTag: `connected-to-existing:${discoveryPort}`, nodeUrl: pipelineUrlFromDiscovery(discoveryResult) });
+        toast.success('Connected to existing AIM. No rebuild needed.');
+        return `connected-to-existing:${discoveryPort}`;
+      }
+
+      // If discovered but forceRebuild is true, warn and proceed
+      if (discoveryResult?.found && forceRebuild) {
+        await this._runStage(pipelineId, PipelineStage.PREFLIGHT, async (log) => {
+          log('[PREFLIGHT] WARNING: AIM already exists on port ' + discoveryPort + ' but forceRebuild=true.');
+          return {};
+        });
+      }
+
+      // -------------------------------------------------------------
+      // PHASE 2: PREFLIGHT
+      // -------------------------------------------------------------
       if (!skipStages.includes(PipelineStage.PREFLIGHT)) {
         await this._runStage(pipelineId, PipelineStage.PREFLIGHT, async (log) => {
           log('[PREFLIGHT] Checking Docker availability...');
@@ -374,6 +583,11 @@ export class AimifierService extends EventEmitter {
     return entry ? Array.from(entry[1].stages.values()) : null;
   }
 
+  getDiscoveryResult(agentId: string): AIMDiscoveryResult | null {
+    const entry = Array.from(this._currentPipeline.entries()).find(([id, p]) => p.agent.id === agentId);
+    return entry?.[1].discoveryResult || null;
+  }
+
   isRunning(agentId: string): boolean {
     const entry = Array.from(this._currentPipeline.entries()).find(([id, p]) => p.agent.id === agentId && p.active);
     return !!entry;
@@ -492,6 +706,13 @@ export function getAimifierService(
     _service = new AimifierService(dockerAdapter, aimPyGenAdapter, hermesAdapter, nmAdapter);
   }
   return _service;
+}
+
+function pipelineUrlFromDiscovery(result: AIMDiscoveryResult): string | undefined {
+  if (result.found) {
+    return result.url;
+  }
+  return undefined;
 }
 
 export default AimifierService;

@@ -96,6 +96,45 @@ export class ElectronDockerAdapter implements DockerAdapter {
     const data = await resp.json().catch(() => null);
     return { status: resp.status, data };
   }
+
+  async inspectContainer(imageName: string): Promise<{ id: string; image: string; uptime?: string; health?: string; port: number } | null> {
+    try {
+      const { stdout, exitCode } = await aimifyExec('docker', [
+        'ps',
+        '--filter', `ancestor=${imageName}`,
+        '--format', '{{.ID}}|{{.Image}}|{{.Status}}|{{.Ports}}',
+        '-q',
+      ]);
+      if (exitCode !== 0 || !stdout.trim()) return null;
+      const parts = stdout.trim().split('\n')[0].split('|');
+      if (parts.length < 4) return null;
+      const id = parts[0];
+      const image = parts[1];
+      const uptime = parts[2];
+      const ports = parts[3];
+      // Extract mapped port from "0.0.0.0:9000->4000/tcp"
+      const portMatch = ports.match(/0\.0\.0\.0:(\d+)->\d+/);
+      const port = portMatch ? parseInt(portMatch[1], 10) : 0;
+      return { id, image, uptime, health: 'running', port };
+    } catch {
+      return null;
+    }
+  }
+
+  async getLocalImageInfo(imageName: string, tag: string): Promise<{ digest?: string; created?: string } | null> {
+    try {
+      const { stdout, exitCode } = await aimifyExec('docker', [
+        'images',
+        '--format', '{{.ID}}|{{.CreatedAt}}',
+        `${imageName}:${tag}`,
+      ]);
+      if (exitCode !== 0 || !stdout.trim()) return null;
+      const parts = stdout.trim().split('|');
+      return { digest: parts[0], created: parts[1] };
+    } catch {
+      return null;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -305,51 +344,63 @@ class HermesAIMWrapper:
 `;
   }
 
-  private _buildManifest(agent: any): object {
-    return {
-      name: `${this._toCamelCase(agent.id)}Aim`,
-      short_name: 'hermes',
-      version: '1.0.0',
-      documentation_url: 'https://github.com/YOUR_GITHUB_USERNAME/mosaic-companion',
-      license: 'Open',
-      terms_of_service: 'https://example.com/tos',
-      endpoints: [
+ private _buildManifest(agent: any): object {
+   return {
+     name: `${this._toCamelCase(agent.id)}Aim`,
+     short_name: 'hermes',
+     version: '1.0.0',
+     documentation_url: 'https://github.com/YOUR_GITHUB_USERNAME/mosaic-companion',
+     license: 'Open',
+     terms_of_service: 'https://example.com/tos',
+     endpoints: [
+       {
+         uri: '/chat',
+          methods: ['POST'],
+         is_public: true,
+         documentation: 'Hermes agent chat endpoint',
+       },
+       {
+         uri: '/health',
+          methods: ['GET'],
+         is_public: true,
+         documentation: 'Health check',
+       },
+       {
+         uri: '/capabilities',
+          methods: ['GET'],
+         is_public: true,
+         documentation: 'Capabilities metadata',
+       },
         {
-          uri: '/chat',
-          input_methods: ['POST'],
+          uri: '/costs',
+          methods: ['GET'],
           is_public: true,
-          documentation: 'Hermes agent chat endpoint',
+          documentation: 'Economic routing: cost structure for Node Manager',
         },
         {
-          uri: '/health',
-          input_methods: ['GET'],
+          uri: '/',
+          methods: ['GET'],
           is_public: true,
-          documentation: 'Health check',
+          documentation: 'Dashboard root with AIM status, links, config display',
         },
-        {
-          uri: '/capabilities',
-          input_methods: ['GET'],
-          is_public: true,
-          documentation: 'Capabilities metadata',
-        },
-      ],
-      mosaic_aim: {
-        aim_type: 'hermes_bridge',
-        aim_version: '1.0.0',
-        hermes_spec_version: '1.0.0',
-        capabilities: ['chat', 'completion', 'tool_use', 'analysis'],
-        models: [agent.model || 'kimi-k2.6'],
-        max_tokens: 4096,
-        supports_streaming: false,
-        supports_tools: true,
-        supports_system_prompt: true,
-        supports_memory: false,
-        gpu_required: false,
-        gpu_memory_gb: 0,
-        cost_model: 'per_token',
-      },
-    };
-  }
+     ],
+     mosaic_aim: {
+       aim_type: 'hermes_bridge',
+       aim_version: '1.0.0',
+       hermes_spec_version: '1.0.0',
+       capabilities: ['chat', 'completion', 'tool_use', 'analysis'],
+       models: [agent.model || 'kimi-k2.6'],
+       max_tokens: 4096,
+       supports_streaming: false,
+       supports_tools: true,
+       supports_system_prompt: true,
+       supports_memory: false,
+       gpu_required: false,
+       gpu_memory_gb: 0,
+       cost_model: 'per_token',
+     },
+   };
+ }
 
   private _buildMainPy(): string {
     // Canonical main.py from reference implementation
@@ -526,7 +577,7 @@ ENV PORT=4000
 HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=3 \\
     CMD python3 -c "from mosaic_hermes_wrapper import HermesAIMWrapper; w=HermesAIMWrapper(); s,c=w.health(); print(s)"
 
-EXPOSE \${PORT}
+EXPOSE 4000
 
 CMD ["python3", "/app/main.py"]
 `;
@@ -580,8 +631,9 @@ export class ElectronHermesAdapter implements HermesAdapter {
 export class ElectronNodeManagerAdapter implements NodeManagerAdapter {
   async registerAIM(nodeUrl: string, manifest: any, imageTag: string): Promise<{ success: boolean; aimIndex?: number; error?: string }> {
     try {
-      const adminUrl = `${nodeUrl}:8006`;
-      const resp = await fetch(`${adminUrl}/api/add_aim`, {
+      // FIXED: Use Node Manager API port 8000, not Admin UI port 8006
+      const apiUrl = `${nodeUrl}:8000`;
+      const resp = await fetch(`${apiUrl}/api/add_aim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: imageTag, tag: imageTag, port: manifest?.project_port || 4000, environment: manifest?.environment || {} }),
@@ -598,7 +650,8 @@ export class ElectronNodeManagerAdapter implements NodeManagerAdapter {
 
   async verifyAIM(nodeUrl: string, aimIndex: number, manifest?: any): Promise<{ running: boolean; health?: any }> {
     try {
-      const aimPort = 8000 + (manifest?.aim_start_port || 0) + aimIndex;
+      // FIXED: Use the port from manifest or default to 9000 (configurable)
+      const aimPort = manifest?.project_port || 9000;
       const resp = await fetch(`http://localhost:${aimPort}/health`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
@@ -607,6 +660,45 @@ export class ElectronNodeManagerAdapter implements NodeManagerAdapter {
       return { running: resp.status === 200, health: data };
     } catch (e: any) {
       return { running: false };
+    }
+  }
+
+  // NEW: Query Node Manager info endpoint
+  async queryNodeInfo(nodeUrl: string): Promise<{ ok: boolean; name?: string; aims?: any[]; error?: string }> {
+    try {
+      const apiUrl = `${nodeUrl}:8000`;
+      const resp = await fetch(`${apiUrl}/info`, { method: 'GET' });
+      if (resp.ok) {
+        const data = await resp.json();
+        return {
+          ok: true,
+          name: data.name,
+          aims: data.aim?.aims || [],
+        };
+      }
+      return { ok: false, error: `HTTP ${resp.status}` };
+    } catch (e: any) {
+      return { ok: false, error: e.message };
+    }
+  }
+
+  // NEW: Query local Docker registry for image tag info
+  async queryRegistry(tag: string): Promise<{ ok: boolean; digest?: string; tags?: string[]; error?: string }> {
+    try {
+      // Parse "name:tag" format
+      const [imageName, imageTag = 'latest'] = tag.split(':') as [string, string];
+      const resp = await fetch(`http://localhost:5000/v2/${imageName}/tags/list`);
+      if (resp.ok) {
+        const data = await resp.json();
+        const tags: string[] = data.tags || [];
+        return {
+          ok: tags.includes(imageTag),
+          tags,
+        };
+      }
+      return { ok: false, error: `HTTP ${resp.status}` };
+    } catch (e: any) {
+      return { ok: false, error: e.message };
     }
   }
 }

@@ -1,12 +1,13 @@
 // =============================================================================
 // STARGATE AIM PANEL — Live AIM inventory with slots, ports, status
+// Includes DISCOVERY FALLBACK: probes localhost:9000 when Node Manager shows empty.
 // =============================================================================
 // Replaces the empty "AI Models" tab with a live list from the local node.
 // Uses Tailwind CSS + lucide-react to match existing Mosaic styling.
 // =============================================================================
 
 import React, { useEffect, useState } from 'react';
-import { Bot, ExternalLink, CheckCircle2, XCircle, Loader, AlertTriangle, Plug, Box } from 'lucide-react';
+import { Bot, ExternalLink, CheckCircle2, XCircle, Loader, AlertTriangle, Plug, Box, Eye } from 'lucide-react';
 import { localNodeBridge, BridgeAIM } from '../../services/stargate/LocalNodeBridge';
 import { enhancedLocalNodeBridge, ExtendedBridgeTelemetry } from '../../services/stargate/EnhancedLocalNodeBridge';
 
@@ -14,18 +15,53 @@ import { enhancedLocalNodeBridge, ExtendedBridgeTelemetry } from '../../services
 import { agentToolService } from '../../services/stargate/integrations';
 import { mcpAIMService } from '../../services/stargate/integrations';
 
+interface FallbackAIM {
+  found: boolean;
+  url: string;
+  version?: string;
+  port: number;
+  name?: string;
+  model?: string;
+  status?: string;
+}
+
 const StargateAIMPanel: React.FC = () => {
   const [aims, setAims] = useState<BridgeAIM[]>([]);
   const [telemetry, setTelemetry] = useState<ExtendedBridgeTelemetry | null>(null);
   const [loading, setLoading] = useState(true);
+  // Discovery fallback: probe localhost:9000 when Node Manager shows empty
+  const [fallbackAIM, setFallbackAIM] = useState<FallbackAIM | null>(null);
 
   useEffect(() => {
     const refresh = async () => {
       setLoading(true);
       await localNodeBridge.refresh();
-      setAims(localNodeBridge.getLocalAIMs());
+      const localAims = localNodeBridge.getLocalAIMs();
+      setAims(localAims);
       const t = await enhancedLocalNodeBridge.refresh();
       setTelemetry(t);
+
+      // DISCOVERY FALLBACK: if node shows no AIMs, probe localhost:9000
+      if (t && t.runningAims.length === 0 && localAims.length === 0) {
+        try {
+          const resp = await fetch('http://localhost:9000/health', { method: 'GET' });
+          if (resp.ok) {
+            const data = await resp.json();
+            const version = data.aim_version || data.version || 'unknown';
+            const name = data.name || 'Mosaic Hermes AIM';
+            const model = data.model || 'unknown';
+            const status = data.status || 'ok';
+            setFallbackAIM({ found: true, url: 'http://localhost:9000', version, port: 9000, name, model, status });
+          } else {
+            setFallbackAIM(null);
+          }
+        } catch (_e) {
+          setFallbackAIM(null);
+        }
+      } else {
+        setFallbackAIM(null);
+      }
+
       setLoading(false);
     };
     refresh();
@@ -33,7 +69,7 @@ const StargateAIMPanel: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  if (loading && aims.length === 0) {
+  if (loading && aims.length === 0 && !fallbackAIM?.found) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full" />
@@ -41,7 +77,7 @@ const StargateAIMPanel: React.FC = () => {
     );
   }
 
-  if (aims.length === 0) {
+  if (aims.length === 0 && !fallbackAIM?.found) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <Bot size={64} className="text-gray-700 mb-4" />
@@ -61,7 +97,10 @@ const StargateAIMPanel: React.FC = () => {
     );
   }
 
-  const slotUsage = telemetry ? telemetry.runningAims.length / telemetry.totalAimSlots : 0;
+  // Slot usage includes fallback AIM if discovered
+  const effectiveRunningCount = (telemetry?.runningAims.length || 0) + (fallbackAIM?.found ? 1 : 0);
+  const totalSlots = telemetry?.totalAimSlots || 8;
+  const slotUsage = totalSlots > 0 ? effectiveRunningCount / totalSlots : 0;
 
   return (
     <div className="space-y-4">
@@ -70,7 +109,7 @@ const StargateAIMPanel: React.FC = () => {
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
           slotUsage > 0.75 ? 'bg-yellow-500/10 text-yellow-400' : 'bg-green-500/10 text-green-400'
         }`}>
-          {telemetry?.runningAims.length || 0}/{telemetry?.totalAimSlots || 8} slots
+          {effectiveRunningCount}/{totalSlots} slots
         </span>
       </div>
 
@@ -82,6 +121,51 @@ const StargateAIMPanel: React.FC = () => {
       </div>
 
       <div className="grid gap-3">
+        {/* Fallback AIM card — shown when discovered via localhost:9000 probe */}
+        {fallbackAIM?.found && (
+          <div
+            className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-900/10 hover:border-emerald-500/50 transition-colors"
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-emerald-500/20">
+                  <Eye size={20} className="text-emerald-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium text-white">{fallbackAIM.name || 'Mosaic Hermes AIM'}</h4>
+                    <span className="text-xs text-emerald-400">{fallbackAIM.version}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-1.5">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
+                      {fallbackAIM.status || 'running'}
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">Port {fallbackAIM.port}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">Slot 0 (Local)</span>
+                    {fallbackAIM.model && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">Model: {fallbackAIM.model}</span>
+                    )}
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400">Discovery-Fallback</span>
+                  </div>
+                  <div className="text-[10px] text-gray-500 mt-1">
+                    Discovered via localhost:9000 probe (not in Node Manager /info)
+                  </div>
+                </div>
+              </div>
+              <a
+                href={fallbackAIM.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-emerald-400 transition-colors"
+                title="Open AIM Dashboard"
+              >
+                <ExternalLink size={16} />
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Standard AIM cards from Node Manager */}
         {aims.map((aim) => (
           <div
             key={aim.imageId}
