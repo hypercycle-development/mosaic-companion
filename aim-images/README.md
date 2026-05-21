@@ -46,9 +46,9 @@ Our six-tier deployment model:
 docker run -d -p 5000:5000 --restart unless-stopped --name registry registry:2
 
 # Build and push
-docker build -t mosaic-hermes-aim:1.0.2 .
-docker tag mosaic-hermes-aim:1.0.2 localhost:5000/mosaic-hermes-aim:1.0.2
-docker push localhost:5000/mosaic-hermes-aim:1.0.2
+docker build -t mosaic-hermes-aim:1.0.4 .
+docker tag mosaic-hermes-aim:1.0.4 localhost:5000/mosaic-hermes-aim:1.0.4
+docker push localhost:5000/mosaic-hermes-aim:1.0.4
 
 # Deploy directly to port 9000 (slot 0) — Node Manager must have slot 0 mapped to port 9000
 docker run -d --name mosaic-hermes-aim-production --restart unless-stopped \
@@ -56,7 +56,7 @@ docker run -d --name mosaic-hermes-aim-production --restart unless-stopped \
   -e HERMES_BASE_URL=http://host.docker.internal:11434 \
   -e HERMES_MODEL=kimi-k2.5:cloud \
   --add-host=host.docker.internal:host-gateway \
-  localhost:5000/mosaic-hermes-aim:1.0.2
+  localhost:5000/mosaic-hermes-aim:1.0.4
 ```
 
 ### Verify
@@ -90,4 +90,4 @@ The Node Manager's internal config (`setup.json`) is encrypted and currently sto
 
 ## Version
 
-`1.0.2` — Manifest includes `endpoints` array (required by Node Manager proxy)
+`1.0.4` — Manifest includes `endpoints` array (required by Node Manager proxy)

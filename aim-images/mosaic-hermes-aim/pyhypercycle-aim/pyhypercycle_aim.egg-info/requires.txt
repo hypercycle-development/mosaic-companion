@@ -1,0 +1,5 @@
+starlette
+uvicorn[standard]
+filelock
+web3
+websocket-client

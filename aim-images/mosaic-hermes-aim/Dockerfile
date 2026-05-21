@@ -36,11 +36,13 @@ EXPOSE 4000/tcp
 
 # HERMES_BASE_URL and HERMES_MODEL can be overridden at runtime
 ENV HERMES_BASE_URL="http://localhost:3000"
-ENV HERMES_MODEL="kimi-k2.6"
+ENV HERMES_MODEL="kimi-k2.5:cloud"
 ENV PORT="4000"
+ENV NODE_ID="80ad4ea14c33cd2a"
+ENV KANBAN_URL="http://127.0.0.1:9119"
 
-# Healthcheck: /health returns 200 when Hermes is reachable
+# Healthcheck: /health returns 200 when available
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:4000/health', timeout=5)" || exit 1
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:4000/health?minimal=1', timeout=5)" || exit 1
 
 CMD ["python3", "main.py"]

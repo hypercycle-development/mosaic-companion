@@ -1,9 +1,10 @@
-// appended storeSecret function
+import fs from "fs";
+import { loadVault, getBox, boxContentPath } from "./index";
+import type { BoxContent, VaultEntry } from "./types";
 
 /**
- * Store a secret value (unencrypted in memory) into a specified box.
- * The value is encrypted with Electron's safeStorage before persisting.
- * A unique entry ID is created based on timestamp and a random suffix.
+ * Store a secret value into a specified vault box.
+ * The value is encrypted with Electron's safeStorage if available.
  */
 export function storeSecret(boxId: string, key: string, value: string): {
   success: boolean;
@@ -11,12 +12,10 @@ export function storeSecret(boxId: string, key: string, value: string): {
   error?: string;
 } {
   try {
-    const vault = loadVault();
     const box = getBox(boxId);
     if (!box) {
       return { success: false, error: `Box ${boxId} not found` };
     }
-    // Ensure entry file is loaded
     const boxPath = boxContentPath(boxId);
     let boxContent: BoxContent;
     if (fs.existsSync(boxPath)) {
@@ -26,15 +25,14 @@ export function storeSecret(boxId: string, key: string, value: string): {
       boxContent = { boxId, entries: [] };
     }
     const entryId = `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    // Encrypt using safeStorage if available
-    let encrypted: Buffer | string = value;
+    let encrypted = value;
     try {
-      const buf = (app as any).safeStorage?.encryptString?.(value);
-      if (buf instanceof Buffer) {
-        encrypted = buf.toString("base64");
+      const encryptedBuf = (app as any).safeStorage?.encryptString?.(value);
+      if (encryptedBuf instanceof Buffer) {
+        encrypted = encryptedBuf.toString("base64");
       }
     } catch {
-      // safeStorage may not be available in headless contexts; fallback to plain
+      // no encryption fallback
     }
     const entry: VaultEntry = {
       id: entryId,
@@ -46,7 +44,7 @@ export function storeSecret(boxId: string, key: string, value: string): {
     boxContent.entries.push(entry);
     fs.writeFileSync(boxPath, JSON.stringify(boxContent, null, 2), "utf8");
     return { success: true, entryId };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
 }

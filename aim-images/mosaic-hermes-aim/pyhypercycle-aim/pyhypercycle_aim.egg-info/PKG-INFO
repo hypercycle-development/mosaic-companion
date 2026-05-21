@@ -1,0 +1,18 @@
+Metadata-Version: 2.4
+Name: pyhypercycle_aim
+Version: 1.0.0
+Summary: Hypercycle AIM Library
+Home-page: 
+Author: 
+Author-email: 
+Keywords: hypercycle aim library
+Classifier: Programming Language :: Python
+Requires-Dist: starlette
+Requires-Dist: uvicorn[standard]
+Requires-Dist: filelock
+Requires-Dist: web3
+Requires-Dist: websocket-client
+Dynamic: classifier
+Dynamic: keywords
+Dynamic: requires-dist
+Dynamic: summary

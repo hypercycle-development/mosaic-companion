@@ -3,23 +3,7 @@
 // Company Onboarding Door for Agentic System Packages
 // ============================================
 
-import {
-  Company,
-  AspPackage,
-  AspAgent,
-  AspRole,
-  AspPermission,
-  ROLE_PERMISSIONS,
-  ExecutionRequest,
-  ExecutionResult,
-  UsageRecord,
-  BillingConfig,
-  ComplianceConfig,
-  NodeBinding,
-  HORIZONHUB_SYSTEM,
-  ExecutionMode,
-  ResourceRequirements
-} from './types';
+import { storeSecret } from "../integrations/vault/storeSecret";
 
 import { nodeIntelligence } from '../AdaPortal/NodeIntelligenceService';
 import type { ComputeNode } from '../AdaPortal/types';
@@ -129,11 +113,17 @@ class AspGatewayService {
   generateApiKey(companyId: string): string | undefined {
     const company = this.companies.get(companyId);
     if (company) {
-      const apiKey = `asp_${companyId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      company.apiKeys.push(apiKey);
-      company.updatedAt = Date.now();
-      console.log(`[AspGateway] Generated API key for company: ${companyId}`);
-      return apiKey;
+    const apiKey = `asp_${companyId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Store secret in Vault under box asp-${companyId}
+    const { success, entryId, error } = storeSecret(`asp-${companyId}`, "apiKey", apiKey);
+    if (!success) {
+      console.error(`[AspGateway] Failed to store API key in Vault: ${error}`);
+      return undefined;
+    }
+    company.updatedAt = Date.now();
+    console.log(`[AspGateway] Generated API key for company: ${companyId}`);
+    // Note: API key not kept in memory
+    return apiKey;
     }
     return undefined;
   }
