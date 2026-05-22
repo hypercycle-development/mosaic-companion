@@ -72,6 +72,7 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
   const [testResults, setTestResults] = useState<{ endpoint: string; status: number; ok: boolean }[]>([]);
   const [target, setTarget] = useState<'local' | 'node'>('local');
   const [nodeUrl, setNodeUrl] = useState('');
+  const [discoveryPort, setDiscoveryPort] = useState(9000);
   const [imageTag, setImageTag] = useState('');
   const [logs, setLogs] = useState<string[]>([]);
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -82,7 +83,13 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
   const [isConnected, setIsConnected] = useState(false);
   const [connectUrl, setConnectUrl] = useState('');
 
-  // Lazy-init service
+  // Auto-select first agent when panel mounts
+  useEffect(() => {
+    const firstHermes = agents.find(a => a.provider === 'hermes');
+    if (firstHermes && !selectedAgent) {
+      setSelectedAgent(firstHermes);
+    }
+  }, [agents, selectedAgent]);
   const serviceRef = useRef<AimifierService | null>(null);
   const getService = useCallback(() => {
     if (!serviceRef.current) {
@@ -173,6 +180,32 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
         setConnectUrl(`http://localhost:${port}`);
         setIsConnected(true);
         toast.success('Connected to existing AIM. No rebuild performed.');
+        // Mark all build/deploy stages as skipped since they were bypassed
+        setStageStates(prev => {
+          const next = new Map(prev);
+          const buildStages = [
+            PipelineStage.PREFLIGHT,
+            PipelineStage.CONFIG_GENERATE,
+            PipelineStage.CODE_GENERATE,
+            PipelineStage.CODE_FIX,
+            PipelineStage.VALIDATE_SPEC,
+            PipelineStage.BUILD_DOCKER,
+            PipelineStage.TEST_LOCAL,
+            PipelineStage.DEPLOY_NODE,
+            PipelineStage.POST_DEPLOY,
+          ];
+          for (const stage of buildStages) {
+            next.set(stage, {
+              stage,
+              status: 'skipped',
+              startTime: Date.now(),
+              endTime: Date.now(),
+              message: 'Skipped — connected to existing AIM',
+              logs: [],
+            });
+          }
+          return next;
+        });
       } else {
         if (selectedAgent && onAimified) {
           onAimified(selectedAgent.id, tag);
@@ -235,7 +268,7 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
         target,
         nodeUrl: target === 'node' ? nodeUrl : undefined,
         forceRebuild,
-        discoveryPort: 9000,
+        discoveryPort,
       });
     } catch (e: any) {
       // Error handled by event listener
@@ -356,6 +389,22 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
             className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-xs focus:outline-none focus:border-violet-500"
           />
         )}
+      </div>
+
+      {/* Discovery Port input (always visible) */}
+      <div className="space-y-2">
+        <label className="text-xs font-medium text-gray-400">Discovery Port</label>
+        <input
+          type="number"
+          value={discoveryPort}
+          onChange={(e) => setDiscoveryPort(Number(e.target.value))}
+          placeholder="9000"
+          disabled={isRunning}
+          className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-xs focus:outline-none focus:border-violet-500"
+        />
+        <p className="text-[10px] text-gray-500">
+          Port to probe for an existing AIM. Default 9000.
+        </p>
       </div>
 
       {/* Force Rebuild toggle */}

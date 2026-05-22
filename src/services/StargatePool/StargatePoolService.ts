@@ -167,6 +167,13 @@ const ERC721_ABI = {
   ownerOf: '0x6352211e', // ownerOf(uint256)
 };
 
+// Public Base RPC fallbacks when window.ethereum is absent
+const BASE_RPC_FALLBACKS = [
+  'https://mainnet.base.org',
+  'https://base.llamarpc.com',
+  'https://1rpc.io/base',
+];
+
 // =============================================================================
 // Storage Keys
 // =============================================================================
@@ -519,22 +526,25 @@ class StargatePoolService {
    */
   async checkCollectionOwnership(walletAddress: string, contractAddress: string): Promise<number> {
     try {
-      if (!window.ethereum) {
-        console.warn('[StargatePool] No window.ethereum available');
-        return 0;
-      }
-
       const normalizedOwner = walletAddress.toLowerCase().replace('0x', '').padStart(64, '0');
       const normalizedContract = contractAddress.toLowerCase();
+      const callData = '0x70a08231' + normalizedOwner;
 
-      // ERC-721 balanceOf
-      const balanceResult = await window.ethereum.request({
-        method: 'eth_call',
-        params: [{
-          to: normalizedContract,
-          data: '0x70a08231' + normalizedOwner
-        }, 'latest']
-      });
+      let balanceResult: string | null = null;
+
+      if (window.ethereum) {
+        try {
+          const r = await window.ethereum.request({
+            method: 'eth_call',
+            params: [{ to: normalizedContract, data: callData }, 'latest']
+          });
+          if (r && typeof r === 'string') balanceResult = r;
+        } catch { /* fallthrough */ }
+      }
+
+      if (!balanceResult) {
+        balanceResult = await this._rpcEthCall(normalizedContract, callData);
+      }
 
       if (balanceResult && typeof balanceResult === 'string' && balanceResult !== '0x') {
         const balance = parseInt(balanceResult, 16);
@@ -701,16 +711,22 @@ class StargatePoolService {
    */
   private async getERC721Balance(owner: string, contractAddress: string): Promise<number> {
     try {
-      if (!window.ethereum) return 0;
+      const callData = '0x70a08231' + owner.slice(2).toLowerCase().padStart(64, '0');
+      let result: string | null = null;
 
-      // Minimal ERC-721 ABI for balanceOf
-      const result = await window.ethereum.request({
-        method: 'eth_call',
-        params: [{
-          to: contractAddress,
-          data: '0x70a08231' + owner.slice(2).toLowerCase().padStart(64, '0') // balanceOf(address)
-        }, 'latest']
-      });
+      if (window.ethereum) {
+        try {
+          const r = await window.ethereum.request({
+            method: 'eth_call',
+            params: [{ to: contractAddress, data: callData }, 'latest']
+          });
+          if (r && typeof r === 'string') result = r;
+        } catch { /* fallthrough */ }
+      }
+
+      if (!result) {
+        result = await this._rpcEthCall(contractAddress, callData);
+      }
 
       if (result && typeof result === 'string') {
         return parseInt(result, 16);
@@ -726,19 +742,25 @@ class StargatePoolService {
    */
   private async getTokenOfOwnerByIndex(owner: string, contractAddress: string, index: number): Promise<string | null> {
     try {
-      if (!window.ethereum) return null;
-
-      // tokenOfOwnerByIndex(address owner, uint256 index)
       const ownerParam = owner.slice(2).toLowerCase().padStart(64, '0');
       const indexParam = BigInt(index).toString(16).padStart(64, '0');
-      
-      const result = await window.ethereum.request({
-        method: 'eth_call',
-        params: [{
-          to: contractAddress,
-          data: '0x2f745c59' + ownerParam + indexParam // tokenOfOwnerByIndex(address,uint256)
-        }, 'latest']
-      });
+      const callData = '0x2f745c59' + ownerParam + indexParam;
+
+      let result: string | null = null;
+
+      if (window.ethereum) {
+        try {
+          const r = await window.ethereum.request({
+            method: 'eth_call',
+            params: [{ to: contractAddress, data: callData }, 'latest']
+          });
+          if (r && typeof r === 'string') result = r;
+        } catch { /* fallthrough */ }
+      }
+
+      if (!result) {
+        result = await this._rpcEthCall(contractAddress, callData);
+      }
 
       if (result && typeof result === 'string' && result !== '0x') {
         return parseInt(result, 16).toString();
@@ -754,6 +776,35 @@ class StargatePoolService {
    */
   mapNFTsToCollectionIds(nfts: UserNFT[]): string[] {
     return nfts.map(nft => nft.collectionId);
+  }
+
+  /**
+   * RPC fallback for eth_call when window.ethereum unavailable.
+   */
+  private async _rpcEthCall(
+    contractAddress: string,
+    callData: string
+  ): Promise<string | null> {
+    const body = JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'eth_call',
+      params: [{ to: contractAddress, data: callData }, 'latest'],
+      id: 1,
+    });
+    for (const rpc of BASE_RPC_FALLBACKS) {
+      try {
+        const resp = await fetch(rpc, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        });
+        const data = await resp.json();
+        if (data.result && typeof data.result === 'string') {
+          return data.result;
+        }
+      } catch { /* try next RPC */ }
+    }
+    return null;
   }
 
   // =============================================================================
