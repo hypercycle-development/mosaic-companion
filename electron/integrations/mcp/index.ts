@@ -34,7 +34,24 @@ export function setMainWindow(win: BrowserWindow): void {
 /** Ensure default built-in plugins are registered in the plugin manager. */
 function ensureDefaultPlugins(): void {
   const existing = pluginManager.list();
-  // No default plugins registered — all are user-configured or injected via IPC.
+
+  // Register gbrain MCP server if not already present
+  const hasGbrain = existing.some((p) => p.name === "gbrain");
+  if (!hasGbrain) {
+    pluginManager.add({
+      name: "gbrain",
+      description: "Personal knowledge graph — Query Stargate development history, commits, and architecture",
+      transport: "stdio",
+      command: "node",
+      args: [
+        // Absolute path to the gbrain MCP bridge — bundled with the app
+        require.resolve("./servers/gbrain-mcp-server.js"),
+      ],
+      env: {},
+      autoConnect: true,
+    });
+    console.log("[MCP] Registered default plugin: gbrain");
+  }
 }
 
 export async function initPlugins(): Promise<void> {
