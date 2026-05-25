@@ -6,7 +6,12 @@ from mosaic_hermes_wrapper import HermesAIMWrapper
 from pyhypercycle_aim import JSONResponseCORS, SimpleServer, aim_uri
 
 PORT = int(os.environ.get("PORT", "4000"))
-KANBAN_URL = os.environ.get("KANBAN_URL", "http://127.0.0.1:9119")
+KANBAN_URL_DEFAULT = os.environ.get("KANBAN_URL", "http://127.0.0.1:9119")
+# If running inside a Docker container, 127.0.0.1 resolves to the container loopback,
+# not the host. Prefer host.docker.internal when available.
+KANBAN_URL = os.environ.get("KANBAN_URL_DOCKER", KANBAN_URL_DEFAULT)
+if os.path.exists("/.dockerenv") and "host.docker.internal" not in KANBAN_URL:
+    KANBAN_URL = KANBAN_URL_DEFAULT.replace("127.0.0.1", "host.docker.internal").replace("localhost", "host.docker.internal")
 NODE_ID = os.environ.get("NODE_ID", "80ad4ea14c33cd2a")
 LICENSE = os.environ.get("LICENSE", "2324779898006116")
 

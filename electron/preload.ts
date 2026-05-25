@@ -446,6 +446,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     disconnectWallet: () =>
       ipcRenderer.invoke("cardano:disconnectWallet"),
   },
+  // ─── Hermes Dashboard — kanban UI lifecycle ───
+  hermes: {
+    startDashboard: (port?: number) =>
+      ipcRenderer.invoke("hermes:start-dashboard", port),
+    stopDashboard: () => ipcRenderer.invoke("hermes:stop-dashboard"),
+    dashboardStatus: () => ipcRenderer.invoke("hermes:dashboard-status"),
+  },
 });
 
 contextBridge.exposeInMainWorld("chatAPI", chatAPI);

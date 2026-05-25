@@ -646,6 +646,62 @@ ipcMain.handle("aimify:read-file", async (_event, filePath: string) => {
   }
 });
 
+// =============================================================================
+// HERMES DASHBOARD LIFECYCLE — spawn/stop/status for kanban UI
+// =============================================================================
+let hermesDashboardProc: any = null;
+
+ipcMain.handle("hermes:start-dashboard", async (event, port?: number) => {
+  const p = port || 9119;
+  // If already running, just report status
+  if (hermesDashboardProc && !hermesDashboardProc.killed) {
+    return { success: true, status: 'already-running', port: p, pid: hermesDashboardProc.pid };
+  }
+  // Check if another dashboard is already running (e.g., user started manually)
+  try {
+    const { execSync } = require("child_process");
+    const psOut = execSync(`hermes dashboard --status 2>/dev/null || true`, { encoding: "utf8", timeout: 5000 });
+    if (psOut.includes("PID")) {
+      return { success: true, status: 'externally-running', port: p };
+    }
+  } catch (_e) {}
+  // Spawn daemonized process so it outlives Electron
+  try {
+    hermesDashboardProc = spawn("hermes", ["dashboard", "--port", String(p), "--no-open"], {
+      detached: true,
+      stdio: "ignore",
+      env: { ...process.env, HERMES_KANBAN_BOARD: process.env.HERMES_KANBAN_BOARD || "stargate" },
+    });
+    hermesDashboardProc.unref(); // allow parent to exit without killing child
+    return { success: true, status: 'started', port: p, pid: hermesDashboardProc.pid };
+  } catch (error: any) {
+    return { success: false, status: 'error', error: error.message };
+  }
+});
+
+ipcMain.handle("hermes:stop-dashboard", async () => {
+  if (hermesDashboardProc && !hermesDashboardProc.killed) {
+    hermesDashboardProc.kill("SIGTERM");
+    hermesDashboardProc = null;
+  }
+  return { success: true, status: 'stopped' };
+});
+
+ipcMain.handle("hermes:dashboard-status", async () => {
+  const isOursRunning = !!(hermesDashboardProc && !hermesDashboardProc.killed);
+  // Also probe the HTTP endpoint
+  try {
+    const { execSync } = require("child_process");
+    const probe = execSync(`curl -s -o /dev/null -w "%{http_code}" --max-time 2 http://127.0.0.1:9119`, {
+      encoding: "utf8", timeout: 3000,
+    });
+    const httpOk = probe.trim() === "200";
+    return { success: true, running: isOursRunning || httpOk, port: 9119, httpOk };
+  } catch (_e) {
+    return { success: true, running: isOursRunning, port: 9119, httpOk: false };
+  }
+});
+
 // Sandbox State
 ipcMain.handle("sandbox:get-state", async () => sandboxState);
 

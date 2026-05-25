@@ -293,6 +293,29 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const openHermesKanban = async () => {
+    // Ensure dashboard is running before opening
+    try {
+      const eapi = (window as any).electronAPI;
+      if (eapi?.hermes?.startDashboard) {
+        const result = await eapi.hermes.startDashboard();
+        if (result.success || result.status === 'already-running' || result.status === 'externally-running') {
+          openWindow('http://127.0.0.1:9119');
+        } else {
+          console.warn('Failed to start Hermes dashboard:', result);
+          // Fallback: try opening anyway (user may have started it manually)
+          openWindow('http://127.0.0.1:9119');
+        }
+      } else {
+        // IPC bridge not available — fallback to raw window.open
+        openWindow('http://127.0.0.1:9119');
+      }
+    } catch (err) {
+      console.error('openHermesKanban error:', err);
+      openWindow('http://127.0.0.1:9119');
+    }
+  };
+
   // -------------------------------------------------------------------------
   // Stage UI helpers
   // -------------------------------------------------------------------------
@@ -455,7 +478,7 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
               <ExternalLink size={12} /> Open AIM Dashboard
             </button>
             <button
-              onClick={() => openWindow('http://127.0.0.1:9119')}
+              onClick={openHermesKanban}
               className="flex items-center gap-1 px-3 py-1.5 rounded bg-emerald-700/40 hover:bg-emerald-600/40 text-emerald-200 text-xs transition"
             >
               <ExternalLink size={12} /> Open Kanban
