@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, AlertCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, AlertCircle, RefreshCw, MapPin } from 'lucide-react';
 import { AimProfileDto, AimNodeInstanceDto, ManifestEndpoint } from '../types';
 import { useUserGeo } from '../hooks/useUserGeo';
 import { AimProfileHeader } from './AimProfileHeader';
@@ -21,7 +21,8 @@ interface AimProfilePageProps {
 }
 
 export const AimProfilePage = ({ aimName, onBack, onNodeSelect }: AimProfilePageProps) => {
-  const userGeo = useUserGeo();
+  const [geoEnabled, setGeoEnabled] = useState(false);
+  const userGeo = useUserGeo(geoEnabled);
 
   const [profile, setProfile] = useState<AimProfileDto | null>(null);
   const [nodes, setNodes] = useState<AimNodeInstanceDto[]>([]);
@@ -163,7 +164,19 @@ export const AimProfilePage = ({ aimName, onBack, onNodeSelect }: AimProfilePage
           <ArrowLeft size={18} />
           <span className="text-sm font-medium">Back</span>
         </button>
-        <span className="text-sm text-[var(--textMuted)] font-mono truncate">{aimName}</span>
+        <span className="text-sm text-[var(--textMuted)] font-mono truncate flex-1">{aimName}</span>
+        <button
+          onClick={() => setGeoEnabled(v => !v)}
+          title={geoEnabled ? 'Location-based node sorting enabled — click to disable' : 'Enable location-based node sorting'}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+            geoEnabled
+              ? 'bg-[var(--primary)] text-white border-transparent'
+              : 'bg-[var(--surface)] text-[var(--textMuted)] border-[var(--border)] hover:bg-[var(--surfaceAlt)]'
+          }`}
+        >
+          <MapPin size={13} />
+          {geoEnabled ? 'Location on' : 'Use my location'}
+        </button>
       </div>
 
       {/* Scrollable content */}

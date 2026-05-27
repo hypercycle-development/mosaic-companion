@@ -12,6 +12,15 @@ interface TryItPanelProps {
   onClose: () => void;
 }
 
+function isAllowedEndpointUrl(url: string): boolean {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export const TryItPanel = ({ aimName, endpoint, nodeEndpointUrl, onClose }: TryItPanelProps) => {
   const costOnlyUrl = `${nodeEndpointUrl}/aim/0${endpoint.uri}`;
 
@@ -36,6 +45,11 @@ export const TryItPanel = ({ aimName, endpoint, nodeEndpointUrl, onClose }: TryI
     setEstimating(true);
     setCostResult(null);
     setCostError(null);
+    if (!isAllowedEndpointUrl(costOnlyUrl)) {
+      setCostError('Invalid endpoint URL: only http/https is permitted');
+      setEstimating(false);
+      return;
+    }
     try {
       const body: Record<string, unknown> = { ...formValues, cost_only: 1 };
       const res = await fetch(costOnlyUrl, {
