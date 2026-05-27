@@ -149,6 +149,13 @@ function startScorePolling() {
   }, POLL_INTERVAL_MS);
 }
 
+export function stopScorePolling() {
+  if (_pollIntervalId !== null) {
+    clearInterval(_pollIntervalId);
+    _pollIntervalId = null;
+  }
+}
+
 // Exported Registration Function
 export function registerHyperInsightIpc(ipcMain) {
   
@@ -238,7 +245,7 @@ export function registerHyperInsightIpc(ipcMain) {
 
   ipcMain.handle('hyperinsight:get-node-profile', async (event, license) => {
     try {
-      return await handleDataRequest(`/nodes/${license}/profile`);
+      return await handleDataRequest(`/nodes/${encodeURIComponent(String(license))}/profile`);
     } catch (e) { return { error: e.message }; }
   });
 
@@ -333,19 +340,20 @@ export function registerHyperInsightIpc(ipcMain) {
 
   ipcMain.handle('hyperinsight:get-aim-deployments', async (event, aimId) => {
     try {
-      return await handleDataRequest(`/tools/${aimId}/deployments`);
+      return await handleDataRequest(`/tools/${encodeURIComponent(String(aimId))}/deployments`);
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:get-tool-status', async (event, toolId) => {
     try {
-      return await handleDataRequest(`/tools/${toolId}/status`);
+      return await handleDataRequest(`/tools/${encodeURIComponent(String(toolId))}/status`);
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:subscribe', async (event, payload) => {
     try {
-      return await handleDataRequest('/subscriptions', 'POST', payload);
+      const { endpointUrl, aimId, nodeLicense } = payload ?? {};
+      return await handleDataRequest('/subscriptions', 'POST', { endpointUrl, aimId, nodeLicense });
     } catch (e) { return { error: e.message }; }
   });
 
@@ -357,13 +365,13 @@ export function registerHyperInsightIpc(ipcMain) {
 
   ipcMain.handle('hyperinsight:unsubscribe', async (event, subscriptionId) => {
     try {
-      return await handleDataRequest(`/subscriptions/${subscriptionId}`, 'DELETE');
+      return await handleDataRequest(`/subscriptions/${encodeURIComponent(String(subscriptionId))}`, 'DELETE');
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:get-verification-history', async (event, subscriptionId) => {
     try {
-      return await handleDataRequest(`/subscriptions/${subscriptionId}/verifications`);
+      return await handleDataRequest(`/subscriptions/${encodeURIComponent(String(subscriptionId))}/verifications`);
     } catch (e) { return { error: e.message }; }
   });
 
