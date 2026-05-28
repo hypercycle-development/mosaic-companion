@@ -239,6 +239,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getLeaderboard: () => ipcRenderer.invoke("hyperinsight:get-leaderboard"),
     getNodes: (params?: any) => ipcRenderer.invoke("hyperinsight:get-nodes", params),
     getNodeDetail: (license: string) => ipcRenderer.invoke("hyperinsight:get-node-detail", license),
+    getNodeProfile: (license: number | string) => ipcRenderer.invoke("hyperinsight:get-node-profile", license),
     getAimManifest: (license: string, aimName: string) => ipcRenderer.invoke("hyperinsight:get-node-aim-manifest", license, aimName),
     getNetworkStats: () => ipcRenderer.invoke("hyperinsight:get-network-stats"),
     getNetworkHistory: () => ipcRenderer.invoke("hyperinsight:get-network-history"),
@@ -248,6 +249,22 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getAimReleases: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-releases", name),
     getAimReleaseDetail: (name: string, tag: string) => ipcRenderer.invoke("hyperinsight:get-aim-release-detail", name, tag),
     saveGeneratedImage: (base64Data: string) => ipcRenderer.invoke("hyperinsight:save-generated-image", base64Data),
+    // Stage 8A: AIM profile endpoints
+    getAimProfile:  (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-profile", name),
+    getAimNodes:    (name: string, opts?: any) => ipcRenderer.invoke("hyperinsight:get-aim-nodes", name, opts),
+    getAimBestNode: (name: string, opts?: any) => ipcRenderer.invoke("hyperinsight:get-aim-best-node", name, opts),
+    // Stage 7C: score cache access
+    getToolScore: (endpointUrl: string) => ipcRenderer.invoke("hyperinsight:get-tool-score", endpointUrl),
+    getAllToolScores: () => ipcRenderer.invoke("hyperinsight:get-all-tool-scores"),
+    getToolScoresLastUpdated: () => ipcRenderer.invoke("hyperinsight:get-tool-scores-last-updated"),
+    // Stage 8B: new endpoint bridge
+    getAimDeployments:      (aimId: number) => ipcRenderer.invoke("hyperinsight:get-aim-deployments", aimId),
+    getToolStatus:          (toolId: string) => ipcRenderer.invoke("hyperinsight:get-tool-status", toolId),
+    subscribe:              (payload: any) => ipcRenderer.invoke("hyperinsight:subscribe", payload),
+    getSubscriptions:       () => ipcRenderer.invoke("hyperinsight:get-subscriptions"),
+    unsubscribe:            (subscriptionId: string) => ipcRenderer.invoke("hyperinsight:unsubscribe", subscriptionId),
+    getVerificationHistory: (subscriptionId: string) => ipcRenderer.invoke("hyperinsight:get-verification-history", subscriptionId),
+    clearCache:             () => ipcRenderer.invoke("hyperinsight:clear-cache"),
     // AIM Nodes data
     saveNodeData: (license: string, data: any) => ipcRenderer.invoke("aimnodes:save-node-data", license, data),
     deleteNodeData: (license: string) => ipcRenderer.invoke("aimnodes:delete-node-data", license),
