@@ -38,7 +38,7 @@ import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integrations/chat/index";
 import { initIDE, cleanupIDE } from "./integrations/ide/index";
 // Plugin IPC handler registrations
-import { registerHyperInsightIpc } from "../plugins/hyperinsight/main/index.js";
+import { registerHyperInsightIpc, stopScorePolling } from "../plugins/hyperinsight/main/index.js";
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
 import { registerPaymentsJitIpc } from "../plugins/payments-jit/main/index.ts";
 import { createRequire } from 'module';
@@ -280,6 +280,7 @@ function recreateWindow(): void {
 // App Lifecycle
 // =============================================================================
 app.on("before-quit", () => {
+  stopScorePolling();
   mcpClient.disconnectAll();
   cleanupTools().catch(console.error);
   if (mosaicBotStop) mosaicBotStop().catch(console.error);
