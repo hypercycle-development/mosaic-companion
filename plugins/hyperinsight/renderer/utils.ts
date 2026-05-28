@@ -90,3 +90,21 @@ export function scoreToColourClass(score: number | null | undefined): string {
   if (score >= 50)   return 'bg-amber-500';
   return 'bg-red-500';
 }
+
+export type RoutabilityState =
+  | 'all-routable'
+  | 'partially-routable'
+  | 'none-routable'
+  | 'no-data';
+
+export function deriveRoutabilityState(
+  total: number | null | undefined,
+  routable: number | null | undefined,
+): RoutabilityState {
+  const t = total ?? 0;
+  const r = routable ?? 0;
+  if (t === 0) return 'no-data';
+  if (r === 0) return 'none-routable';
+  if (r < t)   return 'partially-routable';
+  return 'all-routable';
+}

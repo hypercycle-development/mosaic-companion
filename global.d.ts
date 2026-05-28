@@ -368,6 +368,7 @@ declare global {
         getSubscriptions: () => Promise<any[]>;
         unsubscribe: (subscriptionId: string) => Promise<any>;
         getVerificationHistory: (subscriptionId: string) => Promise<any[]>;
+        clearCache: () => Promise<void>;
       };
 
       // AIM Nodes (separate namespace for new hooks/components)

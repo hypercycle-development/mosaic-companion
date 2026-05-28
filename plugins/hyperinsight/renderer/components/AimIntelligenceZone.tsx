@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Server, Zap, Cpu, Activity, ChevronDown, ChevronUp } from 'lucide-react';
+import { Server, Zap, Cpu, Activity, ChevronDown, ChevronUp, Lock, Info } from 'lucide-react';
 import { AimNodeInstanceDto, AimStatsDto, AimDeploymentDto } from '../types';
 import { relativeTime, freshnessStatus, scoreToColourClass, formatUsdcMicro } from '../utils';
 import { AimTrendChart } from './AimTrendChart';
@@ -54,6 +54,8 @@ interface MergedDeploymentRow {
   currency: string | null;
   endpointUrl: string | null;
   hasDeploymentData: boolean;
+  isRoutable: boolean;
+  isLocalOnly?: boolean;
 }
 
 function buildMergedRows(
@@ -100,6 +102,8 @@ function buildMergedRows(
       currency: dep?.currency ?? null,
       endpointUrl: dep?.endpointUrl ?? null,
       hasDeploymentData: dep !== undefined,
+      isRoutable: dep != null ? dep.isRoutable : (node.isRoutable !== undefined ? node.isRoutable : true),
+      isLocalOnly: node.isLocalOnly,
     };
   });
 
@@ -322,6 +326,8 @@ const MergedNodeRow = ({ row, hasUserGeo, onSelect }: MergedNodeRowProps) => {
     distanceKm: row.distanceKm,
     primaryEndpointUrl: row.primaryEndpointUrl,
     lastContactAt: row.lastContactAt,
+    isRoutable: row.isRoutable,
+    isLocalOnly: row.isLocalOnly,
   };
 
   const versionLabel = row.releaseTagName ?? row.tagName;
@@ -330,15 +336,23 @@ const MergedNodeRow = ({ row, hasUserGeo, onSelect }: MergedNodeRowProps) => {
   return (
     <tr
       onClick={() => onSelect(row.nodeLicense)}
-      className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surfaceAlt)] cursor-pointer transition-colors"
+      className={`border-b border-[var(--border)] last:border-0 hover:bg-[var(--surfaceAlt)] cursor-pointer transition-colors${!row.isRoutable ? ' opacity-60' : ''}`}
     >
       {/* Liveness */}
       <td className="py-2.5 px-3 w-8">
-        <LivenessBadge
-          healthScore={row.healthScore}
-          consecutiveFailures={row.consecutiveFailures ?? undefined}
-          size="sm"
-        />
+        {row.isRoutable ? (
+          <LivenessBadge
+            healthScore={row.healthScore}
+            consecutiveFailures={row.consecutiveFailures ?? undefined}
+            size="sm"
+          />
+        ) : (
+          <Tooltip content="Private node — not publicly accessible. This node is behind a NAT or firewall and cannot be connected to.">
+            <span className="flex items-center gap-1 text-gray-500">
+              <Lock size={12} />
+            </span>
+          </Tooltip>
+        )}
       </td>
       {/* Name */}
       <td className="py-2.5 px-3 font-mono text-xs text-[var(--text)] max-w-[140px]">
@@ -402,7 +416,25 @@ const MergedNodeRow = ({ row, hasUserGeo, onSelect }: MergedNodeRowProps) => {
       )}
       {/* Connect */}
       <td className="py-2.5 px-3" onClick={e => e.stopPropagation()}>
-        <ConnectButton node={nodeForConnect} />
+        {row.isRoutable ? (
+          <div className="flex items-center gap-1">
+            <ConnectButton node={nodeForConnect} />
+            {row.isLocalOnly && (
+              <Tooltip content="Private IP — reachable via port forwarding. Connectivity depends on your network.">
+                <span className="text-yellow-500 cursor-help"><Info size={11} /></span>
+              </Tooltip>
+            )}
+          </div>
+        ) : (
+          <Tooltip content="Node is not publicly accessible">
+            <button
+              disabled
+              className="text-xs px-2 py-1 rounded bg-gray-700 text-gray-500 cursor-not-allowed"
+            >
+              Unreachable
+            </button>
+          </Tooltip>
+        )}
       </td>
     </tr>
   );
@@ -535,7 +567,7 @@ export const AimIntelligenceZone = ({
 
           {/* Range selector */}
           <div className="flex gap-1.5">
-            {(['1d', '1w'] as const).map(r => (
+            {(['1d', '1w', '1m', '1y'] as const).map(r => (
               <button
                 key={r}
                 onClick={() => setRange(r)}
@@ -548,23 +580,6 @@ export const AimIntelligenceZone = ({
                 {r.toUpperCase()}
               </button>
             ))}
-            <GatedFeature tier="pro" label="Extended history requires Pro" blurContent={false}>
-              <div className="flex gap-1.5">
-                {(['1m', '1y'] as const).map(r => (
-                  <button
-                    key={r}
-                    onClick={() => setRange(r)}
-                    className={`px-2.5 py-1 rounded-md text-xs font-mono transition-colors border ${
-                      range === r
-                        ? 'bg-[var(--primary)] border-[var(--primary)] text-white'
-                        : 'bg-[var(--background)] border-[var(--border)] text-[var(--textMuted)] hover:border-[var(--text)]'
-                    }`}
-                  >
-                    {r.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </GatedFeature>
           </div>
         </div>
 
@@ -624,32 +639,30 @@ export const AimIntelligenceZone = ({
 
                 {gatedRows.length > 0 && (
                   <>
-                    <GatedFeature
-                      tier="pro"
-                      label={`See all ${nodes.length} nodes with Pro`}
-                      minHeight={120}
-                    >
-                      <table className="w-full text-left border-collapse">
-                        <tbody>
-                          {gatedRows.map(row => (
-                            <MergedNodeRow
-                              key={row.nodeLicense}
-                              row={row}
-                              hasUserGeo={hasUserGeo}
-                              onSelect={onNodeSelect}
-                            />
-                          ))}
-                        </tbody>
-                      </table>
-                    </GatedFeature>
-                    <p className="text-xs text-[var(--textMuted)] mt-2 text-center">
-                      Showing 3 of {nodes.length} nodes
-                    </p>
+                    <table className="w-full text-left border-collapse">
+                      <tbody>
+                        {gatedRows.map(row => (
+                          <MergedNodeRow
+                            key={row.nodeLicense}
+                            row={row}
+                            hasUserGeo={hasUserGeo}
+                            onSelect={onNodeSelect}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
                   </>
                 )}
               </>
             )}
           </div>
+        )}
+
+        {expanded && mergedRows.some(r => !r.isRoutable) && (
+          <p className="mt-2 text-xs text-gray-500 flex items-center gap-1">
+            <Lock size={11} />
+            Nodes marked with a lock icon are behind a firewall or NAT and cannot be directly connected to.
+          </p>
         )}
       </div>
     </div>

@@ -4,9 +4,12 @@ import {
     Server, Activity, Cpu, Zap, HardDrive, Wallet, FileJson, ChevronRight, Globe, ChevronDown, DollarSign
 } from 'lucide-react';
 import { AreaChart, Area, Tooltip, ResponsiveContainer } from 'recharts';
-import { NodeDetail, RunningAimDetail, NodeProfileDto } from '../types';
+import { NodeDetail, RunningAimDetail, NodeProfileDto, ToolScoreData } from '../types';
 import { formatUtcDate, cn, relativeTime, freshnessStatus, formatBytes } from '../utils';
 import { UptimeDonut } from './UptimeDonut';
+import { UptimeBadge } from './UptimeBadge';
+import { CompositeScoreBadge } from './CompositeScoreBadge';
+import { PollTierBadge } from './PollTierBadge';
 import { GatedFeature } from './GatedFeature';
 import { useNodeConnect } from '../hooks/useNodeConnect';
 
@@ -14,6 +17,7 @@ interface NodeDetailPanelProps {
   licenseKey: string;
   onClose: () => void;
   sidebarOpen?: boolean;
+  toolScores?: Record<string, ToolScoreData>;
 }
 
 const AimDetailItem = ({ aim, licenseKey }: { aim: RunningAimDetail, licenseKey: string }) => {
@@ -150,7 +154,7 @@ const AccordionSection = ({
 };
 
 
-export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ licenseKey, onClose, sidebarOpen = false }) => {
+export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ licenseKey, onClose, sidebarOpen = false, toolScores }) => {
   const [node, setNode] = useState<NodeDetail | null>(null);
   const [profile, setProfile] = useState<NodeProfileDto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -212,8 +216,29 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ licenseKey, on
   // Prefer profile data when available, fall back to node detail
   const hw = profile?.hardware;
   const status = profile?.currentStatus;
-  const uptimePct = status ? status.uptimePercent * 100 : (node?.uptimePercent ? node.uptimePercent * 100 : 0);
+
+  // Stage 8G: measured uptime windows
+  const measuredUptime7d  = profile?.measuredUptime?.find(m => m.windowType === '7d')?.uptimePercent ?? null;
+  const measuredUptime30d = profile?.measuredUptime?.find(m => m.windowType === '30d')?.uptimePercent ?? null;
+  const nodeReportedUptimePercent = profile?.nodeReportedUptimePercent ?? null;
+
+  // Prefer measured 7d figure; fall back to node-snapshot figure
+  const uptimePct =
+    measuredUptime7d != null
+      ? measuredUptime7d
+      : status?.uptimePercent != null
+      ? status.uptimePercent * 100
+      : node?.uptimePercent != null
+      ? node.uptimePercent * 100
+      : 0;
   const sparklineColour = uptimePct >= 90 ? '#22c55e' : uptimePct >= 70 ? '#f59e0b' : '#ef4444';
+
+  // Best tool score for this node — matched by endpoint URL
+  const nodeEndpointUrls = new Set(profile?.endpoints.map(e => e.url) ?? []);
+  const bestNodeScore = Object.entries(toolScores ?? {})
+    .filter(([url]) => nodeEndpointUrls.has(url))
+    .map(([, s]) => s)
+    .sort((a, b) => (b.compositeScore ?? 0) - (a.compositeScore ?? 0))[0] ?? null;
 
   const displayName = profile?.name ?? node?.name ?? (loading ? 'Loading Node...' : 'Unknown Node');
 
@@ -258,6 +283,11 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ licenseKey, on
                 <div className="flex flex-col items-center">
                     <UptimeDonut percentage={uptimePct} />
                     <div className="text-[9px] text-[var(--textMuted)] uppercase tracking-wider font-bold mt-1">Uptime</div>
+                    <UptimeBadge
+                        measuredUptime7d={measuredUptime7d}
+                        measuredUptime30d={measuredUptime30d}
+                        nodeReportedUptime={nodeReportedUptimePercent}
+                    />
                 </div>
                 <div className="flex flex-col items-center">
                     <div className="h-[42px] flex items-center justify-center">
@@ -271,38 +301,48 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ licenseKey, on
         )}
       </div>
 
-      {/* Uptime sparkline (30-day history) */}
-      {profile?.uptimeHistory && profile.uptimeHistory.length > 0 ? (
+      {/* Uptime sparkline (30-day history) + measured uptime context */}
+      {(profile?.uptimeHistory && profile.uptimeHistory.length > 0) || loading ? (
         <div className="px-3 pt-2 pb-1 border-b border-[var(--border)]/30">
+          {measuredUptime7d !== null && (
+            <p className="text-[9px] text-[var(--textMuted)] mb-1">
+              7-day uptime (HyperInsight measured)
+            </p>
+          )}
           <div className="text-[9px] text-[var(--textMuted)] uppercase tracking-wider font-bold mb-1">30-Day Uptime</div>
-          <ResponsiveContainer width="100%" height={60}>
-            <AreaChart data={profile.uptimeHistory} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="uptimeGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor={sparklineColour} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={sparklineColour} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <Tooltip
-                formatter={(value: number) => [`${value.toFixed(1)}%`, 'Uptime']}
-                labelFormatter={(label: string) => new Date(label).toLocaleDateString()}
-                contentStyle={{ fontSize: 10 }}
-              />
-              <Area
-                type="monotone"
-                dataKey="uptimePercent"
-                stroke={sparklineColour}
-                fill="url(#uptimeGradient)"
-                strokeWidth={1.5}
-                dot={false}
-                isAnimationActive={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      ) : loading ? (
-        <div className="px-3 pt-2 pb-1 border-b border-[var(--border)]/30">
-          <div className="w-full h-16 bg-gray-700 animate-pulse rounded" />
+          {loading ? (
+            <div className="w-full h-16 bg-gray-700 animate-pulse rounded" />
+          ) : (
+            <ResponsiveContainer width="100%" height={60}>
+              <AreaChart data={profile!.uptimeHistory} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="uptimeGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={sparklineColour} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={sparklineColour} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Tooltip
+                  formatter={(value: number) => [`${value.toFixed(1)}%`, 'Uptime']}
+                  labelFormatter={(label: string) => new Date(label).toLocaleDateString()}
+                  contentStyle={{ fontSize: 10 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="uptimePercent"
+                  stroke={sparklineColour}
+                  fill="url(#uptimeGradient)"
+                  strokeWidth={1.5}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+          {nodeReportedUptimePercent !== null && (
+            <p className="text-[9px] text-[var(--textMuted)] mt-1">
+              Node-reported lifetime uptime: {nodeReportedUptimePercent.toFixed(1)}%
+            </p>
+          )}
         </div>
       ) : null}
 
@@ -346,6 +386,31 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ licenseKey, on
                         {formatUtcDate(profile?.lastContactAt ?? node?.lastContactAt)}
                     </span>
                 </div>
+                {bestNodeScore && (
+                  <div className="border-t border-[var(--border)]/50 pt-3 mt-1 space-y-2">
+                    <div className="text-[9px] text-[var(--textMuted)] uppercase tracking-wider font-bold">HyperInsight Score</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CompositeScoreBadge
+                        score={bestNodeScore.compositeScore}
+                        healthScore={bestNodeScore.healthScore}
+                        latencyScore={bestNodeScore.latencyScore}
+                        uptimeScore={bestNodeScore.uptimeScore}
+                        size="md"
+                      />
+                      <PollTierBadge tier={bestNodeScore.pollTier} />
+                    </div>
+                    {bestNodeScore.lastProbedAt && (
+                      <span className="text-[10px] text-[var(--textMuted)]">
+                        Last probed: {relativeTime(bestNodeScore.lastProbedAt)}
+                      </span>
+                    )}
+                    {bestNodeScore.consecutiveFailures > 0 && (
+                      <span className="text-[10px] text-amber-500">
+                        {bestNodeScore.consecutiveFailures} consecutive probe failures
+                      </span>
+                    )}
+                  </div>
+                )}
                 {/* TODO: Tilling Score
                     Composite score of uptime_ratio × computation_ratio × reputation_ratio.
                     Source: Merklizer API (external) — not yet in database.
@@ -384,11 +449,44 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ licenseKey, on
                     </div>
                     <span className="text-[var(--text)]">{formatBytes(hw?.ramBytes ?? node?.ramBytes)}</span>
                 </div>
-                <div className="flex items-center justify-between pb-1">
+                <div className="flex items-center justify-between border-b border-[var(--border)]/50 pb-2">
                     <div className="flex items-center gap-2 text-[var(--textMuted)]">
                         <Zap size={14} /> VRAM
                     </div>
                     <span className="text-[var(--text)]">{formatBytes(hw?.vramBytes ?? node?.vramBytes)}</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-[var(--border)]/50 pb-2">
+                    <div className="flex items-center gap-2 text-[var(--textMuted)]">
+                        <HardDrive size={14} /> Disk
+                    </div>
+                    <span className="text-[var(--text)]">
+                        {hw?.diskSpaceBytes
+                            ? `${formatBytes(hw.diskSpaceBytes)} total${hw.diskSpaceFreeBytes ? `, ${formatBytes(hw.diskSpaceFreeBytes)} free` : ''}`
+                            : '—'}
+                    </span>
+                </div>
+                <div className="flex items-center justify-between border-b border-[var(--border)]/50 pb-2">
+                    <div className="flex items-center gap-2 text-[var(--textMuted)]">
+                        <Zap size={14} /> Compute
+                    </div>
+                    <span className="text-[var(--text)]">
+                        {hw?.computeTflops != null
+                            ? `${hw.computeTflops.toFixed(2)} TFLOPS · ${hw.computeCghz.toFixed(2)} cGHz`
+                            : '—'}
+                    </span>
+                </div>
+                <div className="flex items-center justify-between pb-1">
+                    <div className="flex items-center gap-2 text-[var(--textMuted)]">
+                        <DollarSign size={14} /> Currencies
+                    </div>
+                    <div className="flex flex-wrap gap-1 justify-end">
+                        {hw?.acceptingCurrencies && hw.acceptingCurrencies.length > 0
+                            ? hw.acceptingCurrencies.map((c, i) => (
+                                <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--surfaceAlt)] border border-[var(--border)] text-[var(--textMuted)]">{c}</span>
+                              ))
+                            : <span className="text-[var(--textMuted)]">—</span>
+                        }
+                    </div>
                 </div>
             </div>
           </AccordionSection>
