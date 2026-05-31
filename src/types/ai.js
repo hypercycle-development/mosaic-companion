@@ -41,7 +41,7 @@ export const PROVIDER_INFO = {
     },
     custom: {
         name: "Custom Endpoint",
-        color: "#6B7280",
+        color: "#F97316",
         baseUrl: "",
     },
     hypercycle: {
