@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { House, Activity, Database, Lightbulb, Sparkles, Settings, RefreshCw } from "lucide-react";
-import type { HaConnectionStatus, HaStateChange, HaEventStats, HaSuggestion } from "./types";
+import { House, Activity, Database, Lightbulb, Sparkles, Settings, RefreshCw, LayoutDashboard, Search, Trash2 } from "lucide-react";
+import type { HaConnectionStatus, HaStateChange, HaEventStats, HaSuggestion, HaState } from "./types";
 import { AIService } from "../../../src/services/AIService";
 import type { AIAgentConfig } from "../../../src/types/ai";
 import { INTERNAL_SETTINGS_URL } from "../../../src/types/types";
+import { Dashboard } from "./components/Dashboard";
 
 const MAX_EVENTS = 25; // Live view shows only the most recent events
 
-type Tab = "live" | "history" | "routines";
+type Tab = "dashboard" | "live" | "history" | "routines";
 
 interface Props {
   onNavigate?: (url: string) => void;
@@ -43,15 +44,23 @@ function extractConfig(text: string): any | null {
 }
 
 export const HomeAssistantView: React.FC<Props> = ({ onNavigate }) => {
-  const [tab, setTab] = useState<Tab>("live");
+  const [tab, setTab] = useState<Tab>("dashboard");
   const [status, setStatus] = useState<HaConnectionStatus>("disconnected");
   const [events, setEvents] = useState<HaStateChange[]>([]);
+  const [statesMap, setStatesMap] = useState<Record<string, HaState>>({});
   const [stats, setStats] = useState<HaEventStats | null>(null);
   const [suggestions, setSuggestions] = useState<HaSuggestion[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [allowControl, setAllowControl] = useState(false);
+  const [dashSel, setDashSel] = useState<string[]>([]);
+  const [entityLabels, setEntityLabels] = useState<Record<string, string>>({});
+  const [ignored, setIgnored] = useState<string[]>([]);
+  const [entityCounts, setEntityCounts] = useState<Record<string, number>>({});
+  const [entitySearch, setEntitySearch] = useState("");
+  const [sortKey, setSortKey] = useState<"events" | "ignore" | "dash" | "entity" | "label">("entity");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [designs, setDesigns] = useState<Record<string, DesignResult>>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -66,15 +75,27 @@ export const HomeAssistantView: React.FC<Props> = ({ onNavigate }) => {
     api.getSettings().then((s: any) => {
       setAllowControl(Boolean(s.allowControl));
       if (s.haAgentId) setSelectedAgentId(s.haAgentId);
+      setDashSel(s.dashboardEntities || []);
+      setEntityLabels(s.entityLabels || {});
+      setIgnored(s.ignoredEntities || []);
     });
   }, []);
 
   useEffect(() => {
     if (!api) return;
     const offStatus = api.onStatus(({ status: s }: any) => setStatus(s as HaConnectionStatus));
-    const offEvent = api.onEvent((evt: HaStateChange) =>
-      setEvents((prev) => [evt, ...prev].slice(0, MAX_EVENTS)),
-    );
+    const offEvent = api.onEvent((evt: HaStateChange) => {
+      setEvents((prev) => [evt, ...prev].slice(0, MAX_EVENTS));
+      // Keep the dashboard live by folding each change into the states map.
+      setStatesMap((prev) => ({
+        ...prev,
+        [evt.entityId]: {
+          entity_id: evt.entityId,
+          state: evt.newState ?? "",
+          attributes: (evt.attrs as Record<string, any>) || {},
+        },
+      }));
+    });
     const offError = api.onError(({ message }: any) => setError(message));
     return () => {
       offStatus?.();
@@ -89,6 +110,27 @@ export const HomeAssistantView: React.FC<Props> = ({ onNavigate }) => {
     if (res.success) setStats(res.data);
   };
 
+  const loadEntityCounts = async () => {
+    if (!api) return;
+    const res = await api.getEntityCounts();
+    if (res.success) setEntityCounts(res.data || {});
+  };
+
+  const loadStates = async () => {
+    if (!api) return;
+    const res = await api.getStates();
+    if (res.success && Array.isArray(res.data)) {
+      const map: Record<string, HaState> = {};
+      for (const s of res.data) map[s.entity_id] = s;
+      setStatesMap(map);
+    }
+  };
+
+  // Populate the dashboard once connected, and whenever the Dashboard tab opens.
+  useEffect(() => {
+    if (status === "connected") loadStates();
+  }, [status]);
+
   const loadSuggestions = async () => {
     if (!api) return;
     setLoadingSuggestions(true);
@@ -102,7 +144,24 @@ export const HomeAssistantView: React.FC<Props> = ({ onNavigate }) => {
   };
 
   useEffect(() => {
-    if (tab === "history") loadStats();
+    if (tab === "dashboard") {
+      loadStates();
+      // Pick up any selection/label changes made in Configuration.
+      api?.getSettings().then((s: any) => {
+        setDashSel(s.dashboardEntities || []);
+        setEntityLabels(s.entityLabels || {});
+      });
+    }
+    if (tab === "history") {
+      loadStats();
+      loadEntityCounts();
+      loadStates(); // entity list for the manager
+      api?.getSettings().then((s: any) => {
+        setDashSel(s.dashboardEntities || []);
+        setEntityLabels(s.entityLabels || {});
+        setIgnored(s.ignoredEntities || []);
+      });
+    }
     if (tab === "routines") {
       loadSuggestions();
       (window as any).electronAPI?.aiAgents?.get().then((list: AIAgentConfig[]) => {
@@ -157,6 +216,83 @@ export const HomeAssistantView: React.FC<Props> = ({ onNavigate }) => {
     }
   };
 
+  // ── Entity manager (History tab) ───────────────────────────────────────────
+  const entityList = Object.values(statesMap)
+    .map((e) => ({ id: e.entity_id, name: (e.attributes?.friendly_name as string) || e.entity_id }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const filteredEntities = entitySearch
+    ? entityList.filter((e) => e.id.includes(entitySearch) || e.name.toLowerCase().includes(entitySearch))
+    : entityList;
+
+  const sortedEntities = [...filteredEntities].sort((a, b) => {
+    let av: number | string;
+    let bv: number | string;
+    switch (sortKey) {
+      case "events": av = entityCounts[a.id] || 0; bv = entityCounts[b.id] || 0; break;
+      case "ignore": av = ignored.includes(a.id) ? 1 : 0; bv = ignored.includes(b.id) ? 1 : 0; break;
+      case "dash": av = dashSel.includes(a.id) ? 1 : 0; bv = dashSel.includes(b.id) ? 1 : 0; break;
+      case "label": av = (entityLabels[a.id] || "").toLowerCase(); bv = (entityLabels[b.id] || "").toLowerCase(); break;
+      default: av = a.id; bv = b.id;
+    }
+    const cmp = typeof av === "number" ? (av as number) - (bv as number) : String(av).localeCompare(String(bv));
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const sortBy = (key: typeof sortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir(key === "events" ? "desc" : "asc"); // counts read best high→low
+    }
+  };
+  const arrow = (key: typeof sortKey) => (sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "");
+
+  const toggleIgnore = async (id: string) => {
+    const next = ignored.includes(id) ? ignored.filter((e) => e !== id) : [...ignored, id];
+    setIgnored(next);
+    await api.setIgnoredEntities(next);
+  };
+  const toggleDashboard = async (id: string) => {
+    const next = dashSel.includes(id) ? dashSel.filter((e) => e !== id) : [...dashSel, id];
+    setDashSel(next);
+    await api.setDashboardEntities(next);
+  };
+  const setLabelLocal = (id: string, value: string) =>
+    setEntityLabels((prev) => {
+      const next = { ...prev };
+      if (value.trim()) next[id] = value;
+      else delete next[id];
+      return next;
+    });
+  const saveLabels = async () => {
+    await api.setEntityLabels(entityLabels);
+  };
+  const ignoreAll = async () => {
+    const next = Array.from(new Set([...ignored, ...filteredEntities.map((e) => e.id)]));
+    setIgnored(next);
+    await api.setIgnoredEntities(next);
+  };
+  const clearIgnored = async () => {
+    setIgnored([]);
+    await api.setIgnoredEntities([]);
+  };
+  const unignoreFiltered = async () => {
+    const set = new Set(filteredEntities.map((e) => e.id));
+    const next = ignored.filter((id) => !set.has(id));
+    setIgnored(next);
+    await api.setIgnoredEntities(next);
+  };
+  const deleteEntityData = async (id: string) => {
+    if (!window.confirm(`Delete all captured events for ${id}? This only clears local history, not Home Assistant.`)) return;
+    const res = await api.deleteEntityEvents(id);
+    if (res.success) {
+      loadEntityCounts();
+      loadStats();
+    } else {
+      setError(res.error || "Failed to delete data");
+    }
+  };
+
   const statusColor =
     status === "connected" ? "bg-emerald-500" : status === "connecting" ? "bg-yellow-500 animate-pulse" : "bg-gray-600";
   const statusLabel =
@@ -190,6 +326,7 @@ export const HomeAssistantView: React.FC<Props> = ({ onNavigate }) => {
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-800 px-4">
         {([
+          { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
           { id: "live", label: "Live", icon: Activity },
           { id: "history", label: "History", icon: Database },
           { id: "routines", label: "Suggested Routines", icon: Lightbulb },
@@ -227,6 +364,29 @@ export const HomeAssistantView: React.FC<Props> = ({ onNavigate }) => {
           >
             Open Configuration
           </button>
+        </div>
+      )}
+
+      {/* Dashboard tab */}
+      {tab === "dashboard" && (
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="mb-4 flex items-center gap-3">
+            <p className="text-xs text-gray-500">A live overview of your home.</p>
+            <button
+              onClick={loadStates}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-300 hover:border-emerald-600 hover:text-emerald-400"
+            >
+              <RefreshCw size={12} /> Refresh
+            </button>
+          </div>
+          {Object.keys(statesMap).length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 opacity-40">
+              <LayoutDashboard size={32} className="mb-2 text-gray-600" />
+              <p className="text-sm text-gray-500">Connect to see your home dashboard.</p>
+            </div>
+          ) : (
+            <Dashboard states={Object.values(statesMap)} selected={dashSel} labels={entityLabels} />
+          )}
         </div>
       )}
 
@@ -278,69 +438,152 @@ export const HomeAssistantView: React.FC<Props> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* History tab */}
+      {/* History tab — capture stats + entity manager */}
       {tab === "history" && (
         <div className="flex-1 overflow-y-auto p-6">
           <div className="mb-4 flex items-center gap-3">
-            <p className="text-xs text-gray-500">Captured locally for routine learning.</p>
+            <p className="text-xs text-gray-500">
+              Captured locally for routine learning. Manage which entities are analyzed and shown.
+            </p>
             <button
-              onClick={loadStats}
+              onClick={() => {
+                loadStats();
+                loadEntityCounts();
+                loadStates();
+              }}
               className="flex items-center gap-1.5 rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-300 hover:border-emerald-600 hover:text-emerald-400"
             >
               <RefreshCw size={12} /> Refresh
             </button>
           </div>
 
-          {!stats || stats.total === 0 ? (
+          {/* Capture stats */}
+          {stats && stats.total > 0 && (
+            <div className="mb-6 grid grid-cols-3 gap-3">
+              <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
+                <div className="text-2xl font-semibold text-white">{stats.total.toLocaleString()}</div>
+                <div className="text-xs text-gray-500">events captured</div>
+              </div>
+              <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
+                <div className="text-2xl font-semibold text-white">{entityList.length}</div>
+                <div className="text-xs text-gray-500">entities</div>
+              </div>
+              <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
+                <div className="text-sm font-medium text-white">
+                  {stats.oldestTs ? new Date(stats.oldestTs).toLocaleDateString() : "—"}
+                </div>
+                <div className="text-xs text-gray-500">oldest event</div>
+              </div>
+            </div>
+          )}
+
+          {/* Entity manager */}
+          {entityList.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 opacity-40">
               <Database size={32} className="mb-2 text-gray-600" />
-              <p className="text-sm text-gray-500">
-                No events captured yet. Connect and let the home run for a while.
-              </p>
+              <p className="text-sm text-gray-500">Connect to manage your entities.</p>
             </div>
           ) : (
             <>
-              <div className="mb-6 grid grid-cols-3 gap-3">
-                <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
-                  <div className="text-2xl font-semibold text-white">{stats.total.toLocaleString()}</div>
-                  <div className="text-xs text-gray-500">events captured</div>
-                </div>
-                <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
-                  <div className="text-2xl font-semibold text-white">{stats.topEntities.length}</div>
-                  <div className="text-xs text-gray-500">active entities (top 25)</div>
-                </div>
-                <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
-                  <div className="text-sm font-medium text-white">
-                    {stats.oldestTs ? new Date(stats.oldestTs).toLocaleDateString() : "—"}
-                  </div>
-                  <div className="text-xs text-gray-500">oldest event</div>
+              <div className="relative mb-2">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-600" size={14} />
+                <input
+                  type="text"
+                  value={entitySearch}
+                  onChange={(e) => setEntitySearch(e.target.value.toLowerCase())}
+                  placeholder="Search entities…"
+                  className="w-full rounded-lg border border-gray-700 bg-gray-900 py-1.5 pl-8 pr-3 text-xs text-gray-200 placeholder-gray-600"
+                />
+              </div>
+              <div className="mb-2 flex items-center justify-between text-xs text-gray-500">
+                <span>
+                  {filteredEntities.length} entities · {dashSel.length} on dashboard · {ignored.length} ignored
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={ignoreAll}
+                    className="rounded-md border border-gray-700 px-2 py-1 text-gray-300 hover:border-red-600 hover:text-red-300"
+                  >
+                    {entitySearch ? "Ignore filtered" : "Ignore all"}
+                  </button>
+                  <button
+                    onClick={unignoreFiltered}
+                    className="rounded-md border border-gray-700 px-2 py-1 text-gray-300 hover:border-emerald-600 hover:text-emerald-300"
+                  >
+                    {entitySearch ? "Unignore filtered" : "Unignore all"}
+                  </button>
+                  <button
+                    onClick={clearIgnored}
+                    disabled={ignored.length === 0}
+                    className="rounded-md border border-gray-700 px-2 py-1 text-gray-300 hover:border-emerald-600 hover:text-emerald-300 disabled:opacity-40"
+                  >
+                    Clear
+                  </button>
                 </div>
               </div>
 
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                Most active entities
-              </p>
-              <div className="overflow-hidden rounded-lg border border-gray-800 bg-gray-900/50">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-gray-900 text-xs text-gray-500">
-                    <tr>
-                      <th className="px-4 py-2 font-normal">Entity</th>
-                      <th className="px-4 py-2 text-right font-normal">Events</th>
-                      <th className="px-4 py-2 text-right font-normal">Last seen</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-800">
-                    {stats.topEntities.map((e) => (
-                      <tr key={e.entityId} className="hover:bg-gray-800/40">
-                        <td className="px-4 py-2 font-mono text-xs text-emerald-400">{e.entityId}</td>
-                        <td className="px-4 py-2 text-right text-gray-300">{e.count.toLocaleString()}</td>
-                        <td className="px-4 py-2 text-right font-mono text-xs text-gray-500">
-                          {new Date(e.lastTs).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="overflow-hidden rounded-lg border border-gray-800">
+                <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-gray-800 bg-gray-900 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                  <button onClick={() => sortBy("events")} className="w-14 flex-shrink-0 text-right hover:text-gray-300">
+                    Events{arrow("events")}
+                  </button>
+                  <button onClick={() => sortBy("ignore")} className="w-12 flex-shrink-0 text-center hover:text-gray-300">
+                    Ignore{arrow("ignore")}
+                  </button>
+                  <button onClick={() => sortBy("dash")} className="w-12 flex-shrink-0 text-center hover:text-gray-300">
+                    Dash{arrow("dash")}
+                  </button>
+                  <button onClick={() => sortBy("entity")} className="flex-1 text-left hover:text-gray-300">
+                    Entity{arrow("entity")}
+                  </button>
+                  <button onClick={() => sortBy("label")} className="w-36 flex-shrink-0 text-left hover:text-gray-300">
+                    Label{arrow("label")}
+                  </button>
+                  <span className="w-8 flex-shrink-0" />
+                </div>
+                {sortedEntities.slice(0, 500).map((e) => (
+                  <div key={e.id} className="flex items-center gap-2 border-b border-gray-800/50 px-3 py-1.5 hover:bg-gray-800/40">
+                    <span className="w-14 flex-shrink-0 text-right font-mono text-xs text-gray-500">
+                      {(entityCounts[e.id] || 0).toLocaleString()}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={ignored.includes(e.id)}
+                      onChange={() => toggleIgnore(e.id)}
+                      title="Ignore (exclude from analysis)"
+                      className="w-12 flex-shrink-0 accent-red-600"
+                    />
+                    <input
+                      type="checkbox"
+                      checked={dashSel.includes(e.id)}
+                      onChange={() => toggleDashboard(e.id)}
+                      title="Show on dashboard"
+                      className="w-12 flex-shrink-0 accent-emerald-600"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-mono text-xs text-gray-300" title={e.id}>
+                        {e.id}
+                      </span>
+                      {e.name !== e.id && <span className="block truncate text-[10px] text-gray-600">{e.name}</span>}
+                    </span>
+                    <input
+                      type="text"
+                      value={entityLabels[e.id] ?? ""}
+                      onChange={(ev) => setLabelLocal(e.id, ev.target.value)}
+                      onBlur={saveLabels}
+                      placeholder="—"
+                      className="w-36 flex-shrink-0 rounded border border-gray-700 bg-gray-950 px-2 py-1 text-xs text-gray-200 placeholder-gray-700"
+                    />
+                    <button
+                      onClick={() => deleteEntityData(e.id)}
+                      disabled={!entityCounts[e.id]}
+                      title="Delete captured data for this entity"
+                      className="w-8 flex-shrink-0 text-gray-600 hover:text-red-400 disabled:opacity-30"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
               </div>
             </>
           )}

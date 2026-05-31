@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { House, Search } from "lucide-react";
+import { House } from "lucide-react";
 import type { AIAgentConfig } from "../types/ai";
 
-// Home Assistant configuration section (lives in the Configuration page).
-// Owns connection settings (URL/token), auto-connect, agent-control, which
-// AI agent supports HA, and which entities are ignored by the analysis.
+// Home Assistant configuration section (Configuration page): connection,
+// auto-connect, agent-control, and which AI agent supports HA. Per-entity
+// management (ignore / dashboard / labels / delete data) lives on the Home
+// Assistant view's History tab.
 export default function HomeAssistantClient() {
   const api = (window as any).electronAPI?.homeAssistant;
 
@@ -16,9 +17,6 @@ export default function HomeAssistantClient() {
   const [allowControl, setAllowControl] = useState(false);
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [haAgentId, setHaAgentId] = useState("");
-  const [ignored, setIgnored] = useState<string[]>([]);
-  const [entities, setEntities] = useState<string[]>([]);
-  const [entitySearch, setEntitySearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,24 +28,12 @@ export default function HomeAssistantClient() {
       setAutoConnect(Boolean(s.autoConnect));
       setAllowControl(Boolean(s.allowControl));
       setHaAgentId(s.haAgentId || "");
-      setIgnored(s.ignoredEntities || []);
     });
     api.status().then(({ status: s }: any) => setStatus(s));
     (window as any).electronAPI?.aiAgents?.get().then((list: AIAgentConfig[]) => setAgents(list || []));
     const off = api.onStatus(({ status: s }: any) => setStatus(s));
     return () => off?.();
   }, []);
-
-  // Load entities for the ignore-list once connected.
-  useEffect(() => {
-    if (status === "connected" && api) {
-      api.getStates().then((res: any) => {
-        if (res.success && Array.isArray(res.data)) {
-          setEntities(res.data.map((e: any) => e.entity_id).sort());
-        }
-      });
-    }
-  }, [status]);
 
   const handleConnect = async () => {
     setBusy(true);
@@ -86,23 +72,12 @@ export default function HomeAssistantClient() {
     setHaAgentId(id);
     await api.setHaAgent(id);
   };
-  const toggleIgnore = async (entityId: string) => {
-    const next = ignored.includes(entityId)
-      ? ignored.filter((e) => e !== entityId)
-      : [...ignored, entityId];
-    setIgnored(next);
-    await api.setIgnoredEntities(next);
-  };
 
   const statusColor =
     status === "connected" ? "bg-emerald-500" : status === "connecting" ? "bg-yellow-500 animate-pulse" : "bg-gray-600";
   const statusLabel =
     status === "connected" ? "Connected" : status === "connecting" ? "Connecting…" : "Disconnected";
   const canConnect = baseUrl.trim().length > 0 && (hasToken || token.trim().length > 0);
-
-  const filteredEntities = entitySearch
-    ? entities.filter((e) => e.includes(entitySearch.toLowerCase()))
-    : entities;
 
   return (
     <div>
@@ -154,7 +129,7 @@ export default function HomeAssistantClient() {
             <button
               onClick={handleConnect}
               disabled={!canConnect || busy}
-              className="rounded-lg bg-indigo-900/30 px-4 py-2 text-sm font-medium text-indigo-300 border border-indigo-500/30 hover:bg-indigo-900/50 disabled:opacity-40"
+              className="rounded-lg border border-indigo-500/30 bg-indigo-900/30 px-4 py-2 text-sm font-medium text-indigo-300 hover:bg-indigo-900/50 disabled:opacity-40"
             >
               {busy ? "Connecting…" : "Connect"}
             </button>
@@ -169,7 +144,6 @@ export default function HomeAssistantClient() {
           )}
         </div>
 
-        {/* Auto-connect */}
         <ToggleRow
           label="Connect automatically on startup"
           desc="Reconnect to this server whenever Mosaic launches."
@@ -177,7 +151,6 @@ export default function HomeAssistantClient() {
           onChange={toggleAuto}
         />
 
-        {/* Agent control */}
         <ToggleRow
           label="Allow the AI agent to control my home"
           desc="When off (recommended), the agent can read state and draft automations, but cannot control devices or create automations."
@@ -205,66 +178,11 @@ export default function HomeAssistantClient() {
           </select>
         </div>
 
-        {/* Ignore-list */}
-        <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-4">
-          <label className="mb-1 block text-sm font-medium text-gray-200">
-            Ignored devices ({ignored.length})
-          </label>
-          <p className="mb-2 text-xs text-gray-500">
-            Entities excluded from the routine-analysis algorithm (e.g. noisy sensors).
-          </p>
-
-          {ignored.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              {ignored.map((e) => (
-                <button
-                  key={e}
-                  onClick={() => toggleIgnore(e)}
-                  className="flex items-center gap-1 rounded-full bg-gray-800 px-2 py-0.5 font-mono text-xs text-gray-300 hover:bg-red-900/40 hover:text-red-300"
-                  title="Click to stop ignoring"
-                >
-                  {e} ✕
-                </button>
-              ))}
-            </div>
-          )}
-
-          {status !== "connected" ? (
-            <p className="text-xs text-gray-600">Connect to browse and select entities to ignore.</p>
-          ) : (
-            <>
-              <div className="relative mb-2">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-600" size={14} />
-                <input
-                  type="text"
-                  value={entitySearch}
-                  onChange={(e) => setEntitySearch(e.target.value.toLowerCase())}
-                  placeholder="Search entities…"
-                  className="w-full rounded-lg border border-gray-700 bg-gray-950 py-1.5 pl-8 pr-3 text-xs text-gray-200 placeholder-gray-600"
-                />
-              </div>
-              <div className="max-h-56 overflow-y-auto rounded-lg border border-gray-800">
-                {filteredEntities.slice(0, 300).map((e) => (
-                  <label
-                    key={e}
-                    className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-800/50"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={ignored.includes(e)}
-                      onChange={() => toggleIgnore(e)}
-                      className="h-3.5 w-3.5 accent-indigo-600"
-                    />
-                    <span className="font-mono text-gray-300">{e}</span>
-                  </label>
-                ))}
-                {filteredEntities.length === 0 && (
-                  <p className="px-3 py-3 text-xs text-gray-600">No entities match.</p>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+        {/* Pointer to entity management */}
+        <p className="text-xs text-gray-500">
+          Manage which entities are analyzed and shown on the dashboard, set custom labels, and delete
+          captured data on the <span className="text-gray-300">Home Assistant → History</span> tab.
+        </p>
       </div>
     </div>
   );

@@ -392,10 +392,10 @@ declare global {
 
       // Home Assistant plugin
       homeAssistant: {
-        /** Returns saved URL, token-presence, flags, the HA agent id, and the ignore-list. */
-        getSettings: () => Promise<{ baseUrl: string; hasToken: boolean; allowControl: boolean; autoConnect: boolean; haAgentId: string; ignoredEntities: string[] }>;
+        /** Returns saved URL, token-presence, flags, the HA agent id, ignore-list, dashboard selection, and entity labels. */
+        getSettings: () => Promise<{ baseUrl: string; hasToken: boolean; allowControl: boolean; autoConnect: boolean; haAgentId: string; ignoredEntities: string[]; dashboardEntities: string[]; entityLabels: Record<string, string> }>;
         /** Merge-save: a blank token keeps the existing saved token; omitted fields are preserved. */
-        saveSettings: (settings: { baseUrl?: string; token?: string; allowControl?: boolean; autoConnect?: boolean; haAgentId?: string; ignoredEntities?: string[] }) => Promise<{ success: boolean; error?: string }>;
+        saveSettings: (settings: { baseUrl?: string; token?: string; allowControl?: boolean; autoConnect?: boolean; haAgentId?: string; ignoredEntities?: string[]; dashboardEntities?: string[]; entityLabels?: Record<string, string> }) => Promise<{ success: boolean; error?: string }>;
         /** Allow/deny the AI agent controlling the home + writing automations (off by default). */
         setControlAllowed: (allowed: boolean) => Promise<{ success: boolean; error?: string }>;
         /** Enable/disable connecting to Home Assistant automatically on app startup. */
@@ -404,6 +404,10 @@ declare global {
         setHaAgent: (agentId: string) => Promise<{ success: boolean; error?: string }>;
         /** Entities excluded from the pattern-analysis algorithm. */
         setIgnoredEntities: (entities: string[]) => Promise<{ success: boolean; error?: string }>;
+        /** Entities curated for the dashboard (empty = auto-select). */
+        setDashboardEntities: (entities: string[]) => Promise<{ success: boolean; error?: string }>;
+        /** Custom display labels per entity (entity_id -> label). */
+        setEntityLabels: (labels: Record<string, string>) => Promise<{ success: boolean; error?: string }>;
         /** Validates the token via REST, then opens the WebSocket connection. */
         connect: () => Promise<{ success: boolean; error?: string }>;
         disconnect: () => Promise<{ success: boolean }>;
@@ -414,6 +418,10 @@ declare global {
         getHistory: (opts?: { entityId?: string; sinceMs?: number; limit?: number }) => Promise<{ success: boolean; data?: any[]; error?: string }>;
         /** Aggregate capture stats: total, time range, top entities. */
         getEventStats: () => Promise<{ success: boolean; data?: { total: number; oldestTs: number | null; newestTs: number | null; topEntities: { entityId: string; count: number; lastTs: number }[] }; error?: string }>;
+        /** Per-entity captured event counts. */
+        getEntityCounts: () => Promise<{ success: boolean; data?: Record<string, number>; error?: string }>;
+        /** Delete all captured events for one entity. */
+        deleteEntityEvents: (entityId: string) => Promise<{ success: boolean; removed?: number; error?: string }>;
         /** Candidate routines mined from captured events (PatternEngine). */
         getSuggestions: (opts?: any) => Promise<{ success: boolean; data?: any[]; error?: string }>;
         /** Create an automation in HA from a config (gated by agent-control). */

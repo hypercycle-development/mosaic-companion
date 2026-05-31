@@ -105,6 +105,24 @@ export class EventStore {
     }));
   }
 
+  // Captured event count per entity_id (all entities).
+  getEntityCounts() {
+    const rows = this.db.prepare("SELECT entity_id, COUNT(*) c FROM home_events GROUP BY entity_id").all();
+    const map = {};
+    for (const r of rows) map[r.entity_id] = r.c;
+    return map;
+  }
+
+  // Delete all captured events for one entity. Returns rows removed.
+  deleteEntity(entityId) {
+    try {
+      return this.db.prepare("DELETE FROM home_events WHERE entity_id = ?").run(entityId).changes || 0;
+    } catch (e) {
+      console.error("[HomeAssistant] EventStore deleteEntity failed:", e.message);
+      return 0;
+    }
+  }
+
   // Aggregate stats for the History dashboard.
   getStats() {
     const total = this.db.prepare("SELECT COUNT(*) AS c FROM home_events").get().c;

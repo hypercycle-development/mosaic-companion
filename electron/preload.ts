@@ -290,6 +290,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("home-assistant:set-ha-agent", agentId),
     setIgnoredEntities: (entities: string[]) =>
       ipcRenderer.invoke("home-assistant:set-ignored-entities", entities),
+    setDashboardEntities: (entities: string[]) =>
+      ipcRenderer.invoke("home-assistant:set-dashboard-entities", entities),
+    setEntityLabels: (labels: Record<string, string>) =>
+      ipcRenderer.invoke("home-assistant:set-entity-labels", labels),
     connect: () => ipcRenderer.invoke("home-assistant:connect"),
     disconnect: () => ipcRenderer.invoke("home-assistant:disconnect"),
     status: () => ipcRenderer.invoke("home-assistant:status"),
@@ -297,6 +301,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getHistory: (opts?: { entityId?: string; sinceMs?: number; limit?: number }) =>
       ipcRenderer.invoke("home-assistant:get-history", opts),
     getEventStats: () => ipcRenderer.invoke("home-assistant:get-event-stats"),
+    getEntityCounts: () => ipcRenderer.invoke("home-assistant:get-entity-counts"),
+    deleteEntityEvents: (entityId: string) =>
+      ipcRenderer.invoke("home-assistant:delete-entity-events", entityId),
     getSuggestions: (opts?: any) => ipcRenderer.invoke("home-assistant:get-suggestions", opts),
     createAutomation: (payload: { id?: string; config: any }) =>
       ipcRenderer.invoke("home-assistant:create-automation", payload),

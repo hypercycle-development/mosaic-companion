@@ -91,6 +91,8 @@ function writeSettings(patch = {}) {
     autoConnect: Boolean(pick("autoConnect", existing.autoConnect)),
     haAgentId: pick("haAgentId", existing.haAgentId || ""),
     ignoredEntities: pick("ignoredEntities", existing.ignoredEntities || []),
+    dashboardEntities: pick("dashboardEntities", existing.dashboardEntities || []),
+    entityLabels: pick("entityLabels", existing.entityLabels || {}),
     updatedAt: new Date().toISOString(),
   };
   fs.writeFileSync(getSettingsPath(), JSON.stringify(data, null, 2), "utf8");
@@ -116,6 +118,8 @@ function readSettings() {
     autoConnect: Boolean(data.autoConnect),
     haAgentId: data.haAgentId || "",
     ignoredEntities: Array.isArray(data.ignoredEntities) ? data.ignoredEntities : [],
+    dashboardEntities: Array.isArray(data.dashboardEntities) ? data.dashboardEntities : [],
+    entityLabels: data.entityLabels && typeof data.entityLabels === "object" ? data.entityLabels : {},
   };
 }
 
@@ -264,6 +268,8 @@ export function registerHomeAssistantIpc(ipcMain) {
       autoConnect: Boolean(s?.autoConnect),
       haAgentId: s?.haAgentId || "",
       ignoredEntities: s?.ignoredEntities || [],
+      dashboardEntities: s?.dashboardEntities || [],
+      entityLabels: s?.entityLabels || {},
     };
   });
 
@@ -311,6 +317,26 @@ export function registerHomeAssistantIpc(ipcMain) {
   ipcMain.handle("home-assistant:set-ignored-entities", async (_e, entities) => {
     try {
       writeSettings({ ignoredEntities: Array.isArray(entities) ? entities : [] });
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  // Entities curated for the dashboard (empty = auto-select via heuristics).
+  ipcMain.handle("home-assistant:set-dashboard-entities", async (_e, entities) => {
+    try {
+      writeSettings({ dashboardEntities: Array.isArray(entities) ? entities : [] });
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  // Custom display labels per entity (entity_id -> label).
+  ipcMain.handle("home-assistant:set-entity-labels", async (_e, labels) => {
+    try {
+      writeSettings({ entityLabels: labels && typeof labels === "object" ? labels : {} });
       return { success: true };
     } catch (e) {
       return { success: false, error: e.message };
@@ -368,6 +394,28 @@ export function registerHomeAssistantIpc(ipcMain) {
       const store = getEventStore();
       if (!store) return { success: false, error: "Event store unavailable" };
       return { success: true, data: store.getStats() };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  // Per-entity captured event counts (for the History entity manager).
+  ipcMain.handle("home-assistant:get-entity-counts", async () => {
+    try {
+      const store = getEventStore();
+      if (!store) return { success: false, error: "Event store unavailable" };
+      return { success: true, data: store.getEntityCounts() };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  // Delete all captured events for one entity.
+  ipcMain.handle("home-assistant:delete-entity-events", async (_e, entityId) => {
+    try {
+      const store = getEventStore();
+      if (!store) return { success: false, error: "Event store unavailable" };
+      return { success: true, removed: store.deleteEntity(entityId) };
     } catch (e) {
       return { success: false, error: e.message };
     }
