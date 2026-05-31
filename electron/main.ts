@@ -41,6 +41,7 @@ import { initIDE, cleanupIDE } from "./integrations/ide/index";
 import { registerHyperInsightIpc, stopScorePolling } from "../plugins/hyperinsight/main/index.js";
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
 import { registerPaymentsJitIpc } from "../plugins/payments-jit/main/index.ts";
+import { registerHomeAssistantIpc, setMainWindow as setHaMainWindow, stopHomeAssistant } from "../plugins/home-assistant/main/index.js";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
@@ -286,6 +287,7 @@ app.on("before-quit", () => {
   if (mosaicBotStop) mosaicBotStop().catch(console.error);
   stopChat();
   cleanupIDE();
+  stopHomeAssistant();
 });
 
 // Suppress ERR_ABORTED errors from webviews
@@ -337,6 +339,7 @@ app.whenReady().then(() => {
   const win = createWindow();
   mcpSetMainWindow(win);
   setChatMainWindow(win);
+  setHaMainWindow(win);
 
   // ==========================================================================
   // IMPORTANT: Register plugin IPC handlers BEFORE initPlugins().
@@ -348,6 +351,7 @@ app.whenReady().then(() => {
   registerHyperInsightIpc(ipcMain);
   registerAimNodesIpc(ipcMain);
   registerPaymentsJitIpc(ipcMain);
+  registerHomeAssistantIpc(ipcMain);
 
   // Now auto-connect MCP plugins (with correct env already set)
   initPlugins().catch((e) => console.error("[MCP] Plugin init failed:", e));

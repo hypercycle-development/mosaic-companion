@@ -1,0 +1,8 @@
+{
+  "id": "home-assistant",
+  "version": "0.1.0",
+  "name": "Home Assistant",
+  "description": "Connect to a local Home Assistant server, learn from home events, and build automation routines with AI.",
+  "ipcNamespace": "home-assistant",
+  "route": "mosaic://home-assistant"
+}

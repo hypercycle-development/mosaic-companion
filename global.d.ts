@@ -390,6 +390,39 @@ declare global {
         setAutoDisplay: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean; error?: string }>;
       };
 
+      // Home Assistant plugin
+      homeAssistant: {
+        /** Returns saved URL, token-presence, flags, the HA agent id, and the ignore-list. */
+        getSettings: () => Promise<{ baseUrl: string; hasToken: boolean; allowControl: boolean; autoConnect: boolean; haAgentId: string; ignoredEntities: string[] }>;
+        /** Merge-save: a blank token keeps the existing saved token; omitted fields are preserved. */
+        saveSettings: (settings: { baseUrl?: string; token?: string; allowControl?: boolean; autoConnect?: boolean; haAgentId?: string; ignoredEntities?: string[] }) => Promise<{ success: boolean; error?: string }>;
+        /** Allow/deny the AI agent controlling the home + writing automations (off by default). */
+        setControlAllowed: (allowed: boolean) => Promise<{ success: boolean; error?: string }>;
+        /** Enable/disable connecting to Home Assistant automatically on app startup. */
+        setAutoConnect: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
+        /** Which configured AI agent supports Home Assistant tasks (suggestion design). */
+        setHaAgent: (agentId: string) => Promise<{ success: boolean; error?: string }>;
+        /** Entities excluded from the pattern-analysis algorithm. */
+        setIgnoredEntities: (entities: string[]) => Promise<{ success: boolean; error?: string }>;
+        /** Validates the token via REST, then opens the WebSocket connection. */
+        connect: () => Promise<{ success: boolean; error?: string }>;
+        disconnect: () => Promise<{ success: boolean }>;
+        status: () => Promise<{ status: string }>;
+        /** Current state of every entity (GET /api/states). */
+        getStates: () => Promise<{ success: boolean; data?: any[]; error?: string }>;
+        /** Query captured events from SQLite (works even when disconnected). */
+        getHistory: (opts?: { entityId?: string; sinceMs?: number; limit?: number }) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+        /** Aggregate capture stats: total, time range, top entities. */
+        getEventStats: () => Promise<{ success: boolean; data?: { total: number; oldestTs: number | null; newestTs: number | null; topEntities: { entityId: string; count: number; lastTs: number }[] }; error?: string }>;
+        /** Candidate routines mined from captured events (PatternEngine). */
+        getSuggestions: (opts?: any) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+        /** Create an automation in HA from a config (gated by agent-control). */
+        createAutomation: (payload: { id?: string; config: any }) => Promise<{ success: boolean; id?: string; error?: string }>;
+        onStatus: (cb: (data: { status: string }) => void) => () => void;
+        onEvent: (cb: (event: any) => void) => () => void;
+        onError: (cb: (data: { message: string }) => void) => () => void;
+      };
+
       // JIT Payments plugin
       paymentsJit: {
         onRequestApproval: (handler: (data: any) => void) => () => void;

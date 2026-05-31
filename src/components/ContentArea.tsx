@@ -12,6 +12,7 @@ import {
   INTERNAL_SANDBOX_URL,
   INTERNAL_ONBOARDING_URL,
   INTERNAL_IDE_URL,
+  INTERNAL_HOME_ASSISTANT_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
   Tab,
 } from "../types/types";
@@ -23,6 +24,7 @@ import { ChatPage } from "./ChatPage";
 import { Web3Page } from "./Web3Page";
 import { VaultPage } from "./VaultPage";
 import { HyperInsightView } from "../../plugins/hyperinsight/renderer/HyperInsightView";
+import { HomeAssistantView } from "../../plugins/home-assistant/renderer/HomeAssistantView";
 import { SandboxPage } from "./SandboxPage";
 import { ToolPanelView } from "./ToolPanelView";
 import { OnboardingPage } from "./OnboardingPage";
@@ -478,6 +480,18 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     return (
       <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
         <HyperInsightView />
+      </div>
+    );
+  }
+
+  if (url === INTERNAL_HOME_ASSISTANT_URL) {
+    useEffect(() => {
+      onUpdateTab({ title: "Home Assistant", isLoading: false, favicon: undefined });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
+        <HomeAssistantView onNavigate={onNavigate} />
       </div>
     );
   }

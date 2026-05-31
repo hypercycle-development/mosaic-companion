@@ -277,6 +277,45 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getAutoDisplay: () => ipcRenderer.invoke("media:get-auto-display"),
     setAutoDisplay: (enabled: boolean) => ipcRenderer.invoke("media:set-auto-display", enabled),
   },
+  // Home Assistant plugin
+  homeAssistant: {
+    getSettings: () => ipcRenderer.invoke("home-assistant:get-settings"),
+    saveSettings: (settings: { baseUrl: string; token: string }) =>
+      ipcRenderer.invoke("home-assistant:save-settings", settings),
+    setControlAllowed: (allowed: boolean) =>
+      ipcRenderer.invoke("home-assistant:set-control-allowed", allowed),
+    setAutoConnect: (enabled: boolean) =>
+      ipcRenderer.invoke("home-assistant:set-auto-connect", enabled),
+    setHaAgent: (agentId: string) =>
+      ipcRenderer.invoke("home-assistant:set-ha-agent", agentId),
+    setIgnoredEntities: (entities: string[]) =>
+      ipcRenderer.invoke("home-assistant:set-ignored-entities", entities),
+    connect: () => ipcRenderer.invoke("home-assistant:connect"),
+    disconnect: () => ipcRenderer.invoke("home-assistant:disconnect"),
+    status: () => ipcRenderer.invoke("home-assistant:status"),
+    getStates: () => ipcRenderer.invoke("home-assistant:get-states"),
+    getHistory: (opts?: { entityId?: string; sinceMs?: number; limit?: number }) =>
+      ipcRenderer.invoke("home-assistant:get-history", opts),
+    getEventStats: () => ipcRenderer.invoke("home-assistant:get-event-stats"),
+    getSuggestions: (opts?: any) => ipcRenderer.invoke("home-assistant:get-suggestions", opts),
+    createAutomation: (payload: { id?: string; config: any }) =>
+      ipcRenderer.invoke("home-assistant:create-automation", payload),
+    onStatus: (cb: (data: { status: string }) => void) => {
+      const listener = (_e: IpcRendererEvent, data: { status: string }) => cb(data);
+      ipcRenderer.on("home-assistant:status", listener);
+      return () => ipcRenderer.removeListener("home-assistant:status", listener);
+    },
+    onEvent: (cb: (event: any) => void) => {
+      const listener = (_e: IpcRendererEvent, event: any) => cb(event);
+      ipcRenderer.on("home-assistant:event", listener);
+      return () => ipcRenderer.removeListener("home-assistant:event", listener);
+    },
+    onError: (cb: (data: { message: string }) => void) => {
+      const listener = (_e: IpcRendererEvent, data: { message: string }) => cb(data);
+      ipcRenderer.on("home-assistant:error", listener);
+      return () => ipcRenderer.removeListener("home-assistant:error", listener);
+    },
+  },
   // JIT Payments plugin
   paymentsJit: {
     onRequestApproval: (handler: (data: any) => void) => {
