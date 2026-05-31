@@ -8,7 +8,9 @@ export type AIProvider =
   | "ollama"
   | "custom"
   | "hypercycle"
-  | "hermes";
+  | "hermes"
+  | "hermes-aim"
+  | "hermes-api";
 
 /** Hypercycle routing: TODA micropay vs Basechain (EVM) — same direct `host:port` URL shape. */
 export type HypercycleBackend = "toda" | "basechain";
@@ -114,10 +116,12 @@ export const DEFAULT_MODELS: Record<AIProvider, string[]> = {
     "o1-mini",
   ],
   gemini: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
-  ollama: ["llama3.2", "mistral", "codellama", "deepseek-coder"],
+  ollama: ["llama3.2:3b", "qwen2.5-coder:7b", "gemma:2b", "qwen2.5:32b", "gpt-oss:20b"],
   custom: [],
   hypercycle: ["claude-sonnet-4-5-20250929"],
   hermes: ["kimi-k2.6", "minimax", "custom"],
+  "hermes-aim": ["kimi-k2.6", "minimax", "custom"],
+  "hermes-api": ["hermes-agent"],
 };
 
 export const PROVIDER_INFO: Record<
@@ -157,6 +161,16 @@ export const PROVIDER_INFO: Record<
   hermes: {
     name: "Hermes Agent",
     color: "#7C3AED",
-    baseUrl: "http://localhost:3000",
+    baseUrl: "http://localhost:8642",
+  },
+  "hermes-aim": {
+    name: "Hermes AIM (HyperCycle Node)",
+    color: "#A78BFA",
+    baseUrl: "http://127.0.0.1:9000",
+  },
+  "hermes-api": {
+    name: "Hermes API Server",
+    color: "#00D4AA",
+    baseUrl: "http://127.0.0.1:8642",
   },
 };

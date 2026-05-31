@@ -17,7 +17,11 @@ export const DEFAULT_MODELS = {
     ollama: ["llama3.2", "mistral", "codellama", "deepseek-coder"],
     custom: [],
     hypercycle: ["claude-sonnet-4-5-20250929"],
+    hermes: ["kimi-k2.6", "minimax", "custom"],
+    "hermes-aim": ["kimi-k2.6", "minimax", "custom"],
+    "hermes-api": ["hermes-agent"],
 };
+
 export const PROVIDER_INFO = {
     claude: {
         name: "Anthropic Claude",
@@ -48,5 +52,20 @@ export const PROVIDER_INFO = {
         name: "Hypercycle Node",
         color: "#22D3EE",
         baseUrl: "http://207.53.252.108",
+    },
+    hermes: {
+        name: "Hermes Agent",
+        color: "#7C3AED",
+        baseUrl: "http://localhost:3000",
+    },
+    "hermes-aim": {
+        name: "Hermes AIM (HyperCycle Node)",
+        color: "#A78BFA",
+        baseUrl: "http://127.0.0.1:9000",
+    },
+    "hermes-api": {
+        name: "Hermes API Server",
+        color: "#00D4AA",
+        baseUrl: "http://127.0.0.1:8642",
     },
 };

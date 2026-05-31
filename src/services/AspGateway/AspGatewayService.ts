@@ -3,10 +3,25 @@
 // Company Onboarding Door for Agentic System Packages
 // ============================================
 
-import { storeSecret } from "../integrations/vault/storeSecret";
-
 import { nodeIntelligence } from '../AdaPortal/NodeIntelligenceService';
 import type { ComputeNode } from '../AdaPortal/types';
+import type {
+  AspRole,
+  AspPermission,
+  Company,
+  AspAgent,
+  AspPackage,
+  AspWorkflow,
+  UsageRecord,
+  ComplianceConfig,
+  NodeBinding,
+  ExecutionResult,
+  ExecutionRequest,
+  ExecutionMode,
+  ResourceRequirements,
+  BillingConfig
+} from './types';
+import { ROLE_PERMISSIONS, HORIZONHUB_SYSTEM } from './types';
 
 class AspGatewayService {
   private companies: Map<string, Company> = new Map();
@@ -114,15 +129,9 @@ class AspGatewayService {
     const company = this.companies.get(companyId);
     if (company) {
     const apiKey = `asp_${companyId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    // Store secret in Vault under box asp-${companyId}
-    const { success, entryId, error } = storeSecret(`asp-${companyId}`, "apiKey", apiKey);
-    if (!success) {
-      console.error(`[AspGateway] Failed to store API key in Vault: ${error}`);
-      return undefined;
-    }
+    company.apiKeys.push(apiKey);
     company.updatedAt = Date.now();
     console.log(`[AspGateway] Generated API key for company: ${companyId}`);
-    // Note: API key not kept in memory
     return apiKey;
     }
     return undefined;

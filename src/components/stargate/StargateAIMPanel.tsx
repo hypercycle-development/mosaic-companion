@@ -12,8 +12,7 @@ import { localNodeBridge, BridgeAIM } from '../../services/stargate/LocalNodeBri
 import { enhancedLocalNodeBridge, ExtendedBridgeTelemetry } from '../../services/stargate/EnhancedLocalNodeBridge';
 
 // ===== P0 INTEGRATIONS: AIM as Tool + MCP Everywhere =====
-import { agentToolService } from '../../services/stargate/integrations';
-import { mcpAIMService } from '../../services/stargate/integrations';
+
 
 interface FallbackAIM {
   found: boolean;

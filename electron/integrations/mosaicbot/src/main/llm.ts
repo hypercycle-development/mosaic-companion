@@ -19,7 +19,7 @@ import path from "path";
 interface AgentConfig {
   id: string;
   name: string;
-  provider: "claude" | "openai" | "gemini" | "ollama" | "custom" | "hypercycle";
+  provider: "claude" | "openai" | "gemini" | "ollama" | "custom" | "hypercycle" | "hermes" | "hermes-aim" | "hermes-api";
   apiKey: string;
   baseUrl?: string;
   model: string;
@@ -91,6 +91,11 @@ export async function callActiveLLM(
           "[MosaicBot/LLM] Hypercycle provider needs token + stream steps; skipping LLM call.",
         );
         return null;
+      case "hermes":
+      case "hermes-aim":
+        return await callHermes(agent, [{ role: "user", content: prompt }], systemPrompt);
+      case "hermes-api":
+        return await callHermes(agent, [{ role: "user", content: prompt }], systemPrompt);
       default:
         throw new Error(`Unknown provider: ${(agent as AgentConfig).provider}`);
     }
@@ -218,4 +223,39 @@ async function callOllama(
   if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
   const data = (await res.json()) as { message: { content: string } };
   return data.message.content;
+}
+
+// ── Hermes Agent caller ──────────────────────────────────────────────────────
+
+async function callHermes(
+  agent: AgentConfig,
+  messages: Message[],
+  systemPrompt?: string,
+): Promise<string> {
+  const allMessages: Message[] = systemPrompt
+    ? [{ role: "system", content: systemPrompt }, ...messages]
+    : messages;
+
+  const baseUrl = (agent.baseUrl || "http://localhost:8642").trim();
+  const apiKey = agent.apiKey?.trim() || "mosaic-hermes-2025";
+
+  const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+    },
+    body: JSON.stringify({
+      model: agent.model || "default",
+      messages: allMessages,
+      max_tokens: agent.maxTokens ?? 4096,
+      temperature: agent.temperature ?? 0.7,
+    }),
+  });
+
+  if (!res.ok) throw new Error(`Hermes ${res.status}: ${await res.text()}`);
+  const data = (await res.json()) as {
+    choices: Array<{ message: { content: string } }>;
+  };
+  return data.choices[0].message.content;
 }

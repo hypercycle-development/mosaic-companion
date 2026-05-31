@@ -36,21 +36,114 @@ function ensureDefaultPlugins(): void {
   const existing = pluginManager.list();
 
   // Register gbrain MCP server if not already present
+  // Uses the Node.js bridge script (bundled in repo source) that wraps gbrain
+  // CLI commands. Native `gbrain serve` is blocked by PGLite WASM abort on Linux
+  // (upstream issue #223); the bridge is the reliable path until that's fixed.
   const hasGbrain = existing.some((p) => p.name === "gbrain");
   if (!hasGbrain) {
+    // esbuild bundles TS entry points but does NOT copy raw JS assets,
+    // so require.resolve("./servers/...") fails in dist/main/. Use absolute
+    // path from the source tree. This resolves relative to user home.
+    const path = require("node:path");
+    const os = require("node:os");
+    const gbrainPath = path.join(os.homedir(), "mosaic-companion", "electron", "integrations", "mcp", "servers", "gbrain-mcp-server.js");
+    const fs = require("node:fs");
+    if (fs.existsSync(gbrainPath)) {
+      pluginManager.add({
+        name: "gbrain",
+        description: "Personal knowledge graph — Query Stargate development history, commits, and architecture",
+        transport: "stdio",
+        command: "node",
+        args: [gbrainPath],
+        env: {},
+        autoConnect: true,
+      });
+      console.log(`[MCP] Registered default plugin: gbrain (bridge: ${gbrainPath})`);
+    } else {
+      console.warn(`[MCP] gbrain bridge not found at ${gbrainPath}; skipping`);
+    }
+  }
+
+  // ── Hermes Tools MCP Server ──
+  // Exposes ALL Hermes tools (skills, terminal, web, file, kanban, cron, etc.)
+  // over MCP so every Mosaic agent can invoke them transparently.
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const os = require("node:os");
+  const home = os.homedir();
+
+  // Resolve the *correct* command first (venv python + main.py is the only
+  // reliable way inside Electron — the `hermes` wrapper relies on sys.path
+  // being correct and `dotenv` being importable, which isn't true here).
+  const venvCand = path.join(home, "hermes", "venv", "bin", "python3");
+  const mainPyCand = path.join(home, "hermes", "hermes_cli", "main.py");
+  let hermesCmd: string = "";
+  let hermesArgs: string[] = [];
+  if (fs.existsSync(venvCand) && fs.existsSync(mainPyCand)) {
+    hermesCmd = venvCand;
+    hermesArgs = [mainPyCand, "mcp", "serve-tools", "--accept-hooks"];
+  } else {
+    try {
+      hermesCmd = require("node:child_process").execSync("which hermes", { encoding: "utf-8" }).trim();
+      hermesArgs = ["mcp", "serve-tools", "--accept-hooks"];
+    } catch {
+      hermesCmd = "";
+    }
+  }
+
+  if (!hermesCmd) {
+    console.warn("[MCP] Hermes not found; skipping hermes-tools registration");
+    return;
+  }
+
+  const existingHermes = existing.find((p) => p.name === "hermes-tools");
+  const isStale = existingHermes && (
+    // The old buggy registration used a `hermes` wrapper that crashes
+    // inside Electron (dotenv not on sys.path without the venv active).
+    existingHermes.command === "hermes" ||
+    existingHermes.command.endsWith("bin/hermes") ||
+    existingHermes.command !== hermesCmd
+  );
+
+  const hermesEnv: Record<string, string> = {
+    HERMES_HOME: process.env.HERMES_HOME || `${home}/.hermes`,
+    // Hermes modules (model_tools, mcp_serve_tools, etc.) live in
+    // the project root, not in site-packages. PYTHONPATH adds it.
+    // Do NOT set PYTHONHOME — it corrupts the venv interpreter.
+    PYTHONPATH: path.join(home, "hermes"),
+  };
+
+  if (!existingHermes) {
+    // Fresh registration on first run
     pluginManager.add({
-      name: "gbrain",
-      description: "Personal knowledge graph — Query Stargate development history, commits, and architecture",
+      name: "hermes-tools",
+      description: "Hermes Agent — ALL tools and skills (terminal, web, file, skills, kanban, cron, etc.)",
       transport: "stdio",
-      command: "node",
-      args: [
-        // Absolute path to the gbrain MCP bridge — bundled with the app
-        require.resolve("./servers/gbrain-mcp-server.js"),
-      ],
-      env: {},
+      command: hermesCmd,
+      args: hermesArgs,
+      env: hermesEnv,
       autoConnect: true,
     });
-    console.log("[MCP] Registered default plugin: gbrain");
+    console.log(`[MCP] Registered default plugin: hermes-tools (cmd: ${hermesCmd}, args: ${JSON.stringify(hermesArgs)})`);
+  } else if (isStale) {
+    // Re-register with corrected command so initPlugins() can connect
+    console.warn(
+      `[MCP] hermes-tools config is stale (cmd: ${existingHermes.command}); ` +
+      `replacing with corrected command: ${hermesCmd}`
+    );
+    pluginManager.remove(existingHermes.id);
+    pluginManager.add({
+      name: "hermes-tools",
+      description: "Hermes Agent — ALL tools and skills (terminal, web, file, skills, kanban, cron, etc.)",
+      transport: "stdio",
+      command: hermesCmd,
+      args: hermesArgs,
+      env: hermesEnv,
+      autoConnect: true,
+    });
+    console.log(`[MCP] Re-registered hermes-tools (cmd: ${hermesCmd}, args: ${JSON.stringify(hermesArgs)})`);
+  } else {
+    console.log(`[MCP] hermes-tools already registered with correct command: ${hermesCmd}`);
   }
 }
 
@@ -308,6 +401,10 @@ ipcMain.handle("mcp:disconnect-plugin", async (_event, id: string) => {
   if (!plugin) return { success: false, error: `Plugin "${id}" not found` };
   try {
     await mcpClient.disconnect(plugin.name);
+    // For auth-required plugins, disconnect means clearing the stored key from disk
+    if (plugin.oauthRequired) {
+      pluginManager.update(id, { apiKey: undefined });
+    }
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };

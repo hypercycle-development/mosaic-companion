@@ -59,10 +59,61 @@ export interface VaultEntry {
   label?: string;
   /** The actual text content */
   content: string;
+  /** Optional structured metadata (for Taste-Skill format, dials, triggers) */
+  metadata?: TasteSkillMetadata;
   /** Unix timestamp — when the entry was created */
   createdAt: number;
   /** Unix timestamp — last modification */
   updatedAt: number;
+}
+
+/** Taste-Skill structured metadata for rich skill entries */
+export interface TasteSkillMetadata {
+  /** Install name used for reference (e.g. "design-taste-frontend") */
+  installName: string;
+  /** Skill category for grouping */
+  category: string;
+  /** Source repository URL */
+  sourceRepo?: string;
+  /** Whether this is a Taste-Skill formatted entry */
+  isTasteSkill: boolean;
+  /** Version string if available */
+  version?: string;
+  /** The three dials (1-10 scale) */
+  dials?: {
+    /** DESIGN_VARIANCE: 1=Perfect Symmetry, 10=Artsy Chaos */
+    designVariance?: number;
+    /** MOTION_INTENSITY: 1=Static, 10=Cinematic/Physics */
+    motionIntensity?: number;
+    /** VISUAL_DENSITY: 1=Art Gallery/Airy, 10=Cockpit/Packed */
+    visualDensity?: number;
+  };
+  /** Signal-to-preset trigger mappings */
+  triggers?: TasteSkillTrigger[];
+  /** Named preset configurations */
+  presets?: TasteSkillPreset[];
+  /** Whether this skill produces code or just reference images */
+  outputType?: "code" | "images" | "both";
+}
+
+/** A trigger maps a brief signal to dial values */
+export interface TasteSkillTrigger {
+  /** The signal to match (e.g. "minimalist / clean / calm") */
+  signal: string;
+  /** Dial values when this signal matches */
+  variance: number;
+  motion: number;
+  density: number;
+}
+
+/** A named preset configuration */
+export interface TasteSkillPreset {
+  /** Preset name (e.g. "Landing (SaaS, mainstream)") */
+  name: string;
+  /** Dial values for this preset */
+  variance: number;
+  motion: number;
+  density: number;
 }
 
 /**

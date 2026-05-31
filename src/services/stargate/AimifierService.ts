@@ -356,7 +356,7 @@ export class AimifierService extends EventEmitter {
             log(`[CONNECT] Dashboard: http://localhost:${discoveryPort}/`);
             log(`[CONNECT] Health:    http://localhost:${discoveryPort}/health`);
             log(`[CONNECT] Manifest:  http://localhost:${discoveryPort}/manifest.json`);
-            log('[CONNECT] Kanban:    http://127.0.0.1:9119');
+            log(`[CONNECT] Kanban:    http://localhost:${discoveryPort}/kanban`);
             return { discoveryResult };
           });
         }

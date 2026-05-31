@@ -96,6 +96,7 @@ export interface MCPServerConfig {
   env?: Record<string, string>;
   url?: string;
   apiKey?: string;
+  authProvider?: import("@modelcontextprotocol/sdk/client/auth.js").OAuthClientProvider;
 }
 
 export interface MCPClientEvents {
@@ -174,20 +175,41 @@ export class MCPClient extends EventEmitter {
     name: string,
     url: string,
     apiKey?: string,
+    authProvider?: import("@modelcontextprotocol/sdk/client/auth.js").OAuthClientProvider,
   ): Promise<MCPInitializeResult> {
     if (this.servers.has(name)) {
       throw new Error(`Server "${name}" is already connected`);
     }
 
     this.log(`Connecting to ${name} via HTTP: ${url}`);
+    this.log(`  API key provided: ${apiKey ? "Yes (length=" + apiKey.length + ")" : "No"}`);
+    this.log(`  OAuth provider: ${authProvider ? "Yes" : "No"}`);
 
-    const requestInit: RequestInit = apiKey
-      ? { headers: { Authorization: `Bearer ${apiKey}` } }
-      : {};
+    let transport;
+    if (authProvider) {
+      // OAuth 2.0 flow (e.g., Base MCP)
+      const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
+      transport = new StreamableHTTPClientTransport(new URL(url), {
+        authProvider,
+        requestInit: apiKey
+          ? { headers: { Authorization: `Bearer ${apiKey}` } }
+          : undefined,
+      });
+    } else {
+      // Static API key flow
+      const requestInit: RequestInit = apiKey
+        ? { headers: { Authorization: `Bearer ${apiKey}` } }
+        : {};
+      if (apiKey) {
+        (requestInit.headers as Record<string, string>)["X-Api-Key"] = apiKey;
+      }
+      this.log(`  Request headers: ${JSON.stringify(requestInit.headers)}`);
+      const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
+      transport = new StreamableHTTPClientTransport(new URL(url), {
+        requestInit,
+      });
+    }
 
-    const transport = new StreamableHTTPClientTransport(new URL(url), {
-      requestInit,
-    });
     return this._connectWithTransport(
       name,
       { name, transport: "http", url, apiKey },
@@ -201,7 +223,7 @@ export class MCPClient extends EventEmitter {
       return this.connectStdio(config.name, config.command, config.args, config.env);
     } else {
       if (!config.url) throw new Error("HTTP transport requires a URL");
-      return this.connectHttp(config.name, config.url, config.apiKey);
+      return this.connectHttp(config.name, config.url, config.apiKey, config.authProvider);
     }
   }
 

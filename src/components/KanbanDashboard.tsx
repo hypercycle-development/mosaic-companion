@@ -40,7 +40,7 @@ import type { AIAgentConfig, AIProvider } from '../types/ai';
 import { PROVIDER_INFO } from '../types/ai';
 import { HermesAimPanel } from './HermesAimPanel';
 import { fleetDiscoveryService, FleetNode, FleetNodeStatus, EnrichedFleetNode } from '../services/stargate/FleetDiscoveryService';
-import { hermesAgentOrchestrator } from '../services/stargate/HermesAgentOrchestrator';
+
 
 export interface AgentResponse {
   id: string;
@@ -236,7 +236,7 @@ export const KanbanDashboard: React.FC = () => {
             setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: 'running' } : a));
 
             let reply = '';
-            if (agent.provider === 'hermes') {
+            if (agent.provider === 'hermes' || agent.provider === 'hermes-aim' || agent.provider === 'hermes-api') {
               const { completeWithHermes } = await import('../services/HermesAgentService');
               const msg = { id: '1', role: 'user' as const, content: globalPrompt, timestamp: Date.now(), agentId: agent.id };
               reply = await completeWithHermes(agent, [msg]);
@@ -249,7 +249,7 @@ export const KanbanDashboard: React.FC = () => {
               const j = await r.json();
               reply = j.content || JSON.stringify(j);
             } else {
-              const r = await fetch(`${agent.baseUrl || PROVIDER_INFO[agent.provider].baseUrl}/v1/chat/completions`, {
+              const r = await fetch(`${agent.baseUrl || PROVIDER_INFO[agent.provider]?.baseUrl || ""}/v1/chat/completions`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -459,7 +459,7 @@ ${hermesResult.response}`,
                             className="text-xs px-2 py-0.5 bg-emerald-800 rounded hover:bg-emerald-700"
                           >Ready</button>
                         )}
-                        {agent.provider === 'hermes' && col.id !== 'aimified' && (
+                        {(agent.provider === 'hermes' || agent.provider === 'hermes-aim' || agent.provider === 'hermes-api') && col.id !== 'aimified' && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -707,7 +707,7 @@ ${hermesResult.response}`,
               agents={
                 aimifyAgentId
                   ? agents.filter(a => a.id === aimifyAgentId)
-                  : agents.filter(a => a.provider === 'hermes')
+                  : agents.filter(a => a.provider === 'hermes' || a.provider === 'hermes-aim' || a.provider === 'hermes-api')
               }
               onClose={() => { setShowAimPanel(false); setAimifyAgentId(null); }}
               onAimified={(agentId, imageTag) => {

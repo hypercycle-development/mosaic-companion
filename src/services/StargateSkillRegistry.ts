@@ -289,11 +289,11 @@ class StargateSkillRegistry {
       console.log('[StargateSkillRegistry] Ollama not available, using fallback models');
       // Fallback: known models for R2D2
       this.models = [
-        { id: 'kimi-k2.6', name: 'Kimi K2.6', provider: 'ollama-cloud', status: 'loaded', capability: ['code', 'reasoning', 'long-context'], local: false, baseUrl: 'https://ollama.com/v1' },
-        { id: 'llama3.3', name: 'Llama 3.3', provider: 'ollama', status: 'available', capability: ['general', 'chat'], local: true, baseUrl: 'http://localhost:11434' },
-        { id: 'llama3.2', name: 'Llama 3.2', provider: 'ollama', status: 'available', capability: ['general', 'chat', 'vision'], local: true, baseUrl: 'http://localhost:11434' },
-        { id: 'qwen2.5-coder', name: 'Qwen 2.5 Coder', provider: 'ollama', status: 'available', capability: ['code'], local: true, baseUrl: 'http://localhost:11434' },
-        { id: 'codellama', name: 'CodeLlama', provider: 'ollama', status: 'available', capability: ['code'], local: true, baseUrl: 'http://localhost:11434' },
+        { id: 'kimi-k2.5:cloud', name: 'Kimi K2.5', provider: 'ollama-cloud', status: 'loaded', capability: ['code', 'reasoning', 'long-context'], local: false, baseUrl: 'https://ollama.com/v1' },
+        { id: 'llama3.2:3b', name: 'Llama 3.2 (3B)', provider: 'ollama', status: 'available', capability: ['general', 'chat', 'vision'], local: true, baseUrl: 'http://localhost:11434' },
+        { id: 'qwen2.5-coder:7b', name: 'Qwen 2.5 Coder (7B)', provider: 'ollama', status: 'available', capability: ['code'], local: true, baseUrl: 'http://localhost:11434' },
+        { id: 'qwen2.5:32b', name: 'Qwen 2.5 (32B)', provider: 'ollama', status: 'available', capability: ['general', 'chat', 'reasoning'], local: true, baseUrl: 'http://localhost:11434' },
+        { id: 'gemma:2b', name: 'Gemma 2B', provider: 'ollama', status: 'available', capability: ['general', 'chat'], local: true, baseUrl: 'http://localhost:11434' },
       ];
     }
   }

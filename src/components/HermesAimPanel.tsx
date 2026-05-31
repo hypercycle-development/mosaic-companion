@@ -85,7 +85,7 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
 
   // Auto-select first agent when panel mounts
   useEffect(() => {
-    const firstHermes = agents.find(a => a.provider === 'hermes');
+    const firstHermes = agents.find(a => a.provider === 'hermes' || a.provider === 'hermes-aim' || a.provider === 'hermes-api');
     if (firstHermes && !selectedAgent) {
       setSelectedAgent(firstHermes);
     }
@@ -290,29 +290,25 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
   // Quick actions for CONNECT MODE
   // -------------------------------------------------------------------------
   const openWindow = (url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
+    // Use Electron's shell.openExternal for all links so they open in the
+    // system browser instead of renderer-attached blank popups.
+    const eapi = (window as any).electronAPI;
+    if (eapi?.window?.openExternal) {
+      eapi.window.openExternal(url);
+    } else {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
   };
 
   const openHermesKanban = async () => {
-    // Ensure dashboard is running before opening
+    // Open the kanban board at /kanban on the connected AIM (port 9000)
+    const baseUrl = connectUrl || `http://localhost:${discoveryPort}`;
+    const url = baseUrl.endsWith('/kanban') ? baseUrl : `${baseUrl}/kanban`;
     try {
-      const eapi = (window as any).electronAPI;
-      if (eapi?.hermes?.startDashboard) {
-        const result = await eapi.hermes.startDashboard();
-        if (result.success || result.status === 'already-running' || result.status === 'externally-running') {
-          openWindow('http://127.0.0.1:9119');
-        } else {
-          console.warn('Failed to start Hermes dashboard:', result);
-          // Fallback: try opening anyway (user may have started it manually)
-          openWindow('http://127.0.0.1:9119');
-        }
-      } else {
-        // IPC bridge not available — fallback to raw window.open
-        openWindow('http://127.0.0.1:9119');
-      }
+      openWindow(url);
     } catch (err) {
       console.error('openHermesKanban error:', err);
-      openWindow('http://127.0.0.1:9119');
+      alert('Error opening Hermes kanban: ' + (err as any)?.message);
     }
   };
 
@@ -333,7 +329,7 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
     }
   };
 
-  const hermesAgents = agents.filter(a => a.provider === 'hermes');
+  const hermesAgents = agents.filter(a => a.provider === 'hermes' || a.provider === 'hermes-aim' || a.provider === 'hermes-api');
 
   // -------------------------------------------------------------------------
   // Render

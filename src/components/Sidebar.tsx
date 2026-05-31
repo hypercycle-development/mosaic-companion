@@ -456,7 +456,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             {activeAgents.map((agent) => {
-              const providerColor = PROVIDER_INFO[agent.provider].color;
+              const providerColor = PROVIDER_INFO[agent.provider]?.color ?? "#6B7280";
               return (
                 <button
                   key={agent.id}

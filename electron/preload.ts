@@ -409,8 +409,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   // Skill delivery pipeline (sync Hermes skills to fleet nodes)
   skills: {
+    buildSystemPrompt: (payload: { baseSystemPrompt?: string; skillNames: string[]; includeReferences?: boolean; maxTokens?: number; dialOverrides?: Record<string, number> }) =>
+      ipcRenderer.invoke("skill:buildSystemPrompt", payload),
     syncToNode: (payload: { skillNames: string[]; nodeId: string; nodeHost?: string }) =>
       ipcRenderer.invoke("stargate:skill:syncToNode", payload),
+  },
+  // Krea AI Image Generation
+  krea: {
+    generate: (payload: { prompt: string; aspectRatio?: string; creativity?: number; negativePrompt?: string; styleReference?: string; moodboard?: string[]; numImages?: number; seed?: number; outputFormat?: string }) =>
+      ipcRenderer.invoke("krea:generate", payload),
+    checkStatus: (generationId: string) =>
+      ipcRenderer.invoke("krea:checkStatus", generationId),
+    downloadImage: (imageUrl: string, destPath: string) =>
+      ipcRenderer.invoke("krea:downloadImage", imageUrl, destPath),
   },
   // ─── Cardano / Tokeo Wallet Bridge ───
   cardano: {

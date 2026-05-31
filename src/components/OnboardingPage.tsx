@@ -127,7 +127,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
         provider === "hypercycle"
           ? ""
           : DEFAULT_MODELS[provider][0] || "",
-      baseUrl: provider === "custom" ? "" : PROVIDER_INFO[provider].baseUrl,
+      baseUrl: provider === "custom" ? "" : PROVIDER_INFO[provider]?.baseUrl ?? "",
     });
     setTestStatus({ status: "idle" });
   };

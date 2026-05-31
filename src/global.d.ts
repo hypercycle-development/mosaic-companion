@@ -193,5 +193,31 @@ interface Window {
       openFile?: (options: any) => Promise<any>;
       [key: string]: any;
     };
+    skills?: ElectronAPIAny & {
+      buildSystemPrompt: (payload: {
+        baseSystemPrompt?: string;
+        skillNames: string[];
+        includeReferences?: boolean;
+        maxTokens?: number;
+      }) => Promise<{
+        systemPrompt: string;
+        loadedSkills: string[];
+        failedSkills: string[];
+        totalTokens: number;
+      }>;
+      syncToNode: (payload: {
+        skillNames: string[];
+        nodeId: string;
+        nodeHost?: string;
+      }) => Promise<{
+        success: boolean;
+        synced: string[];
+        failed: string[];
+        verified: string[];
+        activated: string[];
+        remoteSkillDir: string;
+        logs: string[];
+      }>;
+    };
   };
 }

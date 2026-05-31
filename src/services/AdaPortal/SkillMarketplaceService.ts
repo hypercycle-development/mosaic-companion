@@ -546,24 +546,10 @@ class SkillMarketplaceService {
       return;
     }
 
-    // Try fetching from skills.sh (may not exist yet)
-    try {
-      const response = await fetch('https://skills.sh/api/skills?limit=100', {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        // Parse and merge with existing skills
-        console.log('[SkillMarketplace] Fetched live skills from API');
-      } else {
-        console.log('[SkillMarketplace] API not available, using cached skills');
-      }
-    } catch (error) {
-      console.log('[SkillMarketplace] API fetch failed, using cached skills:', error);
-    }
-    
+    // skills.sh does not have a public API; skip external fetch to avoid 404 noise.
+    // Skills are loaded from static demo data in initialize() instead.
+    console.log('[SkillMarketplace] Using cached/demo skills (skills.sh API unavailable)');
+
     this.lastFetch = now;
     this.initialized = true;
   }

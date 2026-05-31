@@ -8,7 +8,7 @@ import type { AIAgentConfig, ChatMessage } from '../types/ai';
 
 /**
  * Hermes can run in two modes:
- *  1. "local"    — Hermes CLI on this machine (or Docker container)    baseUrl: http://localhost:3000
+ *  1. "local"    — Hermes CLI on this machine (or Docker container)    baseUrl: http://localhost:8642
  *  2. "anfe"     — Hermes inside a HyperCycle ANFE (AIMified)        baseUrl: http://<node-ip>:<aim-port>
  */
 export type HermesMode = 'local' | 'anfe';
@@ -37,10 +37,10 @@ export interface HermesHealth {
   version: string;
 }
 
-const HERMES_DEFAULT_PORT = 3000;
+const HERMES_DEFAULT_PORT = 8642;
 
 function getBaseUrl(agent: AIAgentConfig): string {
-  return agent.baseUrl || `http://localhost:${HERMES_DEFAULT_PORT}`;
+  return (agent.baseUrl || `http://localhost:${HERMES_DEFAULT_PORT}`).replace(/\/$/, "");
 }
 
 // ---------------------------------------------------------------------------
@@ -97,7 +97,10 @@ export async function chatWithHermes(
 
   return fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer mosaic-hermes-2025',
+    },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(120000),
   });

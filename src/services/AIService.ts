@@ -76,13 +76,18 @@ export class AIService {
     messages: ChatMessage[],
     callbacks?: StreamCallbacks
   ): Promise<string> {
+    // For Hermes API Server, default the key if empty
+    const actualApiKey =
+      config.provider === "hermes-api" && !config.apiKey?.trim()
+        ? "mosaic-hermes-2025"
+        : config.apiKey?.trim() || config.apiKey;
     const response = await fetch(
       `${config.baseUrl || "https://api.openai.com"}/v1/chat/completions`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${config.apiKey}`,
+          Authorization: `Bearer ${actualApiKey}`,
         },
         body: JSON.stringify({
           model: config.model,
@@ -184,7 +189,14 @@ export class AIService {
     );
 
     if (!response.ok) {
-      throw new Error("Ollama connection error - is Ollama running?");
+      let errBody = "";
+      try {
+        const errData = await response.clone().json();
+        errBody = errData.error || JSON.stringify(errData);
+      } catch { /* not JSON */ }
+      throw new Error(
+        `Ollama error (model: ${config.model}): ${errBody || response.statusText || "is Ollama running?"}`
+      );
     }
 
     if (callbacks && response.body) {
@@ -230,6 +242,8 @@ export class AIService {
               token = parsed.choices?.[0]?.delta?.content || "";
             } else if (provider === "gemini") {
               token = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            } else if (provider === "hermes-api") {
+              token = parsed.choices?.[0]?.delta?.content || "";
             }
 
             if (token) {
@@ -294,12 +308,20 @@ export class AIService {
     messages: ChatMessage[],
     callbacks?: StreamCallbacks
   ): Promise<string> {
-    console.log('[AIService.sendToHermes] start — model:', config.model, 'baseUrl:', config.baseUrl || 'http://localhost:3000');
-    const url = `${config.baseUrl || "http://localhost:3000"}/v1/chat/completions`;
+    console.log('[AIService.sendToHermes] start — model:', config.model, 'baseUrl:', config.baseUrl || 'http://localhost:8642');
+    const baseUrl = (config.baseUrl || "http://localhost:8642").replace(/\/$/, "");
+    // Default port changed from 3000 (old dev default) to 8642 (production standalone API server)
+    const url = `${baseUrl}/v1/chat/completions`;
+    // The Hermes standalone API server uses a Bearer token for auth.
+    // Default key from run_api_server_standalone.py is "mosaic-hermes-2025".
+    const apiKey = (config.apiKey && config.apiKey.trim()) ? config.apiKey.trim() : "mosaic-hermes-2025";
 
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiKey ? { "Authorization": `Bearer ${apiKey}` } : {}),
+      },
       body: JSON.stringify({
         model: config.model || "default",
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -325,6 +347,39 @@ export class AIService {
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
     console.log('[AIService.sendToHermes] non-streaming response — length:', content.length);
+    return content;
+  }
+
+  /* ── Hermes AIM (HyperCycle Node) ── */
+  static async sendToHermesAIM(
+    config: AIAgentConfig,
+    messages: ChatMessage[],
+    callbacks?: StreamCallbacks,
+  ): Promise<string> {
+    const url = `${config.baseUrl || "http://127.0.0.1:9000"}/chat`;
+    const lastUser = messages.filter((m) => m.role === "user").pop()?.content || "";
+    const system = messages.find((m) => m.role === "system")?.content || "";
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: lastUser, system_prompt: system }),
+      signal: AbortSignal.timeout(120000),
+    });
+    if (!response.ok) {
+      throw new Error(`Hermes AIM error ${response.status}: ${await response.text()}`);
+    }
+    const data = await response.json();
+    const content = data.response ?? "";
+
+    if (callbacks && content) {
+      // emulate streaming by yielding the full response as one token
+      for (const token of content.split(/(\s+)/)) {
+        if (token) callbacks.onToken(token);
+      }
+      callbacks.onComplete(content);
+      return content;
+    }
+
     return content;
   }
 
@@ -421,17 +476,24 @@ export class AIService {
     messages: ChatMessage[],
     callbacks?: StreamCallbacks
   ): Promise<string> {
-    // ─── Skill Injection (v2.5) ─────────────────────────────────────────────
+    // ─── Skill Injection (v2.6) ─────────────────────────────────────────────
     // If the agent has skills[] configured, load them from ~/.hermes/skills/
-    // and inject their content as a system prompt before the first message.
+    // or Mosaic Vault, and inject their content as a system prompt before
+    // the first message. Vault fallback runs in the main process via IPC.
     // ─────────────────────────────────────────────────────────────────────
     let enrichedMessages = messages;
     if (config.skills && config.skills.length > 0) {
       try {
-        // Lazy import to avoid circular dependency at module load time
-        const { skillInjector } = await import("./skillInjector");
-        const result = skillInjector.buildSystemPrompt("", config.skills);
-        if (result.loadedSkills.length > 0) {
+        // Use main-process IPC to build the system prompt (fs only works in Node)
+        const result = await (window as any).electronAPI?.skills?.buildSystemPrompt?.({
+          baseSystemPrompt: "",
+          skillNames: config.skills,
+        });
+
+        if (!result || result.loadedSkills.length === 0) {
+          // IPC not available or no skills loaded — fallback to local (renderer-safe, no fs)
+          console.warn(`[AIService] IPC skill build failed or returned empty for ${config.name}, using local fallback`);
+        } else {
           // Prepend a system message containing all loaded skill content
           const skillSystemMsg: ChatMessage = {
             id: `skill-system-${Date.now()}`,
@@ -459,7 +521,7 @@ export class AIService {
           }
           console.log(`[AIService] Skills injected for ${config.name}: ${result.loadedSkills.join(", ")} (${result.totalTokens}T)`);
         }
-        if (result.failedSkills.length > 0) {
+        if (result?.failedSkills?.length > 0) {
           console.warn(`[AIService] Failed to load skills for ${config.name}: ${result.failedSkills.join(", ")}`);
         }
       } catch (e) {
@@ -484,6 +546,11 @@ export class AIService {
         return this.sendToHypercycle(config, enrichedMessages, callbacks);
       case "hermes":
         return this.sendToHermes(config, enrichedMessages, callbacks);
+      case "hermes-aim":
+        return this.sendToHermesAIM(config, enrichedMessages, callbacks);
+      case "hermes-api":
+        // Hermes API Server — OpenAI-compatible with full tool loop
+        return this.sendToOpenAI(config, enrichedMessages, callbacks);
       default:
         throw new Error(`Unknown provider: ${config.provider}`);
     }
@@ -494,6 +561,31 @@ export class AIService {
     config: AIAgentConfig
   ): Promise<{ success: boolean; message: string }> {
     try {
+      if (config.provider === "hermes" || config.provider === "hermes-aim" || config.provider === "hermes-api") {
+        const defaultPort = config.provider === "hermes-aim" ? "9000" : config.provider === "hermes-api" ? "8000" : "8642";
+        const baseUrl = ((config.baseUrl || `http://localhost:${defaultPort}`).trim()).replace(/\/$/, "");
+        const healthUrl = `${baseUrl}/health`;
+        try {
+          const r = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
+          if (!r.ok) {
+            return {
+              success: false,
+              message: `Hermes health check failed (${r.status}): ${await r.text()}`,
+            };
+          }
+          const data = await r.json() as { status?: string; version?: string; provider?: string; model?: string };
+          return {
+            success: true,
+            message: `Hermes connected: status=${data.status ?? "unknown"}, version=${data.version ?? "unknown"}, provider=${data.provider ?? data.model ?? config.model}`,
+          };
+        } catch (e) {
+          return {
+            success: false,
+            message: `Cannot reach Hermes at ${healthUrl}. Is Hermes running? ${e instanceof Error ? e.message : String(e)}`,
+          };
+        }
+      }
+
       if (config.provider === "hypercycle") {
         const baseUrl = config.baseUrl?.trim();
         if (!baseUrl) {

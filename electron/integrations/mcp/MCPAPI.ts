@@ -55,8 +55,12 @@ export interface MCPPlugin {
   url?: string;
   apiKey?: string;
   autoConnect?: boolean;
+  /** If true, requires OAuth browser flow before connecting (Base MCP, etc.) */
+  oauthRequired?: boolean;
   /** Optional role — "os" routes through os:call IPC handlers */
   role?: string;
+  /** Serialized OAuth state for servers that use OAuth */
+  oauthState?: string;
 }
 
 export interface MCPServer {
@@ -185,6 +189,10 @@ export const mcpAPI = {
 
   connectPlugin: (id: string): Promise<MCPResult> => {
     return ipcRenderer.invoke("mcp:connect-plugin", id);
+  },
+
+  oauthConnect: (id: string): Promise<MCPResult> => {
+    return ipcRenderer.invoke("mcp:oauth-connect", id);
   },
 
   disconnectPlugin: (id: string): Promise<MCPResult> => {

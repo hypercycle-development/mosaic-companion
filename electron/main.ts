@@ -44,7 +44,10 @@ import { registerHyperInsightIpc } from "../plugins/hyperinsight/main/index.js";
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
 import { registerPaymentsJitIpc } from "../plugins/payments-jit/main/index.ts";
 import { createRequire } from 'module';
+import { KreaClient } from "../src/services/krea/KreaClient";
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
+import { skillInjector } from "../src/services/skillInjector";
+import { startVaultSkillWatcher } from "../src/services/vaultSkillCache";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
 import {
   loadConfig,
@@ -376,7 +379,13 @@ app.whenReady().then(() => {
   // Initialize tool registry
   initializeTools().catch((e) => console.error("[Tools] Init failed:", e));
 
-  // Initialize MosaicBot agent subsystem
+  // Start vault skill watcher so skillInjector cache clears when vault skills are edited at runtime
+  try {
+    startVaultSkillWatcher();
+  } catch (e) {
+    console.warn("[VaultSkillCache] Failed to start watcher:", e);
+  }
+
   initMosaicBot().then((bot) => {
     mosaicBotStop = bot.stop.bind(bot);
   }).catch((e) => {
@@ -485,9 +494,17 @@ ipcMain.handle("window:is-maximized", () => {
 
 // Open external URLs in default browser (from community installer)
 ipcMain.on("open-external", (event, url) => {
-  // Prevent navigation to non-local URLs
-  if (!url.startsWith('http://localhost') && !url.startsWith('file://')) {
+  // Only open known-safe local URLs in the system browser (prevent external nav)
+  const isLocal =
+    url.startsWith('http://localhost') ||
+    url.startsWith('http://127.0.') ||
+    url.startsWith('https://localhost') ||
+    url.startsWith('https://127.0.') ||
+    url.startsWith('file://');
+  if (isLocal) {
     shell.openExternal(url);
+  } else {
+    console.warn(`[open-external] Blocked non-local URL: ${url}`);
   }
 });
 
@@ -652,7 +669,7 @@ ipcMain.handle("aimify:read-file", async (_event, filePath: string) => {
 let hermesDashboardProc: any = null;
 
 ipcMain.handle("hermes:start-dashboard", async (event, port?: number) => {
-  const p = port || 9119;
+  const p = port || 9000;
   // If already running, just report status
   if (hermesDashboardProc && !hermesDashboardProc.killed) {
     return { success: true, status: 'already-running', port: p, pid: hermesDashboardProc.pid };
@@ -667,13 +684,26 @@ ipcMain.handle("hermes:start-dashboard", async (event, port?: number) => {
   } catch (_e) {}
   // Spawn daemonized process so it outlives Electron
   try {
-    hermesDashboardProc = spawn("hermes", ["dashboard", "--port", String(p), "--no-open"], {
+    hermesDashboardProc = spawn("hermes", ["dashboard", "--port", String(p), "--no-open", "--skip-build"], {
       detached: true,
       stdio: "ignore",
       env: { ...process.env, HERMES_KANBAN_BOARD: process.env.HERMES_KANBAN_BOARD || "stargate" },
     });
     hermesDashboardProc.unref(); // allow parent to exit without killing child
-    return { success: true, status: 'started', port: p, pid: hermesDashboardProc.pid };
+    // Wait up to 10s for HTTP readiness
+    for (let attempt = 0; attempt <= 20; attempt++) {
+      try {
+        const { execSync } = require("child_process");
+        const probe = execSync(`curl -s -o /dev/null -w "%{http_code}" --max-time 1 http://127.0.0.1:${p}`, {
+          encoding: "utf8", timeout: 1500,
+        });
+        if (probe.trim() === "200") {
+          return { success: true, status: 'ready', port: p, pid: hermesDashboardProc.pid };
+        }
+      } catch (_e) {}
+      await new Promise(r => setTimeout(r, 500));
+    }
+    return { success: true, status: 'started-but-not-ready', port: p, pid: hermesDashboardProc.pid };
   } catch (error: any) {
     return { success: false, status: 'error', error: error.message };
   }
@@ -687,18 +717,19 @@ ipcMain.handle("hermes:stop-dashboard", async () => {
   return { success: true, status: 'stopped' };
 });
 
-ipcMain.handle("hermes:dashboard-status", async () => {
+ipcMain.handle("hermes:dashboard-status", async (event, port?: number) => {
+  const p = port || 9000;
   const isOursRunning = !!(hermesDashboardProc && !hermesDashboardProc.killed);
   // Also probe the HTTP endpoint
   try {
     const { execSync } = require("child_process");
-    const probe = execSync(`curl -s -o /dev/null -w "%{http_code}" --max-time 2 http://127.0.0.1:9119`, {
+    const probe = execSync(`curl -s -o /dev/null -w "%{http_code}" --max-time 2 http://127.0.0.1:${p}`, {
       encoding: "utf8", timeout: 3000,
     });
     const httpOk = probe.trim() === "200";
-    return { success: true, running: isOursRunning || httpOk, port: 9119, httpOk };
+    return { success: true, running: isOursRunning || httpOk, port: p, httpOk };
   } catch (_e) {
-    return { success: true, running: isOursRunning, port: 9119, httpOk: false };
+    return { success: true, running: isOursRunning, port: p, httpOk: false };
   }
 });
 
@@ -740,6 +771,19 @@ function readAgents(): AIAgent[] {
     }
   } catch (error) {
     console.error("Failed to read AI agents:", error);
+  }
+  // Sanitize Ollama agents that were saved with remote cloud model names
+  let sanitized = false;
+  for (const a of raw) {
+    const model = (a as any).model as string;
+    if (a.provider === "ollama" && model && model.includes(":cloud")) {
+      console.log(`[Main] Sanitizing Ollama agent "${a.name}" model from ${a.model} → llama3.2:3b`);
+      a.model = "llama3.2:3b";
+      sanitized = true;
+    }
+  }
+  if (sanitized) {
+    writeAgents(raw);
   }
   const { agents, changed } = mergeBuiltinAgents(raw);
   if (changed) {
@@ -1175,14 +1219,14 @@ ipcMain.handle("vault:get-box-content", async (_event: IpcMainInvokeEvent, boxId
 
 ipcMain.handle(
   "vault:add-entry",
-  async (_event: IpcMainInvokeEvent, boxId: string, input: { content: string; label?: string }) => {
+  async (_event: IpcMainInvokeEvent, boxId: string, input: any) => {
     return addEntry(boxId, input);
   },
 );
 
 ipcMain.handle(
   "vault:update-entry",
-  async (_event: IpcMainInvokeEvent, boxId: string, entryId: string, updates: { content?: string; label?: string }) => {
+  async (_event: IpcMainInvokeEvent, boxId: string, entryId: string, updates: any) => {
     return updateEntry(boxId, entryId, updates);
   },
 );
@@ -1279,6 +1323,66 @@ ipcMain.handle(
   },
 );
 
+ipcMain.handle("stargate:dispatchPrompt", async (_event, nodeId: string, prompt: string) => {
+  try {
+    const nodes = getNodes();
+    const node = nodes.find((n: any) => n.nodeId === nodeId || n.id === nodeId);
+    if (!node?.apiHost) {
+      return { success: false, error: `Node ${nodeId} not found or no apiHost` };
+    }
+    const safeCommand = `~/.local/bin/hermes chat -q ${JSON.stringify(prompt)}`;
+    const { exec } = require("child_process");
+    const { promisify } = require("util");
+    const execAsync = promisify(exec);
+    const sshCmd = `ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no hyperai@${node.apiHost} '${safeCommand.replace(/'/g, "'\\''")}'`;
+    const { stdout, stderr } = await execAsync(sshCmd, { timeout: 30000 });
+    return { success: true, response: stdout.trim(), stderr: stderr.trim() };
+  } catch (error: any) {
+    console.error(`[stargate:dispatchPrompt] failed:`, error);
+    return { success: false, error: error.message || String(error), response: '' };
+  }
+});
+
+ipcMain.handle("stargate:runJob", async (_event, jobType: string, params: Record<string, any>) => {
+  try {
+    const { spawn } = require("child_process");
+    const hermesPath = require("os").homedir() + "/.local/bin/hermes";
+    let args: string[] = [];
+    let description = "";
+    if (jobType === "hire") {
+      const p = params;
+      args = ["kanban", "create", `Deploy ${p.agentName || "agent"}`, "--body", p.description || "", "--assignee", p.profile || "backend-eng"];
+      description = `Hire ${p.agentName}`;
+    } else if (jobType === "train") {
+      const p = params;
+      args = ["kanban", "create", `Train ${p.agentId} on ${p.skillName}`, "--body", p.description || "", "--assignee", p.profile || "researcher"];
+      description = `Train ${p.agentId}`;
+    } else {
+      return { success: false, error: `Unknown job type: ${jobType}` };
+    }
+    return new Promise((resolve) => {
+      const child = spawn(hermesPath, args, { detached: false });
+      let stdout = "";
+      let stderr = "";
+      child.stdout?.on("data", (d: Buffer) => stdout += d.toString());
+      child.stderr?.on("data", (d: Buffer) => stderr += d.toString());
+      child.on("close", (code) => {
+        resolve({
+          success: code === 0,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+          description,
+        });
+      });
+      child.on("error", (err) => {
+        resolve({ success: false, error: err.message });
+      });
+    });
+  } catch (error: any) {
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
 // =============================================================================
 // IDE Agent Forge — Test + Deploy IPC handlers (v2: AgentForgeEngine)
 // =============================================================================
@@ -1348,6 +1452,60 @@ ipcMain.handle("stargate:forge:isHealthy", async (_event, agentId: string) => {
 // =============================================================================
 
 ipcMain.handle(
+  "skill:buildSystemPrompt",
+  async (
+    _event: IpcMainInvokeEvent,
+    payload: { baseSystemPrompt?: string; skillNames: string[]; includeReferences?: boolean; maxTokens?: number; dialOverrides?: { designVariance?: number; motionIntensity?: number; visualDensity?: number } }
+  ): Promise<{ systemPrompt: string; loadedSkills: string[]; failedSkills: string[]; totalTokens: number }> => {
+    // Phase A+B: try Hermes skills dir (local + Vault)
+    const result = skillInjector.buildSystemPrompt(
+      payload.baseSystemPrompt ?? "",
+      payload.skillNames,
+      { includeReferences: payload.includeReferences ?? true, maxTokens: payload.maxTokens, dialOverrides: payload.dialOverrides }
+    );
+
+    // Phase C: try Hermes MCP for any still-failed skills (e.g. kanban-orchestrator)
+    if (result.failedSkills.length > 0) {
+      try {
+        const mcpImports = await Promise.all(
+          result.failedSkills.map(async (name) => {
+            try {
+              // Lazy-load mcpSkillResolver only in this branch
+              const { loadMcpSkill } = require("../src/services/mcpSkillResolver");
+              const mcpSkill = await loadMcpSkill(name);
+              return { name, mcpSkill };
+            } catch (e) {
+              return { name, mcpSkill: null };
+            }
+          })
+        );
+
+        for (const { name, mcpSkill } of mcpImports) {
+          if (mcpSkill?.skillMd) {
+            // Inject into system prompt just like a local skill
+            const skillSection = `--- BEGIN SKILL: ${name} ---\n\n${mcpSkill.skillMd}\n\n--- END SKILL: ${name} ---`;
+            result.systemPrompt += (result.systemPrompt ? "\n\n" : "") + skillSection;
+            result.loadedSkills.push(name);
+            result.totalTokens = Math.ceil(result.systemPrompt.length / 4);
+            console.log(`[main.ts] Skill "${name}" resolved via Hermes MCP server`);
+          }
+        }
+
+        // Remove successfully loaded skills from failed list
+        const loadedFromMcp = new Set(result.loadedSkills);
+        result.failedSkills = result.failedSkills.filter(
+          (name) => !loadedFromMcp.has(name)
+        );
+      } catch (e) {
+        console.warn("[main.ts] MCP skill resolution failed:", e);
+      }
+    }
+
+    return result;
+  }
+);
+
+ipcMain.handle(
   "stargate:skill:syncToNode",
   async (
     _event: IpcMainInvokeEvent,
@@ -1370,10 +1528,17 @@ ipcMain.handle(
     // Resolve node host
     const host = nodeHost || (() => {
       try {
-        const registryRaw = localStorage.getItem('fleet_registry_nodes') || '[]';
-        const nodes = JSON.parse(registryRaw);
-        const node = nodes.find((n: any) => n.nodeId === nodeId);
-        return node?.apiHost || null;
+        const fs = require('fs');
+        const path = require('path');
+        const home = require('os').homedir();
+        // Read fleet registry from settings or fallback to known locations
+        const registryPath = path.join(home, '.config', 'mosaic-companion', 'fleet_registry.json');
+        if (fs.existsSync(registryPath)) {
+          const data = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+          const node = (data.nodes || []).find((n: any) => n.nodeId === nodeId);
+          return node?.apiHost || null;
+        }
+        return null;
       } catch { return null; }
     })();
 
@@ -1406,6 +1571,15 @@ ipcMain.handle(
             for (const cat of cats) {
               const nested = path.join(skillsBase, cat, skillName, 'SKILL.md');
               if (fs.existsSync(nested)) return path.join(skillsBase, cat, skillName);
+              // Deep: ~/.hermes/skills/<category>/<subcategory>/<name>/
+              try {
+                const subs = fs.readdirSync(path.join(skillsBase, cat), { withFileTypes: true })
+                  .filter((d: any) => d.isDirectory()).map((d: any) => d.name);
+                for (const sub of subs) {
+                  const deep = path.join(skillsBase, cat, sub, skillName, 'SKILL.md');
+                  if (fs.existsSync(deep)) return path.join(skillsBase, cat, sub, skillName);
+                }
+              } catch { /* subdir unreadable */ }
             }
           } catch { }
           return null;
@@ -1501,5 +1675,77 @@ ipcMain.handle(
 
     logs.push(`[SkillDelivery] DONE: synced=${synced.length}, verified=${verified.length}, activated=${activated.length}`);
     return { success: activated.length > 0, synced, failed, verified, activated, remoteSkillDir, logs };
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Krea AI Image Generation IPC Handlers
+// ═══════════════════════════════════════════════════════════════════════════
+
+ipcMain.handle(
+  "krea:generate",
+  async (_event: IpcMainInvokeEvent, payload: any) => {
+    try {
+      const apiKey = process.env.KREA_API_KEY || "";
+      if (!apiKey) {
+        return { success: false, error: "KREA_API_KEY not configured" };
+      }
+      const client = new KreaClient({ apiKey });
+      const result = await client.generate(payload);
+      return { success: true, ...result };
+    } catch (e: any) {
+      console.error("[Krea] Generation failed:", e);
+      return { success: false, error: e.message };
+    }
+  }
+);
+
+ipcMain.handle(
+  "krea:checkStatus",
+  async (_event: IpcMainInvokeEvent, generationId: string) => {
+    try {
+      const apiKey = process.env.KREA_API_KEY || "";
+      if (!apiKey) {
+        return { success: false, error: "KREA_API_KEY not configured" };
+      }
+      const client = new KreaClient({ apiKey });
+      const result = await client.getStatus(generationId);
+      return { success: true, ...result };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+);
+
+ipcMain.handle(
+  "krea:downloadImage",
+  async (_event: IpcMainInvokeEvent, imageUrl: string, destPath: string) => {
+    try {
+      const fs = require("fs");
+      const https = require("https");
+      const http = require("http");
+      const url = new URL(imageUrl);
+      const protocol = url.protocol === "https:" ? https : http;
+
+      return new Promise((resolve, reject) => {
+        const file = fs.createWriteStream(destPath);
+        protocol.get(imageUrl, (response: any) => {
+          if (response.statusCode !== 200) {
+            reject(new Error(`Download failed: ${response.statusCode}`));
+            return;
+          }
+          response.pipe(file);
+          file.on("finish", () => {
+            file.close();
+            resolve({ success: true, path: destPath });
+          });
+        }).on("error", (err: any) => {
+          fs.unlink(destPath, () => {});
+          reject(err);
+        });
+      });
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
   }
 );

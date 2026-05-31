@@ -27,6 +27,20 @@ declare global {
     id: string;
     label?: string;
     content: string;
+    metadata?: {
+      installName?: string;
+      category?: string;
+      sourceRepo?: string;
+      isTasteSkill?: boolean;
+      version?: string;
+      dials?: {
+        designVariance?: number;
+        motionIntensity?: number;
+        visualDensity?: number;
+      };
+      lastPreset?: string;
+      outputType?: "code" | "images" | "both";
+    };
     createdAt: number;
     updatedAt: number;
   }
@@ -315,12 +329,12 @@ declare global {
         getAgentBoxes: (agentId: string) => Promise<VaultBox[]>;
         // Content
         getBoxContent: (boxId: string) => Promise<VaultEntry[]>;
-        addEntry: (boxId: string, input: { content: string; label?: string }) => Promise<{
+        addEntry: (boxId: string, input: { content: string; label?: string; metadata?: any }) => Promise<{
           success: boolean;
           entry?: VaultEntry;
           error?: string;
         }>;
-        updateEntry: (boxId: string, entryId: string, updates: { content?: string; label?: string }) => Promise<{
+        updateEntry: (boxId: string, entryId: string, updates: { content?: string; label?: string; metadata?: any }) => Promise<{
           success: boolean;
           entry?: VaultEntry;
           error?: string;
@@ -406,6 +420,52 @@ declare global {
       // File dialog
       dialog: {
         openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string | null>;
+      };
+
+      // Skills (Hermes MCP + local)
+      skills: {
+        buildSystemPrompt: (payload: {
+          baseSystemPrompt?: string;
+          skillNames: string[];
+          includeReferences?: boolean;
+          maxTokens?: number;
+          dialOverrides?: Record<string, number>;
+        }) => Promise<{
+          systemPrompt: string;
+          loadedSkills: string[];
+          failedSkills: string[];
+          totalTokens: number;
+        }>;
+        syncToNode: (payload: {
+          skillNames: string[];
+          nodeId: string;
+          nodeHost?: string;
+        }) => Promise<{
+          success: boolean;
+          synced: string[];
+          failed: string[];
+          verified: string[];
+          activated: string[];
+          remoteSkillDir: string;
+          logs: string[];
+        }>;
+      };
+
+      // Krea AI Image Generation
+      krea: {
+        generate: (payload: {
+          prompt: string;
+          aspectRatio?: string;
+          creativity?: number;
+          negativePrompt?: string;
+          styleReference?: string;
+          moodboard?: string[];
+          numImages?: number;
+          seed?: number;
+          outputFormat?: string;
+        }) => Promise<any>;
+        checkStatus: (generationId: string) => Promise<any>;
+        downloadImage: (imageUrl: string, destPath: string) => Promise<any>;
       };
     };
 

@@ -66,7 +66,8 @@ import { secureAspGateway } from '../services/stargate/integrations';
 import { stargateRegistry, type AgentProfile, type BundleConfig, type TrainingJob } from '../services/StargateSkillRegistry';
 import { KanbanDashboard } from './KanbanDashboard';
 import UnifiedAssetPanel from './UnifiedAssetPanel';
-import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus } from 'lucide-react';
+import TasteSkillDialPanel from './stargate/TasteSkillDialPanel';
+import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus } from 'lucide-react';
 
 // ---- Module-level helper: ensure wallet is on Base chain ----
 async function ensureOnBaseChain(): Promise<void> {
@@ -203,7 +204,14 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [hboxNodes, setHboxNodes] = useState<any[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
   const [selectedSkill, setSelectedSkill] = useState<any | null>(null);
+  const [tasteSkillImporting, setTasteSkillImporting] = useState(false);
+  const [tasteSkillVaultBoxId, setTasteSkillVaultBoxId] = useState<string | null>(null);
+  const [tasteSkillVaultEntries, setTasteSkillVaultEntries] = useState<VaultEntry[]>([]);
+  const [selectedVaultEntry, setSelectedVaultEntry] = useState<VaultEntry | null>(null);
+  const [showTasteSkillDetail, setShowTasteSkillDetail] = useState(false);
   const [skillSyncStatus, setSkillSyncStatus] = useState<{ syncing: boolean; result?: any }>({ syncing: false });
+  const [selectedTrainer, setSelectedTrainer] = useState<TrainingListing | null>(null);
+  const [selectedPackageItem, setSelectedPackageItem] = useState<AgentPackage | null>(null);
   const [aims, setAims] = useState<AIMInfo[]>([]);
   const [selectedIntent, setSelectedIntent] = useState<UserIntent | null>(null);
   const [executionPlan, setExecutionPlan] = useState<any>(null);
@@ -2451,9 +2459,17 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         </div>
       </div>
 
-      <div className="grid gap-3">
+        <div className="grid gap-3">
         {trainingListings.map(listing => (
-          <div key={listing.listingId} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+          <div
+            key={listing.listingId}
+            onClick={() => setSelectedTrainer(selectedTrainer?.listingId === listing.listingId ? null : listing)}
+            className={`bg-gray-800/50 rounded-lg p-4 border transition-colors cursor-pointer ${
+              selectedTrainer?.listingId === listing.listingId
+                ? 'border-purple-500 bg-purple-900/10'
+                : 'border-gray-700 hover:border-purple-500/30'
+            }`}
+          >
             <div className="flex items-start justify-between">
               <div>
                 <h4 className="font-medium text-white">{listing.trainerName}</h4>
@@ -2475,9 +2491,15 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                 <div className="text-xs text-gray-500">per session</div>
               </div>
             </div>
-            <button 
-              onClick={() => handleBookTraining(listing)}
-              className="mt-3 w-full py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedTrainer(listing);
+                setAgentSelectMode('train');
+                setShowAgentSelectModal(true);
+              }}
+              disabled={!selectedTrainer || selectedTrainer.listingId !== listing.listingId}
+              className="mt-3 w-full py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-40"
             >
               <GraduationCap size={16} />
               Book Training
@@ -2554,16 +2576,132 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           <h3 className="text-lg font-semibold text-white">Skills Marketplace</h3>
           <div className="flex items-center gap-2">
             {userAgents.length > 0 && (
-              <button
-                onClick={() => {
-                  setAgentSelectMode('skill');
-                  setShowAgentSelectModal(true);
-                }}
-                className="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-500 rounded-lg transition-colors flex items-center gap-1"
-              >
-                <Zap size={12} />
-                Attach to My Agent
-              </button>
+              <>
+                <button
+                  onClick={async () => {
+                    if (tasteSkillImporting) return;
+                    setTasteSkillImporting(true);
+                    try {
+                      // 1. Check if Taste-Skills box exists in vault
+                      const boxes = await window.electronAPI.vault.getBoxes();
+                      let box = boxes.find((b: any) => b.name?.toLowerCase() === 'taste-skills');
+                      if (!box) {
+                        const newBox = await window.electronAPI.vault.addBox({
+                          name: 'Taste-Skills',
+                          description: 'Taste-Skill format skills from Leonxlnx/taste-skill'
+                        });
+                        box = newBox;
+                        if (box) setTasteSkillVaultBoxId(box.id);
+                      } else {
+                        setTasteSkillVaultBoxId(box.id);
+                      }
+                      if (!box?.id) throw new Error('Failed to create Taste-Skills vault box');
+
+                      // 2. Import all Taste-Skills from GitHub
+                      const { importTasteSkills } = await import('../services/tasteSkillImport');
+                      const result = await importTasteSkills(
+                        async (boxId: string, entry: any) => {
+                          const r = await window.electronAPI.vault.addEntry(boxId, entry);
+                          return r?.entry || null;
+                        },
+                        box.id
+                      );
+
+                      showNotification(
+                        result.failed === 0 ? 'success' : 'warning',
+                        `Taste-Skills imported: ${result.imported} skills loaded, ${result.failed} failed`
+                      );
+
+                      // 3. Refresh skill registry
+                      skillMarketplace.refreshSkills();
+                    } catch (e: any) {
+                      console.error('[TasteSkillImport] Error:', e);
+                      showNotification('error', `Import failed: ${e.message}`);
+                    } finally {
+                      setTasteSkillImporting(false);
+                    }
+                  }}
+                  disabled={tasteSkillImporting}
+                  className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
+                >
+                  {tasteSkillImporting ? (
+                    <Loader size={12} className="animate-spin" />
+                  ) : (
+                    <Download size={12} />
+                  )}
+                  {tasteSkillImporting ? 'Importing...' : 'Import Taste-Skills'}
+                </button>
+                {/* Import Krea Skill */}
+                <button
+                  onClick={async () => {
+                    try {
+                      const { importKreaSkillToVault } = await import('../services/kreaSkillImport');
+                      const result = await importKreaSkillToVault();
+                      showNotification(
+                        result.success ? 'success' : 'warning',
+                        result.success
+                          ? `Krea skill imported${result.error ? ` (${result.error})` : ''}`
+                          : `Krea import failed: ${result.error}`
+                      );
+                      if (result.success) {
+                        // Refresh to show new entry
+                        const boxes = await window.electronAPI.vault.getBoxes();
+                        const box = boxes.find((b: any) => b.name === 'Taste-Skills');
+                        if (box) {
+                          const entries = await window.electronAPI.vault.getBoxContent(box.id);
+                          setTasteSkillVaultEntries(entries);
+                          setTasteSkillVaultBoxId(box.id);
+                        }
+                      }
+                    } catch (e: any) {
+                      showNotification('error', `Krea import: ${e.message}`);
+                    }
+                  }}
+                  className="px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors flex items-center gap-1"
+                >
+                  <Wand2 size={12} />
+                  Import Krea
+                </button>
+                <button
+                  onClick={() => {
+                    setAgentSelectMode('skill');
+                    setShowAgentSelectModal(true);
+                  }}
+                  className="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-500 rounded-lg transition-colors flex items-center gap-1"
+                >
+                  <Zap size={12} />
+                  Attach to My Agent
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!selectedSkill) {
+                      showNotification('info', 'Select a skill first, then click Learn & Save');
+                      return;
+                    }
+                    try {
+                      // 1. Check if Skills box exists in vault
+                      const boxes = await window.electronAPI.vault.getBoxes();
+                      let skillsBox = boxes.find((b: any) => b.name?.toLowerCase() === 'skills');
+                      if (!skillsBox) {
+                        const newBox = await window.electronAPI.vault.addBox({ name: 'Skills', description: 'Learned agent skills' });
+                        skillsBox = newBox;
+                      }
+                      // 2. Add skill content to vault
+                      await window.electronAPI.vault.addEntry(skillsBox.id, {
+                        label: selectedSkill.name,
+                        content: selectedSkill.description || `Skill: ${selectedSkill.name}`,
+                      });
+                      showNotification('success', `Learned "${selectedSkill.name}" — saved to Vault Skills box`);
+                    } catch (e: any) {
+                      showNotification('error', `Failed to save skill: ${e.message}`);
+                    }
+                  }}
+                  className="px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors flex items-center gap-1"
+                >
+                  <BookOpen size={12} />
+                  {selectedSkill ? `Learn: ${selectedSkill.name}` : 'Learn & Save'}
+                </button>
+              </>
             )}
             <span className="text-sm text-gray-400">{skillStats.totalSkills} skills • {skillStats.totalInstalls.toLocaleString()} ⚡</span>
             <button 
@@ -2674,6 +2812,231 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             </div>
           ))}
         </div>
+
+        {/* ─── Taste-Skills Vault Section ─── */}
+        {tasteSkillVaultBoxId && (
+          <div className="mt-6 border-t border-gray-700 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-indigo-400">Taste-Skills Vault</h4>
+              <button
+                onClick={async () => {
+                  try {
+                    const entries = await window.electronAPI.vault.getBoxContent(tasteSkillVaultBoxId);
+                    setTasteSkillVaultEntries(entries || []);
+                  } catch (e) {
+                    showNotification('error', 'Failed to load Taste-Skills vault');
+                  }
+                }}
+                className="text-xs text-gray-400 hover:text-white transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {tasteSkillVaultEntries.length === 0 && (
+              <p className="text-xs text-gray-500">No Taste-Skills imported yet. Click "Import Taste-Skills" above.</p>
+            )}
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              {tasteSkillVaultEntries.map((entry: VaultEntry) => (
+                <div
+                  key={entry.id}
+                  onClick={() => {
+                    setSelectedVaultEntry(entry);
+                    setShowTasteSkillDetail(true);
+                  }}
+                  className={`bg-gray-800/50 rounded-lg p-3 border transition-colors cursor-pointer ${
+                    selectedVaultEntry?.id === entry.id
+                      ? 'border-indigo-500 bg-indigo-900/10'
+                      : 'border-gray-700 hover:border-indigo-500/30'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-white font-medium">{entry.label || entry.metadata?.installName || 'Untitled'}</p>
+                    {entry.metadata?.isTasteSkill && (
+                      <span className="text-[10px] px-1.5 py-0.5 bg-indigo-900/40 border border-indigo-500/30 rounded text-indigo-300">
+                        TASTE
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {entry.metadata?.category || 'design'} • {entry.metadata?.outputType || 'code'}
+                  </p>
+                  {entry.metadata?.dials && (
+                    <div className="flex gap-2 mt-2 text-[10px] text-gray-500 font-mono">
+                      <span className="text-purple-400">V{entry.metadata.dials.designVariance}</span>
+                      <span className="text-blue-400">M{entry.metadata.dials.motionIntensity}</span>
+                      <span className="text-green-400">D{entry.metadata.dials.visualDensity}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Dial Detail Panel */}
+            {showTasteSkillDetail && selectedVaultEntry && selectedVaultEntry.metadata?.isTasteSkill && (
+              <div className="mt-4 bg-gray-900/80 border border-indigo-500/20 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-white">{selectedVaultEntry.label} — Dial Adjustments</h4>
+                  <button
+                    onClick={() => setShowTasteSkillDetail(false)}
+                    className="p-1 hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    <XCircle size={14} className="text-gray-400" />
+                  </button>
+                </div>
+
+                <TasteSkillDialPanel
+                  initialDials={selectedVaultEntry.metadata.dials}
+                  onChange={async (dials) => {
+                    try {
+                      await window.electronAPI.vault.updateEntry(tasteSkillVaultBoxId, selectedVaultEntry.id, {
+                        metadata: {
+                          ...selectedVaultEntry.metadata,
+                          dials,
+                        },
+                      });
+                      // Update local state
+                      setSelectedVaultEntry({
+                        ...selectedVaultEntry,
+                        metadata: { ...selectedVaultEntry.metadata, dials },
+                      });
+                      showNotification('success', 'Dials saved to Vault');
+                    } catch (e: any) {
+                      showNotification('error', `Failed to save dials: ${e.message}`);
+                    }
+                  }}
+                />
+
+                {/* Preset Auto-Detection */}
+                <div className="mt-3 flex gap-2 items-center">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { detectPreset } = await import('../services/tasteSkillPresetDetector');
+                        const detected = detectPreset(
+                          `${selectedVaultEntry.label} ${selectedVaultEntry.description || ''}`
+                        );
+                        if (detected && detected.confidence > 0.3) {
+                          const newDials = {
+                            designVariance: detected.dials.designVariance,
+                            motionIntensity: detected.dials.motionIntensity,
+                            visualDensity: detected.dials.visualDensity,
+                          };
+                          await window.electronAPI.vault.updateEntry(tasteSkillVaultBoxId, selectedVaultEntry.id, {
+                            metadata: {
+                              ...selectedVaultEntry.metadata,
+                              dials: newDials,
+                              lastPreset: detected.presetName,
+                            },
+                          });
+                          setSelectedVaultEntry({
+                            ...selectedVaultEntry,
+                            metadata: {
+                              ...selectedVaultEntry.metadata,
+                              dials: newDials,
+                              lastPreset: detected.presetName,
+                            },
+                          });
+                          showNotification(
+                            'success',
+                            `Auto-detected preset: ${detected.presetName} (${detected.matchedSignals.slice(0, 3).join(', ')})`
+                          );
+                        } else {
+                          showNotification('info', 'No strong preset signals detected');
+                        }
+                      } catch (e: any) {
+                        showNotification('error', `Preset detection failed: ${e.message}`);
+                      }
+                    }}
+                    className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors flex items-center gap-1"
+                  >
+                    <Sparkles size={12} />
+                    Auto-Detect Preset
+                  </button>
+                  {selectedVaultEntry.metadata?.lastPreset && (
+                    <span className="text-[10px] text-gray-500">
+                      Last: {selectedVaultEntry.metadata.lastPreset}
+                    </span>
+                  )}
+                </div>
+
+                {/* Krea Generation (for image-gen skills) */}
+                {selectedVaultEntry.metadata?.outputType === 'images' && (
+                  <div className="mt-3 p-3 bg-purple-900/20 border border-purple-500/20 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Wand2 size={14} className="text-purple-400" />
+                      <span className="text-xs font-medium text-purple-300">Krea AI Image Generation</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const { kreaParamsFromPreset } = await import('../services/tasteSkillPresetDetector');
+                            const presetName = selectedVaultEntry.metadata?.lastPreset || 'exploratory-creative';
+                            const kreaParams = kreaParamsFromPreset(
+                              presetName,
+                              selectedVaultEntry.label || ''
+                            );
+                            const result = await (window as any).electronAPI?.krea?.generate?.({
+                              prompt: selectedVaultEntry.description || selectedVaultEntry.label || '',
+                              creativity: kreaParams.creativity,
+                              aspectRatio: kreaParams.aspectRatio,
+                              numImages: kreaParams.numImages,
+                            });
+                            showNotification(
+                              result?.success ? 'success' : 'error',
+                              result?.success
+                                ? `Krea generated ${result.images?.length || 0} image(s)`
+                                : result?.error || 'Krea generation failed'
+                            );
+                          } catch (e: any) {
+                            showNotification('error', `Krea: ${e.message}`);
+                          }
+                        }}
+                        className="px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors flex items-center gap-1"
+                      >
+                        <ImagePlus size={12} />
+                        Generate Image
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-4 flex gap-2">
+                  <button
+                    onClick={async () => {
+                      try {
+                        // Attach to selected agent with current dials
+                        if (!selectedSkill) {
+                          showNotification('info', 'Select a local skill first, then attach with dials');
+                          return;
+                        }
+                        const result = await (window as any).electronAPI?.skills?.buildSystemPrompt?.({
+                          baseSystemPrompt: '',
+                          skillNames: [selectedVaultEntry.metadata?.installName || selectedVaultEntry.label || ''],
+                          dialOverrides: selectedVaultEntry.metadata?.dials,
+                        });
+                        showNotification(
+                          result?.loadedSkills?.length > 0 ? 'success' : 'error',
+                          result?.loadedSkills?.length > 0
+                            ? `Attached with dials: ${result.loadedSkills.join(', ')}`
+                            : 'Failed to attach skill with dials'
+                        );
+                      } catch (e: any) {
+                        showNotification('error', e.message);
+                      }
+                    }}
+                    className="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-500 rounded-lg transition-colors flex items-center gap-1"
+                  >
+                    <Zap size={12} />
+                    Attach with Dials
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -3589,7 +3952,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       console.log('[AdaPortal] Manual ANFE added:', manualANFE);
     };
 
-    const handleAgentConfirmed = (agent: any, anfe: ANFE | null) => {
+    const handleAgentConfirmed = async (agent: any, anfe: ANFE | null) => {
       console.log('[AdaPortal] Agent selected:', agent.name, 'ANFE:', anfe?.id || 'none');
       
       switch (agentSelectMode) {
@@ -3618,10 +3981,29 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           showNotification('success', `Getting package for ${agent.name}...`);
           break;
         case 'skill':
-          if (onNavigateToChat) {
-            onNavigateToChat(`Attach skill to my AI agent ${agent.name}`);
+          // Actually attach the selected skill to the agent's config
+          if (selectedSkill && agent?.id) {
+            try {
+              const currentAgents = await window.electronAPI.aiAgents.get();
+              const targetAgent = currentAgents.find((a: any) => a.id === agent.id);
+              if (targetAgent) {
+                const existingSkills = targetAgent.skills || [];
+                if (!existingSkills.includes(selectedSkill.name)) {
+                  const updatedSkills = [...existingSkills, selectedSkill.name];
+                  await window.electronAPI.aiAgents.update(agent.id, { skills: updatedSkills });
+                  showNotification('success', `Attached "${selectedSkill.name}" to ${agent.name}. The agent will now use this skill in conversations.`);
+                } else {
+                  showNotification('info', `"${selectedSkill.name}" is already attached to ${agent.name}`);
+                }
+              }
+            } catch (e: any) {
+              console.error('[AdaPortal] Failed to attach skill:', e);
+              showNotification('error', `Failed to attach skill: ${e.message}`);
+            }
           }
-          showNotification('success', `Attaching skill to ${agent.name}...`);
+          if (onNavigateToChat) {
+            onNavigateToChat(`Attach skill "${selectedSkill?.name || ''}" to my AI agent ${agent.name}`);
+          }
           break;
       }
       

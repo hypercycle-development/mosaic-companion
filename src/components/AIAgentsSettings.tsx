@@ -57,7 +57,7 @@ function hypercycleWalletReady(
 
 /** AIService.testConnection only needs an API key for cloud/custom providers. */
 function providerRequiresApiKeyForConnectionTest(p: AIProvider): boolean {
-  return p !== "ollama" && p !== "hypercycle";
+  return p !== "ollama" && p !== "hypercycle" && p !== "hermes" && p !== "hermes-aim" && p !== "hermes-api";
 }
 
 const CUSTOM_MODEL_OPTION = "__custom_model__";
@@ -525,7 +525,7 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
             ...prev,
             [agent.id]: getBaseModelList(agent.provider),
           }));
-          const providerName = PROVIDER_INFO[agent.provider].name;
+          const providerName = PROVIDER_INFO[agent.provider]?.name ?? "Unknown";
           const warningMessage = `Could not fetch ${providerName} models with the current key. Using default model list.`;
           console.warn(`[AIAgentsSettings] ${warningMessage}`, error);
           toast.warn(warningMessage);
@@ -574,7 +574,7 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
           {aiAgents.map((agent) => {
             const isExpanded = expandedAgent === agent.id;
             const testResult = testResults[agent.id] || { status: "idle" };
-            const providerColor = PROVIDER_INFO[agent.provider].color;
+            const providerColor = PROVIDER_INFO[agent.provider]?.color ?? "#6B7280";
 
             return (
               <div
@@ -609,7 +609,7 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                         {agent.name}
                       </h3>
                       <p className="text-xs text-gray-500 font-mono">
-                        {PROVIDER_INFO[agent.provider].name} • {agent.model}
+                        {PROVIDER_INFO[agent.provider]?.name ?? "Unknown"} • {agent.model}
                       </p>
                     </div>
                   </div>
@@ -685,7 +685,7 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                       </label>
                     </div>
 
-                    {agent.provider !== "hypercycle" && (
+                    {agent.provider !== "hypercycle" && agent.provider !== "hermes-aim" && agent.provider !== "hermes-api" && (
                       <label className="block">
                         <span className="text-sm text-gray-400 mb-1 block flex items-center gap-1">
                           <Key size={12} />
@@ -948,14 +948,21 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                         )}
                       </label>
 
-                      {(agent.provider === "custom" ||
+                    {(agent.provider === "custom" ||
                         agent.provider === "ollama" ||
+                        agent.provider === "hermes" ||
+                        agent.provider === "hermes-aim" ||
+                        agent.provider === "hermes-api" ||
                         agent.provider === "hypercycle") && (
                         <label className="block">
                           <span className="text-sm text-gray-400 mb-1 block">
                             {agent.provider === "hypercycle"
                               ? "Node base URL"
-                              : "Base URL"}
+                              : agent.provider === "hermes" ||
+                                  agent.provider === "hermes-aim" ||
+                                  agent.provider === "hermes-api"
+                                ? "Hermes Base URL"
+                                : "Base URL"}
                           </span>
                           {agent.provider === "hypercycle" &&
                             agent.hypercycleBackend !== "basechain" && (
@@ -980,7 +987,13 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                                 ? agent.hypercycleBackend === "basechain"
                                   ? "http://207.53.252.108 or https://hyperpg.site/forward/…"
                                   : "http://207.53.252.108"
-                                : "http://localhost:11434"
+                                : agent.provider === "hermes-aim"
+                                  ? "http://127.0.0.1:9000"
+                                  : agent.provider === "hermes-api"
+                                    ? "http://127.0.0.1:8000"
+                                    : agent.provider === "hermes"
+                                      ? "http://127.0.0.1:8642"
+                                      : "http://localhost:11434"
                             }
                           />
                         </label>
@@ -1357,7 +1370,7 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                         )}
                       </div>
 
-                      {/* Add skill dropdown */}
+                        {/* Add skill dropdown */}
                       <div className="flex items-center gap-2">
                         <select
                           value=""
@@ -1376,24 +1389,23 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                           className="flex-1 px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all text-gray-100 text-sm"
                         >
                           <option value="">+ Add a skill...</option>
-                          {/* Available skills — loaded from StargateSkillRegistry or local scan */}
+                          {/* Dynamically loaded from StargateSkillRegistry */}
                           {(() => {
-                            // Static list for now; in production this would be fetched
-                            const availableSkills = [
-                              "github-code-review",
-                              "systematic-debugging",
-                              "test-driven-development",
-                              "cardano-cli-transactions",
-                              "cardano-cli-wallets",
-                              "aiken-smart-contracts",
-                              "kanban-orchestrator",
-                              "mosaic-agent-forge",
-                            ].filter((s) => !(agent.skills || []).includes(s));
-                            return availableSkills.map((s) => (
-                              <option key={s} value={s}>
-                                {s}
-                              </option>
-                            ));
+                            try {
+                              const registry = require("../services/StargateSkillRegistry").stargateRegistry;
+                              const allSkills = registry.getSkills();
+                              const available = allSkills
+                                .filter((s: any) => !(agent.skills || []).includes(s.name))
+                                .sort((a: any, b: any) => (b.usageCount || 0) - (a.usageCount || 0));
+                              return available.map((s: any) => (
+                                <option key={s.name} value={s.name}>
+                                  {s.name} — {s.description?.slice(0, 40) || s.category}
+                                </option>
+                              ));
+                            } catch {
+                              // Fallback if registry not yet initialized
+                              return null;
+                            }
                           })()}
                         </select>
                       </div>

@@ -33,8 +33,12 @@ export interface MCPPlugin {
   url?: string;
   apiKey?: string;
   autoConnect?: boolean;
+  /** If true, connecting requires an OAuth browser flow (e.g. Base MCP) */
+  oauthRequired?: boolean;
   /** Optional role that grants this plugin elevated routing priority */
   role?: MCPPluginRole;
+  /** Serialized OAuth state (JSON string) for servers that use OAuth */
+  oauthState?: string;
 }
 
 // =============================================================================

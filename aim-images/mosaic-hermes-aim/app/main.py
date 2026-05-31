@@ -5,13 +5,17 @@ import time
 from mosaic_hermes_wrapper import HermesAIMWrapper
 from pyhypercycle_aim import JSONResponseCORS, SimpleServer, aim_uri
 
-PORT = int(os.environ.get("PORT", "4000"))
-KANBAN_URL_DEFAULT = os.environ.get("KANBAN_URL", "http://127.0.0.1:9119")
+PORT = int(os.environ.get("PORT", "9000"))
+KANBAN_URL_DEFAULT = os.environ.get("KANBAN_URL", f"http://127.0.0.1:{PORT}/kanban")
 # If running inside a Docker container, 127.0.0.1 resolves to the container loopback,
-# not the host. Prefer host.docker.internal when available.
+# not the host. On Linux native Docker host.docker.internal does NOT resolve,
+# so we use the default docker0 gateway IP 172.17.0.1 for host-reachable services.
 KANBAN_URL = os.environ.get("KANBAN_URL_DOCKER", KANBAN_URL_DEFAULT)
-if os.path.exists("/.dockerenv") and "host.docker.internal" not in KANBAN_URL:
-    KANBAN_URL = KANBAN_URL_DEFAULT.replace("127.0.0.1", "host.docker.internal").replace("localhost", "host.docker.internal")
+if os.path.exists("/.dockerenv"):
+    # Already set by env? Keep it (user may have passed correct IP).
+    # Otherwise default to docker0 gateway for Linux Docker.
+    if "127.0.0.1" in KANBAN_URL or "localhost" in KANBAN_URL:
+        KANBAN_URL = KANBAN_URL.replace("127.0.0.1", "172.17.0.1").replace("localhost", "172.17.0.1")
 NODE_ID = os.environ.get("NODE_ID", "80ad4ea14c33cd2a")
 LICENSE = os.environ.get("LICENSE", "2324779898006116")
 
@@ -33,7 +37,8 @@ def _cost_response(request, min_cost=0, max_cost=0, est_cost=0, currency="Proces
     return None
 
 
-def _make_dashboard(base_url, model, port, version, kanban_url, uptime_str):
+def _make_dashboard(base_url, model, port, version, kanban_url, uptime_str, mode="proxy"):
+    mode_badge = "🟢 EMBEDDED" if mode == "embedded" else "⚪ PROXY"
     return '''<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mosaic Hermes AIM - HyperCycle Node</title>
@@ -65,7 +70,7 @@ input,select{width:100%;padding:10px;margin:8px 0;background:#0a0a0f;color:#e0e0
 <div class="metrics">
 <div class="metric"><div class="metric-value">''' + model + '''</div><div class="metric-label">Model</div></div>
 <div class="metric"><div class="metric-value">''' + version + '''</div><div class="metric-label">Version</div></div>
-<div class="metric"><div class="metric-value" style="color:#00d4aa">&#9679;</div><div class="metric-label">Active</div></div>
+<div class="metric"><div class="metric-value" style="color:#00d4aa">&#9679;</div><div class="metric-label">''' + mode_badge + '''</div></div>
 </div>
 <div class="card">
 <h2>Connect to Hermes</h2>
@@ -77,17 +82,25 @@ input,select{width:100%;padding:10px;margin:8px 0;background:#0a0a0f;color:#e0e0
 <h2>API Endpoints</h2>
 <table style="width:100%;border-collapse:collapse">
 <tr style="border-bottom:1px solid #333"><td style="padding:8px"><code>GET /</code></td><td style="padding:8px">This dashboard</td></tr>
-<tr style="border-bottom:1px solid #333"><td style="padding:8px"><code>POST /chat</code></td><td style="padding:8px">Chat with AI agent</td></tr>
+<tr style="border-bottom:1px solid #333"><td style="padding:8px"><code>POST /chat</code></td><td style="padding:8px">Chat with AI agent (legacy proxy)</td></tr>
+<tr style="border-bottom:1px solid #333"><td style="padding:8px"><code>POST /agent/run</code></td><td style="padding:8px"><strong>NEW:</strong> Full agent with tools</td></tr>
+<tr style="border-bottom:1px solid #333"><td style="padding:8px"><code>GET /agent/status</code></td><td style="padding:8px"><strong>NEW:</strong> Runtime diagnostics</td></tr>
 <tr style="border-bottom:1px solid #333"><td style="padding:8px"><code>GET /health</code></td><td style="padding:8px">Backend health status</td></tr>
 <tr style="border-bottom:1px solid #333"><td style="padding:8px"><code>GET /manifest.json</code></td><td style="padding:8px">AIM metadata</td></tr>
 <tr style="border-bottom:1px solid #333"><td style="padding:8px"><code>GET /capabilities</code></td><td style="padding:8px">Features</td></tr>
 <tr style="border-bottom:1px solid #333"><td style="padding:8px"><code>GET /costs</code></td><td style="padding:8px">Cost estimation</td></tr>
 </table></div>
 <div class="card">' 
-<h2>Quick Test</h2>
+'<h2>Quick Test (Legacy Proxy)</h2>
 <pre>curl -X POST http://127.0.0.1:''' + str(port) + '''/chat \\
   -H "Content-Type: application/json" \\
-  -d '{"message":"Hello from ANFE"}'</pre>
+  -d \'{"message":"Hello from ANFE"}\'</pre>
+</div>
+<div class="card">
+<h2>Quick Test (Embedded Agent)</h2>
+<pre>curl -X POST http://127.0.0.1:''' + str(port) + '''/agent/run \\
+  -H "Content-Type: application/json" \\
+  -d \'{"message":"List files in current directory","system_prompt":"You are a helpful assistant"}\'</pre>
 </div>
 <div class="card">
 <h2>Backend Configuration</h2>
@@ -139,7 +152,11 @@ class MosaicHermesAim(SimpleServer):
         uptime = int(time.time() - self._start_time)
         uptime_str = f"{uptime//3600}h {(uptime%3600)//60}m"
         version = self.manifest.get("version", "1.0.2")
-        html = _make_dashboard(self._base_url, self._model, PORT, version, KANBAN_URL, uptime_str)
+        # Browser is outside the container → use host-visible 127.0.0.1;
+        #   KANBAN_URL is for server-to-host HTTP calls only.
+        kanban_external = os.environ.get("KANBAN_URL_EXTERNAL", KANBAN_URL_DEFAULT)
+        mode = getattr(self.model_wrapper, '_mode', 'proxy')
+        html = _make_dashboard(self._base_url, self._model, PORT, version, kanban_external, uptime_str, mode)
 
         from starlette.responses import HTMLResponse
         return HTMLResponse(content=html, status_code=200, headers={
@@ -268,6 +285,57 @@ class MosaicHermesAim(SimpleServer):
         costs = _costs(0, max(cost, 1), cost)
         costs[0]["used"] = cost
         return JSONResponseCORS({"capabilities": json.loads(result)}, costs=costs)
+
+    # ---------------------------------------------------------------
+    # POST /agent/run — Full embedded AIAgent execution with tools
+    # ---------------------------------------------------------------
+    @aim_uri(
+        uri="/agent/run",
+        methods=["POST"],
+        endpoint_manifest={
+            "input_headers": {},
+            "documentation": "Run full Hermes AIAgent with tool calling, sessions, and memory. POST JSON {message, system_prompt?}. Returns {response, model, mode, elapsed_seconds, cost_words}."
+        },
+    )
+    async def AgentRun(self, request):
+        cost_only = _cost_response(request, 0, 100, 50)
+        if cost_only:
+            return cost_only
+
+        body = await request.json()
+        message = body.get("message", "")
+        system_prompt = body.get("system_prompt", "")
+
+        try:
+            result = self.model_wrapper.agent_run(message, system_prompt)
+            costs = _costs(0, max(result["cost_words"] * 2, 1), result["cost_words"])
+            costs[0]["used"] = result["cost_words"]
+            return JSONResponseCORS(result, costs=costs)
+        except RuntimeError as exc:
+            costs = _costs(0, 1, 1)
+            costs[0]["used"] = 1
+            return JSONResponseCORS({"error": str(exc), "mode": self.model_wrapper._mode}, costs=costs)
+
+    # ---------------------------------------------------------------
+    # GET /agent/status — Embedded runtime diagnostics
+    # ---------------------------------------------------------------
+    @aim_uri(
+        uri="/agent/status",
+        methods=["GET"],
+        endpoint_manifest={
+            "input_headers": {},
+            "documentation": "Returns embedded runtime status: mode, model, agent initialization state."
+        },
+    )
+    async def AgentStatus(self, request):
+        cost_only = _cost_response(request, 0, 0, 0)
+        if cost_only:
+            return cost_only
+
+        result = self.model_wrapper.agent_status()
+        costs = _costs(0, 1, 1)
+        costs[0]["used"] = 1
+        return JSONResponseCORS(result, costs=costs)
 
 
 def main():

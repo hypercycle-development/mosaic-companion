@@ -103,12 +103,13 @@ async function getLogsPaginated(
   // Estimate Base mainnet launched ~Aug 2023. For ANFE discovery we don't
   // need to scan from genesis. A recent range (last ~30 days ≈ 2M blocks)
   // catches all transfers for actively-held NFTs and avoids RPC rate limits.
+  if (!end) return allLogs;
+
+  // Limit scan to last ~30 days (≈2M blocks) to avoid RPC timeouts
   if (fromBlock === '0x0' || fromBlock === BigInt(0)) {
     start = end - BigInt(2_000_000);
     if (start < BigInt(0)) start = BigInt(0);
   }
-
-  if (!end) return allLogs;
 
   for (let cur = end; cur >= start; cur -= BigInt(step)) {
     const s = cur - BigInt(step - 1) < start ? start : cur - BigInt(step - 1);
@@ -205,27 +206,38 @@ class ANFEService {
     let anfes: ANFE[] = [];
     const contract = ANFE_CONTRACTS[8453];
 
-    // --- PRIMARY: On-chain ERC-721 enumeration (balanceOf → tokenOfOwnerByIndex)
-    // Most reliable when a wallet provider is available (after chain switch to Base).
+    // --- PRIMARY: HyperInsight node discovery (API-first, avoids RPC downtime)
+    try {
+      const hiANFEs = await this.discoverANFEsViaHyperInsight(walletAddress, 8453);
+      if (hiANFEs.length) {
+        console.log(`[ANFEService] HyperInsight discovered ${hiANFEs.length} ANFEs`);
+        anfes.push(...hiANFEs);
+      }
+    } catch (e) {
+      console.warn('[ANFEService] HyperInsight discovery failed:', e);
+    }
+
+    // --- SECONDARY: On-chain ERC-721 enumeration (fills gaps if HI is stale)
     if (contract) {
       try {
         const enumANFEs = await this.discoverANFEsViaERC721Enumeration(walletAddress, 8453);
         if (enumANFEs.length) {
           console.log(`[ANFEService] ERC-721 enumeration discovered ${enumANFEs.length} ANFEs`);
-          anfes.push(...enumANFEs);
+          for (const a of enumANFEs) {
+            if (!anfes.find(x => x.tokenId === a.tokenId)) anfes.push(a);
+          }
         }
       } catch (e) {
         console.warn('[ANFEService] ERC-721 enumeration failed:', e);
       }
     }
 
-    // --- SECONDARY: On-chain ERC-721 event-log discovery (fills gaps if enumeration unsupported)
+    // --- TERTIARY: On-chain ERC-721 event-log discovery (fills remaining gaps)
     if (contract) {
       try {
         const logANFEs = await this.discoverANFEsViaEventLogs(walletAddress, 8453);
         if (logANFEs.length) {
           console.log(`[ANFEService] Event logs discovered ${logANFEs.length} ANFEs`);
-          // Merge, dedup by tokenId
           for (const a of logANFEs) {
             if (!anfes.find(x => x.tokenId === a.tokenId)) anfes.push(a);
           }
@@ -415,6 +427,45 @@ class ANFEService {
       }
     }
     return [];
+  }
+
+  // ========================================================================
+  // HyperInsight-first ANFE discovery (fallback when RPCs are down)
+  // ========================================================================
+  private async discoverANFEsViaHyperInsight(
+    walletAddress: string,
+    chainId: SupportedChain
+  ): Promise<ANFE[]> {
+    const contract = ANFE_CONTRACTS[chainId];
+    if (!contract) return [];
+
+    try {
+      const nodes = await hiNodesByWallet(walletAddress);
+      if (!nodes || nodes.length === 0) return [];
+
+      const anfes: ANFE[] = [];
+      for (const node of nodes) {
+        const tokenId = String(node.licenseKey || node.id || node.tokenId || node.anfeId || '');
+        if (!tokenId || tokenId === 'undefined' || tokenId === 'null') continue;
+
+        // Skip if already discovered
+        if (anfes.some(a => a.tokenId === tokenId)) continue;
+
+        const anfe = await this.buildANFE(contract, tokenId, chainId, walletAddress);
+        // Enrich with HyperInsight node fields if present
+        if (node.status) anfe.verification.status = node.status;
+        if (node.measuredUptime != null) anfe.verification.uptime = node.measuredUptime;
+        if (node.network) anfe.verification.tranche = node.network;
+        if (node.lastContactAt) anfe.verification.registeredAt = new Date(node.lastContactAt).getTime();
+        if (node.compute) anfe.verification.merkelizer.compute = node.compute;
+        
+        anfes.push(anfe);
+      }
+      return anfes;
+    } catch (e) {
+      console.warn('[ANFEService] HyperInsight fallback discovery failed:', e);
+      return [];
+    }
   }
 
   private async checkBalanceOf(

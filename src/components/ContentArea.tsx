@@ -169,9 +169,21 @@ const BrowserView: React.FC<BrowserViewProps> = ({
     };
 
     const handleNewWindow = (e: any) => {
-      if (e.url) {
-        webview.loadURL(e.url);
+      if (!e.url) return;
+
+      // Defense: open external (non-localhost) URLs in the system browser
+      // instead of nesting them inside the app webview.
+      try {
+        const urlObj = new URL(e.url);
+        if (!urlObj.hostname.match(/^(localhost|127\.0\.0\.1)$/)) {
+          window.electronAPI?.shell?.openExternal?.(e.url);
+          return;
+        }
+      } catch {
+        // Invalid URL — fall through to webview load
       }
+
+      webview.loadURL(e.url);
     };
 
     const handlePageTitleUpdated = (e: any) => {
