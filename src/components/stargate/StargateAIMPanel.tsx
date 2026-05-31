@@ -6,12 +6,14 @@
 // Uses Tailwind CSS + lucide-react to match existing Mosaic styling.
 // =============================================================================
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Bot, ExternalLink, CheckCircle2, XCircle, Loader, AlertTriangle, Plug, Box, Eye } from 'lucide-react';
 import { localNodeBridge, BridgeAIM } from '../../services/stargate/LocalNodeBridge';
 import { enhancedLocalNodeBridge, ExtendedBridgeTelemetry } from '../../services/stargate/EnhancedLocalNodeBridge';
 
 // ===== P0 INTEGRATIONS: AIM as Tool + MCP Everywhere =====
+import { mcpAIMService } from '../../services/stargate/integrations/MCPAIMService';
+import { agentToolService } from '../../services/stargate/integrations/AgentToolService';
 
 
 interface FallbackAIM {

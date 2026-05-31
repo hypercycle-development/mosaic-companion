@@ -20,8 +20,7 @@ import {
 } from 'lucide-react';
 
 import { fleetDiscoveryService, FleetNode, FleetNodeStatus } from '../../services/stargate/FleetDiscoveryService';
-import { UnifiedOrchestrator, HireAgentParams, BookTrainingParams } from '../../services/stargate/integrations/UnifiedOrchestrator';
-import { hermesAgentOrchestrator } from '../../services/stargate/HermesAgentOrchestrator';
+import { hermesAgentOrchestrator, HireAgentParams, BookTrainingParams } from '../../services/stargate/HermesAgentOrchestrator';
 
 // ===== P2 INTEGRATIONS: Sandbox + Gatekeeper + Chronicle =====
 import {
@@ -59,7 +58,7 @@ const StargateFleetPanel: React.FC = () => {
 
   const handleHire = async () => {
     if (!hireForm.agentName || !hireForm.role) return;
-    const task = await UnifiedOrchestrator.hireAgent({
+    const task = await hermesAgentOrchestrator.hireAgent({
       agentName: hireForm.agentName,
       role: hireForm.role,
       skills: hireForm.skills || [],

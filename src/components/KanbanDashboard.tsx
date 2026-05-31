@@ -40,6 +40,7 @@ import type { AIAgentConfig, AIProvider } from '../types/ai';
 import { PROVIDER_INFO } from '../types/ai';
 import { HermesAimPanel } from './HermesAimPanel';
 import { fleetDiscoveryService, FleetNode, FleetNodeStatus, EnrichedFleetNode } from '../services/stargate/FleetDiscoveryService';
+import { hermesAgentOrchestrator } from '../services/stargate/HermesAgentOrchestrator';
 
 
 export interface AgentResponse {
