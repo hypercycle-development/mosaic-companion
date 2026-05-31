@@ -11,9 +11,10 @@
 // Import per-module arg types — each module is the source of truth for its own args
 import type { GmailToolArgs } from "../../electron/integrations/tools/modules/gmail";
 import type { Web3ToolArgs } from "../../electron/integrations/web3";
+import type { HomeAssistantToolArgs } from "../../electron/integrations/tools/modules/home-assistant";
 
 // Re-export for convenience
-export type { GmailToolArgs, Web3ToolArgs };
+export type { GmailToolArgs, Web3ToolArgs, HomeAssistantToolArgs };
 
 // =============================================================================
 // Core Tool Types
@@ -47,7 +48,7 @@ export interface SerializedActionPattern {
 // =============================================================================
 
 /** Union of all known tool arg maps — add new modules here */
-export type ToolArgMap = GmailToolArgs & Web3ToolArgs;
+export type ToolArgMap = GmailToolArgs & Web3ToolArgs & HomeAssistantToolArgs;
 
 // =============================================================================
 // Tools API (exposed via window.electronAPI.tools)
