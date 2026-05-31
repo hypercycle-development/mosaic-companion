@@ -8,6 +8,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import {
   ToolListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
@@ -90,7 +91,7 @@ export interface MCPPrompt {
 
 export interface MCPServerConfig {
   name: string;
-  transport: "stdio" | "http";
+  transport: "stdio" | "http" | "sse";
   command?: string;
   args?: string[];
   env?: Record<string, string>;
@@ -195,10 +196,44 @@ export class MCPClient extends EventEmitter {
     );
   }
 
+  async connectSse(
+    name: string,
+    url: string,
+    apiKey?: string,
+  ): Promise<MCPInitializeResult> {
+    if (this.servers.has(name)) {
+      throw new Error(`Server "${name}" is already connected`);
+    }
+
+    this.log(`Connecting to ${name} via SSE: ${url}`);
+
+    // Apply the bearer token (if any) to BOTH the SSE stream (the initial GET,
+    // via eventSourceInit.fetch) and the outgoing POST messages (requestInit).
+    const headers: Record<string, string> = apiKey
+      ? { Authorization: `Bearer ${apiKey}` }
+      : {};
+
+    const transport = new SSEClientTransport(new URL(url), {
+      requestInit: { headers },
+      eventSourceInit: {
+        fetch: (input: any, init: any) =>
+          fetch(input, { ...init, headers: { ...(init?.headers || {}), ...headers } }),
+      },
+    });
+    return this._connectWithTransport(
+      name,
+      { name, transport: "sse", url, apiKey },
+      transport,
+    );
+  }
+
   async connect(config: MCPServerConfig): Promise<MCPInitializeResult> {
     if (config.transport === "stdio") {
       if (!config.command) throw new Error("STDIO transport requires a command");
       return this.connectStdio(config.name, config.command, config.args, config.env);
+    } else if (config.transport === "sse") {
+      if (!config.url) throw new Error("SSE transport requires a URL");
+      return this.connectSse(config.name, config.url, config.apiKey);
     } else {
       if (!config.url) throw new Error("HTTP transport requires a URL");
       return this.connectHttp(config.name, config.url, config.apiKey);
@@ -208,7 +243,7 @@ export class MCPClient extends EventEmitter {
   private async _connectWithTransport(
     name: string,
     config: MCPServerConfig,
-    transport: StdioClientTransport | StreamableHTTPClientTransport,
+    transport: StdioClientTransport | StreamableHTTPClientTransport | SSEClientTransport,
   ): Promise<MCPInitializeResult> {
     const client = new Client(
       { name: "mosaic-companion", version: "1.0.0" },
