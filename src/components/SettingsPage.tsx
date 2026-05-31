@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { AIAgentConfig } from "../types/ai";
 import GmailClient from "./GmailClient";
+import HomeAssistantClient from "./HomeAssistantClient";
 import { AIAgentsSettings } from "./AIAgentsSettings";
 import { useTheme } from "../ThemeProvider";
 import { ThemeKey } from "../themes";
@@ -42,12 +43,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   // Ref for scrolling to sections
   const agentsSectionRef = useRef<HTMLElement>(null);
   const nodesSectionRef = useRef<HTMLElement>(null);
+  const homeAssistantSectionRef = useRef<HTMLElement>(null);
 
   // Scroll to section when scrollSection prop is set
   useEffect(() => {
     const sectionMap: Record<string, React.RefObject<HTMLElement | null>> = {
       agents: agentsSectionRef,
       nodes: nodesSectionRef,
+      "home-assistant": homeAssistantSectionRef,
     };
 
     const targetSection = scrollSection ? sectionMap[scrollSection] : undefined;
@@ -842,6 +845,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
         <section>
           <GmailClient />
+        </section>
+
+        <section
+          id="home-assistant"
+          ref={homeAssistantSectionRef}
+          className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm"
+        >
+          <HomeAssistantClient />
         </section>
 
         {/* Save Button */}
