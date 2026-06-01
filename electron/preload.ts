@@ -205,6 +205,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) =>
       ipcRenderer.invoke("dialog:open-file", options),
   },
+  // Node Factory Tracker — CBNO license fleet health monitoring
+  nodeFactory: {
+    loadJsonFile: (filePath: string) =>
+      ipcRenderer.invoke("nodeFactory:loadJsonFile", filePath),
+    checkLicense: (licenseId: string, apiBase: string) =>
+      ipcRenderer.invoke("nodeFactory:checkLicense", licenseId, apiBase),
+  },
   // Window controls (for custom title bar)
   window: {
     minimize: () => ipcRenderer.invoke("window:minimize"),

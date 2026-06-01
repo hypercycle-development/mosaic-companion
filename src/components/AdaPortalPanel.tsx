@@ -66,6 +66,7 @@ import { KanbanDashboard } from './KanbanDashboard';
 import UnifiedAssetPanel from './UnifiedAssetPanel';
 import TasteSkillDialPanel from './stargate/TasteSkillDialPanel';
 import StargateSkillsMarketplacePanel from './stargate/StargateSkillsMarketplacePanel';
+import NodeFactoryTrackerPanel from './stargate/NodeFactoryTrackerPanel';
 import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus } from 'lucide-react';
 
 // ---- Module-level helper: ensure wallet is on Base chain ----
@@ -1456,6 +1457,9 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           <div className="text-xs text-gray-500">Nodes</div>
         </div>
       </div>
+
+      {/* Node Factory Tracker — CBNO Fleet Monitoring */}
+      <NodeFactoryTrackerPanel />
 
       {/* Local HyperAIBox ANFE — always visible, no wallet needed */}
       {localANFE && (

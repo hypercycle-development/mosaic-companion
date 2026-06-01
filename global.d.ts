@@ -423,6 +423,12 @@ declare global {
         openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string | null>;
       };
 
+      // Node Factory Tracker — CBNO license fleet health
+      nodeFactory: {
+        loadJsonFile: (filePath: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+        checkLicense: (licenseId: string, apiBase: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+      };
+
       // Skills (Hermes MCP + local)
       skills: {
         buildSystemPrompt: (payload: {

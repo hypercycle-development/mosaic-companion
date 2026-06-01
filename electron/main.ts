@@ -519,6 +519,42 @@ ipcMain.handle("dialog:open-file", async (_event, options?: { filters?: Array<{ 
   return result.filePaths[0];
 });
 
+// ── Node Factory Tracker IPC ───────────────────────────────────────────────
+// Loads a licenses.json from the user's filesystem (sandbox-safe via renderer → main)
+ipcMain.handle("nodeFactory:loadJsonFile", async (_event, filePath: string) => {
+  try {
+    const data = fs.readFileSync(filePath, "utf-8");
+    const parsed = JSON.parse(data);
+    return { success: true, data: parsed };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Failed to load JSON file" };
+  }
+});
+
+// Proxies license_status checks through the main process so renderer doesn't
+// need CORS permissions against the CBNO API.
+ipcMain.handle("nodeFactory:checkLicense", async (_event, licenseId: string, apiBase: string) => {
+  try {
+    const response = await fetch(`${apiBase}/license_status?license=${encodeURIComponent(licenseId)}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      return { success: false, error: `HTTP ${response.status}: ${text.slice(0, 200)}` };
+    }
+    const data = await response.json();
+    if (data.error) {
+      return { success: false, error: data.error, data };
+    }
+    return { success: true, data };
+  } catch (e: any) {
+    if (e.name === "TimeoutError" || e.name === "AbortError") {
+      return { success: false, error: "Request timed out after 10s" };
+    }
+    return { success: false, error: e.message || "Network error" };
+  }
+});
+
 // CSV Logging
 const csvPath = path.join(app.getPath("userData"), "input_history.csv");
 
