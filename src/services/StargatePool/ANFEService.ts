@@ -444,23 +444,44 @@ class ANFEService {
       if (!nodes || nodes.length === 0) return [];
 
       const anfes: ANFE[] = [];
-      for (const node of nodes) {
-        const tokenId = String(node.licenseKey || node.id || node.tokenId || node.anfeId || '');
-        if (!tokenId || tokenId === 'undefined' || tokenId === 'null') continue;
+      
+      // Build all ANFEs in parallel — individual ownerOf/attribute calls dead-RPC safe
+      const promises = nodes
+        .map((node) => ({
+          tokenId: String(node.licenseKey || node.id || node.tokenId || node.anfeId || ''),
+          node,
+        }))
+        .filter(({ tokenId }) =>
+          tokenId && tokenId !== 'undefined' && tokenId !== 'null'
+        )
+        .filter(({ tokenId }) =>
+          !anfes.some((a) => a.tokenId === tokenId)
+        )
+        .map(async ({ tokenId, node }) => {
+          // Fast-path ownerOf with timeout — if RPCs are dead, treat as owned
+          const ownerOfPromise = this.ownerOf(contract, tokenId, chainId);
+          const owner = await Promise.race([
+            ownerOfPromise,
+            new Promise<string | null>((resolve) => setTimeout(() => resolve(null), 2000)),
+          ]);
+          if (owner && owner.toLowerCase() !== walletAddress.toLowerCase()) return null;
 
-        // Skip if already discovered
-        if (anfes.some(a => a.tokenId === tokenId)) continue;
+          const anfe = await this.buildANFE(contract, tokenId, chainId, walletAddress);
+          // Enrich with HyperInsight node fields if present
+          if (node.status) anfe.verification.status = node.status;
+          if (node.measuredUptime != null) anfe.verification.uptime = node.measuredUptime;
+          if (node.network) anfe.verification.tranche = node.network;
+          if (node.lastContactAt) anfe.verification.registeredAt = new Date(node.lastContactAt).getTime();
+          if (node.compute) anfe.verification.merkelizer.compute = node.compute;
 
-        const anfe = await this.buildANFE(contract, tokenId, chainId, walletAddress);
-        // Enrich with HyperInsight node fields if present
-        if (node.status) anfe.verification.status = node.status;
-        if (node.measuredUptime != null) anfe.verification.uptime = node.measuredUptime;
-        if (node.network) anfe.verification.tranche = node.network;
-        if (node.lastContactAt) anfe.verification.registeredAt = new Date(node.lastContactAt).getTime();
-        if (node.compute) anfe.verification.merkelizer.compute = node.compute;
-        
-        anfes.push(anfe);
+          return anfe;
+        });
+
+      const results = await Promise.all(promises);
+      for (const r of results) {
+        if (r) anfes.push(r);
       }
+
       return anfes;
     } catch (e) {
       console.warn('[ANFEService] HyperInsight fallback discovery failed:', e);
@@ -530,6 +551,7 @@ class ANFEService {
         const r = await fetch(rpcUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(5000),
           body: JSON.stringify({
             jsonrpc: '2.0',
             method: 'eth_call',
@@ -537,7 +559,9 @@ class ANFEService {
             id: 1,
           }),
         });
+        if (!r.ok) continue;
         const j = await r.json();
+        if (j.error) continue;
         if (j.result && j.result !== '0x') return j.result;
       } catch { continue; }
     }
