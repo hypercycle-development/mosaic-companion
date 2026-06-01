@@ -459,12 +459,20 @@ class ANFEService {
           !anfes.some((a) => a.tokenId === tokenId)
         )
         .map(async ({ tokenId, node }) => {
-          // Fast-path ownerOf with timeout — if RPCs are dead, treat as owned
-          const ownerOfPromise = this.ownerOf(contract, tokenId, chainId);
-          const owner = await Promise.race([
-            ownerOfPromise,
-            new Promise<string | null>((resolve) => setTimeout(() => resolve(null), 2000)),
-          ]);
+          // VERIFY ownership: use HyperInsight node.owner if present (no RPC needed).
+          // Only fall back to on-chain ownerOf when HI is missing the field.
+          let owner: string | null = null;
+          if (node.owner && typeof node.owner === 'string') {
+            owner = node.owner;
+          } else if (node.owner?.address && typeof node.owner.address === 'string') {
+            owner = node.owner.address;
+          } else {
+            const ownerOfPromise = this.ownerOf(contract, tokenId, chainId);
+            owner = await Promise.race([
+              ownerOfPromise,
+              new Promise<string | null>((resolve) => setTimeout(() => resolve(null), 3000)),
+            ]);
+          }
           if (owner && owner.toLowerCase() !== walletAddress.toLowerCase()) return null;
 
           const anfe = await this.buildANFE(contract, tokenId, chainId, walletAddress);
