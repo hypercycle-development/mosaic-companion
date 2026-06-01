@@ -220,11 +220,16 @@ const StargateAIMPanel: React.FC = () => {
               {/* ===== P0: MCP EVERYWHERE — Expose as MCP Server ===== */}
               <button
                 onClick={async () => {
-                  const result = await mcpAIMService.registerAIMFromBridge(aim);
-                  if (result.success) {
-                    alert(`AIM "${aim.name}" exposed as MCP server: ${result.serverName}`);
-                  } else {
-                    alert(`MCP registration failed: ${result.error}`);
+                  try {
+                    const result = await mcpAIMService.registerAIMFromBridge(aim);
+                    if (result.success) {
+                      alert(`AIM "${aim.name}" exposed as MCP server: ${result.serverName}`);
+                    } else {
+                      alert(`MCP registration failed: ${result.error}`);
+                    }
+                  } catch (e) {
+                    console.error(e);
+                    alert(`MCP registration error: ${e.message ?? e}`);
                   }
                 }}
                 className="p-2 rounded-lg hover:bg-purple-500/20 text-gray-500 hover:text-purple-400 transition-colors"
@@ -235,17 +240,22 @@ const StargateAIMPanel: React.FC = () => {
               {/* ===== P0: AGENT-AS-TOOL — Register ANFE Manifest ===== */}
               <button
                 onClick={async () => {
-                  const result = await agentToolService.registerFromFleetNode({
-                    nodeId: aim.imageId,
-                    label: aim.name || 'Unnamed AIM',
-                    host: 'localhost',
-                    port: aim.port,
-                    computeTier: 'standard',
-                  });
-                  if (result.success) {
-                    alert(`AIM "${aim.name}" registered as tool: ${result.toolId}`);
-                  } else {
-                    alert(`Tool registration failed: ${result.error}`);
+                  try {
+                    const result = await agentToolService.registerFromFleetNode({
+                      nodeId: aim.imageId,
+                      label: aim.name || 'Unnamed AIM',
+                      host: 'localhost',
+                      port: aim.port,
+                      computeTier: 'standard',
+                    });
+                    if (result.success) {
+                      alert(`AIM "${aim.name}" registered as tool: ${result.toolId}`);
+                    } else {
+                      alert(`Tool registration failed: ${result.error}`);
+                    }
+                  } catch (e) {
+                    console.error(e);
+                    alert(`Tool registration error: ${e.message ?? e}`);
                   }
                 }}
                 className="p-2 rounded-lg hover:bg-cyan-500/20 text-gray-500 hover:text-cyan-400 transition-colors"

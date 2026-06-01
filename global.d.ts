@@ -26,6 +26,7 @@ declare global {
   interface VaultEntry {
     id: string;
     label?: string;
+    description?: string;
     content: string;
     metadata?: {
       installName?: string;

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // ============================================
 // STARGATE - Main UI Panel
 // AI Workforce + Compute + Intelligence Platform for Cardano
@@ -31,11 +30,11 @@ import {
   hyperInsight,
   AgentMarketplaceService,
   accessControl,
-  AccessCheck,
   stargatePoolService,
   NodeFactory,
   ANFEInfo
 } from '../services/AdaPortal';
+import type { AccessCheck, UserIntent, MarketplaceListing, LeaderboardEntry, TrainingListing, AgentPackage, ComputeNode, AIMInfo } from '../services/AdaPortal/types';
 
 // Stargate Pool - ANFE Integration
 import { 
@@ -53,7 +52,6 @@ import {
 import { localNodeBridge } from '../services/LocalNodeBridge';
 import type { BridgeANFE, BridgeComputeNode } from '../services/LocalNodeBridge';
 import { skillMarketplace } from '../services/AdaPortal';
-import type { AccessCheck } from '../services/AdaPortal';
 import {
   NFTCollectionGrid,
   NFTAssetModal,
@@ -219,7 +217,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [selectedComputeTier, setSelectedComputeTier] = useState<ComputeTier | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [notification, setNotification] = useState<{type: 'success' | 'error' | 'info'; message: string} | null>(null);
+  const [notification, setNotification] = useState<{type: 'success' | 'error' | 'info' | 'warning'; message: string} | null>(null);
   const [accessCheck, setAccessCheck] = useState<AccessCheck | null>(null);
   const [tokeoConnected, setTokeoConnected] = useState(false);
   const [tokeoAddress, setTokeoAddress] = useState<string | null>(null);
@@ -356,7 +354,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         earnings: e.computeTFLOPS || 0,
         avatar: e.type === 'aims' ? '🤖' : '🖥️',
         trend: 'stable' as const
-      })));
+      })) as any);
 
       // 4. Populate Training/Packages/Skills/Agents from StargateSkillRegistry
       const registryAgents = stargateRegistry.getAgents();
@@ -376,7 +374,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           rating: a.rating,
           status: a.status,
           computeNode: a.computeNode,
-        })));
+        })) as any);
       }
 
       // Populate training jobs
@@ -391,7 +389,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         dataset: j.dataset,
         progress: j.progress,
         status: j.status,
-      })));
+      })) as any);
 
       // Populate agent bundles
       setPackages(registryBundles.map(b => ({
@@ -405,7 +403,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           name: ag.role,
           role: ag.role,
         })),
-      })));
+      })) as any);
 
       // Populate skills marketplace
       setSkills(registrySkills.map(s => ({
@@ -547,7 +545,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           if (node) {
             setNodes(prev => {
               const filtered = prev.filter(n => n.nodeId !== node.nodeId);
-              return [...filtered, node];
+              return [...filtered, node] as any;
             });
           }
           if (hbox) {
@@ -931,7 +929,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     showNotification('success', `${tier.replace('_', ' ')} compute selected`);
   }, [onSelectCompute, onNavigateToChat]);
 
-  const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
+  const showNotification = (type: 'success' | 'error' | 'info' | 'warning', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 3000);
   };
@@ -1826,10 +1824,18 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                   onChange={(e) => setManualANFEId(e.target.value)}
                   placeholder="Enter ANFE ID (e.g., 1234567890123456)"
                   className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500"
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddManualANFE()}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { const id = manualANFEId.trim(); if (!id) { showNotification('error', 'Please enter an ANFE ID'); return; } const manANFE: any = { id: `manual:${id}`, tokenId: id, contractAddress: '', owner: ethAddress || '', chainId: 1, chainName: 'Ethereum', blockNumber: 0, blockTimestamp: Date.now(), transactionHash: '', attributes: { core: { level: { trait_type: 'Level', value: 11 }, primaryLicense: { trait_type: 'License', value: 'standard' } }, ai: { aiModules: [] }, raw: [] }, verification: { valid: true, anfeId: id, nodeFactoryId: '', tranche: 'T3', uptime: 0.988, reliability: 0.995, status: 'online', lastUpdated: Date.now() } }; setWalletANFEs((prev: any) => [...prev, manANFE]); setShowManualANFE(false); setManualANFEId(''); showNotification('success', `Added ANFE ${id}`); } }}
                 />
                 <button
-                  onClick={handleAddManualANFE}
+                  onClick={() => {
+                    const id = manualANFEId.trim();
+                    if (!id) { showNotification('error', 'Please enter an ANFE ID'); return; }
+                    const manANFE: any = { id: `manual:${id}`, tokenId: id, contractAddress: '', owner: ethAddress || '', chainId: 1, chainName: 'Ethereum', blockNumber: 0, blockTimestamp: Date.now(), transactionHash: '', attributes: { core: { level: { trait_type: 'Level', value: 11 }, primaryLicense: { trait_type: 'License', value: 'standard' } }, ai: { aiModules: [] }, raw: [] }, verification: { valid: true, anfeId: id, nodeFactoryId: '', tranche: 'T3', uptime: 0.988, reliability: 0.995, status: 'online', lastUpdated: Date.now() } };
+                    setWalletANFEs((prev: any) => [...prev, manANFE]);
+                    setShowManualANFE(false);
+                    setManualANFEId('');
+                    showNotification('success', `Added ANFE ${id}`);
+                  }}
                   className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-medium"
                 >
                   Add
@@ -1902,7 +1908,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                               </div>
                               {nft.verification.status && (
                                 <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                  nft.verification.status === 'online' || nft.verification.status === 'alive'
+                                  nft.verification.status === 'online' || nft.verification.status === ('alive' as any)
                                     ? 'bg-green-500/20 text-green-400'
                                     : nft.verification.status === 'busy'
                                     ? 'bg-yellow-500/20 text-yellow-400'
@@ -1993,7 +1999,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                               </div>
                               {nft.verification.status && (
                                 <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                  nft.verification.status === 'online' || nft.verification.status === 'alive'
+                                  nft.verification.status === 'online' || nft.verification.status === ('alive' as any)
                                     ? 'bg-green-500/20 text-green-400'
                                     : nft.verification.status === 'busy'
                                     ? 'bg-yellow-500/20 text-yellow-400'
@@ -2887,7 +2893,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                 </div>
 
                 <TasteSkillDialPanel
-                  initialDials={selectedVaultEntry.metadata.dials}
+                  initialDials={selectedVaultEntry.metadata.dials as any}
                   onChange={async (dials) => {
                     try {
                       await window.electronAPI.vault.updateEntry(tasteSkillVaultBoxId, selectedVaultEntry.id, {
@@ -3907,7 +3913,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     };
 
     // Manual ANFE entry handler
-    const handleAddManualANFE = () => {
+    function handleAddManualANFE() {
       const anfeId = manualANFEId.trim();
       if (!anfeId) {
         showNotification('error', 'Please enter an ANFE ID');
@@ -3919,7 +3925,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         id: `manual:${anfeId}`,
         tokenId: anfeId,
         contractAddress: '',
-        owner: walletAddress || '',
+        owner: ethAddress || '',
         chainId: 1,
         chainName: 'Ethereum',
         blockNumber: 0,

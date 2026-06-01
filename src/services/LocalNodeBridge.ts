@@ -107,10 +107,12 @@ export interface BridgeANFE {
   computeUnits: string;
   level: number;
   rarity: string;
+  license?: string;
+  aims?: any[];
   attributes: Record<string, any>;
   verification: {
     valid: boolean;
-    status: string;
+    status: "offline" | "busy" | "alive" | "online" | string;
     nodeFactoryId: string;
     uptime: number;
     lastUpdated: number;

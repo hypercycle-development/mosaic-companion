@@ -87,6 +87,13 @@ export interface ANFE {
   // Decoded attributes
   attributes: ANFEAttributes;
 
+  // Optional runtime fields
+  name?: string;
+  rarity?: string;
+  status?: string;
+  level?: number;
+  computeUnits?: string;
+  chain?: string;
   // Verification
   verification: VerificationResult;
 

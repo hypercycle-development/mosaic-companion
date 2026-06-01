@@ -18,7 +18,9 @@ interface VaultBox {
 interface VaultEntry {
   id: string;
   label?: string;
+  description?: string;
   content: string;
+  metadata?: any;
 }
 
 interface SecureKeyRef {
