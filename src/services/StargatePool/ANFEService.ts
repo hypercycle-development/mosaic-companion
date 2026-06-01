@@ -26,6 +26,7 @@ import {
   encodeOwnerOf,
   encodeBalanceOf,
   encodeERC1155BalanceOf,
+  encodeTokenOfOwnerByIndex,
 } from '../HyperCycleContracts';
 
 const RPC_CONFIG: Record<SupportedChain, string> = {
@@ -683,8 +684,6 @@ class ANFEService {
 
     // 2. Enumerate each token index → tokenId via tokenOfOwnerByIndex
     const tokenIds: string[] = [];
-    // Import once, outside the loop to avoid dynamic import rejection
-    const { encodeTokenOfOwnerByIndex } = await import('../HyperCycleContracts');
     for (let i = 0; i < balance; i++) {
       const data = encodeTokenOfOwnerByIndex(walletAddress, i);
       const result = await this.callContract(contract, data, chainId);
@@ -814,8 +813,6 @@ class ANFEService {
 
     // 2. Enumerate each token index → tokenId via tokenOfOwnerByIndex
     const tokenIds: string[] = [];
-    // Import once, outside the loop to avoid dynamic import rejection
-    const { encodeTokenOfOwnerByIndex } = await import('../HyperCycleContracts');
     for (let i = 0; i < balance; i++) {
       const data = encodeTokenOfOwnerByIndex(walletAddress, i);
       const result = await this.callContract(contract, data, chainId);
