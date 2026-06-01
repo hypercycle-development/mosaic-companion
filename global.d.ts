@@ -481,7 +481,7 @@ declare global {
       joinRoom: (roomId: string) => Promise<{ success: boolean; error?: string }>;
       leaveRoom: (roomId: string) => Promise<{ success: boolean; error?: string }>;
       sendMessage: (roomId: string, text: string) => Promise<{ success: boolean; error?: string }>;
-      assignAgent: (roomId: string, agentId: string, agentName: string) => Promise<{ success: boolean }>;
+      assignAgent: (roomId: string, agentId: string, agentName: string, trainingContext?: { skillName: string; systemPrompt?: string }) => Promise<{ success: boolean }>;
       removeAgent: (roomId: string, agentId: string) => Promise<{ success: boolean }>;
       listAssignedAgents: (roomId: string) => Promise<string[]>;
       onConnectionChanged: (cb: (data: { status: string }) => void) => () => void;

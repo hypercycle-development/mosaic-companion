@@ -539,6 +539,13 @@ export class AIService {
         return this.sendToGemini(config, enrichedMessages, callbacks);
       case "ollama":
         return this.sendToOllama(config, enrichedMessages, callbacks);
+      case "ollama-cloud":
+        // Ollama Cloud uses OpenAI-compatible /v1/chat/completions endpoint
+        return this.sendToOpenAI(
+          { ...config, baseUrl: config.baseUrl || "https://ollama.com/v1" },
+          enrichedMessages,
+          callbacks,
+        );
       case "custom":
         // Custom endpoints assume OpenAI-compatible API
         return this.sendToOpenAI(config, enrichedMessages, callbacks);

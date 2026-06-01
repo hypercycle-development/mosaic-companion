@@ -62,8 +62,9 @@ export const chatAPI = {
     roomId: string,
     agentId: string,
     agentName: string,
+    trainingContext?: { skillName: string; systemPrompt?: string },
   ): Promise<{ success: boolean }> =>
-    ipcRenderer.invoke("chat:assign-agent", roomId, agentId, agentName),
+    ipcRenderer.invoke("chat:assign-agent", roomId, agentId, agentName, trainingContext),
 
   removeAgent: (
     roomId: string,

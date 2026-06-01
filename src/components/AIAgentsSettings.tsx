@@ -57,13 +57,13 @@ function hypercycleWalletReady(
 
 /** AIService.testConnection only needs an API key for cloud/custom providers. */
 function providerRequiresApiKeyForConnectionTest(p: AIProvider): boolean {
-  return p !== "ollama" && p !== "hypercycle" && p !== "hermes" && p !== "hermes-aim" && p !== "hermes-api";
+  return p !== "ollama" && p !== "ollama-cloud" && p !== "hypercycle" && p !== "hermes" && p !== "hermes-aim" && p !== "hermes-api";
 }
 
 const CUSTOM_MODEL_OPTION = "__custom_model__";
 
 function providerRequiresApiKeyForDynamicModelFetch(p: AIProvider): boolean {
-  return p === "openai" || p === "claude" || p === "gemini";
+  return p === "openai" || p === "claude" || p === "gemini" || p === "ollama-cloud";
 }
 
 function normalizeGeminiModelId(modelId: string): string {
@@ -228,6 +228,48 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
           )
         : [];
       return normalizeModelList(ids);
+    }
+
+    if (provider === "ollama") {
+      const baseUrl = agent.baseUrl || "http://localhost:11434";
+      try {
+        const response = await fetch(`${baseUrl}/api/tags`);
+        if (response.ok) {
+          const data = await response.json();
+          const ids = Array.isArray(data?.models)
+            ? data.models.map((item: { name?: string; model?: string }) => item.name || item.model || "")
+            : [];
+          const dynamic = normalizeModelList(ids);
+          if (dynamic.length > 0) return dynamic;
+        }
+      } catch (e) {
+        console.warn("[AIAgentsSettings] Could not fetch Ollama models:", e);
+      }
+      return getBaseModelList(provider);
+    }
+
+    if (provider === "ollama-cloud") {
+      // For cloud, try fetching from the cloud API if a key is set, otherwise use defaults
+      const baseUrl = (agent.baseUrl || "https://ollama.com").replace(/\/$/, "");
+      const apiKey = agent.apiKey?.trim();
+      if (apiKey) {
+        try {
+          const response = await fetch(`${baseUrl}/v1/models`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const ids = Array.isArray(data?.data)
+              ? data.data.map((item: { id?: string }) => item.id || "")
+              : [];
+            const dynamic = normalizeModelList(ids);
+            if (dynamic.length > 0) return dynamic;
+          }
+        } catch (e) {
+          console.warn("[AIAgentsSettings] Could not fetch Ollama Cloud models:", e);
+        }
+      }
+      return getBaseModelList(provider);
     }
 
     return getBaseModelList(provider);
@@ -950,6 +992,7 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
 
                     {(agent.provider === "custom" ||
                         agent.provider === "ollama" ||
+                        agent.provider === "ollama-cloud" ||
                         agent.provider === "hermes" ||
                         agent.provider === "hermes-aim" ||
                         agent.provider === "hermes-api" ||

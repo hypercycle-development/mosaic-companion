@@ -35,6 +35,7 @@ export function startAgentInRoom(
   roomId: string,
   agentId: string,
   agentName: string,
+  trainingContext?: { skillName: string; systemPrompt?: string },
 ): void {
   if (activeClients[roomId]?.[agentId]) return; // already running
 
@@ -91,9 +92,12 @@ export function startAgentInRoom(
     const conversationContext = buildConversationContext(roomId, agentName);
 
     try {
+      const systemPrompt = trainingContext
+        ? `You are ${agentName}. You are currently in TRAINING MODE for the skill: "${trainingContext.skillName}". Training context: ${trainingContext.systemPrompt || "Practice this skill in conversation. Respond helpfully and concisely."}`
+        : `You are ${agentName}, an AI assistant in a multi-user chat room. You can see the full conversation history above. The latest message mentions you — respond to it helpfully and concisely. Do NOT prefix your response with your name.`;
       const reply = await callActiveLLM(
         conversationContext,
-        `You are ${agentName}, an AI assistant in a multi-user chat room. You can see the full conversation history above. The latest message mentions you — respond to it helpfully and concisely. Do NOT prefix your response with your name.`,
+        systemPrompt,
         agentId,
       );
       if (reply) {

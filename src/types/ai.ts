@@ -6,6 +6,7 @@ export type AIProvider =
   | "openai"
   | "gemini"
   | "ollama"
+  | "ollama-cloud"
   | "custom"
   | "hypercycle"
   | "hermes"
@@ -117,6 +118,7 @@ export const DEFAULT_MODELS: Record<AIProvider, string[]> = {
   ],
   gemini: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
   ollama: ["llama3.2:3b", "qwen2.5-coder:7b", "gemma:2b", "qwen2.5:32b", "gpt-oss:20b"],
+  "ollama-cloud": ["kimi-k2.6", "kimi-k2.5", "minimax-m2.5", "deepseek-v4-flash", "qwen3-coder:480b"],
   custom: [],
   hypercycle: ["claude-sonnet-4-5-20250929"],
   hermes: ["kimi-k2.6", "minimax", "custom"],
@@ -147,6 +149,11 @@ export const PROVIDER_INFO: Record<
     name: "Ollama (Local)",
     color: "#8B5CF6",
     baseUrl: "http://localhost:11434",
+  },
+  "ollama-cloud": {
+    name: "Ollama Cloud",
+    color: "#22D3EE",
+    baseUrl: "https://ollama.com",
   },
   custom: {
     name: "Custom Endpoint",

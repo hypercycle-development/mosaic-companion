@@ -212,7 +212,7 @@ export function initChat(): void {
   // Agent assignments
   ipcMain.handle(
     "chat:assign-agent",
-    async (_e: IpcMainInvokeEvent, roomId: string, agentId: string, agentName: string) => {
+    async (_e: IpcMainInvokeEvent, roomId: string, agentId: string, agentName: string, trainingContext?: any) => {
       const settings = readSettings();
       const assignments = readAssignments();
       if (!assignments[roomId]) assignments[roomId] = [];
@@ -221,7 +221,7 @@ export function initChat(): void {
       }
       writeAssignments(assignments);
       if (settings.serverUrl) {
-        startAgentInRoom(settings.serverUrl, roomId, agentId, agentName);
+        startAgentInRoom(settings.serverUrl, roomId, agentId, agentName, trainingContext);
       }
       return { success: true };
     },

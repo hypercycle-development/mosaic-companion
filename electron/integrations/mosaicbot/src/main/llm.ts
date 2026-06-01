@@ -19,7 +19,7 @@ import path from "path";
 interface AgentConfig {
   id: string;
   name: string;
-  provider: "claude" | "openai" | "gemini" | "ollama" | "custom" | "hypercycle" | "hermes" | "hermes-aim" | "hermes-api";
+  provider: "claude" | "openai" | "gemini" | "ollama" | "ollama-cloud" | "custom" | "hypercycle" | "hermes" | "hermes-aim" | "hermes-api";
   apiKey: string;
   baseUrl?: string;
   model: string;
@@ -86,6 +86,9 @@ export async function callActiveLLM(
         return await callGemini(agent, [{ role: "user", content: prompt }]);
       case "ollama":
         return await callOllama(agent, [{ role: "user", content: prompt }], systemPrompt);
+      case "ollama-cloud":
+        // Ollama Cloud is OpenAI-compatible; use Bearer auth against /v1/chat/completions
+        return await callOpenAI(agent, [{ role: "user", content: prompt }], systemPrompt);
       case "hypercycle":
         console.warn(
           "[MosaicBot/LLM] Hypercycle provider needs token + stream steps; skipping LLM call.",

@@ -33,12 +33,60 @@ export const ChatPage: React.FC = () => {
   const [showNewRoom, setShowNewRoom] = useState(false);
   const [messageInput, setMessageInput] = useState("");
 
+  // Training room deployment signal from Stargate
+  const [trainingInfo, setTrainingInfo] = useState<{
+    roomId?: string;
+    roomName?: string;
+    agentName?: string;
+    skill?: string;
+  } | null>(null);
+  const [trainingNotice, setTrainingNotice] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const autoJoinedRef = useRef(false);
   const settingsLoadedRef = useRef(false);
   const shouldAutoConnectRef = useRef(false);
   const autoConnectInFlightRef = useRef(false);
   const lastAutoConnectKeyRef = useRef<string | null>(null);
+
+  // ── Training room detection ────────────────────────────────────────
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("stargate_training_deployment");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setTrainingInfo(parsed);
+        // Clear after consumption so we don't re-activate on refresh
+        sessionStorage.removeItem("stargate_training_deployment");
+      }
+    } catch {
+      // Ignore corrupt sessionStorage
+    }
+  }, []);
+
+  // Auto-select training room when it appears in the room list
+  useEffect(() => {
+    if (trainingInfo?.roomId && status === "connected") {
+      const room = rooms.find((r) => r.id === trainingInfo.roomId);
+      if (room) {
+        if (!joinedRoomIds.has(room.id)) {
+          window.chatAPI?.joinRoom(room.id);
+        }
+        setActiveRoomId(room.id);
+      }
+    }
+  }, [trainingInfo, rooms, status, joinedRoomIds]);
+
+  // Notify user when training room is active
+  useEffect(() => {
+    if (trainingInfo?.agentName && activeRoomId === trainingInfo.roomId) {
+      setTrainingNotice(
+        `${trainingInfo.agentName} is training here${trainingInfo.skill ? ` for "${trainingInfo.skill}"` : ""}. Interact to guide its learning.`
+      );
+      const t = setTimeout(() => setTrainingNotice(null), 6000);
+      return () => clearTimeout(t);
+    }
+  }, [trainingInfo, activeRoomId]);
 
   // Load settings and agents on mount
   useEffect(() => {
@@ -468,11 +516,20 @@ export const ChatPage: React.FC = () => {
                     <span className="text-gray-500">#</span>
                   )}
                   {activeRoom.name}
+                  {/* Training room indicator */}
+                  {trainingInfo?.roomId === activeRoom.id && (
+                    <span className="ml-2 px-1.5 py-0.5 bg-purple-900/40 text-purple-300 border border-purple-500/30 rounded text-[10px] font-medium uppercase tracking-wide">
+                      Training
+                    </span>
+                  )}
                 </h1>
                 <p className="text-xs text-gray-500">
                   {activeRoom.members.length} members
-                  {activeRoom.visibility && activeRoom.visibility !== "public" && ` \u00B7 ${activeRoom.visibility}`}
+                  {activeRoom.visibility && activeRoom.visibility !== "public" && ` · ${activeRoom.visibility}`}
                 </p>
+                {trainingNotice && (
+                  <p className="text-xs text-purple-400 mt-1">{trainingNotice}</p>
+                )}
               </div>
               <button
                 onClick={handleLeave}

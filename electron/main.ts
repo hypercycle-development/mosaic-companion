@@ -772,13 +772,15 @@ function readAgents(): AIAgent[] {
   } catch (error) {
     console.error("Failed to read AI agents:", error);
   }
-  // Sanitize Ollama agents that were saved with remote cloud model names
+  // Migrate old Ollama agents that were saved with cloud model names to ollama-cloud provider
   let sanitized = false;
   for (const a of raw) {
     const model = (a as any).model as string;
     if (a.provider === "ollama" && model && model.includes(":cloud")) {
-      console.log(`[Main] Sanitizing Ollama agent "${a.name}" model from ${a.model} → llama3.2:3b`);
-      a.model = "llama3.2:3b";
+      console.log(`[Main] Migrating Ollama agent "${a.name}" model ${a.model} → ollama-cloud provider`);
+      a.provider = "ollama-cloud" as AIAgent["provider"];
+      a.baseUrl = a.baseUrl || "https://ollama.com";
+      a.model = (a.model as string).replace(/:cloud$/, ""); // strip :cloud suffix
       sanitized = true;
     }
   }

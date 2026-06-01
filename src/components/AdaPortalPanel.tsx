@@ -3971,14 +3971,28 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           }
           showNotification('success', `Hiring ${agent.name}...`);
           break;
-        case 'train':
-          if (onBookTraining) {
-            onBookTraining(agent.id, agent.name);
-          } else if (onNavigateToChat) {
-            onNavigateToChat(`Book training for my AI agent ${agent.name}`);
+        case 'train': {
+          const skillName = selectedSkill?.name || (selectedTrainer?.listingId ? selectedTrainer.listingId.split('-').pop() : 'general');
+          showNotification('info', `Deploying ${agent.name} to training room for "${skillName}"...`);
+          try {
+            const { deployAgentToTrainingRoom } = await import(
+              /* webpackChunkName: "training-deployer" */ '../services/stargate/TrainingRoomDeployer'
+            );
+            const result = await deployAgentToTrainingRoom(agent.id, agent.name, skillName);
+            if (result.success) {
+              showNotification('success', `${agent.name} deployed to training room "${result.roomName}"`);
+              if (onNavigateToChat) {
+                onNavigateToChat(`Navigate to training room "${result.roomName}" for ${agent.name}`);
+              }
+            } else {
+              showNotification('error', `Deployment failed: ${result.error || 'Unknown error'}`);
+            }
+          } catch (e: any) {
+            console.error('[AdaPortal] Deploy to training failed:', e);
+            showNotification('error', `Deployment failed: ${e.message}`);
           }
-          showNotification('success', `Booking training for ${agent.name}...`);
           break;
+        }
         case 'package':
           if (onGetPackage) {
             onGetPackage(agent.id, agent.name);
