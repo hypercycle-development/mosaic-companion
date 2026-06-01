@@ -4230,7 +4230,15 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             {activeTab === 'leaderboard' && renderLeaderboard()}
             {activeTab === 'training' && renderTraining()}
             {activeTab === 'packages' && renderPackages()}
-            {activeTab === 'skills' && <StargateSkillsMarketplacePanel />}
+            {activeTab === 'skills' && (
+              <StargateSkillsMarketplacePanel
+                onAttachSkill={(skill) => {
+                  setSelectedSkill(skill);
+                  setAgentSelectMode('skill');
+                  setShowAgentSelectModal(true);
+                }}
+              />
+            )}
             {activeTab === 'compute' && <>{renderCompute()}{renderNodes()}</>}
             {activeTab === 'dashboard' && renderDashboard()}
             {activeTab === 'stargate' && renderStargatePool()}

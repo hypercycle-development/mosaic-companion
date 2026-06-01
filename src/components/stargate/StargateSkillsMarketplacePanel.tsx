@@ -219,7 +219,8 @@ const SkillCard: React.FC<{
 const SkillDetail: React.FC<{
   skill: Skill;
   onBack: () => void;
-}> = ({ skill, onBack }) => {
+  onAttachSkill?: (skill: Skill) => void;
+}> = ({ skill, onBack, onAttachSkill }) => {
   const [readme, setReadme] = useState<string>('Loading README...');
   const [loading, setLoading] = useState(true);
 
@@ -266,6 +267,15 @@ const SkillDetail: React.FC<{
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {onAttachSkill && (
+              <button
+                onClick={() => onAttachSkill(skill)}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                <Zap size={16} />
+                Attach to My Agent
+              </button>
+            )}
             <button
               onClick={copyClone}
               className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium rounded-lg transition-colors"
@@ -349,7 +359,9 @@ const SkillDetail: React.FC<{
 
 // ─── Main Panel ─────────────────────────────────────────────
 
-const StargateSkillsMarketplacePanel: React.FC = () => {
+const StargateSkillsMarketplacePanel: React.FC<{
+  onAttachSkill?: (skill: any) => void;
+}> = ({ onAttachSkill }) => {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -409,7 +421,7 @@ const StargateSkillsMarketplacePanel: React.FC = () => {
   if (selectedSkill) {
     return (
       <div className="h-full overflow-y-auto p-4">
-        <SkillDetail skill={selectedSkill} onBack={() => setSelectedSkill(null)} />
+        <SkillDetail skill={selectedSkill} onBack={() => setSelectedSkill(null)} onAttachSkill={onAttachSkill} />
       </div>
     );
   }
