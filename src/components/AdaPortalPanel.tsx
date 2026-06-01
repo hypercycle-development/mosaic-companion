@@ -65,6 +65,7 @@ import { stargateRegistry, type AgentProfile, type BundleConfig, type TrainingJo
 import { KanbanDashboard } from './KanbanDashboard';
 import UnifiedAssetPanel from './UnifiedAssetPanel';
 import TasteSkillDialPanel from './stargate/TasteSkillDialPanel';
+import StargateSkillsMarketplacePanel from './stargate/StargateSkillsMarketplacePanel';
 import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus } from 'lucide-react';
 
 // ---- Module-level helper: ensure wallet is on Base chain ----
@@ -4229,7 +4230,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             {activeTab === 'leaderboard' && renderLeaderboard()}
             {activeTab === 'training' && renderTraining()}
             {activeTab === 'packages' && renderPackages()}
-            {activeTab === 'skills' && renderSkills()}
+            {activeTab === 'skills' && <StargateSkillsMarketplacePanel />}
             {activeTab === 'compute' && <>{renderCompute()}{renderNodes()}</>}
             {activeTab === 'dashboard' && renderDashboard()}
             {activeTab === 'stargate' && renderStargatePool()}
