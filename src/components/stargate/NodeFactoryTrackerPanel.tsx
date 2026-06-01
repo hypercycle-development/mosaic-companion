@@ -202,7 +202,23 @@ export default function NodeFactoryTrackerPanel() {
     try {
       const res = await window.electronAPI?.nodeFactory?.loadJsonFile(filePath);
       if (!res?.success) throw new Error(res?.error || 'Failed to load licenses JSON');
-      const data: LicensesJson = res.data;
+      const raw = res.data as any;
+
+      // Normalize: accept both {network: string[]} (legacy) and {Licenses: [{network, license_id}]} (HPEC) formats
+      let data: Record<string, string[]>;
+      if (raw && Array.isArray(raw.Licenses)) {
+        data = {};
+        for (const entry of raw.Licenses) {
+          const net = String(entry.network || 'unknown').toLowerCase();
+          const id = String(entry.license_id || '').replace(/[^0-9a-zA-Z]/g, '').trim();
+          if (!id) continue;
+          if (!data[net]) data[net] = [];
+          data[net].push(id);
+        }
+      } else {
+        data = raw as Record<string, string[]>;
+      }
+
       // Normalize and deduplicate
       const normalized: Record<string, string[]> = {};
       for (const [network, list] of Object.entries(data)) {
