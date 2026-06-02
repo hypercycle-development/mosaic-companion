@@ -473,7 +473,8 @@ class ANFEService {
               new Promise<string | null>((resolve) => setTimeout(() => resolve(null), 3000)),
             ]);
           }
-          if (owner && owner.toLowerCase() !== walletAddress.toLowerCase()) return null;
+          if (!owner) return null;
+          if (owner.toLowerCase() !== walletAddress.toLowerCase()) return null;
 
           const anfe = await this.buildANFE(contract, tokenId, chainId, walletAddress);
           // Enrich with HyperInsight node fields if present
