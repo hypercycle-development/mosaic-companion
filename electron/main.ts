@@ -525,6 +525,15 @@ ipcMain.handle("dialog:open-file", async (_event, options?: { filters?: Array<{ 
   return result.filePaths[0];
 });
 
+ipcMain.handle("dialog:open-directory", async () => {
+  const { dialog } = await import("electron");
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ["openDirectory"],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
 // ── Node Factory Tracker IPC ───────────────────────────────────────────────
 // Loads a licenses.json from the user's filesystem (sandbox-safe via renderer → main)
 ipcMain.handle("nodeFactory:loadJsonFile", async (_event, filePath: string) => {

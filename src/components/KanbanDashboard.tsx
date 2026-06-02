@@ -39,6 +39,7 @@ import {
 import type { AIAgentConfig, AIProvider } from '../types/ai';
 import { PROVIDER_INFO } from '../types/ai';
 import { HermesAimPanel } from './HermesAimPanel';
+import { GenericAimPanel } from './GenericAimPanel';
 import { fleetDiscoveryService, FleetNode, FleetNodeStatus, EnrichedFleetNode } from '../services/stargate/FleetDiscoveryService';
 import { hermesAgentOrchestrator } from '../services/stargate/HermesAgentOrchestrator';
 
@@ -85,6 +86,7 @@ export const KanbanDashboard: React.FC = () => {
   const [nodeKanban, setNodeKanban] = useState<Map<string, {id:string;status:string;assignee:string;title:string}[]>>(new Map());
   const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const [showAimPanel, setShowAimPanel] = useState(false);
+  const [showGenericAimPanel, setShowGenericAimPanel] = useState(false);
   const [aimifyAgentId, setAimifyAgentId] = useState<string | null>(null);
   const [responses, setResponses] = useState<AgentResponse[]>([]);
   const [showChat, setShowChat] = useState(true);
@@ -465,6 +467,12 @@ ${hermesResult.response}`,
             <Anchor size={14} /> Aimify Hermes
           </button>
           <button
+            onClick={() => setShowGenericAimPanel(true)}
+            className="flex items-center gap-1 px-3 py-1.5 bg-cyan-700 hover:bg-cyan-600 rounded text-sm transition"
+          >
+            <Rocket size={14} /> Aimify
+          </button>
+          <button
             onClick={isOrchestrating ? stopAll : runSelected}
             disabled={totalSelected === 0}
             className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm transition ${
@@ -807,6 +815,30 @@ ${hermesResult.response}`,
                     : a
                 ));
                 toast.success(`Agent aimified: ${imageTag}`);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Generic Aimify Panel (modal) — package any AI model */}
+      {showGenericAimPanel && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg w-[800px] max-h-[90vh] overflow-y-auto p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Rocket size={18} className="text-cyan-400" />
+                Aimify Your Model
+              </h2>
+              <button
+                onClick={() => setShowGenericAimPanel(false)}
+                className="text-gray-400 hover:text-white"
+              >×</button>
+            </div>
+            <GenericAimPanel
+              onClose={() => setShowGenericAimPanel(false)}
+              onAimified={(modelName, imageTag) => {
+                toast.success(`Model ${modelName} aimified: ${imageTag}`);
               }}
             />
           </div>

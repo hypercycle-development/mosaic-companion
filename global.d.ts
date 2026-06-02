@@ -421,6 +421,7 @@ declare global {
       // File dialog
       dialog: {
         openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string | null>;
+        openDirectory: () => Promise<string | null>;
       };
 
       // Node Factory Tracker — CBNO license fleet health

@@ -204,6 +204,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   dialog: {
     openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) =>
       ipcRenderer.invoke("dialog:open-file", options),
+    openDirectory: () =>
+      ipcRenderer.invoke("dialog:open-directory"),
   },
   // Node Factory Tracker — CBNO license fleet health monitoring
   nodeFactory: {
