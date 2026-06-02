@@ -154,6 +154,90 @@ export const KanbanDashboard: React.FC = () => {
     load();
   }, []);
 
+  // Detect local AIMs via HyperCycle node API (8000/info) and direct health (9000/health)
+  useEffect(() => {
+    const probeLocalAIMs = async () => {
+      let nodeInfo: any = null;
+
+      // Route 1: HyperCycle node /info — canonical discovery, lists all AIM slots
+      try {
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 3000);
+        const resp = await fetch('http://127.0.0.1:8000/info', { signal: ctrl.signal });
+        clearTimeout(to);
+        if (resp.ok) nodeInfo = await resp.json();
+      } catch { /* no local node on 8000 */ }
+
+      // Route 2: Direct health on 9000 as fallback for standalone AIM (no node)
+      let directHealth: any = null;
+      if (!nodeInfo) {
+        try {
+          const ctrl = new AbortController();
+          const to = setTimeout(() => ctrl.abort(), 3000);
+          const resp = await fetch('http://127.0.0.1:9000/health', { signal: ctrl.signal });
+          clearTimeout(to);
+          if (resp.ok) directHealth = await resp.json();
+        } catch { /* no direct AIM on 9000 */ }
+      }
+
+      const aims: any[] = nodeInfo?.aim?.aims || [];
+      const hasDirectHealth = directHealth?.status?.status === 'ok'
+                           || directHealth?.status?.status === 'alive'
+                           || directHealth?.status === 'ok'
+                           || directHealth?.status === 'alive';
+
+      setAgents(prev => {
+        const next = [...prev];
+        const hasAimified = (id: string) => next.some(a => a.provider === 'hermes-aim' && a.id === id);
+
+        // Inject from node /info aims
+        aims.forEach((aim: any, idx: number) => {
+          const id = `local-aim-${aim.slot ?? idx}`;
+          if (hasAimified(id)) return;
+          const port = aim.port || 9000 + (aim.slot ?? idx);
+          const synthetic: KanbanAgent = {
+            id,
+            name: aim.image_name || `Local AIM (slot ${aim.slot ?? idx})`,
+            provider: 'hermes-aim',
+            apiKey: '',
+            baseUrl: `http://127.0.0.1:${port}`,
+            model: aim.model || 'custom',
+            isActive: true,
+            createdAt: Date.now(),
+            column: 'aimified',
+            status: 'aimified',
+            aimIndex: aim.slot ?? idx,
+            imageTag: aim.image_tag || aim.imageTag || 'latest',
+          };
+          next.push(synthetic);
+        });
+
+        // Fallback: inject from direct 9000/health if node /info missed it
+        if (hasDirectHealth && !hasAimified('local-aim-9000')) {
+          const info = directHealth;
+          const synthetic: KanbanAgent = {
+            id: 'local-aim-9000',
+            name: info.name || 'Local AIM (localhost:9000)',
+            provider: 'hermes-aim',
+            apiKey: '',
+            baseUrl: 'http://127.0.0.1:9000',
+            model: info.model || info?.aim?.aims?.[0]?.model || 'custom',
+            isActive: true,
+            createdAt: Date.now(),
+            column: 'aimified',
+            status: 'aimified',
+            aimIndex: 0,
+            imageTag: info.version || info?.aim?.aims?.[0]?.imageTag || 'latest',
+          };
+          next.push(synthetic);
+        }
+
+        return next;
+      });
+    };
+    probeLocalAIMs();
+  }, []);
+
   // Load fleet nodes on mount and every 30s
   useEffect(() => {
     const loadFleet = async () => {
@@ -746,7 +830,9 @@ const StatusBadge: React.FC<{ status: KanbanAgent['status'] }> = ({ status }) =>
 
 const ProviderIcon: React.FC<{ provider: AIProvider }> = ({ provider }) => {
   switch (provider) {
-    case 'hermes':    return <Anchor size={12} className="text-violet-400" />;
+    case 'hermes':
+    case 'hermes-aim':
+      return <Anchor size={12} className="text-violet-400" />;
     case 'hypercycle':return <Cpu    size={12} className="text-cyan-400" />;
     case 'ollama':    return <Box    size={12} className="text-purple-400" />;
     case 'openai':    return <Globe  size={12} className="text-emerald-400" />;
