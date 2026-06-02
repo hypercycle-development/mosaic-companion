@@ -83,8 +83,12 @@ export function startAgentInRoom(
     // Track every message for context (including agent messages)
     addToHistory(roomId, m);
 
-    // Only respond to non-agent @mentions
-    if (m.isAgent) return;
+    // Never reply to yourself (prevents self-loop)
+    if (m.username === agentName) return;
+
+    // In normal mode, ignore other agents to prevent chaos.
+    // In training mode, allow agent-to-agent interaction.
+    if (m.isAgent && !trainingContext) return;
 
     const mentionRegex = new RegExp(`@${escapeRegex(agentName)}`, "gi");
     if (!mentionRegex.test(m.text)) return;
