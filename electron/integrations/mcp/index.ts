@@ -96,79 +96,38 @@ function ensureDefaultPlugins(): void {
   // ── Hermes Tools MCP Server ──
   // Exposes ALL Hermes tools (skills, terminal, web, file, kanban, cron, etc.)
   // over MCP so every Mosaic agent can invoke them transparently.
-
-  // Resolve the *correct* command first (venv python + main.py is the only
-  // reliable way inside Electron — the `hermes` wrapper relies on sys.path
-  // being correct and `dotenv` being importable, which isn't true here).
-  const venvCand = path.join(home, "hermes", "venv", "bin", "python3");
-  const mainPyCand = path.join(home, "hermes", "hermes_cli", "main.py");
-  let hermesCmd: string = "";
-  let hermesArgs: string[] = [];
-  if (fs.existsSync(venvCand) && fs.existsSync(mainPyCand)) {
-    hermesCmd = venvCand;
-    hermesArgs = [mainPyCand, "mcp", "serve-tools", "--accept-hooks"];
-  } else {
-    try {
-      hermesCmd = require("node:child_process").execSync("which hermes", { encoding: "utf-8" }).trim();
-      hermesArgs = ["mcp", "serve-tools", "--accept-hooks"];
-    } catch {
-      hermesCmd = "";
+  // The Python server file is BUNDLED inside this repo so it works on any PC
+  // without a separate Hermes repository checkout.
+  const hasHermesTools = existing.some((p) => p.name === "hermes-tools");
+  if (!hasHermesTools) {
+    const hermesToolsPath = path.join(home, "mosaic-companion", "electron", "integrations", "mcp", "servers", "hermes-tools-mcp-server.py");
+    if (fs.existsSync(hermesToolsPath)) {
+      // Use the system Python3 — the script is self-contained and imports
+      // model_tools at runtime via PYTHONPATH if Hermes is available.
+      const pyCmd = require("node:child_process").execSync("which python3", { encoding: "utf-8" }).trim();
+      const hermesEnv: Record<string, string> = {
+        HERMES_HOME: process.env.HERMES_HOME || `${home}/.hermes`,
+        // If Hermes repo exists alongside Mosaic, add it to PYTHONPATH so
+        // model_tools imports succeed. Otherwise the server runs with a
+        // reduced toolset (skills_list, skill_view, etc. via built-in fallbacks).
+        PYTHONPATH: [
+          path.join(home, "hermes"),
+          process.env.PYTHONPATH || "",
+        ].filter(Boolean).join(path.delimiter),
+      };
+      pluginManager.add({
+        name: "hermes-tools",
+        description: "Hermes Agent — ALL tools and skills (terminal, web, file, skills, kanban, cron, etc.)",
+        transport: "stdio",
+        command: pyCmd,
+        args: [hermesToolsPath],
+        env: hermesEnv,
+        autoConnect: true,
+      });
+      console.log(`[MCP] Registered default plugin: hermes-tools (bridge: ${hermesToolsPath})`);
+    } else {
+      console.warn(`[MCP] hermes-tools bridge not found at ${hermesToolsPath}; skipping`);
     }
-  }
-
-  if (!hermesCmd) {
-    console.warn("[MCP] Hermes not found; skipping hermes-tools registration");
-    return;
-  }
-
-  const existingHermes = existing.find((p) => p.name === "hermes-tools");
-  const isStale = existingHermes && (
-    // The old buggy registration used a `hermes` wrapper that crashes
-    // inside Electron (dotenv not on sys.path without the venv active).
-    existingHermes.command === "hermes" ||
-    existingHermes.command.endsWith("bin/hermes") ||
-    existingHermes.command !== hermesCmd
-  );
-
-  const hermesEnv: Record<string, string> = {
-    HERMES_HOME: process.env.HERMES_HOME || `${home}/.hermes`,
-    // Hermes modules (model_tools, mcp_serve_tools, etc.) live in
-    // the project root, not in site-packages. PYTHONPATH adds it.
-    // Do NOT set PYTHONHOME — it corrupts the venv interpreter.
-    PYTHONPATH: path.join(home, "hermes"),
-  };
-
-  if (!existingHermes) {
-    // Fresh registration on first run
-    pluginManager.add({
-      name: "hermes-tools",
-      description: "Hermes Agent — ALL tools and skills (terminal, web, file, skills, kanban, cron, etc.)",
-      transport: "stdio",
-      command: hermesCmd,
-      args: hermesArgs,
-      env: hermesEnv,
-      autoConnect: true,
-    });
-    console.log(`[MCP] Registered default plugin: hermes-tools (cmd: ${hermesCmd}, args: ${JSON.stringify(hermesArgs)})`);
-  } else if (isStale) {
-    // Re-register with corrected command so initPlugins() can connect
-    console.warn(
-      `[MCP] hermes-tools config is stale (cmd: ${existingHermes.command}); ` +
-      `replacing with corrected command: ${hermesCmd}`
-    );
-    pluginManager.remove(existingHermes.id);
-    pluginManager.add({
-      name: "hermes-tools",
-      description: "Hermes Agent — ALL tools and skills (terminal, web, file, skills, kanban, cron, etc.)",
-      transport: "stdio",
-      command: hermesCmd,
-      args: hermesArgs,
-      env: hermesEnv,
-      autoConnect: true,
-    });
-    console.log(`[MCP] Re-registered hermes-tools (cmd: ${hermesCmd}, args: ${JSON.stringify(hermesArgs)})`);
-  } else {
-    console.log(`[MCP] hermes-tools already registered with correct command: ${hermesCmd}`);
   }
 }
 
