@@ -311,7 +311,7 @@ export const KanbanDashboard: React.FC = () => {
     });
 
     // ---------- 1. Run selected AI agents (existing logic) ----------
-    const selected = agents.filter(a => selectedIds.has(a.id) && a.column === 'ready');
+    const selected = agents.filter(a => selectedIds.has(a.id) && (a.column === 'ready' || a.column === 'aimified'));
     if (selected.length > 0) {
       selected.forEach(a => moveAgent(a.id, 'running'));
       await Promise.all(
@@ -321,10 +321,14 @@ export const KanbanDashboard: React.FC = () => {
             setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: 'running' } : a));
 
             let reply = '';
-            if (agent.provider === 'hermes' || agent.provider === 'hermes-aim' || agent.provider === 'hermes-api') {
+            if (agent.provider === 'hermes') {
               const { completeWithHermes } = await import('../services/HermesAgentService');
               const msg = { id: '1', role: 'user' as const, content: globalPrompt, timestamp: Date.now(), agentId: agent.id };
               reply = await completeWithHermes(agent, [msg]);
+            } else if (agent.provider === 'hermes-aim') {
+              const { AIService } = await import('../services/AIService');
+              const msg = { id: '1', role: 'user' as const, content: globalPrompt, timestamp: Date.now(), agentId: agent.id };
+              reply = await AIService.sendToHermesAIM(agent, [msg]);
             } else if (agent.provider === 'hypercycle') {
               const r = await fetch(`${agent.baseUrl}${agent.hypercycleBackend === 'basechain' ? '/api/aim/2/request' : '/api/aim/0/request'}`, {
                 method: 'POST',
@@ -354,12 +358,12 @@ export const KanbanDashboard: React.FC = () => {
               content: reply,
               status: 'success',
               timestamp: Date.now(),
-              column: 'ready',
+              column: agent.column,
             });
 
-            setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: 'idle', column: 'ready' } : a));
+            setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: 'idle', column: agent.column } : a));
           } catch (err: any) {
-            setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: 'error', lastError: err.message, column: 'ready' } : a));
+            setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: 'error', lastError: err.message, column: agent.column } : a));
             addResponse({
               id: `${agent.id}-${startTime}-err`,
               agentName: agent.name,
