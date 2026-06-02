@@ -64,11 +64,44 @@ interface ApiResponse<T> {
 }
 
 // ─── API Client ─────────────────────────────────────────────
+// Prefers MCP bridge (stargate-marketplace server) when available;
+// falls back to direct HTTP so the panel works standalone too.
 
-const API_BASE = 'http://localhost:3000/api';
+const FALLBACK_API_BASE = (import.meta.env.VITE_SKILLS_API_URL as string) || 'http://localhost:3000/api';
 
-async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
+/** Call marketplace via MCP if bridge is connected, else direct HTTP */
+async function marketplaceCall<T>(tool: string, args: Record<string, unknown>): Promise<T> {
+  // Try MCP first
+  if (typeof window !== 'undefined' && (window as any).electronAPI?.mcpAPI) {
+    try {
+      const mcp = (window as any).electronAPI.mcpAPI;
+      const { success, result, error } = await mcp.callTool('stargate-marketplace', tool, args);
+      if (success && result?.content?.[0]?.text) {
+        const raw = result.content[0].text;
+        // Strip markdown code fences if present
+        const json = raw.replace(/^```json\n/, '').replace(/\n```$/, '').trim();
+        return JSON.parse(json) as T;
+      }
+      if (error) throw new Error(`MCP error: ${error}`);
+    } catch (e: any) {
+      // MCP unavailable or failed — fall through to HTTP
+      console.warn(`[Marketplace] MCP call failed for ${tool}, falling back to HTTP:`, e.message);
+    }
+  }
+
+  // Direct HTTP fallback (for standalone / dev mode without Mosaic main process)
+  let url = `${FALLBACK_API_BASE}${tool === 'get_categories' ? '/categories' : '/skills'}`;
+  if (tool === 'search_skills') {
+    const qs = new URLSearchParams();
+    if (args.query) qs.set('query', String(args.query));
+    if (args.page) qs.set('page', String(args.page));
+    if (args.perPage) qs.set('perPage', String(args.perPage));
+    if (args.category) qs.set('category', String(args.category));
+    url = `${FALLBACK_API_BASE}/search?${qs.toString()}`;
+  } else if (tool === 'get_skill') {
+    url = `${FALLBACK_API_BASE}/skills/${args.slug}`;
+  }
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   return res.json() as Promise<T>;
 }
@@ -380,11 +413,11 @@ const StargateSkillsMarketplacePanel: React.FC<{
     setLoading(true);
     setError(null);
     try {
-      let url = `/skills?page=${page}&perPage=${perPage}`;
-      if (selectedCategory !== 'all') url += `&category=${selectedCategory}`;
-      if (searchQuery) url = `/search?query=${encodeURIComponent(searchQuery)}&page=${page}&perPage=${perPage}`;
+      const args: Record<string, unknown> = { page, perPage };
+      if (selectedCategory !== 'all') args.category = selectedCategory;
+      if (searchQuery) args.query = searchQuery;
 
-      const data = await apiGet<any>(url);
+      const data = await marketplaceCall<any>('search_skills', args);
       const skillList = data.skills || data.data || [];
       const pag = data.pagination || { page: 1, perPage, total: skillList.length, totalPages: 1, hasNext: false, hasPrev: false };
 
@@ -399,7 +432,7 @@ const StargateSkillsMarketplacePanel: React.FC<{
 
   const fetchCategories = useCallback(async () => {
     try {
-      const data = await apiGet<any>('/categories');
+      const data = await marketplaceCall<any>('get_categories', {});
       setCategories(data.categories || data.data || []);
     } catch (e) {
       // silently fail

@@ -35,6 +35,12 @@ export function setMainWindow(win: BrowserWindow): void {
 function ensureDefaultPlugins(): void {
   const existing = pluginManager.list();
 
+  // Shared Node.js built-ins used by multiple plugin registrations below
+  const path = require("node:path");
+  const os = require("node:os");
+  const fs = require("node:fs");
+  const home = os.homedir();
+
   // Register gbrain MCP server if not already present
   // Uses the Node.js bridge script (bundled in repo source) that wraps gbrain
   // CLI commands. Native `gbrain serve` is blocked by PGLite WASM abort on Linux
@@ -44,10 +50,7 @@ function ensureDefaultPlugins(): void {
     // esbuild bundles TS entry points but does NOT copy raw JS assets,
     // so require.resolve("./servers/...") fails in dist/main/. Use absolute
     // path from the source tree. This resolves relative to user home.
-    const path = require("node:path");
-    const os = require("node:os");
-    const gbrainPath = path.join(os.homedir(), "mosaic-companion", "electron", "integrations", "mcp", "servers", "gbrain-mcp-server.js");
-    const fs = require("node:fs");
+    const gbrainPath = path.join(home, "mosaic-companion", "electron", "integrations", "mcp", "servers", "gbrain-mcp-server.js");
     if (fs.existsSync(gbrainPath)) {
       pluginManager.add({
         name: "gbrain",
@@ -64,13 +67,35 @@ function ensureDefaultPlugins(): void {
     }
   }
 
+  // ── Stargate Skills Marketplace MCP Server ──
+  // Exposes marketplace search, skill detail, security scanning, and agent
+  // attachment as MCP tools. Bridge talks directly to localhost:3000/api
+  // and localhost:8001 (scanner) via built-in Node.js http — zero deps.
+  const hasMarketplace = existing.some((p) => p.name === "stargate-marketplace");
+  if (!hasMarketplace) {
+    const marketplacePath = path.join(home, "mosaic-companion", "electron", "integrations", "mcp", "servers", "stargate-marketplace-mcp-server.js");
+    if (fs.existsSync(marketplacePath)) {
+      pluginManager.add({
+        name: "stargate-marketplace",
+        description: "Stargate Skills Marketplace — search skills, scan security, attach to agents",
+        transport: "stdio",
+        command: "node",
+        args: [marketplacePath],
+        env: {
+          STARGATE_MARKETPLACE_URL: process.env.STARGATE_MARKETPLACE_URL || "http://localhost:3000/api",
+          STARGATE_SCANNER_URL: process.env.STARGATE_SCANNER_URL || "http://localhost:8001",
+        },
+        autoConnect: true,
+      });
+      console.log(`[MCP] Registered default plugin: stargate-marketplace (bridge: ${marketplacePath})`);
+    } else {
+      console.warn(`[MCP] stargate-marketplace bridge not found at ${marketplacePath}; skipping`);
+    }
+  }
+
   // ── Hermes Tools MCP Server ──
   // Exposes ALL Hermes tools (skills, terminal, web, file, kanban, cron, etc.)
   // over MCP so every Mosaic agent can invoke them transparently.
-  const fs = require("node:fs");
-  const path = require("node:path");
-  const os = require("node:os");
-  const home = os.homedir();
 
   // Resolve the *correct* command first (venv python + main.py is the only
   // reliable way inside Electron — the `hermes` wrapper relies on sys.path
