@@ -48,6 +48,12 @@ export const chatAPI = {
   leaveRoom: (roomId: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("chat:leave-room", roomId),
 
+  deleteRoom: (roomId: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke("chat:delete-room", roomId),
+
+  setVisibility: (roomId: string, visibility: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke("chat:set-visibility", roomId, visibility),
+
   sendMessage: (
     roomId: string,
     text: string,
@@ -78,10 +84,16 @@ export const chatAPI = {
   // Push events (server → renderer)
   // ===========================================================================
 
-  onConnectionChanged: (cb: (data: { status: string }) => void) => {
-    const listener = (_e: IpcRendererEvent, data: { status: string }) => cb(data);
+  onConnectionChanged: (cb: (data: { status: string; memberId?: string | null }) => void) => {
+    const listener = (_e: IpcRendererEvent, data: { status: string; memberId?: string | null }) => cb(data);
     ipcRenderer.on("chat:connection-changed", listener);
     return () => ipcRenderer.removeListener("chat:connection-changed", listener);
+  },
+
+  onRoomDeleted: (cb: (data: { roomId: string }) => void) => {
+    const listener = (_e: IpcRendererEvent, data: { roomId: string }) => cb(data);
+    ipcRenderer.on("chat:room-deleted", listener);
+    return () => ipcRenderer.removeListener("chat:room-deleted", listener);
   },
 
   onRoomsUpdated: (cb: (rooms: Room[]) => void) => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Bot, Plus, Send, MessageSquare, Users, X, Lock, Globe } from "lucide-react";
+import { Bot, Plus, Send, MessageSquare, Users, X, Lock, Globe, LogOut, Trash2 } from "lucide-react";
 import type { AIAgentConfig } from "../types/ai";
 import type {
   ChatSettings,
@@ -26,6 +26,7 @@ export const ChatPage: React.FC = () => {
   const [messages, setMessages] = useState<Record<string, StoredMessage[]>>({});
   const [assignedAgents, setAssignedAgents] = useState<Record<string, string[]>>({});
   const [allAgents, setAllAgents] = useState<AIAgentConfig[]>([]);
+  const [myMemberId, setMyMemberId] = useState<string | null>(null);
 
   // UI state
   const [newRoomName, setNewRoomName] = useState("");
@@ -39,6 +40,7 @@ export const ChatPage: React.FC = () => {
   const shouldAutoConnectRef = useRef(false);
   const autoConnectInFlightRef = useRef(false);
   const lastAutoConnectKeyRef = useRef<string | null>(null);
+  const appliedServerUrlRef = useRef<string | null>(null);
 
   // Load settings and agents on mount
   useEffect(() => {
@@ -50,8 +52,9 @@ export const ChatPage: React.FC = () => {
       settingsLoadedRef.current = true;
     });
     window.electronAPI.aiAgents.get().then(setAllAgents);
-    window.chatAPI?.status().then(({ status: s }) => {
+    window.chatAPI?.status().then(({ status: s, memberId }) => {
       setStatus(s as ConnectionStatus);
+      if (memberId) setMyMemberId(memberId);
       if (s === "connected") {
         autoJoinedRef.current = true;
         window.chatAPI?.listRooms();
@@ -64,16 +67,30 @@ export const ChatPage: React.FC = () => {
     const cleanups: Array<() => void> = [];
 
     cleanups.push(
-      window.chatAPI?.onConnectionChanged(({ status: s }) => {
+      window.chatAPI?.onConnectionChanged(({ status: s, memberId }) => {
         setStatus(s as ConnectionStatus);
+        if (memberId !== undefined) setMyMemberId(memberId ?? null);
         if (s === "disconnected") {
           setJoinedRoomIds(new Set());
           setActiveRoomId(null);
+          setMyMemberId(null);
           autoJoinedRef.current = false;
         } else if (s === "connected") {
           autoJoinedRef.current = false;
           window.chatAPI?.listRooms();
         }
+      }) ?? (() => {}),
+    );
+
+    cleanups.push(
+      window.chatAPI?.onRoomDeleted(({ roomId }) => {
+        setRooms((prev) => prev.filter((r) => r.id !== roomId));
+        setJoinedRoomIds((prev) => {
+          const next = new Set(prev);
+          next.delete(roomId);
+          return next;
+        });
+        setActiveRoomId((prev) => (prev === roomId ? null : prev));
       }) ?? (() => {}),
     );
 
@@ -210,6 +227,34 @@ export const ChatPage: React.FC = () => {
     }
   }, [status]);
 
+  // Auto-reconnect (debounced) when the server URL changes while a connection
+  // is active or being attempted. Editing the URL while disconnected just
+  // updates the field; the next Connect will use it.
+  useEffect(() => {
+    if (!settingsLoadedRef.current) return;
+    // Establish the baseline URL on first load without triggering a reconnect.
+    if (appliedServerUrlRef.current === null) {
+      appliedServerUrlRef.current = settings.serverUrl;
+      return;
+    }
+    if (settings.serverUrl === appliedServerUrlRef.current) return;
+    if (status === "disconnected") {
+      // No live connection — just track the new value, Connect will apply it.
+      appliedServerUrlRef.current = settings.serverUrl;
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      appliedServerUrlRef.current = settings.serverUrl;
+      lastAutoConnectKeyRef.current = null;
+      await window.chatAPI?.saveSettings(settings);
+      await window.chatAPI?.disconnect();
+      await window.chatAPI?.connect();
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [settings, status]);
+
   // Handlers
   const handleConnect = async () => {
     await window.chatAPI?.saveSettings(settings);
@@ -220,9 +265,30 @@ export const ChatPage: React.FC = () => {
     await window.chatAPI?.joinRoom(roomId);
   };
 
+  const handleLeaveRoom = async (roomId: string) => {
+    await window.chatAPI?.leaveRoom(roomId);
+  };
+
   const handleLeave = async () => {
     if (!activeRoomId) return;
-    await window.chatAPI?.leaveRoom(activeRoomId);
+    await handleLeaveRoom(activeRoomId);
+  };
+
+  const handleDeleteRoom = async (roomId: string, roomName: string) => {
+    if (!window.confirm(`Delete the room "${roomName}"? This removes it for everyone and can't be undone.`)) return;
+    await window.chatAPI?.deleteRoom(roomId);
+  };
+
+  // Whether a room should be visible to me. Private/invite-only rooms are
+  // hidden unless I created them, joined them, am a member, or am invited.
+  const isRoomVisibleToMe = (room: Room): boolean => {
+    const vis = room.visibility ?? "public";
+    if (vis === "public") return true;
+    if (myMemberId && room.creatorId === myMemberId) return true;
+    if (joinedRoomIds.has(room.id)) return true;
+    if (myMemberId && room.members?.some((m) => m.id === myMemberId)) return true;
+    if (myMemberId && room.allowedMemberIds?.includes(myMemberId)) return true;
+    return false;
   };
 
   const handleCreateRoom = async () => {
@@ -269,6 +335,7 @@ export const ChatPage: React.FC = () => {
 
   // Derived
   const activeRoom = rooms.find((r) => r.id === activeRoomId) ?? null;
+  const visibleRooms = rooms.filter(isRoomVisibleToMe);
   const activeMessages = activeRoomId ? (messages[activeRoomId] ?? []) : [];
   const activeAssigned = activeRoomId ? (assignedAgents[activeRoomId] ?? []) : [];
 
@@ -293,15 +360,17 @@ export const ChatPage: React.FC = () => {
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
             Chat Rooms
           </h2>
-          {/* input disabled temporarily */}
-          {/* <input
+          <label htmlFor="chat-server-url" className="block text-xs text-gray-500">
+            Server URL
+          </label>
+          <input
+            id="chat-server-url"
             type="text"
             value={settings.serverUrl}
             onChange={(e) => setSettings((s) => ({ ...s, serverUrl: e.target.value }))}
             placeholder="ws://localhost:4242"
-            disabled={status !== "disconnected"}
             className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-gray-200 placeholder-gray-600 disabled:opacity-50"
-          /> */}
+          />
           <label htmlFor="chat-username" className="block text-xs text-gray-500 mt-2">
             Display name
           </label>
@@ -315,8 +384,8 @@ export const ChatPage: React.FC = () => {
             className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-gray-200 placeholder-gray-600 disabled:opacity-50"
           />
           <div className="flex items-center gap-2 pt-1">
-            {/* <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusColor}`} />
-            <span className="text-xs text-gray-500 flex-1">{statusLabel}</span> */}
+            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusColor}`} />
+            <span className="text-xs text-gray-500 flex-1">{statusLabel}</span>
             {status === "disconnected" && (
               <button
                   onClick={handleConnect}
@@ -331,22 +400,23 @@ export const ChatPage: React.FC = () => {
 
         {/* Room list */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          {rooms.length === 0 && status === "connected" && (
+          {visibleRooms.length === 0 && status === "connected" && (
             <p className="text-xs text-gray-600 px-2 pt-2">No rooms yet. Create one below.</p>
           )}
-          {rooms.length === 0 && status !== "connected" && (
+          {visibleRooms.length === 0 && status !== "connected" && (
             <p className="text-xs text-gray-600 px-2 pt-2">Connect to see rooms.</p>
           )}
-          {rooms.map((room) => {
+          {visibleRooms.map((room) => {
             const joined = joinedRoomIds.has(room.id);
             const isActive = activeRoomId === room.id;
+            const isCreator = !!myMemberId && room.creatorId === myMemberId;
             return (
               <div
                 key={room.id}
                 onClick={() => {
                   if (joined) setActiveRoomId(room.id);
                 }}
-                className={`flex items-center justify-between px-3 py-2 rounded-lg transition-colors ${
+                className={`group flex items-center justify-between px-3 py-2 rounded-lg transition-colors ${
                   isActive
                     ? "bg-indigo-900/30 border border-indigo-500/20"
                     : joined
@@ -365,20 +435,48 @@ export const ChatPage: React.FC = () => {
                   </p>
                   <p className="text-xs text-gray-600">{room.members.length} members</p>
                 </div>
-                {!joined && status === "connected" && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleJoin(room.id);
-                    }}
-                    className="ml-2 px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex-shrink-0"
-                  >
-                    Join
-                  </button>
-                )}
-                {joined && isActive && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0 ml-2" />
-                )}
+                <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                  {!joined && status === "connected" && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleJoin(room.id);
+                      }}
+                      className="px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors"
+                    >
+                      Join
+                    </button>
+                  )}
+                  {joined && isActive && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 group-hover:hidden" />
+                  )}
+                  {joined && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleLeaveRoom(room.id);
+                      }}
+                      title="Leave room"
+                      aria-label={`Leave ${room.name}`}
+                      className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <LogOut size={12} />
+                    </button>
+                  )}
+                  {isCreator && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteRoom(room.id, room.name);
+                      }}
+                      title="Delete room (you created it)"
+                      aria-label={`Delete ${room.name}`}
+                      className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}

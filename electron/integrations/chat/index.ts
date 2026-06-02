@@ -57,6 +57,7 @@ function writeAssignments(a: RoomAgentAssignments): void {
 let mainWindow: BrowserWindow | null = null;
 let chatClient: ChatClient | null = null;
 let connectionStatus: "disconnected" | "connecting" | "connected" = "disconnected";
+let myMemberId: string | null = null; // our member id from auth-ok (for room ownership)
 
 function push(channel: string, data?: unknown): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -65,9 +66,10 @@ function push(channel: string, data?: unknown): void {
 }
 
 function setupClientListeners(client: ChatClient): void {
-  client.on("auth-ok", () => {
+  client.on("auth-ok", (msg: { memberId?: string }) => {
     connectionStatus = "connected";
-    push("connection-changed", { status: "connected" });
+    myMemberId = msg?.memberId ?? null;
+    push("connection-changed", { status: "connected", memberId: myMemberId });
   });
 
   client.on("disconnected", () => {
@@ -93,6 +95,12 @@ function setupClientListeners(client: ChatClient): void {
         break;
       case "left":
         push("left", { roomId: msg.roomId });
+        break;
+      case "room-deleted":
+        push("room-deleted", { roomId: msg.roomId });
+        break;
+      case "visibility-changed":
+        push("visibility-changed", { roomId: msg.roomId, visibility: msg.visibility });
         break;
       case "message":
         push("message", msg.message);
@@ -139,7 +147,7 @@ export function initChat(): void {
   );
 
   // Status
-  ipcMain.handle("chat:status", async () => ({ status: connectionStatus }));
+  ipcMain.handle("chat:status", async () => ({ status: connectionStatus, memberId: myMemberId }));
 
   // Connection
   ipcMain.handle("chat:connect", async () => {
@@ -169,6 +177,7 @@ export function initChat(): void {
       chatClient = null;
     }
     connectionStatus = "disconnected";
+    myMemberId = null;
     push("connection-changed", { status: "disconnected" });
     return { success: true };
   });
@@ -199,6 +208,24 @@ export function initChat(): void {
     chatClient.send({ type: "leave-room", roomId });
     return { success: true };
   });
+
+  // Delete a room (server authorizes — only the creator may delete).
+  ipcMain.handle("chat:delete-room", async (_e: IpcMainInvokeEvent, roomId: string) => {
+    if (!chatClient?.isConnected()) return { success: false, error: "Not connected" };
+    chatClient.untrackRoom(roomId);
+    chatClient.send({ type: "delete-room", roomId });
+    return { success: true };
+  });
+
+  // Change a room's visibility (public | private | invite-only).
+  ipcMain.handle(
+    "chat:set-visibility",
+    async (_e: IpcMainInvokeEvent, roomId: string, visibility: string) => {
+      if (!chatClient?.isConnected()) return { success: false, error: "Not connected" };
+      chatClient.send({ type: "set-visibility", roomId, visibility: visibility as any });
+      return { success: true };
+    },
+  );
 
   ipcMain.handle(
     "chat:send-message",
