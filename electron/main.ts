@@ -381,8 +381,6 @@ app.whenReady().then(() => {
   initPlugins().catch((e) => console.error("[MCP] Plugin init failed:", e));
   initChat();
   initIDE();
-
-  // Initialize tool registry
   initializeTools().catch((e) => console.error("[Tools] Init failed:", e));
 
   // Start vault skill watcher so skillInjector cache clears when vault skills are edited at runtime
