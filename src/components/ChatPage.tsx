@@ -17,7 +17,7 @@ export const ChatPage: React.FC = () => {
   // Core state
   const [settings, setSettings] = useState<ChatSettings>({
     serverUrl: "wss://agents-chat.hyperpg.site",
-    username: "",
+    username: "Mauricio P",
   });
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [rooms, setRooms] = useState<Room[]>([]);

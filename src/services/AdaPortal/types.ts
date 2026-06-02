@@ -355,6 +355,12 @@ export type UserIntent =
   | 'grow_dao'
   | 'build_dapp'
   | 'automate_workflows'
+  | 'rankings'
+  | 'bundles'
+  | 'compute_nodes'
+  | 'dashboard'
+  | 'stargate_pool'
+  | 'deploy_system'
   | 'custom';
 
 export interface IntentOption {

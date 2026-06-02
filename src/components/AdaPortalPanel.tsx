@@ -106,46 +106,97 @@ const INTENT_OPTIONS: {
   icon: React.ReactNode;
   color: string;
   bg: string;
+  tab: TabId;
 }[] = [
   {
     id: 'launch_project',
-    label: 'Launch Project',
-    description: 'Start a new project with AI workforce - agents, compute, and intelligence',
-    icon: <Rocket size={24} />,
+    label: 'Hire Agents',
+    description: 'Browse and hire AI agents from the marketplace to work on your projects',
+    icon: <Users size={24} />,
     color: 'text-cyan-400',
     bg: 'bg-cyan-400/10',
+    tab: 'marketplace',
   },
   {
     id: 'grow_dao',
-    label: 'Grow DAO',
-    description: 'Expand your DAO - community, governance, and token growth',
-    icon: <TrendingUpIcon size={24} />,
-    color: 'text-green-400',
-    bg: 'bg-green-400/10',
+    label: 'AI Models',
+    description: 'Explore AI models (AIMs) — deploy, manage, and scale intelligent compute',
+    icon: <Bot size={24} />,
+    color: 'text-purple-400',
+    bg: 'bg-purple-400/10',
+    tab: 'aims',
+  },
+  {
+    id: 'rankings',
+    label: 'Rankings',
+    description: 'See top-performing agents, skills, and AI models across the network',
+    icon: <Trophy size={24} />,
+    color: 'text-yellow-400',
+    bg: 'bg-yellow-400/10',
+    tab: 'leaderboard',
   },
   {
     id: 'build_dapp',
-    label: 'Build dApp',
-    description: 'Deploy smart contracts and decentralized applications',
-    icon: <Code size={24} />,
-    color: 'text-purple-400',
-    bg: 'bg-purple-400/10',
+    label: 'Train Agents',
+    description: 'Train your agents with custom skills, data, and reinforcement learning',
+    icon: <GraduationCap size={24} />,
+    color: 'text-green-400',
+    bg: 'bg-green-400/10',
+    tab: 'training',
+  },
+  {
+    id: 'bundles',
+    label: 'Bundles',
+    description: 'Pre-packaged agent teams with skills — ready to deploy',
+    icon: <Package size={24} />,
+    color: 'text-orange-400',
+    bg: 'bg-orange-400/10',
+    tab: 'packages',
   },
   {
     id: 'automate_workflows',
-    label: 'Automate Workflows',
-    description: 'Set up autonomous agents to handle repetitive tasks',
-    icon: <Workflow size={24} />,
+    label: 'Skills',
+    description: 'Discover and install skills for your agents — reusable capabilities and tools',
+    icon: <Zap size={24} />,
     color: 'text-amber-400',
     bg: 'bg-amber-400/10',
+    tab: 'skills',
   },
   {
-    id: 'custom',
-    label: 'Custom Goal',
-    description: 'Define your own objective and let AI configure the stack',
-    icon: <Sparkles size={24} />,
-    color: 'text-pink-400',
-    bg: 'bg-pink-400/10',
+    id: 'compute_nodes',
+    label: 'Compute & Nodes',
+    description: 'Allocate compute power and manage HyperCycle nodes for your AI stack',
+    icon: <Cpu size={24} />,
+    color: 'text-blue-400',
+    bg: 'bg-blue-400/10',
+    tab: 'compute',
+  },
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    description: 'Overview of your AI workforce, compute usage, and network activity',
+    icon: <LayoutDashboard size={24} />,
+    color: 'text-indigo-400',
+    bg: 'bg-indigo-400/10',
+    tab: 'dashboard',
+  },
+  {
+    id: 'stargate_pool',
+    label: 'Stargate Pool',
+    description: 'Manage your ANFE licenses and deploy agents to HyperCycle compute nodes',
+    icon: <Zap size={24} />,
+    color: 'text-rose-400',
+    bg: 'bg-rose-400/10',
+    tab: 'stargate',
+  },
+  {
+    id: 'deploy_system',
+    label: 'Deploy System',
+    description: 'Create and manage Application Service Providers (ASPs) for your organization',
+    icon: <Building2 size={24} />,
+    color: 'text-teal-400',
+    bg: 'bg-teal-400/10',
+    tab: 'asp',
   },
 ];
 
@@ -214,8 +265,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [selectedPackageItem, setSelectedPackageItem] = useState<AgentPackage | null>(null);
   const [aims, setAims] = useState<AIMInfo[]>([]);
   const [selectedIntent, setSelectedIntent] = useState<UserIntent | null>(null);
-  const [executionPlan, setExecutionPlan] = useState<any>(null);
-  const [autonomousMode, setAutonomousMode] = useState(false);
   const [selectedComputeTier, setSelectedComputeTier] = useState<ComputeTier | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -1333,62 +1382,16 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         </div>
       )}
 
-      {/* Autonomous Mode Toggle */}
-      <div className="flex items-center justify-between p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${autonomousMode ? 'bg-cyan-500/20' : 'bg-gray-800'}`}>
-            <Bot size={20} className={autonomousMode ? 'text-cyan-400' : 'text-gray-500'} />
-          </div>
-          <div>
-            <h4 className="font-medium text-white">Autonomous Mode</h4>
-            <p className="text-xs text-gray-500">Agents hire agents and execute full workflow</p>
-          </div>
-        </div>
-        <button
-          onClick={() => setAutonomousMode(!autonomousMode)}
-          className={`w-12 h-6 rounded-full transition-all ${autonomousMode ? 'bg-cyan-500' : 'bg-gray-700'}`}
-        >
-          <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${autonomousMode ? 'translate-x-6' : 'translate-x-0.5'}`} />
-        </button>
-      </div>
-
-      {/* Intent Options Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {/* Intent Options Grid — Simplified for new users */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {INTENT_OPTIONS.map((intent) => (
           <button
             key={intent.id}
             onClick={() => {
               setSelectedIntent(intent.id);
-              
-              // Build execution plan for selected intent
-              let plan: any = null;
-              try {
-                plan = hyperInsight.buildExecutionPlan({ intent: intent.id as any });
-                setExecutionPlan(plan);
-              } catch (e) {
-                console.log('[AdaPortal] Could not build execution plan:', e);
-                setExecutionPlan(null);
-              }
-              
-              // Navigate to appropriate tab based on intent
-              switch (intent.id) {
-                case 'launch_project':
-                case 'build_dapp':
-                  setActiveTab('marketplace');
-                  break;
-                case 'grow_dao':
-                  setActiveTab('leaderboard');
-                  break;
-                case 'automate_workflows':
-                  setActiveTab('skills');
-                  break;
-                default:
-                  break;
-              }
-              
-              // Send intent to chat for workflow execution
+              setActiveTab(intent.tab as TabId);
               if (onNavigateToChat) {
-                onNavigateToChat(`I want to ${intent.label.toLowerCase()}. Configure the AI workforce for me.`);
+                onNavigateToChat(`I want to ${intent.label.toLowerCase()}. Help me get started.`);
               }
             }}
             className={`p-4 rounded-xl border text-left transition-all ${
@@ -1409,34 +1412,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           </button>
         ))}
       </div>
-
-      {/* Execution Plan Preview */}
-      {executionPlan && (
-        <div className="p-4 rounded-xl border border-cyan-500/30 bg-cyan-500/5">
-          <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
-            <Zap size={18} className="text-cyan-400" />
-            Recommended AI Stack
-          </h4>
-          <div className="grid grid-cols-3 gap-4 text-sm">
-            <div>
-              <div className="text-gray-500 text-xs mb-1">Agent</div>
-              <div className="text-white font-medium">{executionPlan.agent?.name || 'Auto-select'}</div>
-            </div>
-            <div>
-              <div className="text-gray-500 text-xs mb-1">AIM</div>
-              <div className="text-white font-medium truncate">{executionPlan.aim?.name?.split('/')[1] || 'Auto-select'}</div>
-            </div>
-            <div>
-              <div className="text-gray-500 text-xs mb-1">Compute</div>
-              <div className="text-white font-medium">{executionPlan.compute?.label || 'Standard'}</div>
-            </div>
-          </div>
-          <div className="mt-3 pt-3 border-t border-gray-800 flex items-center justify-between text-sm">
-            <span className="text-gray-500">Estimated cost:</span>
-            <span className="text-cyan-400 font-medium">${executionPlan.cost?.toFixed(2) || '0.50'}/hr</span>
-          </div>
-        </div>
-      )}
 
       {/* Quick Stats */}
       <div className="grid grid-cols-4 gap-3 pt-4 border-t border-gray-800">
@@ -2120,7 +2095,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const renderAims = () => (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">AI Models (AIMs)</h3>
+        <div>
+          <h3 className="text-lg font-semibold text-white">AI Models (AIMs)</h3>
+          <p className="text-sm text-gray-400 mt-0.5">Explore AI models you can deploy on HyperCycle compute nodes.</p>
+        </div>
         <span className="text-sm text-gray-400">{aims.length} models available</span>
       </div>
       
@@ -2169,7 +2147,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Intelligence Dashboard</h3>
+          <div>
+            <h3 className="text-lg font-semibold text-white">Intelligence Dashboard</h3>
+            <p className="text-sm text-gray-400 mt-0.5">Overview of your AI workforce, compute, and network activity.</p>
+          </div>
           <button
             onClick={loadData}
             className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
@@ -2218,7 +2199,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const renderMarketplace = () => (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Hire AI Agents</h3>
+        <div>
+          <h3 className="text-lg font-semibold text-white">Hire AI Agents</h3>
+          <p className="text-sm text-gray-400 mt-0.5">Browse the marketplace and hire specialized AI agents for your projects.</p>
+        </div>
         <div className="flex items-center gap-2">
           {userAgents.length > 0 && (
             <button
@@ -2293,7 +2277,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Rankings</h3>
+          <div>
+            <h3 className="text-lg font-semibold text-white">Rankings</h3>
+            <p className="text-sm text-gray-400 mt-0.5">See top-performing agents, skills, and AI models across the network.</p>
+          </div>
           <div className="flex gap-2">
             <button 
               onClick={() => setRankingTab('agents')}
@@ -2452,7 +2439,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const renderTraining = () => (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Train Your Agents</h3>
+        <div>
+          <h3 className="text-lg font-semibold text-white">Train Your Agents</h3>
+          <p className="text-sm text-gray-400 mt-0.5">Find trainers and improve your agents with custom skills and data.</p>
+        </div>
         <div className="flex items-center gap-2">
           {userAgents.length > 0 && (
             <button
@@ -2524,7 +2514,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const renderPackages = () => (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Agent Bundles</h3>
+        <div>
+          <h3 className="text-lg font-semibold text-white">Agent Bundles</h3>
+          <p className="text-sm text-gray-400 mt-0.5">Pre-packaged agent teams with skills — ready to deploy.</p>
+        </div>
         <div className="flex items-center gap-2">
           {userAgents.length > 0 && (
             <button
@@ -2584,7 +2577,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Skills Marketplace</h3>
+          <div>
+            <h3 className="text-lg font-semibold text-white">Skills Marketplace</h3>
+            <p className="text-sm text-gray-400 mt-0.5">Discover and install reusable capabilities for your agents.</p>
+          </div>
           <div className="flex items-center gap-2">
             {userAgents.length > 0 && (
               <>
@@ -3055,7 +3051,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const renderCompute = () => (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Compute Access</h3>
+        <div>
+          <h3 className="text-lg font-semibold text-white">Compute Access</h3>
+          <p className="text-sm text-gray-400 mt-0.5">Allocate compute power for running your agents and AI models.</p>
+        </div>
         <button 
           onClick={() => onNavigateToChat?.('I need compute resources for my agents')}
           className="px-3 py-1 text-sm bg-cyan-600 hover:bg-cyan-500 rounded-lg transition-colors"
@@ -3130,7 +3129,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Compute Nodes</h3>
+          <div>
+            <h3 className="text-lg font-semibold text-white">Compute Nodes</h3>
+            <p className="text-sm text-gray-400 mt-0.5">View and manage HyperCycle compute nodes available to run your AI stack.</p>
+          </div>
           <div className="flex items-center gap-2">
             {hboxNodes.length > 0 && (
               <span className="text-xs px-2 py-0.5 bg-violet-500/20 text-violet-400 rounded-full">
@@ -3288,6 +3290,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-white">Stargate Pool</h3>
+                <p className="text-sm text-gray-400 mt-0.5">Manage your ANFE licenses and deploy agents to HyperCycle compute nodes.</p>
                 <p className="text-xs text-gray-400">
                   {walletAddress
                     ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
@@ -3597,7 +3600,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Deploy System</h3>
+          <div>
+            <h3 className="text-lg font-semibold text-white">Deploy System</h3>
+            <p className="text-sm text-gray-400 mt-0.5">Create and manage Application Service Providers (ASPs) for your organization.</p>
+          </div>
           <button 
             onClick={() => showNotification('info', 'ASP creation coming soon')}
             className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-sm rounded-lg transition-colors flex items-center gap-1"

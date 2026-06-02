@@ -26,10 +26,12 @@ function readSettings(): ChatSettings {
   try {
     const p = getSettingsPath();
     if (fs.existsSync(p)) {
-      return JSON.parse(fs.readFileSync(p, "utf8")) as ChatSettings;
+      const parsed = JSON.parse(fs.readFileSync(p, "utf8")) as ChatSettings;
+      if (!parsed.username?.trim()) parsed.username = "Mauricio P";
+      return parsed;
     }
   } catch {}
-  return { serverUrl: "ws://localhost:4242", username: "" };
+  return { serverUrl: "ws://localhost:4242", username: "Mauricio P" };
 }
 
 function writeSettings(s: ChatSettings): void {
