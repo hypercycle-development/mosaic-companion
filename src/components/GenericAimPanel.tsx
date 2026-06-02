@@ -188,7 +188,7 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
     setStep('meta');
   }, []);
 
-  // ── Start build pipeline ────────────────────────────────────────────────
+  // ── Start build pipeline — REAL docker build via aimifyGenericModel ─────
   const startBuild = useCallback(async () => {
     if (!source || !meta.name) {
       toast.warning('Select a model source and enter a name first');
@@ -208,38 +208,53 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
         adapters.nodeManager,
       );
 
-      // TODO: wire generic model pipeline once backend supports it
-      // For now, simulate the pipeline stages for UX validation
-      const stages: PipelineStage[] = [
-        PipelineStage.PREFLIGHT,
-        PipelineStage.CONFIG_GENERATE,
-        PipelineStage.CODE_GENERATE,
-        PipelineStage.VALIDATE_SPEC,
-        PipelineStage.BUILD_DOCKER,
-        PipelineStage.TEST_LOCAL,
-      ];
-
-      for (const stage of stages) {
-        setCurrentStage(stage);
-        setStageStates(prev => new Map(prev).set(stage, {
-          stage,
+      // Wire real-time stage updates
+      service.on('stage:start', (ev: any) => {
+        setCurrentStage(ev.stage);
+        setStageStates(prev => new Map(prev).set(ev.stage, {
+          stage: ev.stage,
           status: 'running',
           startTime: Date.now(),
-          message: `Running ${stage}...`,
+          message: ev.message,
           logs: [],
         }));
-        setLogs(prev => [...prev, `[${stage}] Starting...`]);
-        await new Promise(r => setTimeout(r, 800));
+        setLogs(prev => [...prev, `[${ev.stage}] ${ev.message}`]);
+      });
+      service.on('stage:log', (ev: any) => {
+        setLogs(prev => [...prev, `[${ev.stage}] ${ev.log}`]);
         setStageStates(prev => {
           const next = new Map(prev);
-          const s = next.get(stage);
-          if (s) { s.status = 'success'; s.endTime = Date.now(); next.set(stage, { ...s }); }
+          const s = next.get(ev.stage);
+          if (s) { s.logs.push(ev.log); next.set(ev.stage, { ...s }); }
           return next;
         });
-        setLogs(prev => [...prev, `[${stage}] Done`]);
-      }
+      });
+      service.on('stage:success', (ev: any) => {
+        setStageStates(prev => {
+          const next = new Map(prev);
+          const s = next.get(ev.stage);
+          if (s) { s.status = 'success'; s.endTime = Date.now(); next.set(ev.stage, { ...s }); }
+          return next;
+        });
+        setLogs(prev => [...prev, `[${ev.stage}] Done`]);
+      });
+      service.on('stage:failed', (ev: any) => {
+        setStageStates(prev => {
+          const next = new Map(prev);
+          const s = next.get(ev.stage);
+          if (s) { s.status = 'failed'; s.endTime = Date.now(); s.error = ev.error; next.set(ev.stage, { ...s }); }
+          return next;
+        });
+        setLogs(prev => [...prev, `[${ev.stage}] FAILED: ${ev.error}`]);
+      });
+      service.on('docker:build:progress', (ev: any) => {
+        setLogs(prev => [...prev, ev.line]);
+      });
 
-      const tag = `${meta.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}:${meta.version}`;
+      const tag = await service.aimifyGenericModel(
+        { source, meta, config },
+        { target: 'local' }
+      );
       setImageTag(tag);
       toast.success(`Model packaged: ${tag}`);
       onAimified?.(meta.name, tag);

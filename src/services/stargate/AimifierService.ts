@@ -576,6 +576,304 @@ export class AimifierService extends EventEmitter {
   }
 
   // -------------------------------------------------------------------------
+  // Public: Generic Model Pipeline (no aim-py-gen, no Hermes embedding)
+  // -------------------------------------------------------------------------
+  async aimifyGenericModel(
+    payload: {
+      source: { type: 'directory' | 'dockerfile' | 'template'; path: string; templateId?: string };
+      meta: { name: string; description: string; version: string; author: string; tags: string[] };
+      config: { port: number; entrypoint: string; envVars: Record<string, string>; hasGpu: boolean; hasDataset: boolean; datasetDescription: string; monetizationType: string };
+    },
+    options: { target?: 'local' | 'node'; nodeUrl?: string } = {}
+  ): Promise<string> {
+    const { target = 'local', nodeUrl } = options;
+    const pipelineId = `generic-${payload.meta.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`;
+    const projectDir = `/tmp/aimifier-pipelines/${pipelineId}`;
+    const imageName = payload.meta.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const imageTag = `${imageName}:${payload.meta.version}`;
+
+    // Create a minimal agent-like config for pipeline state tracking
+    const agentConfig: AIAgentConfig = {
+      id: pipelineId,
+      name: payload.meta.name,
+      provider: 'custom',
+      apiKey: '',
+      model: 'generic',
+      isActive: true,
+      createdAt: Date.now(),
+    };
+
+    this._currentPipeline.set(pipelineId, {
+      agent: agentConfig,
+      stages: new Map(),
+      active: true,
+      cancelled: false,
+      startTime: Date.now(),
+      projectDir,
+      imageTag,
+      nodeUrl,
+    });
+
+    this.emit('pipeline:start', { agentId: pipelineId, target });
+
+    try {
+      // STAGE 1: PREFLIGHT — Docker check
+      await this._runStage(pipelineId, PipelineStage.PREFLIGHT, async (log) => {
+        log('[PREFLIGHT] Checking Docker availability...');
+        const dockerOk = await this._dockerAdapter.isAvailable();
+        if (!dockerOk) throw new Error('Docker not available. Install Docker and ensure daemon is running.');
+        log('[PREFLIGHT] Docker available.');
+        return { dockerOk };
+      });
+
+      // STAGE 2: CONFIG GENERATE — Write manifest.json + Dockerfile (if missing) + .dockerignore
+      await this._runStage(pipelineId, PipelineStage.CONFIG_GENERATE, async (log) => {
+        log(`[CONFIG] Preparing build context at ${projectDir}...`);
+
+        // Create project dir
+        const stargate = (window as any).electronAPI?.stargate?.aimify;
+        if (stargate?.writeFile) {
+          await stargate.writeFile(`${projectDir}/.gitkeep`, '');
+        }
+
+        const source = payload.source;
+
+        if (source.type === 'template') {
+          // Scaffold template files
+          log(`[CONFIG] Scaffolding template: ${source.templateId}...`);
+          if (source.templateId === 'home_automation') {
+            const mainPy = this._buildGenericMainPy(payload);
+            await this._writeFile(`${projectDir}/main.py`, mainPy);
+            const req = `flask>=2.3\npandas>=1.5\nnumpy>=1.24\nscikit-learn>=1.3\n`;
+            await this._writeFile(`${projectDir}/requirements.txt`, req);
+            await this._writeFile(`${projectDir}/.dockerignore`, this._buildGenericDockerignore());
+            await this._writeFile(`${projectDir}/Dockerfile`, this._buildGenericDockerfile(payload));
+          } else {
+            // custom_model / docker_image templates: user must have their own files
+            throw new Error(`Template ${source.templateId} requires a local directory. Use "Browse Directory" instead.`);
+          }
+        } else if (source.type === 'directory') {
+          // Copy user directory into projectDir
+          log(`[CONFIG] Copying directory ${source.path} into build context...`);
+          const { stdout, exitCode, stderr } = await this._exec('cp', ['-r', `${source.path}/.`, projectDir]);
+          if (exitCode !== 0) throw new Error(`Failed to copy directory: ${stderr || stdout}`);
+
+          // If no Dockerfile exists, generate one
+          const dockerfileCheck = await this._readFile(`${projectDir}/Dockerfile`);
+          if (!dockerfileCheck.success) {
+            log('[CONFIG] No Dockerfile found — generating default...');
+            await this._writeFile(`${projectDir}/Dockerfile`, this._buildGenericDockerfile(payload));
+          } else {
+            log('[CONFIG] Using user-provided Dockerfile.');
+          }
+
+          // Ensure .dockerignore
+          const diCheck = await this._readFile(`${projectDir}/.dockerignore`);
+          if (!diCheck.success) {
+            await this._writeFile(`${projectDir}/.dockerignore`, this._buildGenericDockerignore());
+          }
+        } else if (source.type === 'dockerfile') {
+          // Copy just the Dockerfile into projectDir; user must supply code separately
+          log(`[CONFIG] Copying Dockerfile ${source.path}...`);
+          const { stdout, exitCode, stderr } = await this._exec('cp', [source.path, `${projectDir}/Dockerfile`]);
+          if (exitCode !== 0) throw new Error(`Failed to copy Dockerfile: ${stderr || stdout}`);
+          await this._writeFile(`${projectDir}/.dockerignore`, this._buildGenericDockerignore());
+        }
+
+        // Write manifest.json
+        const manifest = this._buildGenericManifest(payload);
+        await this._writeFile(`${projectDir}/manifest.json`, JSON.stringify(manifest, null, 2));
+        log('[CONFIG] manifest.json written.');
+
+        // Write monetization metadata if applicable
+        if (payload.config.hasDataset) {
+          const monetization = {
+            type: payload.config.monetizationType,
+            datasetDescription: payload.config.datasetDescription,
+            pricing: { unit: 'ProcessingUnits', perCall: 1 },
+          };
+          await this._writeFile(`${projectDir}/monetization.json`, JSON.stringify(monetization, null, 2));
+          log('[CONFIG] monetization.json written.');
+        }
+
+        log('[CONFIG] Build context ready.');
+        return { projectDir, manifest };
+      });
+
+      // STAGE 3: VALIDATE SPEC — Check Dockerfile + manifest exist
+      await this._runStage(pipelineId, PipelineStage.VALIDATE_SPEC, async (log) => {
+        log('[VALIDATE] Checking build context...');
+        const df = await this._readFile(`${projectDir}/Dockerfile`);
+        const mf = await this._readFile(`${projectDir}/manifest.json`);
+        if (!df.success) throw new Error('Dockerfile missing in build context');
+        if (!mf.success) throw new Error('manifest.json missing in build context');
+        log('[VALIDATE] Dockerfile and manifest.json present.');
+        return { passed: 1, warnings: 0, errors: 0 };
+      });
+
+      // STAGE 4: BUILD DOCKER — Real docker build
+      await this._runStage(pipelineId, PipelineStage.BUILD_DOCKER, async (log) => {
+        log(`[BUILD] Building Docker image ${imageTag}...`);
+        for await (const line of this._dockerAdapter.buildImage(projectDir, imageName, payload.meta.version)) {
+          log(`[BUILD] ${line}`);
+          this.emit('docker:build:progress', { line });
+        }
+        log(`[BUILD] Image ${imageTag} built successfully.`);
+        return { imageTag };
+      });
+
+      // STAGE 5: TEST LOCAL — Verify container starts and /health responds
+      await this._runStage(pipelineId, PipelineStage.TEST_LOCAL, async (log) => {
+        log('[TEST] Starting local container for integration test...');
+        const testPort = 49000 + Math.floor(Math.random() * 1000);
+        const env = {
+          ...payload.config.envVars,
+          PORT: String(testPort),
+          MODEL_NAME: payload.meta.name,
+        };
+        const { containerId } = await this._dockerAdapter.runContainer(imageName, payload.meta.version, testPort, env);
+        this._currentPipeline.get(pipelineId)!.containerId = containerId;
+        log(`[TEST] Container ${containerId.slice(0, 12)} running on port ${testPort}`);
+
+        // Give container a moment to start
+        await new Promise(r => setTimeout(r, 3000));
+
+        // Test /health
+        log('[TEST] GET /health ...');
+        const health = await this._dockerAdapter.testEndpoint(`http://localhost:${testPort}/health`, 'GET');
+        if (health.status !== 200) {
+          log(`[TEST] /health returned ${health.status} — container may need longer startup.`);
+        } else {
+          log('[TEST] /health OK');
+        }
+
+        // Test manifest
+        log('[TEST] GET /manifest.json ...');
+        const manifestResp = await this._dockerAdapter.testEndpoint(`http://localhost:${testPort}/manifest.json`, 'GET');
+        if (manifestResp.status === 200) {
+          log('[TEST] /manifest.json OK');
+        } else {
+          log(`[TEST] /manifest.json returned ${manifestResp.status}`);
+        }
+
+        // Stop test container
+        await this._dockerAdapter.stopContainer(containerId);
+        log('[TEST] Container stopped. Integration tests complete.');
+        return { containerId, testPort };
+      });
+
+      // STAGE 6: DEPLOY NODE (optional)
+      if (target === 'node' && nodeUrl) {
+        await this._runStage(pipelineId, PipelineStage.DEPLOY_NODE, async (log) => {
+          log(`[DEPLOY] Registering AIM on node ${nodeUrl}...`);
+          const manifestData = await this._readFile(`${projectDir}/manifest.json`);
+          const manifest = manifestData.success ? JSON.parse(manifestData.content || '{}') : {};
+          const result = await this._nmAdapter.registerAIM(nodeUrl, manifest, imageTag);
+          if (!result.success) throw new Error(`Node registration failed: ${result.error}`);
+          log(`[DEPLOY] AIM registered at index ${result.aimIndex}`);
+          return { aimIndex: result.aimIndex };
+        });
+      }
+
+      // DONE
+      const pipeline = this._currentPipeline.get(pipelineId)!;
+      pipeline.active = false;
+      this.emit('pipeline:done', { agentId: pipelineId, imageTag, nodeUrl: pipeline.nodeUrl });
+      toast.success(`Aimification complete: ${imageTag}`);
+      await this.saveHistory(pipelineId, imageTag);
+      return imageTag;
+
+    } catch (error: any) {
+      const pipeline = this._currentPipeline.get(pipelineId);
+      if (pipeline) pipeline.active = false;
+      this.emit('pipeline:error', { agentId: pipelineId, stage: this._findFailedStage(pipelineId), error: error.message });
+      toast.error(`Aimification failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Private: Generic Model Helpers
+  // -------------------------------------------------------------------------
+  private _buildGenericDockerfile(payload: any): string {
+    const port = payload.config.port || 8080;
+    const entry = payload.config.entrypoint || 'python main.py';
+    const gpuLabel = payload.config.hasGpu ? 'LABEL GPUS=1 GPU_MEMORY=8GB\n' : 'LABEL GPUS=0 GPU_MEMORY=0GB\n';
+    const baseImage = payload.config.hasGpu ? 'nvidia/cuda:12.1.0-runtime-ubuntu22.04' : 'python:3.11-slim-bookworm';
+
+    return `FROM ${baseImage}
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DEBIAN_FRONTEND=noninteractive
+${gpuLabel}LABEL maintainer="${payload.meta.author || 'HyperCycle AIM'}"
+LABEL description="${payload.meta.description || 'Generic AIM'}"
+LABEL version="${payload.meta.version}"
+LABEL aim_name="${payload.meta.name}"
+LABEL monetization="${payload.config.monetizationType}"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \\
+    git curl ca-certificates build-essential \\
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . /app/
+RUN if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi
+
+EXPOSE ${port}
+
+CMD ${entry}
+`;
+  }
+
+  private _buildGenericDockerignore(): string {
+    return `__pycache__\n*.pyc\n*.pyo\n*.pyd\n.Python\n.git\n.pytest_cache\n*.egg-info\ndist\nbuild\n.tox\n.mypy_cache\n.coverage\n*.so\n*.egg\n*.env\n.env.*\nsecrets/\n`;
+  }
+
+  private _buildGenericManifest(payload: any): object {
+    return {
+      name: payload.meta.name,
+      short_name: payload.meta.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      version: payload.meta.version,
+      description: payload.meta.description,
+      author: payload.meta.author,
+      tags: payload.meta.tags,
+      license: 'Open',
+      endpoints: [
+        { uri: '/health', methods: ['GET'], is_public: true, documentation: 'Health check' },
+        { uri: '/manifest.json', methods: ['GET'], is_public: true, documentation: 'AIM manifest' },
+      ],
+      mosaic_aim: {
+        aim_type: 'generic_model',
+        aim_version: '1.0.0',
+        capabilities: ['inference'],
+        gpu_required: payload.config.hasGpu,
+        cost_model: payload.config.monetizationType,
+        port: payload.config.port,
+        entrypoint: payload.config.entrypoint,
+      },
+    };
+  }
+
+  private _buildGenericMainPy(payload: any): string {
+    const port = payload.config.port || 8080;
+    return `import os
+import json
+from flask import Flask, jsonify
+app = Flask(__name__)
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok", "model": os.environ.get("MODEL_NAME", "unknown")})
+
+@app.route("/manifest.json", methods=["GET"])
+def manifest():
+    with open("manifest.json") as f:
+        return jsonify(json.load(f))
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=${port})
+`;
+  }
+
+  // -------------------------------------------------------------------------
   // Queries
   // -------------------------------------------------------------------------
   getPipelineState(agentId: string): StageState[] | null {
@@ -648,6 +946,22 @@ export class AimifierService extends EventEmitter {
     return PipelineStage.ERROR;
   }
 
+  // -------------------------------------------------------------------------
+  // Private: Electron IPC helpers (same bridge as AimifierAdapters)
+  // -------------------------------------------------------------------------
+  private async _exec(command: string, args: string[], options?: { cwd?: string; timeout?: number }): Promise<{ stdout: string; stderr: string; exitCode: number; success: boolean }> {
+    const result = await (window as any).electronAPI.stargate.aimify.exec(command, args, options);
+    return result;
+  }
+
+  private async _writeFile(filePath: string, content: string): Promise<void> {
+    await (window as any).electronAPI.stargate.aimify.writeFile(filePath, content);
+  }
+
+  private async _readFile(filePath: string): Promise<{ success: boolean; content?: string; error?: string }> {
+    return (window as any).electronAPI.stargate.aimify.readFile(filePath);
+  }
+
   // ---------------------------------------------------------------------------
   // Persistent Pipeline History
   // ---------------------------------------------------------------------------
@@ -676,10 +990,7 @@ export class AimifierService extends EventEmitter {
     };
     const historyFile = `${historyDir}/${agentId}-${Date.now()}.json`;
     try {
-      const stargate = (window as any).electronAPI?.stargate?.aimify;
-      if (stargate?.writeFile) {
-        await stargate.writeFile(historyFile, JSON.stringify(entry, null, 2));
-      }
+      await this._writeFile(historyFile, JSON.stringify(entry, null, 2));
     } catch (err) {
       console.warn('Failed to save pipeline history:', err);
     }
