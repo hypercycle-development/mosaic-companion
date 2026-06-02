@@ -82,7 +82,7 @@ function ensureDefaultPlugins(): void {
         command: "node",
         args: [marketplacePath],
         env: {
-          STARGATE_MARKETPLACE_URL: process.env.STARGATE_MARKETPLACE_URL || "http://localhost:3000/api",
+          STARGATE_MARKETPLACE_URL: process.env.STARGATE_MARKETPLACE_URL || "http://127.0.0.1:13000/api",
           STARGATE_SCANNER_URL: process.env.STARGATE_SCANNER_URL || "http://localhost:8001",
         },
         autoConnect: true,

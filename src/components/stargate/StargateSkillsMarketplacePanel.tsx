@@ -67,7 +67,7 @@ interface ApiResponse<T> {
 // Prefers MCP bridge (stargate-marketplace server) when available;
 // falls back to direct HTTP so the panel works standalone too.
 
-const FALLBACK_API_BASE = (import.meta.env.VITE_SKILLS_API_URL as string) || 'http://localhost:3000/api';
+const FALLBACK_API_BASE = (import.meta.env.VITE_SKILLS_API_URL as string) || 'http://127.0.0.1:13000/api';
 
 /** Call marketplace via MCP if bridge is connected, else direct HTTP */
 async function marketplaceCall<T>(tool: string, args: Record<string, unknown>): Promise<T> {

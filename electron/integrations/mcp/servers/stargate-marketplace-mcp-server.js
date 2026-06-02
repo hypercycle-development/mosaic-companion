@@ -23,7 +23,7 @@ const fs = require("fs");
 // Config
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MARKETPLACE_API = process.env.STARGATE_MARKETPLACE_URL || "http://localhost:3000/api";
+const MARKETPLACE_API = process.env.STARGATE_MARKETPLACE_URL || "http://127.0.0.1:13000/api";
 const SCANNER_API = process.env.STARGATE_SCANNER_URL || "http://localhost:8001";
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -32,7 +32,8 @@ import {
   deleteAllAgentHistories,
   getErrorMessage,
 } from "./utils/index";
-import { mcpClient, setMainWindow as mcpSetMainWindow, initPlugins } from "./integrations/mcp/index";
+import { mcpClient, setMainWindow as mcpSetMainWindow, initPlugins } from "./integrations/mcp";
+import { startMarketplaceService } from "./services/marketplace/MarketplaceService";
 import { initializeTools, cleanupTools } from "./integrations/tools";
 import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integrations/chat/index";
@@ -328,6 +329,11 @@ app.whenReady().then(() => {
   console.log("User data path:", app.getPath("userData"));
   console.log("__dirname:", __dirname);
   console.log("PROJECT_ROOT:", PROJECT_ROOT);
+
+  // ── Start internal marketplace service ──
+  // Provides the REST API that the MCP bridge and the frontend panel consume.
+  // Runs on port 13000 by default (override via STARGATE_INTERNAL_MARKETPLACE_PORT).
+  startMarketplaceService();
 
   // Register custom protocol for safely serving local media files
   protocol.handle('mosaic-media', (request) => {
