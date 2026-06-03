@@ -27,6 +27,19 @@ export interface AIMInfo {
   bestEndpointUrl?: string;
   estimatedCostUsdc?: number | null;
   manifestVersion?: string | null;
+  // ----- Community / Remote AIM fields (v0.2) -----
+  isRemote?: boolean;              // true if registered by external operator
+  operatorName?: string;           // e.g. "Dory"
+  operatorContact?: string;       // email, tg, handle
+  endpointUrl?: string;           // public base URL
+  healthUrl?: string;             // health check endpoint
+  manifestUrl?: string;           // manifest.json URL
+  requestUrl?: string;             // POST /request or equivalent
+  pricePerCall?: number;           // in USDC
+  priceToken?: string;             // "USDC"
+  nodeId?: string;                // HyperCycle node ID
+  licenseId?: string;             // ANFE license ID
+  supportedQueries?: string[];     // e.g. ["dao", "factory", "license", "info"]
 }
 
 export interface AIMPerformance {

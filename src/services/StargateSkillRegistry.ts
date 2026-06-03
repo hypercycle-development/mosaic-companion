@@ -1,3 +1,5 @@
+import type { AIMInfo } from './AdaPortal/types';
+
 // ============================================
 // STARGATE - Hermes Skill Registry Bridge
 // Bridges local Hermes Agent skills into Stargate UI
@@ -72,6 +74,7 @@ class StargateSkillRegistry {
   private models: ModelInfo[] = [];
   private agents: AgentProfile[] = [];
   private trainingJobs: TrainingJob[] = [];
+  private remoteAIMs: AIMInfo[] = [];  // Community / HyperCycle operator AIMs (v0.2)
   private initialized = false;
 
   // Built-in agent profiles derived from kanban-orchestrator skill roster
@@ -264,6 +267,9 @@ class StargateSkillRegistry {
     // 4. Load any persisted training jobs
     this.loadTrainingJobs();
 
+    // 5. Load persisted community / remote AIMs
+    this.loadPersistedRemoteAIMs();
+
     this.initialized = true;
     console.log('[StargateSkillRegistry] Initialized:', this.skills.length, 'skills,', this.models.length, 'models,', this.agents.length, 'agents');
   }
@@ -441,6 +447,82 @@ class StargateSkillRegistry {
     try {
       localStorage.setItem('stargate_training_jobs', JSON.stringify(this.trainingJobs));
     } catch {}
+  }
+
+  // ---- Remote / Community AIM Registry (v0.2) ----
+
+  private loadPersistedRemoteAIMs(): void {
+    try {
+      const raw = localStorage.getItem('stargate_remote_aims');
+      if (raw) {
+        this.remoteAIMs = JSON.parse(raw);
+        console.log('[StargateSkillRegistry] Loaded', this.remoteAIMs.length, 'remote AIM(s)');
+      }
+    } catch (e) {
+      console.warn('[StargateSkillRegistry] Failed to load persisted remote AIMs:', e);
+      this.remoteAIMs = [];
+    }
+  }
+
+  private saveRemoteAIMs(): void {
+    try {
+      localStorage.setItem('stargate_remote_aims', JSON.stringify(this.remoteAIMs));
+    } catch {}
+  }
+
+  registerRemoteAIM(aim: AIMInfo): void {
+    const idx = this.remoteAIMs.findIndex(a => a.endpointUrl === aim.endpointUrl && a.name === aim.name);
+    if (idx >= 0) {
+      this.remoteAIMs[idx] = aim;
+    } else {
+      this.remoteAIMs.push(aim);
+    }
+    this.saveRemoteAIMs();
+  }
+
+  unregisterRemoteAIM(endpointUrl: string, name: string): void {
+    this.remoteAIMs = this.remoteAIMs.filter(a => !(a.endpointUrl === endpointUrl && a.name === name));
+    this.saveRemoteAIMs();
+  }
+
+  getRemoteAIMs(): AIMInfo[] {
+    return [...this.remoteAIMs];
+  }
+
+  getRemoteAIMByName(name: string): AIMInfo | undefined {
+    return this.remoteAIMs.find(a => a.name === name);
+  }
+
+  // Seed built-in community AIMs (beta)
+  seedCommunityAIMs(): void {
+    const doryAIM: AIMInfo = {
+      name: 'hypc-node-status',
+      description: 'Real-time HyperCycle DAO / factory / license uptime data. Combines private Google Sheets with Merklizer API.',
+      version: '0.5.1',
+      operatorName: 'Dory',
+      operatorContact: '',
+      endpointUrl: 'https://hypc-node.tail40c08b.ts.net',
+      healthUrl: 'https://hypc-node.tail40c08b.ts.net/aim/1/health',
+      manifestUrl: 'https://hypc-node.tail40c08b.ts.net/aim/1/manifest.json',
+      requestUrl: 'https://hypc-node.tail40c08b.ts.net/aim/1/request',
+      pricePerCall: 0.02,
+      priceToken: 'USDC',
+      nodeId: '36faf71d90b5fa09',
+      licenseId: '1162389949005007',
+      supportedQueries: ['dao', 'factory', 'license', 'info'],
+      origin: 'hypercycle-node-operator',
+      isActive: true,
+      isRemote: true,
+      rank: 1,
+      activeNodes: 1,
+      estimatedCostUsdc: 0.02,
+    };
+    const existing = this.remoteAIMs.find(a => a.name === 'hypc-node-status');
+    if (!existing) {
+      this.remoteAIMs.push(doryAIM);
+      this.saveRemoteAIMs();
+      console.log('[StargateSkillRegistry] Seeded community AIM: hypc-node-status (Dory)');
+    }
   }
 
   // === PUBLIC API ===
