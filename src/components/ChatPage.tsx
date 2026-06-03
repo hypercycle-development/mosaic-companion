@@ -393,6 +393,7 @@ export const ChatPage: React.FC = () => {
           {rooms.map((room) => {
             const joined = joinedRoomIds.has(room.id);
             const isActive = activeRoomId === room.id;
+            console.log("[trash-debug] room:", room.name, "creatorId:", room.creatorId, "myMemberId:", myMemberId, "match:", room.creatorId === myMemberId);
             return (
               <div
                 key={room.id}
