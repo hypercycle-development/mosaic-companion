@@ -4252,7 +4252,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           <>
             {activeTab === 'start' && renderStart()}
             {activeTab === 'marketplace' && renderMarketplace()}
-            {activeTab === 'aims' && <StargateCommunityAIMPanel />}
+            {activeTab === 'aims' && <StargateCommunityAIMPanel hyperInsightAIMs={aims} />}
             {activeTab === 'leaderboard' && renderLeaderboard()}
             {activeTab === 'training' && renderTraining()}
             {activeTab === 'packages' && renderPackages()}

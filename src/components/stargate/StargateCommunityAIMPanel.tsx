@@ -27,13 +27,17 @@ interface FallbackAIM {
   status?: string;
 }
 
-const StargateCommunityAIMPanel: React.FC = () => {
+interface StargateCommunityAIMPanelProps {
+  hyperInsightAIMs?: AIMInfo[];  // Official HyperCycle AIMs tracked by HyperInsight
+}
+
+const StargateCommunityAIMPanel: React.FC<StargateCommunityAIMPanelProps> = ({ hyperInsightAIMs = [] }) => {
   const [localAIMs, setLocalAIMs] = useState<BridgeAIM[]>([]);
   const [telemetry, setTelemetry] = useState<ExtendedBridgeTelemetry | null>(null);
   const [fallbackAIM, setFallbackAIM] = useState<FallbackAIM | null>(null);
   const [remoteAIMs, setRemoteAIMs] = useState<RemoteAIMStatus[]>([]);
   const [remoteLoading, setRemoteLoading] = useState(true);
-  const [activeView, setActiveView] = useState<'all' | 'local' | 'community'>('all');
+  const [activeView, setActiveView] = useState<'hypercycle' | 'local' | 'community'>('hypercycle');
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<Partial<AIMInfo>>({
     name: '', description: '', version: '1.0.0', operatorName: '', operatorContact: '',
@@ -159,15 +163,16 @@ const StargateCommunityAIMPanel: React.FC = () => {
   const effectiveRunningCount = (telemetry?.runningAims.length || 0) + (fallbackAIM?.found ? 1 : 0);
   const totalSlots = telemetry?.totalAimSlots || 8;
   const slotUsage = totalSlots > 0 ? effectiveRunningCount / totalSlots : 0;
-  const visibleLocal = activeView === 'community' ? [] : activeView === 'local' || activeView === 'all' ? [...localAIMs] : [];
-  const visibleRemote = activeView === 'local' ? [] : activeView === 'community' || activeView === 'all' ? remoteAIMs : [];
+  const visibleHyperCycle = activeView === 'hypercycle' ? hyperInsightAIMs : [];
+  const visibleLocal = activeView === 'local' ? [...localAIMs] : [];
+  const visibleRemote = activeView === 'community' ? remoteAIMs : [];
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-white">AI Models</h3>
-          <p className="text-sm text-gray-400 mt-0.5">Local + Community HyperCycle Node Operator AIMs</p>
+          <p className="text-sm text-gray-400 mt-0.5">HyperCycle + Local + Community AIMs</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
@@ -178,9 +183,9 @@ const StargateCommunityAIMPanel: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-2 border-b border-gray-800 pb-2">
-        {(['all', 'local', 'community'] as const).map((tab) => (
+        {(['hypercycle', 'local', 'community'] as const).map((tab) => (
           <button key={tab} onClick={() => setActiveView(tab)} className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${activeView === tab ? 'bg-cyan-500/20 text-cyan-400 font-medium' : 'text-gray-400 hover:text-white'}`}>
-            {tab === 'all' ? 'All AIMs' : tab === 'local' ? 'Local AIMs' : 'Community AIMs'}
+            {tab === 'hypercycle' ? 'HyperCycle' : tab === 'local' ? 'Local AIMs' : 'Community AIMs'}
           </button>
         ))}
         <div className="flex-1" />
@@ -189,12 +194,42 @@ const StargateCommunityAIMPanel: React.FC = () => {
         </button>
       </div>
 
-      {(activeView === 'all' || activeView === 'local') && (
+      {activeView === 'local' && (
         <div className="flex items-center gap-3">
           <div className="h-2 flex-1 bg-gray-800 rounded-full overflow-hidden">
             <div className={`h-full rounded-full ${slotUsage > 0.75 ? 'bg-yellow-500' : 'bg-cyan-400'}`} style={{ width: `${slotUsage * 100}%` }} />
           </div>
           <span className={`text-xs font-medium ${slotUsage > 0.75 ? 'text-yellow-400' : 'text-green-400'}`}>{effectiveRunningCount}/{totalSlots} slots</span>
+        </div>
+      )}
+
+      {visibleHyperCycle.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">HyperCycle AIMs — Tracked by HyperInsight</h4>
+          <div className="grid gap-3">
+            {visibleHyperCycle.map((aim, idx) => (
+              <div key={idx} className="p-4 rounded-xl border border-gray-800 bg-gray-900/50 hover:border-gray-700 transition-colors">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                      <Bot size={20} className="text-purple-400" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-white">{aim.name || 'Unnamed AIM'}</h4>
+                      {aim.description && <p className="text-sm text-gray-400 mt-1">{aim.description}</p>}
+                      <div className="flex items-center gap-3 mt-2">
+                        {aim.rank && <span className="text-xs text-cyan-400">Rank: #{aim.rank}</span>}
+                        {aim.origin && <span className="text-xs text-purple-400">Origin: {aim.origin}</span>}
+                        {aim.activeNodes !== undefined && <span className="text-xs text-green-400">{aim.activeNodes} nodes</span>}
+                        {aim.computeTFLOPS && <span className="text-xs text-amber-400">{aim.computeTFLOPS} TFLOPS</span>}
+                      </div>
+                    </div>
+                  </div>
+                  {aim.isActive && <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400">Active</span>}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -289,7 +324,15 @@ const StargateCommunityAIMPanel: React.FC = () => {
         </div>
       )}
 
-      {(activeView === 'community' || activeView === 'all') && remoteAIMs.length === 0 && !remoteLoading && (
+      {activeView === 'hypercycle' && hyperInsightAIMs.length === 0 && (
+        <div className="text-center py-8 border border-dashed border-gray-800 rounded-xl">
+          <Bot size={32} className="mx-auto text-gray-700 mb-2" />
+          <p className="text-gray-500 text-sm">No HyperCycle AIMs available.</p>
+          <p className="text-gray-600 text-xs mt-1">Connect to HyperInsight MCP to load verified AIMs.</p>
+        </div>
+      )}
+
+      {activeView === 'community' && remoteAIMs.length === 0 && !remoteLoading && (
         <div className="text-center py-8 border border-dashed border-gray-800 rounded-xl">
           <Globe size={32} className="mx-auto text-gray-700 mb-2" />
           <p className="text-gray-500 text-sm">No community AIMs registered yet.</p>
@@ -297,7 +340,7 @@ const StargateCommunityAIMPanel: React.FC = () => {
         </div>
       )}
 
-      {remoteLoading && activeView !== 'local' && (
+      {remoteLoading && activeView === 'community' && (
         <div className="flex items-center justify-center py-8">
           <Loader size={20} className="animate-spin text-gray-500" />
           <span className="text-sm text-gray-500 ml-2">Probing community AIMs...</span>
