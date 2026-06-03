@@ -72,9 +72,15 @@ function push(channel: string, data?: unknown): void {
 }
 
 function setupClientListeners(client: ChatClient): void {
-  client.on("auth-ok", (msg: { type: "auth-ok"; memberId: string }) => {
+  client.on("auth-ok", (msg: { type: "auth-ok"; memberId: string; token?: string }) => {
     myMemberId = msg.memberId;
     connectionStatus = "connected";
+    if (msg.token) {
+      chatClient?.setToken(msg.token);
+      const s = readSettings();
+      s.token = msg.token;
+      writeSettings(s);
+    }
     push("connection-changed", { status: "connected", memberId: msg.memberId });
   });
 
@@ -169,6 +175,7 @@ export function initChat(): void {
     chatClient = new ChatClient({
       url: settings.serverUrl,
       username: settings.username,
+      token: settings.token,
     });
     setupClientListeners(chatClient);
     chatClient.connect();
