@@ -1,6 +1,7 @@
 export interface ChatSettings {
   serverUrl: string;
   username: string;
+  token?: string;
 }
 
 // roomId -> agentId[]
@@ -51,7 +52,7 @@ export interface RoomDetail extends Room {
 }
 
 export type ClientMessage =
-  | { type: "auth"; username: string; isAgent?: boolean; metadata?: AgentMetadata; publicKey?: string }
+  | { type: "auth"; username: string; token?: string; isAgent?: boolean; metadata?: AgentMetadata; publicKey?: string }
   | { type: "create-room"; name: string; password?: string; visibility?: RoomVisibility }
   | { type: "join-room"; roomId: string; password?: string }
   | { type: "leave-room"; roomId: string }
@@ -65,7 +66,7 @@ export type ClientMessage =
   | { type: "list-rooms" };
 
 export type ServerMessage =
-  | { type: "auth-ok"; memberId: string }
+  | { type: "auth-ok"; memberId: string; token?: string }
   | { type: "rooms"; rooms: Room[] }
   | { type: "room-created"; room: Room }
   | { type: "joined"; room: Room; history: StoredMessage[] }
