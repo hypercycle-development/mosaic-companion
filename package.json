@@ -90,9 +90,12 @@
     "@types/server-destroy": "^1.0.4",
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^5.1.2",
+    "autoprefixer": "^10.5.0",
     "dotenv": "^17.2.3",
     "electron": "^39.3.0",
     "esbuild": "^0.27.2",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
   }
