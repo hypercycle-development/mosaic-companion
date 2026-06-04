@@ -220,6 +220,7 @@ async function callOllama(
         messages: allMessages,
         stream: false,
       }),
+      signal: AbortSignal.timeout(300_000), // 5 min for slow local models
     },
   );
 
