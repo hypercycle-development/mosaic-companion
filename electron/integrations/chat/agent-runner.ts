@@ -7,7 +7,7 @@ const activeClients: Record<string, Record<string, ChatClient>> = {};
 
 // Shared message history per room (all agents in the same room share this)
 const roomHistory: Record<string, StoredMessage[]> = {};
-const MAX_HISTORY = 50; // last N messages sent as context
+const MAX_HISTORY = 10; // last N messages sent as context (reduced for slow local models)
 
 function addToHistory(roomId: string, msg: StoredMessage): void {
   if (!roomHistory[roomId]) roomHistory[roomId] = [];
