@@ -165,6 +165,13 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
     })();
   }, []);
 
+  // ── Keep source.dockerImageName in sync with input field ───────────────
+  useEffect(() => {
+    if (source?.templateId === 'docker_image') {
+      setSource(prev => prev ? { ...prev, dockerImageName } : prev);
+    }
+  }, [dockerImageName, source?.templateId]);
+
   // ── Browse for directory ──────────────────────────────────────────────────
   const browseDirectory = useCallback(async () => {
     if (dockerAvailable === false) {
@@ -307,7 +314,11 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
     switch (step) {
       case 'source': return !!source && dockerAvailable !== false;
       case 'meta': return !!meta.name && !!meta.description;
-      case 'config': return !!config.entrypoint;
+      case 'config':
+        // docker_image / dockerfile sources don't need an entrypoint — the image/Dockerfile already defines CMD
+        return source?.type === 'template' && source?.templateId === 'docker_image' ? true
+          : source?.type === 'dockerfile' ? true
+          : !!config.entrypoint;
       case 'build': return !isRunning;
     }
   };

@@ -22,6 +22,7 @@ export enum PipelineStage {
   VALIDATE_SPEC = 'validate_spec',     // Run validate_spec.py
   BUILD_DOCKER = 'build_docker',       // docker build
   TEST_LOCAL = 'test_local',           // Start container, test endpoints
+  DEPLOY_LOCAL = 'deploy_local',       // Start persistent local AIM on port 9000
   DEPLOY_NODE = 'deploy_node',         // Push to node / NM register
   POST_DEPLOY = 'post_deploy',         // Verify on node
   DONE = 'done',
@@ -166,6 +167,7 @@ export class AimifierService extends EventEmitter {
     endTime?: number;
     projectDir: string;
     imageTag: string;
+    port?: number;
     containerId?: string;
     nodeUrl?: string;
     discoveryResult?: AIMDiscoveryResult;
@@ -303,7 +305,8 @@ export class AimifierService extends EventEmitter {
     const { target = 'local', nodeUrl, skipStages = [], forceRebuild = false, discoveryPort = 9000 } = options;
     const pipelineId = `aim-${agent.id}-${Date.now()}`;
     const projectDir = `/tmp/aimifier-pipelines/${pipelineId}`;
-    const imageTag = `mosaic-hermes-aim:${agent.id}-v${Date.now()}`;
+    const buildTag = `${agent.id}-v${Date.now()}`;
+    const imageTag = `mosaic-hermes-aim:${buildTag}`;
 
     this._currentPipeline.set(pipelineId, {
       agent,
@@ -444,7 +447,7 @@ export class AimifierService extends EventEmitter {
       if (!skipStages.includes(PipelineStage.BUILD_DOCKER)) {
         await this._runStage(pipelineId, PipelineStage.BUILD_DOCKER, async (log) => {
           log(`[BUILD] Building Docker image ${imageTag}...`);
-          for await (const line of this._dockerAdapter.buildImage(projectDir, 'mosaic-hermes-aim', `${agent.id}-v${Date.now()}`)) {
+          for await (const line of this._dockerAdapter.buildImage(projectDir, 'mosaic-hermes-aim', buildTag)) {
             log(`[BUILD] ${line}`);
             this.emit('docker:build:progress', { line });
           }
@@ -464,7 +467,7 @@ export class AimifierService extends EventEmitter {
             HERMES_API_KEY: agent.apiKey || '',
             PORT: String(testPort),
           };
-          const { containerId } = await this._dockerAdapter.runContainer('mosaic-hermes-aim', `${agent.id}-v${Date.now()}`, testPort, env);
+          const { containerId } = await this._dockerAdapter.runContainer('mosaic-hermes-aim', buildTag, testPort, env);
           this._currentPipeline.get(pipelineId)!.containerId = containerId;
           log(`[TEST] Container ${containerId.slice(0, 12)} running on port ${testPort}`);
 
@@ -506,6 +509,45 @@ export class AimifierService extends EventEmitter {
           await this._dockerAdapter.stopContainer(containerId);
           log('[TEST] Container stopped. All integration tests passed.');
           return { containerId, testPort };
+        });
+      }
+
+      // STAGE 7.5: DEPLOY LOCAL — start persistent AIM on port 9000
+      if (target === 'local' && !skipStages.includes(PipelineStage.DEPLOY_LOCAL)) {
+        await this._runStage(pipelineId, PipelineStage.DEPLOY_LOCAL, async (log) => {
+          log('[DEPLOY_LOCAL] Starting persistent local AIM container...');
+          // Stop any existing mosaic-hermes-aim on port 9000
+          try {
+            const { stdout } = await this._exec('docker', ['ps', '-q', '--filter', 'ancestor=mosaic-hermes-aim']);
+            const existing = stdout.trim();
+            if (existing) {
+              log(`[DEPLOY_LOCAL] Stopping existing containers: ${existing.replace(/\n/g, ', ')}`);
+              await this._exec('docker', ['stop', ...existing.split('\n')]);
+            }
+          } catch (_e) { /* no existing */ }
+
+          const deployPort = discoveryPort;
+          const env = {
+            HERMES_MODEL: agent.model || 'kimi-k2.6',
+            HERMES_PROVIDER: agent.provider || '',
+            HERMES_API_KEY: agent.apiKey || '',
+            PORT: String(deployPort),
+          };
+          const { containerId } = await this._dockerAdapter.runContainer('mosaic-hermes-aim', buildTag, deployPort, env);
+          this._currentPipeline.get(pipelineId)!.containerId = containerId;
+          this._currentPipeline.get(pipelineId)!.port = deployPort;
+          log(`[DEPLOY_LOCAL] Container ${containerId.slice(0, 12)} started on port ${deployPort}`);
+
+          // Brief health probe
+          await new Promise(r => setTimeout(r, 2000));
+          try {
+            const health = await this._dockerAdapter.testEndpoint(`http://localhost:${deployPort}/health`, 'GET');
+            if (health.status === 200) log('[DEPLOY_LOCAL] Health check OK');
+          } catch (_e) {
+            log('[DEPLOY_LOCAL] Health probe failed — container may still be starting up');
+          }
+
+          return { containerId, deployPort };
         });
       }
 
@@ -580,7 +622,7 @@ export class AimifierService extends EventEmitter {
   // -------------------------------------------------------------------------
   async aimifyGenericModel(
     payload: {
-      source: { type: 'directory' | 'dockerfile' | 'template'; path: string; templateId?: string };
+      source: { type: 'directory' | 'dockerfile' | 'template'; path: string; templateId?: string; dockerImageName?: string };
       meta: { name: string; description: string; version: string; author: string; tags: string[] };
       config: { port: number; entrypoint: string; envVars: Record<string, string>; hasGpu: boolean; hasDataset: boolean; datasetDescription: string; monetizationType: string };
     },
@@ -648,9 +690,31 @@ export class AimifierService extends EventEmitter {
             await this._writeFile(`${projectDir}/requirements.txt`, req);
             await this._writeFile(`${projectDir}/.dockerignore`, this._buildGenericDockerignore());
             await this._writeFile(`${projectDir}/Dockerfile`, this._buildGenericDockerfile(payload));
+          } else if (source.templateId === 'docker_image') {
+            // Existing Docker Image template: scaffold a wrapper Dockerfile
+            // that pulls the referenced image and wraps it with AIM metadata
+            const baseImage = source.dockerImageName || 'hello-world';
+            log(`[CONFIG] Scaffolding Docker image wrapper for ${baseImage}...`);
+            const wrapperDockerfile = `FROM ${baseImage}
+# AIM wrapper — metadata injected at build time
+LABEL aim_name="${payload.meta.name}"
+LABEL aim_version="${payload.meta.version}"
+LABEL aim_description="${payload.meta.description}"
+EXPOSE ${payload.config.port || 8080}
+`;
+            await this._writeFile(`${projectDir}/Dockerfile`, wrapperDockerfile);
+            await this._writeFile(`${projectDir}/.dockerignore`, this._buildGenericDockerignore());
+          } else if (source.templateId === 'custom_model') {
+            // custom_model: scaffold minimal boilerplate then let user bring files
+            log(`[CONFIG] Scaffolding custom model template...`);
+            const mainPy = this._buildGenericMainPy(payload);
+            await this._writeFile(`${projectDir}/main.py`, mainPy);
+            const req = `flask>=2.3\n`;
+            await this._writeFile(`${projectDir}/requirements.txt`, req);
+            await this._writeFile(`${projectDir}/.dockerignore`, this._buildGenericDockerignore());
+            await this._writeFile(`${projectDir}/Dockerfile`, this._buildGenericDockerfile(payload));
           } else {
-            // custom_model / docker_image templates: user must have their own files
-            throw new Error(`Template ${source.templateId} requires a local directory. Use "Browse Directory" instead.`);
+            throw new Error(`Unknown template: ${source.templateId}`);
           }
         } else if (source.type === 'directory') {
           // Copy user directory into projectDir
@@ -802,7 +866,7 @@ export class AimifierService extends EventEmitter {
     const baseImage = payload.config.hasGpu ? 'nvidia/cuda:12.1.0-runtime-ubuntu22.04' : 'python:3.11-slim-bookworm';
 
     return `FROM ${baseImage}
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DEBIAN_FRONTEND=noninteractive PORT=${port}
 ${gpuLabel}LABEL maintainer="${payload.meta.author || 'HyperCycle AIM'}"
 LABEL description="${payload.meta.description || 'Generic AIM'}"
 LABEL version="${payload.meta.version}"
@@ -819,6 +883,7 @@ RUN if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.
 
 EXPOSE ${port}
 
+# The PORT env var is injected at runtime by Aimify. Your app MUST read $PORT.
 CMD ${entry}
 `;
   }
@@ -869,7 +934,9 @@ def manifest():
         return jsonify(json.load(f))
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=${port})
+    # Aimify injects PORT at runtime. Never hardcode.
+    runtime_port = int(os.environ.get("PORT", "${port}"))
+    app.run(host="0.0.0.0", port=runtime_port)
 `;
   }
 
