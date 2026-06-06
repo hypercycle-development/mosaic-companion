@@ -686,9 +686,12 @@ ${hermesResult.response}`,
                       );
                     })}
                     {!fleetLoading && fleetNodes.length === 0 && (
-                      <div className="text-xs text-gray-600 text-center py-4">
-                        No fleet nodes found.<br/>
-                        Check Tailscale + registry Gist.
+                      <div className="text-xs text-gray-500 text-center py-4 space-y-1">
+                        <p>No HyperCycle nodes configured.</p>
+                        <p className="text-gray-600">
+                          Add your own appliances in{' '}
+                          <span className="text-indigo-400">Settings → Hypercycle Nodes</span>
+                        </p>
                       </div>
                     )}
                   </>
