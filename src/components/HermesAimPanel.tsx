@@ -45,6 +45,7 @@ const STAGES: StageConfig[] = [
   { stage: PipelineStage.VALIDATE_SPEC,   label: 'Validate',  icon: <ShieldCheck size={16} />, description: 'Validate generated manifest + Dockerfile' },
   { stage: PipelineStage.BUILD_DOCKER,     label: 'Build',     icon: <Container size={16} />, description: 'Build Docker image' },
   { stage: PipelineStage.TEST_LOCAL,       label: 'Test',      icon: <Activity size={16} />, description: 'Local integration tests' },
+  { stage: PipelineStage.DEPLOY_LOCAL,     label: 'Local Deploy', icon: <Rocket size={16} />, description: 'Start persistent local AIM on port 9000' },
   { stage: PipelineStage.DEPLOY_NODE,      label: 'Deploy',    icon: <Server size={16} />, description: 'Register on HyperCycle node' },
   { stage: PipelineStage.POST_DEPLOY,      label: 'Verify',    icon: <CheckCircle2 size={16} />, description: 'Verify on node' },
 ];
@@ -83,6 +84,9 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
   const [isConnected, setIsConnected] = useState(false);
   const [connectUrl, setConnectUrl] = useState('');
 
+  // Docker preflight — gate before ANY pipeline stage can run
+  const [dockerAvailable, setDockerAvailable] = useState<boolean | null>(null);
+
   // Auto-select first agent when panel mounts
   useEffect(() => {
     const firstHermes = agents.find(a => a.provider === 'hermes' || a.provider === 'hermes-aim' || a.provider === 'hermes-api');
@@ -90,6 +94,19 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
       setSelectedAgent(firstHermes);
     }
   }, [agents, selectedAgent]);
+
+  // Check Docker on mount — this blocks the entire pipeline
+  useEffect(() => {
+    (async () => {
+      try {
+        const adapters = createDefaultAdapters();
+        const ok = await adapters.docker.isAvailable();
+        setDockerAvailable(ok);
+      } catch {
+        setDockerAvailable(false);
+      }
+    })();
+  }, []);
   const serviceRef = useRef<AimifierService | null>(null);
   const getService = useCallback(() => {
     if (!serviceRef.current) {
@@ -251,6 +268,10 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
       toast.warning('Select a Hermes agent first');
       return;
     }
+    if (dockerAvailable === false) {
+      toast.error('Docker is required. Install Docker to continue.');
+      return;
+    }
     if (isRunning) return;
 
     setIsRunning(true);
@@ -343,6 +364,30 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
           Discovery-first: detects existing AIMs before any build. Connect or rebuild at will.
         </p>
       </div>
+
+      {/* Docker preflight block */}
+      {dockerAvailable === false && (
+        <div className="rounded-xl border border-red-500/30 bg-red-900/20 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold text-red-300">Docker Required</h3>
+              <p className="text-xs text-red-200/70 mt-1">
+                Aimify requires Docker to build and package your model as a HyperCycle AIM.
+                Install Docker Desktop to continue.
+              </p>
+              <a
+                href="https://docs.docker.com/get-docker/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block mt-2 text-xs text-cyan-400 hover:text-cyan-300 underline"
+              >
+                Get Docker →
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Agent selector */}
       <div className="space-y-2">
@@ -617,7 +662,7 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
         {!isRunning && !isConnected ? (
           <button
             onClick={startAimification}
-            disabled={!selectedAgent || (target === 'node' && !nodeUrl)}
+            disabled={!selectedAgent || dockerAvailable === false || (target === 'node' && !nodeUrl)}
             className="flex items-center gap-2 px-4 py-2 bg-violet-700 hover:bg-violet-600 disabled:opacity-40 rounded text-sm transition"
           >
             <Eye size={14} /> Discover &amp; Connect
@@ -630,7 +675,7 @@ export const HermesAimPanel: React.FC<HermesAimPanelProps> = ({ agents, onClose,
               setForceRebuild(true);
               startAimification();
             }}
-            disabled={!selectedAgent || (target === 'node' && !nodeUrl)}
+            disabled={!selectedAgent || dockerAvailable === false || (target === 'node' && !nodeUrl)}
             className="flex items-center gap-2 px-4 py-2 bg-red-700 hover:bg-red-600 disabled:opacity-40 rounded text-sm transition"
           >
             <Rocket size={14} /> Force Rebuild

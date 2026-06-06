@@ -4,11 +4,11 @@
 // Includes guided templates (Home Automation, Custom Model, Docker Image)
 // =============================================================================
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Rocket, Folder, FileCode, Container, Settings, CheckCircle2,
   ChevronRight, ChevronLeft, Eye, Cpu, Database, ShieldCheck,
-  Home, Zap, X, Loader2, RefreshCw
+  Home, Zap, X, Loader2, RefreshCw, AlertCircle
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import {
@@ -24,6 +24,7 @@ interface ModelSource {
   type: 'directory' | 'dockerfile' | 'template';
   path: string;
   templateId?: string;
+  dockerImageName?: string;
 }
 
 interface ModelMeta {
@@ -148,9 +149,28 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
   const [imageTag, setImageTag] = useState('');
   const [currentStage, setCurrentStage] = useState<PipelineStage>(PipelineStage.IDLE);
   const [stageStates, setStageStates] = useState<Map<PipelineStage, StageState>>(new Map());
+  const [dockerAvailable, setDockerAvailable] = useState<boolean | null>(null);
+  const [dockerImageName, setDockerImageName] = useState('');
+
+  // ── Docker preflight check on mount ──────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const adapters = createDefaultAdapters();
+        const ok = await adapters.docker.isAvailable();
+        setDockerAvailable(ok);
+      } catch {
+        setDockerAvailable(false);
+      }
+    })();
+  }, []);
 
   // ── Browse for directory ──────────────────────────────────────────────────
   const browseDirectory = useCallback(async () => {
+    if (dockerAvailable === false) {
+      toast.error('Docker is required to continue. Install Docker first.');
+      return;
+    }
     try {
       const picked = await window.electronAPI?.dialog?.openDirectory?.();
       if (picked) {
@@ -160,10 +180,14 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
     } catch (err: any) {
       toast.error(err.message || 'Failed to browse directory');
     }
-  }, []);
+  }, [dockerAvailable]);
 
   // ── Browse for Dockerfile ───────────────────────────────────────────────
   const browseDockerfile = useCallback(async () => {
+    if (dockerAvailable === false) {
+      toast.error('Docker is required to continue. Install Docker first.');
+      return;
+    }
     try {
       const eapi = (window as any).electronAPI;
       const picked = await eapi?.dialog?.openFile?.({
@@ -176,22 +200,34 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
     } catch (err: any) {
       toast.error(err.message || 'Failed to browse file');
     }
-  }, []);
+  }, [dockerAvailable]);
 
   // ── Apply template ────────────────────────────────────────────────────────
   const applyTemplate = useCallback((templateId: string) => {
+    if (dockerAvailable === false) {
+      toast.error('Docker is required to continue. Install Docker first.');
+      return;
+    }
     const t = TEMPLATES.find(x => x.id === templateId);
     if (!t) return;
-    setSource({ type: 'template', path: '', templateId });
+    if (templateId === 'docker_image') {
+      setSource({ type: 'template', path: '', templateId, dockerImageName });
+    } else {
+      setSource({ type: 'template', path: '', templateId });
+    }
     setMeta(prev => ({ ...prev, ...t.suggestedMeta }));
     setConfig(prev => ({ ...prev, ...t.suggestedConfig }));
     setStep('meta');
-  }, []);
+  }, [dockerImageName, dockerAvailable]);
 
   // ── Start build pipeline — REAL docker build via aimifyGenericModel ─────
   const startBuild = useCallback(async () => {
     if (!source || !meta.name) {
       toast.warning('Select a model source and enter a name first');
+      return;
+    }
+    if (source.templateId === 'docker_image' && !dockerImageName) {
+      toast.warning('Enter a base Docker image name before building');
       return;
     }
     setIsRunning(true);
@@ -269,7 +305,7 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
   // ── Navigation helpers ────────────────────────────────────────────────────
   const canNext = () => {
     switch (step) {
-      case 'source': return !!source;
+      case 'source': return !!source && dockerAvailable !== false;
       case 'meta': return !!meta.name && !!meta.description;
       case 'config': return !!config.entrypoint;
       case 'build': return !isRunning;
@@ -277,8 +313,13 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
   };
 
   const nextStep = () => {
-    if (step === 'source') setStep('meta');
-    else if (step === 'meta') setStep('config');
+    if (step === 'source') {
+      if (dockerAvailable === false) {
+        toast.error('Docker is required. Install Docker to continue.');
+        return;
+      }
+      setStep('meta');
+    } else if (step === 'meta') setStep('config');
     else if (step === 'config') setStep('build');
   };
 
@@ -322,6 +363,30 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
       {/* ── STEP 1: SOURCE ─────────────────────────────────────────────── */}
       {step === 'source' && (
         <div className="space-y-4">
+          {/* Docker preflight warning */}
+          {dockerAvailable === false && (
+            <div className="rounded-xl border border-red-500/30 bg-red-900/20 p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-semibold text-red-300">Docker Required</h3>
+                  <p className="text-xs text-red-200/70 mt-1">
+                    Aimify requires Docker to build and package your model as a HyperCycle AIM.
+                    Install Docker Desktop to continue.
+                  </p>
+                  <a
+                    href="https://docs.docker.com/get-docker/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block mt-2 text-xs text-cyan-400 hover:text-cyan-300 underline"
+                  >
+                    Get Docker →
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+
           <p className="text-sm text-gray-400">
             Choose how you want to package your AI model. Select a template or browse your local files.
           </p>
@@ -332,10 +397,13 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
               <button
                 key={t.id}
                 onClick={() => applyTemplate(t.id)}
+                disabled={dockerAvailable === false}
                 className={`p-4 rounded-xl border text-left transition-all ${
                   source?.templateId === t.id
                     ? 'border-cyan-500 bg-cyan-500/10'
-                    : 'border-gray-800 bg-gray-900/50 hover:border-gray-700'
+                    : dockerAvailable === false
+                      ? 'border-gray-800 bg-gray-900/20 opacity-50 cursor-not-allowed'
+                      : 'border-gray-800 bg-gray-900/50 hover:border-gray-700'
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -351,6 +419,23 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
             ))}
           </div>
 
+          {/* Docker image name input for docker_image template */}
+          {source?.templateId === 'docker_image' && (
+            <div className="rounded border border-gray-800 bg-gray-900/50 p-3">
+              <label className="text-xs font-medium text-gray-400">Base Docker Image</label>
+              <input
+                type="text"
+                value={dockerImageName}
+                onChange={e => setDockerImageName(e.target.value)}
+                placeholder="e.g. myregistry.com/myimage:1.0"
+                className="w-full mt-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
+              />
+              <p className="text-[10px] text-gray-500 mt-1">
+                The existing image will be wrapped with AIM metadata. It must be pullable from this host.
+              </p>
+            </div>
+          )}
+
           {/* Divider */}
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-gray-800" />
@@ -362,10 +447,13 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={browseDirectory}
+              disabled={dockerAvailable === false}
               className={`p-4 rounded-xl border text-left transition-all ${
                 source?.type === 'directory'
                   ? 'border-cyan-500 bg-cyan-500/10'
-                  : 'border-gray-800 bg-gray-900/50 hover:border-gray-700'
+                  : dockerAvailable === false
+                    ? 'border-gray-800 bg-gray-900/20 opacity-50 cursor-not-allowed'
+                    : 'border-gray-800 bg-gray-900/50 hover:border-gray-700'
               }`}
             >
               <div className="flex items-start gap-3">
@@ -386,10 +474,13 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
 
             <button
               onClick={browseDockerfile}
+              disabled={dockerAvailable === false}
               className={`p-4 rounded-xl border text-left transition-all ${
                 source?.type === 'dockerfile'
                   ? 'border-cyan-500 bg-cyan-500/10'
-                  : 'border-gray-800 bg-gray-900/50 hover:border-gray-700'
+                  : dockerAvailable === false
+                    ? 'border-gray-800 bg-gray-900/20 opacity-50 cursor-not-allowed'
+                    : 'border-gray-800 bg-gray-900/50 hover:border-gray-700'
               }`}
             >
               <div className="flex items-start gap-3">
@@ -507,6 +598,19 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
                 className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
               />
             </div>
+          </div>
+
+          {/* PORT callout */}
+          <div className="rounded border border-cyan-500/30 bg-cyan-900/10 p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Container size={14} className="text-cyan-400" />
+              <span className="text-xs font-semibold text-cyan-300">Runtime Port Assignment</span>
+            </div>
+            <p className="text-xs text-cyan-200/70">
+              Aimify assigns a random port (49000-49999) and passes it via the <code className="text-cyan-300">PORT</code> env var.
+              Your containerized app <strong>must</strong> read <code className="text-cyan-300">process.env.PORT</code> dynamically.
+              Hardcoding a port will cause the health check to fail with &quot;connection reset by peer.&quot;
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -696,17 +800,47 @@ export const GenericAimPanel: React.FC<GenericAimPanelProps> = ({ onClose, onAim
           )}
 
           {imageTag && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setImageTag('');
-                  setLogs([]);
-                  setStageStates(new Map());
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition"
-              >
-                <RefreshCw size={14} /> Rebuild
-              </button>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setImageTag('');
+                    setLogs([]);
+                    setStageStates(new Map());
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition"
+                >
+                  <RefreshCw size={14} /> Rebuild
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const adapters = createDefaultAdapters();
+                      const service = new AimifierService(
+                        adapters.docker,
+                        adapters.aimPyGen,
+                        adapters.hermes,
+                        adapters.nodeManager,
+                      );
+                      toast.info('Deploying to local node...');
+                      const tag = await service.aimifyGenericModel(
+                        { source, meta, config },
+                        { target: 'node', nodeUrl: 'http://localhost:8000' }
+                      );
+                      toast.success(`Deployed: ${tag}`);
+                    } catch (e: any) {
+                      toast.error(`Deploy failed: ${e.message}`);
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-sm transition"
+                >
+                  <Rocket size={14} /> Deploy to Node
+                </button>
+              </div>
+              <p className="text-xs text-gray-500">
+                Deploying registers the AIM on your local HyperCycle node (localhost:8000).
+                After deploy, the AIM will appear in the <strong>Aimified</strong> column on the Dashboard.
+              </p>
             </div>
           )}
         </div>
