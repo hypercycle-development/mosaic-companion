@@ -129,9 +129,46 @@ The **Agent Forge Panel** inside the IDE page is a full code-as-agent builder. W
 
 ---
 
+## Configuring Your HyperCycle Nodes
+
+The **HyperCycle Nodes** column in the Dashboard, the **Node Factory Tracker**, and the **Stargate Pool** panel all require **per-user configuration**.  **No personal infrastructure data is hardcoded in this branch.**
+
+### Dashboard — HyperCycle Nodes Column
+The column reads from your locally-configured nodes (see Settings → Hypercycle Nodes).  Add one node per HyperAIbox / Node Manager instance you own:
+
+| Field | What to enter |
+|-------|--------------|
+| Name | "R2D2", "Home Box", etc. |
+| API Host | Your node's IP or hostname (e.g. `192.168.1.50` or `hyperai.myhost.com`) |
+| API Port | `8000` (default Node Manager port) |
+| Active | Toggle to include in fleet polling |
+
+### Node Factory Tracker — Merkelizer / CBNO API
+Open the **Node Factory Ops** panel, click the **Settings (⚙️)** icon, and enter your own Merkelizer endpoint:
+
+```
+https://your-merkelizer.example.com:8003
+```
+
+> ⚠️ **Never use someone else's endpoint.**  Doing so exposes your ANFE license IDs and node status to them.
+
+### Stargate Pool — Merkelizer Environment Variable
+For the Stargate Pool plugin, create a `.env.local` file (it is `.gitignore`d):
+
+```bash
+VITE_MERKELIZER_URL_MAINNET=https://your-merkelizer.example.com:8003
+```
+
+The UI will fall back to a configuration prompt if this variable is not set.
+
+### Fleet Registry (Advanced — Multi-Node)
+If you manage a fleet of nodes, you can optionally configure a **fleet registry URL** in Settings.  This must be a JSON endpoint you control — never a public Gist with private data.  If no registry is set, the app falls back to your local nodes only.
+
+---
+
 ## Run Locally
 
-**Prerequisites:** Node.js v20+, npm 10+
+**Prerequisites:** Node.js v20+, npm 10+, Docker Desktop (for Aimify / Agent Forge)
 
 ```bash
 # Clone and enter branch

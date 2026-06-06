@@ -445,7 +445,11 @@ export function StargatePoolView() {
                       {/* Show what Merkelizer provides when not available */}
                       {!merkelizerAvailable && (
                         <div className="mt-2 text-xs text-amber-400/60 font-mono">
-                          Connecting to Merkelizer: {import.meta.env.VITE_MERKELIZER_URL_MAINNET || 'http://YOUR_HYPERCYCLE_NODE_IP:8003/'}
+                          {(() => {
+                            const configured = import.meta.env.VITE_MERKELIZER_URL_MAINNET?.trim();
+                            if (configured) return `Connecting to Merkelizer: ${configured}`;
+                            return 'Merkelizer URL not configured. Set VITE_MERKELIZER_URL_MAINNET in your .env file.';
+                          })()}
                         </div>
                       )}
                     </div>

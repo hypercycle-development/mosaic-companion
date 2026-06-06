@@ -53,7 +53,10 @@ export interface EnrichedFleetNode extends FleetNode {
   };
 }
 
-const DEFAULT_REGISTRY_URL = 'YOUR_FLEET_REGISTRY_URL';
+// SECURITY: No hard-coded default registry. Each user must configure their own
+// fleet registry URL via setRegistryUrl() or add nodes in Settings -> Hypercycle Nodes
+// so that personal node IPs / ANFE licenses never leak into shared git history.
+const DEFAULT_REGISTRY_URL = '';
 
 class FleetDiscoveryService {
   private registryUrl: string;
@@ -72,25 +75,66 @@ class FleetDiscoveryService {
     this.lastFetch = 0;
   }
 
+  /** True when an explicit registry URL has been configured. */
+  isConfigured(): boolean {
+    return !!(this.registryUrl && this.registryUrl.trim().startsWith('http'));
+  }
+
+  /**
+   * Load fleet nodes. Priority:
+   *   1. Explicit fleet registry URL (if configured)
+   *   2. User's locally-configured Hypercycle Nodes from Settings
+   *
+   * Returns empty array if neither source is available — this ensures a fresh
+   * install never accidentally displays another user's private infrastructure.
+   */
   async loadFleetRegistry(): Promise<FleetNode[]> {
-    if (this.cache.length > 0 && Date.now() - this.lastFetch < this.cacheTTL) {
-      return this.cache;
+    // ── 1. Explicit registry URL ─────────────────────────────────────────────
+    if (this.registryUrl) {
+      if (this.cache.length > 0 && Date.now() - this.lastFetch < this.cacheTTL) {
+        return this.cache;
+      }
+      try {
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 10000);
+        const res = await fetch(this.registryUrl, { signal: ctrl.signal });
+        clearTimeout(to);
+        if (!res.ok) throw new Error(`Registry HTTP ${res.status}`);
+        const data: FleetRegistry = await res.json();
+        this.cache = data.nodes || [];
+        this.lastFetch = Date.now();
+        // Persist for SSH dispatch lookups
+        localStorage.setItem('fleet_registry_nodes', JSON.stringify(this.cache));
+        return this.cache;
+      } catch (err: any) {
+        console.error('[FleetDiscovery] Registry fetch failed:', err.message);
+        return this.cache.length > 0 ? this.cache : [];
+      }
     }
+
+    // ── 2. Fallback: user's locally-configured Hypercycle Nodes ────────────
     try {
-      const ctrl = new AbortController();
-      const to = setTimeout(() => ctrl.abort(), 10000);
-      const res = await fetch(this.registryUrl, { signal: ctrl.signal });
-      clearTimeout(to);
-      if (!res.ok) throw new Error(`Registry HTTP ${res.status}`);
-      const data: FleetRegistry = await res.json();
-      this.cache = data.nodes || [];
+      const api = (window as any).electronAPI?.nodes?.get;
+      if (!api) { console.warn('[FleetDiscovery] No fleet registry configured and electronAPI.nodes unavailable'); return []; }
+      const rawNodes: any[] = await api();
+      const nodes: FleetNode[] = rawNodes
+        .filter((n: any) => n.isActive && n.apiHost)
+        .map((n: any) => ({
+          nodeId: String(n.id || n.nodeId || crypto.randomUUID()),
+          name: n.name || n.id || 'Unnamed Node',
+          apiHost: n.apiHost,
+          apiPort: Number(n.apiPort || 8000),
+          anfeLicense: n.licenseKey || n.anfeLicense || '',
+          hasHermes: n.hasHermes === true,
+          lastSeen: Date.now(),
+          computeGrade: n.computeGrade || 'standard',
+        }));
+      this.cache = nodes;
       this.lastFetch = Date.now();
-      // Persist for SSH dispatch lookups
-      localStorage.setItem('fleet_registry_nodes', JSON.stringify(this.cache));
-      return this.cache;
+      return nodes;
     } catch (err: any) {
-      console.error('[FleetDiscovery] Registry fetch failed:', err.message);
-      return this.cache.length > 0 ? this.cache : [];
+      console.warn('[FleetDiscovery] No fleet registry configured and local nodes unreadable:', err.message);
+      return [];
     }
   }
 

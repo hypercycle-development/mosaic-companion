@@ -238,9 +238,15 @@ export const KanbanDashboard: React.FC = () => {
       });
     };
     probeLocalAIMs();
+    const iv = setInterval(probeLocalAIMs, 30000);
+    return () => clearInterval(iv);
   }, []);
 
   // Load fleet nodes on mount and every 30s
+  // SECURITY: FleetDiscoveryService no longer has a hardcoded default registry.
+  // It reads each user's locally-configured Hypercycle Nodes (Settings -> Nodes)
+  // or a user-supplied registry URL. A fresh install shows an empty column until
+  // the user configures their own infrastructure — never another user's IPs.
   useEffect(() => {
     const loadFleet = async () => {
       setFleetLoading(true);
@@ -838,7 +844,32 @@ ${hermesResult.response}`,
             <GenericAimPanel
               onClose={() => setShowGenericAimPanel(false)}
               onAimified={(modelName, imageTag) => {
+                // Create or update an aimified agent entry so the Dashboard column increments
+                setAgents(prev => {
+                  const existing = prev.find(a => a.name === modelName);
+                  if (existing) {
+                    return prev.map(a =>
+                      a.id === existing.id
+                        ? { ...a, column: 'aimified' as KanbanColumn, status: 'aimified' as const, imageTag }
+                        : a
+                    );
+                  }
+                  const newAgent: KanbanAgent = {
+                    id: `aimified-${Date.now()}`,
+                    name: modelName,
+                    column: 'aimified',
+                    status: 'aimified',
+                    provider: 'generic',
+                    model: modelName,
+                    imageTag,
+                    apiKey: '',
+                    isActive: true,
+                    createdAt: Date.now(),
+                  };
+                  return [...prev, newAgent];
+                });
                 toast.success(`Model ${modelName} aimified: ${imageTag}`);
+                setShowGenericAimPanel(false);
               }}
             />
           </div>

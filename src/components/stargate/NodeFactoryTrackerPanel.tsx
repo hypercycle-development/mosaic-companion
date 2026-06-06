@@ -74,7 +74,10 @@ interface TrackerSettings {
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const DEFAULT_API_BASE = 'http://YOUR_HYPERCYCLE_NODE_IP:8003';
+// SECURITY: No hard-coded API base. Each user must enter their own
+// Merkelizer / Node Manager endpoint in Settings so that personal
+// infrastructure never leaks into shared git history.
+const DEFAULT_API_BASE = '';
 const STORAGE_KEY_SETTINGS = 'node_factory_tracker_settings';
 const STORAGE_KEY_HISTORY = 'node_factory_tracker_history';
 
@@ -245,6 +248,16 @@ export default function NodeFactoryTrackerPanel() {
 
   // ── Check Single License ─────────────────────────────────────────────────
   const checkLicense = useCallback(async (licenseId: string, expectedNetwork: string): Promise<LicenseStatus> => {
+    if (!settings.apiBase?.trim()) {
+      return {
+        license_id: licenseId,
+        expected_chain: expectedNetwork,
+        status: 'error',
+        status_since_utc: 'N/A',
+        raw_timestamp: null,
+        raw_error: 'Merkelizer API Base not configured. Open Settings → Node Factory Ops and enter your endpoint.',
+      };
+    }
     try {
       const res = await window.electronAPI?.nodeFactory?.checkLicense(licenseId, settings.apiBase);
       if (!res) throw new Error('IPC returned null');
@@ -514,6 +527,26 @@ export default function NodeFactoryTrackerPanel() {
                 </select>
               </div>
             </div>
+          </div>
+          {/* API Base URL */}
+          <div>
+            <label className="text-xs text-gray-400 block mb-1.5">Merkelizer / Node Manager API Base</label>
+            <div className="flex items-center gap-2">
+              <Globe size={14} className="text-gray-500 shrink-0" />
+              <input
+                type="text"
+                value={settings.apiBase}
+                onChange={e => setSettings(prev => ({ ...prev, apiBase: e.target.value.trim() }))}
+                placeholder="https://your-merkelizer.example.com:8003"
+                className="flex-1 px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white text-sm focus:border-indigo-500 focus:outline-none"
+              />
+              {!settings.apiBase && (
+                <span className="text-[10px] text-amber-400 shrink-0">Not configured</span>
+              )}
+            </div>
+            <p className="text-[10px] text-gray-500 mt-1">
+              Enter your own Node Manager / Merkelizer endpoint. Using someone else&apos;s endpoint will expose your license data to them.
+            </p>
           </div>
           {/* File Path Display */}
           <div>
