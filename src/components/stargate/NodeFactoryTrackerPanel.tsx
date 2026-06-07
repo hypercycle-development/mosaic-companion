@@ -499,55 +499,6 @@ export default function NodeFactoryTrackerPanel() {
       {/* ── Settings Panel ───────────────────────────────────────────────────── */}
       {showSettings && (
         <div className="p-4 rounded-xl bg-gray-800/50 border border-gray-700 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Auto Refresh */}
-            <div>
-              <label className="text-xs text-gray-400 block mb-1.5">Auto Refresh</label>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setSettings(prev => ({ ...prev, autoRefresh: !prev.autoRefresh }))}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                    settings.autoRefresh
-                      ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
-                      : 'bg-gray-700/30 text-gray-400 border-gray-600/30'
-                  }`}
-                >
-                  {settings.autoRefresh ? 'ON' : 'OFF'}
-                </button>
-                <select
-                  value={settings.refreshIntervalSeconds}
-                  onChange={e => setSettings(prev => ({ ...prev, refreshIntervalSeconds: Number(e.target.value) }))}
-                  disabled={!settings.autoRefresh}
-                  className="px-2 py-1.5 rounded-lg bg-gray-900 border border-gray-700 text-white text-xs focus:border-indigo-500 focus:outline-none disabled:opacity-30"
-                >
-                  <option value={15}>15s</option>
-                  <option value={30}>30s</option>
-                  <option value={60}>60s</option>
-                  <option value={300}>5m</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          {/* API Base URL */}
-          <div>
-            <label className="text-xs text-gray-400 block mb-1.5">Merkelizer / Node Manager API Base</label>
-            <div className="flex items-center gap-2">
-              <Globe size={14} className="text-gray-500 shrink-0" />
-              <input
-                type="text"
-                value={settings.apiBase}
-                onChange={e => setSettings(prev => ({ ...prev, apiBase: e.target.value.trim() }))}
-                placeholder="https://your-merkelizer.example.com:8003"
-                className="flex-1 px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white text-sm focus:border-indigo-500 focus:outline-none"
-              />
-              {!settings.apiBase && (
-                <span className="text-[10px] text-amber-400 shrink-0">Not configured</span>
-              )}
-            </div>
-            <p className="text-[10px] text-gray-500 mt-1">
-              Enter your own Node Manager / Merkelizer endpoint. Using someone else&apos;s endpoint will expose your license data to them.
-            </p>
-          </div>
           {/* File Path Display */}
           <div>
             <label className="text-xs text-gray-400 block mb-1.5">Licenses JSON Path</label>
