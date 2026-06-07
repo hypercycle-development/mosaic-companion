@@ -32,6 +32,15 @@ fi
 info "Node.js version: $(node --version)"
 info "npm version: $(npm --version)"
 
+if ! command -v docker &> /dev/null; then
+    error "Docker is required. Install Docker Desktop from https://docker.com/"
+    echo "Docker is required for Aimify (AI model packaging) and Agent Forge sandboxing."
+    echo "Install Docker Desktop: https://docs.docker.com/get-docker/"
+    exit 1
+else
+    info "Docker is already installed: $(docker --version)"
+fi
+
 if [ -d "node_modules" ] && [ -f "package-lock.json" ]; then
     info "Dependencies already installed. Skipping install..."
     read -p "Reinstall dependencies? (y/N): " -n 1 -r

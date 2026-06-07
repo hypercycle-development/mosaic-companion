@@ -111,6 +111,8 @@ A tool image must:
 
 ### Minimal Tool Example (Python)
 
+> **Critical:** Aimify assigns a random port per container via the `PORT` environment variable. Your app **must** read `os.environ['PORT']` (or equivalent) at runtime. Hardcoding a port causes health checks to fail with "connection reset by peer." See `docs/stargate/integration-guide.md` for details.
+
 ```python
 from flask import Flask, request, jsonify
 import os
@@ -134,10 +136,15 @@ def call():
     return jsonify({"success": True, "data": result})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+    # Read PORT from env — Aimify injects this dynamically per container.
+    # Never hardcode a port here.
+    runtime_port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=runtime_port)
 ```
 
 ### Minimal Tool Example (Node.js)
+
+> **Critical:** Same `PORT` requirement applies. Read `process.env.PORT` dynamically.
 
 ```javascript
 const express = require("express");
@@ -159,7 +166,9 @@ app.post("/call", (req, res) => {
   res.json({ success: true, data: result });
 });
 
-app.listen(process.env.PORT || 8080);
+// Read PORT from env — Aimify injects this per container.
+const port = process.env.PORT || 8080;
+app.listen(port, () => console.log(`Listening on ${port}`));
 ```
 
 ---

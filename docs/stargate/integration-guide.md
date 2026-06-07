@@ -91,6 +91,88 @@ cp components/*.tsx /storage/mauro-hermes/sessions/mosaic-stargate/src/component
 4. **Fleet Hire & Deploy**: Discover DAO fleet nodes, hire agents per node, book training, all dispatched via Hermes kanban.
 5. **No SSH Required**: Fleet orchestration uses registry polling and gateway messaging — works even when nodes have no LAN reachability.
 
+## Prerequisites
+
+- **Docker**: Aimify requires Docker Engine / Docker Desktop for building and packaging AIMs.
+  Install: https://docs.docker.com/get-docker/
+- **Node.js**: v18+ (used by Electron build scripts)
+- **Git**: For cloning `aim-py-gen` (optional, used by Hermes agent pipeline)
+
+## Essential: PORT Environment Variable
+
+> **Every containerized app MUST read `PORT` from the environment.** Aimify assigns a random port in the range **49000-49999** per container and injects it via the `PORT` environment variable. Your app must bind to this port dynamically. Hardcoding a port causes health checks to fail with "connection reset by peer."
+
+### How It Works
+
+When Aimify deploys your container, it does something equivalent to:
+
+```bash
+# Aimify internally assigns e.g. port 49123
+# The container MUST listen on whatever PORT is set
+```
+
+Your `Dockerfile` should **not** `EXPOSE` a fixed port, or if it does, it should still read `PORT` at runtime:
+
+```dockerfile
+# Generated Dockerfile (Aimify sets this for you)
+ENV PORT=8080
+EXPOSE ${PORT}
+CMD ["python", "main.py"]
+```
+
+Your application code must then read `PORT` at startup:
+
+**Python / Flask:**
+```python
+import os
+port = int(os.environ.get("PORT", "8080"))
+app.run(host="0.0.0.0", port=port)
+```
+
+**Python / Uvicorn (FastAPI):**
+```python
+import os
+import uvicorn
+port = int(os.environ.get("PORT", "8000"))
+uvicorn.run(app, host="0.0.0.0", port=port)
+```
+
+**Node.js / Express:**
+```javascript
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Listening on ${port}`));
+```
+
+**Node.js / Fastify:**
+```javascript
+const port = Number(process.env.PORT) || 3000;
+fastify.listen({ port, host: '0.0.0.0' });
+```
+
+**Go:**
+```go
+port := os.Getenv("PORT")
+if port == "" { port = "8080" }
+http.ListenAndServe(":" + port, nil)
+```
+
+**Rust (Axum/Actix):**
+```rust
+let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+```
+
+### What Happens If You Don't
+
+If your app hardcodes `port = 8000` and Aimify assigns `PORT=49123`, the Node Manager's health check will probe `localhost:49123`. Since your app is actually listening on `8000`, the probe gets `connection reset by peer` and the AIM is marked unhealthy.
+
+## Aimify Troubleshooting
+
+### `spawn docker ENOENT`
+Docker is not installed or not in PATH. Install Docker Desktop and ensure `docker version` works in your terminal.
+
+### `connection reset by peer` during health check
+Your app is hardcoding a port instead of reading `process.env.PORT` (or equivalent). See **"Essential: PORT Environment Variable"** above for the fix. This is the most common first-time Aimify failure.
+
 ## Matching Skills Created
 
 | Skill | Path | Purpose |

@@ -44,6 +44,15 @@ else
     info "npm is already installed: $(npm --version)"
 fi
 
+if ! command -v docker &> /dev/null; then
+    error "Docker is required. Install Docker Desktop from https://docker.com/"
+    echo "Docker is required for Aimify (AI model packaging) and Agent Forge sandboxing."
+    echo "Install Docker Desktop: https://docs.docker.com/get-docker/"
+    exit 1
+else
+    info "Docker is already installed: $(docker --version)"
+fi
+
 section "Installing Dependencies"
 info "Installing project dependencies..."
 npm install

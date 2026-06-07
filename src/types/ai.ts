@@ -11,7 +11,8 @@ export type AIProvider =
   | "hypercycle"
   | "hermes"
   | "hermes-aim"
-  | "hermes-api";
+  | "hermes-api"
+  | "generic";
 
 /** Hypercycle routing: TODA micropay vs Basechain (EVM) — same direct `host:port` URL shape. */
 export type HypercycleBackend = "toda" | "basechain";
@@ -124,6 +125,7 @@ export const DEFAULT_MODELS: Record<AIProvider, string[]> = {
   hermes: ["kimi-k2.6", "minimax", "custom"],
   "hermes-aim": ["kimi-k2.6", "minimax", "custom"],
   "hermes-api": ["hermes-agent"],
+  generic: ["custom"],
 };
 
 export const PROVIDER_INFO: Record<
@@ -179,5 +181,10 @@ export const PROVIDER_INFO: Record<
     name: "Hermes API Server",
     color: "#00D4AA",
     baseUrl: "http://127.0.0.1:8642",
+  },
+  generic: {
+    name: "Generic AIM",
+    color: "#6B7280",
+    baseUrl: "",
   },
 };

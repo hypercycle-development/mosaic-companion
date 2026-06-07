@@ -22,6 +22,7 @@ declare global {
 import { 
   initializeAdaPortal,
   agentMarketplace,
+  agentEconomy,
   leaderboard,
   trainingMarketplace,
   agentPackages,
@@ -31,10 +32,12 @@ import {
   AgentMarketplaceService,
   accessControl,
   stargatePoolService,
+  paymentService,
+  ADA_PORTAL_CONFIG,
   NodeFactory,
   ANFEInfo
 } from '../services/AdaPortal';
-import type { AccessCheck, UserIntent, MarketplaceListing, LeaderboardEntry, TrainingListing, AgentPackage, ComputeNode, AIMInfo } from '../services/AdaPortal/types';
+import type { AccessCheck, UserIntent, MarketplaceListing, LeaderboardEntry, TrainingListing, AgentPackage, ComputeNode, AIMInfo, PaymentResult } from '../services/AdaPortal/types';
 
 // Stargate Pool - ANFE Integration
 import { 
@@ -415,17 +418,20 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       const registryModels = stargateRegistry.getModels();
       const registryJobs = stargateRegistry.getTrainingJobs();
 
-      // Populate marketplace listings from built-in agent profiles if empty
-      if (listings.length === 0 && registryAgents.length > 0) {
+      // Populate marketplace listings from built-in agent profiles if marketplace is empty
+      if (marketplaceListings.length === 0 && registryAgents.length > 0) {
         setListings(registryAgents.map(a => ({
           listingId: a.id,
+          agentId: a.id,
           agentName: a.name,
           roles: [a.role.replace('_', ' ')],
-          price: a.hourlyRate || 0.5,
-          skills: a.skills,
-          rating: a.rating,
-          status: a.status,
-          computeNode: a.computeNode,
+          primarySkills: a.skills || [],
+          pricing: { model: 'per_task', perTaskMin: a.hourlyRate || 0.5, perTaskMax: (a.hourlyRate || 0.5) * 2 },
+          rating: a.rating || 4.0,
+          successRate: 0.95,
+          availability: a.status === 'idle' ? 'available' : 'offline',
+          skillCount: (a.skills || []).length,
+          attachedSkills: a.skills || [],
         })) as any);
       }
 
@@ -562,8 +568,8 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
 
   useEffect(() => {
     try {
-      initializeAdaPortal();
-      stargateRegistry.initialize();
+      initializeAdaPortal().catch(e => console.error('[AdaPortal] initializeAdaPortal failed:', e));
+      stargateRegistry.initialize().catch(e => console.error('[AdaPortal] stargateRegistry.initialize failed:', e));
       stargateRegistry.seedCommunityAIMs();
       loadData();
       loadUserAgents();
@@ -944,43 +950,129 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     setTimeout(() => setIsRefreshing(false), 1000);
   }, [loadData]);
 
-  const handleHireAgent = useCallback((listing: MarketplaceListing) => {
+  const handleHireAgent = useCallback(async (listing: MarketplaceListing) => {
     console.log('[AdaPortal] handleHireAgent called:', listing.agentName);
+
+    // 1. Check wallet
+    const wallet = await paymentService.detectWallet();
+    if (wallet.type === 'none' || !wallet.connected || !wallet.address) {
+      showNotification('error', 'Connect an EVM wallet (MetaMask) first to hire agents.');
+      if (onNavigateToChat) onNavigateToChat('How do I connect my wallet to hire agents?');
+      return;
+    }
+
+    const amount = listing.pricing?.perTaskMin ?? 5;
+
+    // 2. Check balance
+    const balanceCheck = await paymentService.checkBalance(wallet.address, amount);
+    if (!balanceCheck.sufficient) {
+      showNotification('error', `Insufficient funds: ${balanceCheck.currentUsdc} USDC (need ${amount} USDC). Also need ETH for gas.`);
+      if (onNavigateToChat) onNavigateToChat('How do I fund my wallet with USDC on Base?');
+      return;
+    }
+
+    // 3. Execute payment
+    showNotification('info', `Paying ${amount} USDC to hire ${listing.agentName}...`);
+    const result: PaymentResult = await paymentService.payForAgent(
+      listing.agentId,
+      listing.agentName,
+      amount,
+      ADA_PORTAL_CONFIG.treasuryAddress
+    );
+
+    if (!result.success || !result.receipt) {
+      showNotification('error', result.error || 'Payment failed. Check wallet and retry.');
+      return;
+    }
+
+    // 4. Record contract
+    const contract = agentEconomy.createContract({
+      requesterId: wallet.address,
+      agentId: listing.agentId,
+      terms: `Hire ${listing.agentName} for project`,
+      paymentAmount: amount,
+    });
+
+    showNotification('success', `Hired ${listing.agentName}! TX: ${result.receipt.txHash.slice(0, 10)}... Contract: ${contract.contractId}`);
+
+    // 5. Stay on marketplace tab; only open chat if explicit onHireAgent not provided
     if (onHireAgent) {
       onHireAgent(listing.agentId, listing.agentName);
-    } else if (onNavigateToChat) {
-      onNavigateToChat(`Hire agent ${listing.agentName} for my project`);
     }
-    showNotification('success', `Hiring ${listing.agentName}...`);
-  }, [onHireAgent, onNavigateToChat]);
+    // onNavigateToChat fallback removed — user stays in marketplace to see the result
+  }, [onHireAgent]);
 
   const handleBookTraining = useCallback((listing: TrainingListing) => {
+    // Stay on training tab; only open chat if explicit onBookTraining not provided
     if (onBookTraining) {
       onBookTraining(listing.trainerId, listing.trainerName);
-    } else if (onNavigateToChat) {
-      onNavigateToChat(`Book training session with ${listing.trainerName}`);
     }
+    // onNavigateToChat fallback removed — user stays in training tab
     showNotification('success', `Booking training with ${listing.trainerName}...`);
-  }, [onBookTraining, onNavigateToChat]);
+  }, [onBookTraining]);
 
-  const handleGetPackage = useCallback((pkg: AgentPackage) => {
+  const handleGetPackage = useCallback(async (pkg: AgentPackage) => {
+    // 1. Check wallet
+    const wallet = await paymentService.detectWallet();
+    if (wallet.type === 'none' || !wallet.connected || !wallet.address) {
+      showNotification('error', 'Connect an EVM wallet (MetaMask) first to purchase bundles.');
+      if (onNavigateToChat) onNavigateToChat('How do I connect my wallet to buy agent bundles?');
+      return;
+    }
+
+    const amount = pkg.price;
+
+    // 2. Check balance
+    const balanceCheck = await paymentService.checkBalance(wallet.address, amount);
+    if (!balanceCheck.sufficient) {
+      showNotification('error', `Insufficient funds: ${balanceCheck.currentUsdc} USDC (need ${amount} USDC). Also need ETH for gas.`);
+      if (onNavigateToChat) onNavigateToChat('How do I fund my wallet with USDC on Base?');
+      return;
+    }
+
+    // 3. Execute payment
+    showNotification('info', `Paying ${amount} USDC for ${pkg.name}...`);
+    const result: PaymentResult = await paymentService.payForBundle(
+      pkg.packageId,
+      pkg.name,
+      amount,
+      ADA_PORTAL_CONFIG.treasuryAddress
+    );
+
+    if (!result.success || !result.receipt) {
+      showNotification('error', result.error || 'Payment failed. Check wallet and retry.');
+      return;
+    }
+
+    // 4. Subscribe to package + record contract for each agent
+    const sub = agentPackages.subscribe(pkg.packageId);
+    pkg.agents.forEach(agent => {
+      agentEconomy.createContract({
+        requesterId: wallet.address!,
+        agentId: agent.agentId,
+        terms: `Bundle "${pkg.name}" — agent ${agent.name}`,
+        paymentAmount: amount / pkg.agents.length,
+      });
+    });
+
+    showNotification('success', `Acquired ${pkg.name}! TX: ${result.receipt.txHash.slice(0, 10)}... Subscription: ${sub.subscriptionId}`);
+
+    // 5. Stay on packages tab; only open chat if explicit onGetPackage not provided
     if (onGetPackage) {
       onGetPackage(pkg.packageId, pkg.name);
-    } else if (onNavigateToChat) {
-      onNavigateToChat(`Get the ${pkg.name} package`);
     }
-    showNotification('success', `Acquiring ${pkg.name} package...`);
-  }, [onGetPackage, onNavigateToChat]);
+    // onNavigateToChat fallback removed — user stays in packages to see the result
+  }, [onGetPackage]);
 
   const handleSelectCompute = useCallback((tier: ComputeTier) => {
     setSelectedComputeTier(tier);
+    // Stay on compute tab; only open chat if explicit onSelectCompute not provided
     if (onSelectCompute) {
       onSelectCompute(tier);
-    } else if (onNavigateToChat) {
-      onNavigateToChat(`Allocate ${tier.replace('_', ' ')} compute resources`);
     }
+    // onNavigateToChat fallback removed — user stays in compute tab
     showNotification('success', `${tier.replace('_', ' ')} compute selected`);
-  }, [onSelectCompute, onNavigateToChat]);
+  }, [onSelectCompute]);
 
   const showNotification = (type: 'success' | 'error' | 'info' | 'warning', message: string) => {
     setNotification({ type, message });
@@ -1392,9 +1484,8 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             onClick={() => {
               setSelectedIntent(intent.id);
               setActiveTab(intent.tab as TabId);
-              if (onNavigateToChat) {
-                onNavigateToChat(`I want to ${intent.label.toLowerCase()}. Help me get started.`);
-              }
+              // Only navigate to chat if the intent has no dedicated tab
+              // (all current intents have their own tab, so chat fallback is removed)
             }}
             className={`p-4 rounded-xl border text-left transition-all ${
               selectedIntent === intent.id
@@ -2221,47 +2312,70 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           <span className="text-sm text-gray-400">{listings.length} agents available</span>
         </div>
       </div>
-      
-      <div className="grid gap-3">
-        {listings.map(listing => (
-          <div key={listing.listingId} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700 hover:border-cyan-500/50 transition-colors">
-            <div className="flex items-start justify-between">
-              <div>
-                <h4 className="font-medium text-white">{listing.agentName}</h4>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {listing.roles.map(role => (
-                    <span key={role} className="text-xs px-2 py-0.5 bg-gray-700 rounded-full text-gray-300 capitalize">
-                      {role.replace('_', ' ')}
+
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader size={24} className="text-cyan-400 animate-spin" />
+          <span className="ml-2 text-sm text-gray-400">Loading marketplace...</span>
+        </div>
+      )}
+
+      {!isLoading && listings.length === 0 && (
+        <div className="text-center py-12">
+          <Bot size={32} className="text-gray-600 mx-auto mb-3" />
+          <p className="text-sm text-gray-400">No agents available yet.</p>
+          <p className="text-xs text-gray-500 mt-1">Try refreshing or check your StargateSkillRegistry seed data.</p>
+          <button
+            onClick={() => { stargateRegistry.initialize(); stargateRegistry.seedCommunityAIMs(); loadData(); }}
+            className="mt-3 px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+          >
+            Refresh
+          </button>
+        </div>
+      )}
+
+      {listings.length > 0 && (
+        <div className="grid gap-3">
+          {listings.map(listing => (
+            <div key={listing.listingId || `listing-${Math.random()}`} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700 hover:border-cyan-500/50 transition-colors">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium text-white truncate">{listing.agentName || 'Unnamed Agent'}</h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {(listing.roles || []).map(role => (
+                      <span key={role} className="text-xs px-2 py-0.5 bg-gray-700 rounded-full text-gray-300 capitalize">
+                        {(role || '').replace('_', ' ')}
+                      </span>
+                    ))}
+                    {(listing.attachedSkills || []).slice(0, 2).map((skill: any, idx: number) => (
+                      <span key={`${skill}-${idx}`} className="text-xs px-2 py-0.5 bg-green-900/50 border border-green-500/30 rounded-full text-green-400">⚡ {(skill || '').split('-')[0]}</span>
+                    ))}
+                  </div>
+                  <div className="flex gap-3 mt-2 text-sm text-gray-400">
+                    <span className="flex items-center gap-1">
+                      <Star size={14} className="text-yellow-500" />
+                      {(listing.rating ?? 0).toFixed(1)}
                     </span>
-                  ))}
-                  {listing.attachedSkills?.slice(0, 2).map(skill => (
-                    <span key={skill} className="text-xs px-2 py-0.5 bg-green-900/50 border border-green-500/30 rounded-full text-green-400">⚡ {skill.split('-')[0]}</span>
-                  ))}
+                    <span>{((listing.successRate ?? 0) * 100).toFixed(0)}% success</span>
+                    <span className="capitalize">{listing.availability || 'unknown'}</span>
+                  </div>
                 </div>
-                <div className="flex gap-3 mt-2 text-sm text-gray-400">
-                  <span className="flex items-center gap-1">
-                    <Star size={14} className="text-yellow-500" />
-                    {listing.rating.toFixed(1)}
-                  </span>
-                  <span>{listing.successRate * 100}% success</span>
-                  <span className="capitalize">{listing.availability}</span>
+                <div className="text-right shrink-0 ml-3">
+                  <div className="text-lg font-bold text-cyan-400">${(listing.pricing?.perTaskMin ?? 0).toFixed(2)}+</div>
+                  <div className="text-xs text-gray-500">per task</div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-lg font-bold text-cyan-400">${listing.pricing.perTaskMin}+</div>
-                <div className="text-xs text-gray-500">per task</div>
-              </div>
+              <button
+                onClick={() => handleHireAgent(listing)}
+                className="mt-3 w-full py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <ArrowRight size={16} />
+                Hire Agent
+              </button>
             </div>
-            <button 
-              onClick={() => handleHireAgent(listing)}
-              className="mt-3 w-full py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              <ArrowRight size={16} />
-              Hire Agent
-            </button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -4252,7 +4366,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           <>
             {activeTab === 'start' && renderStart()}
             {activeTab === 'marketplace' && renderMarketplace()}
-            {activeTab === 'aims' && <StargateCommunityAIMPanel hyperInsightAIMs={aims} />}
+            {activeTab === 'aims' && <StargateCommunityAIMPanel hyperInsightAIMs={aims} onNavigateToChat={onNavigateToChat} />}
             {activeTab === 'leaderboard' && renderLeaderboard()}
             {activeTab === 'training' && renderTraining()}
             {activeTab === 'packages' && renderPackages()}

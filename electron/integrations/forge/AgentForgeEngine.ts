@@ -806,6 +806,23 @@ class AgentForgeEngine {
       // 3. Build Docker image
       const imgName = `forge-agent-${nodeId}:${Date.now()}`;
       const { execSync } = require("child_process");
+
+      // Preflight: verify Docker is available before building
+      try {
+        execSync("docker version --format {{.Server.Version}}", { stdio: "pipe", timeout: 10000 });
+      } catch {
+        const msg = "Docker is required. Install Docker Desktop from https://docker.com/";
+        console.error(`[AgentForgeEngine] ${msg}`);
+        this._logToChronicle(nodeId, "forge:sandbox:deploy", "failed", msg);
+        return {
+          success: false,
+          nodeId,
+          taskId: "",
+          agentDir: tmpDir,
+          error: msg,
+        };
+      }
+
       execSync(`docker build -t ${imgName} "${tmpDir}"`, { timeout: 120000, stdio: "pipe" });
 
       // 4. Run container

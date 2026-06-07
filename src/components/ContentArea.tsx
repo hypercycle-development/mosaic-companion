@@ -58,7 +58,7 @@ interface ContentAreaProps {
   };
   onUpdateTab: (updates: Partial<Tab>) => void;
   onStartDemo?: () => void;
-  onCreateNewChatTab?: () => void;
+  onCreateNewChatTab?: (initialMessage?: string) => void;
   onOnboardingComplete?: () => void;
   tabId?: string;
 }
@@ -568,7 +568,15 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
 
     return (
       <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
-        <AdaPortalPanel url={url} onNavigate={onNavigate} />
+        <AdaPortalPanel
+          url={url}
+          onNavigate={onNavigate}
+          onNavigateToChat={(message) => onCreateNewChatTab?.(message)}
+          onHireAgent={async (agentId, agentName) => {
+            // Intentionally left as no-op: AdaPortalPanel shows its own notification
+            // and stays on the marketplace tab. Chat fallback removed for presentation flow.
+          }}
+        />
       </div>
     );
   }

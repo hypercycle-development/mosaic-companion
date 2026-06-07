@@ -151,6 +151,26 @@ skillMarketplace.attachSkillToAgent(
 
 ## Troubleshooting
 
+### Aimify `connection reset by peer` (Health Check Failure)
+This is the most common first-time Aimify failure. Aimify assigns a random port (49000-49999) per container via the `PORT` environment variable. Every containerized app MUST read `PORT` dynamically — reading `process.env.PORT` (Node), `os.environ['PORT']` (Python), etc. Hardcoding a port causes the Node Manager's health check to probe the wrong address and fail with "connection reset by peer."
+
+See `docs/stargate/integration-guide.md` for a full cross-language reference.
+
+Quick examples:
+
+**Python:**
+```python
+import os
+port = int(os.environ.get("PORT", "8080"))
+app.run(host="0.0.0.0", port=port)
+```
+
+**Node.js:**
+```javascript
+const port = process.env.PORT || 3000;
+app.listen(port);
+```
+
 ### Build Errors
 If you see missing exports, ensure all AdaPortal services are copied:
 ```bash

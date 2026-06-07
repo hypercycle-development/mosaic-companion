@@ -418,13 +418,57 @@ export interface AdaPortalConfig {
   name: string;
   tagline: string;
   version: string;
+  treasuryAddress: string;
 }
 
 export const ADA_PORTAL_CONFIG: AdaPortalConfig = {
   name: "Ada Portal",
   tagline: "AI + Compute + Intelligence Layer for Cardano",
-  version: "1.0.0"
+  version: "1.0.0",
+  treasuryAddress: '0x4BFbA79CF232361a53eDdd17C67C6c77A6F00379' // Node Factory (ERC-1155) — payment recipient
 };
+
+// ============================================
+// PAYMENT TYPES
+// ============================================
+
+export type PaymentStatus = 'idle' | 'checking_balance' | 'insufficient_funds' | 'awaiting_confirmation' | 'building_tx' | 'signing' | 'broadcasting' | 'pending' | 'confirmed' | 'failed';
+export type PaymentWalletType = 'evm' | 'cardano' | 'none';
+
+export interface PaymentRequest {
+  amount: number;
+  recipient: string;
+  description: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface PaymentReceipt {
+  txHash: string;
+  status: 'confirmed' | 'failed' | 'pending';
+  amount: number;
+  recipient: string;
+  timestamp: number;
+  description: string;
+  chainId: number;
+  token: 'USDC';
+  metadata?: Record<string, unknown>;
+}
+
+export interface PaymentResult {
+  success: boolean;
+  receipt?: PaymentReceipt;
+  error?: string;
+  status: PaymentStatus;
+}
+
+export interface PaymentWalletInfo {
+  type: PaymentWalletType;
+  address: string | null;
+  chainId: number | null;
+  balanceUsdc?: string;
+  balanceEth?: string;
+  connected: boolean;
+}
 
 // ============================================
 // ACCESS CONTROL TYPES

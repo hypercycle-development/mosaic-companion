@@ -5,6 +5,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Bot, ExternalLink, CheckCircle2, XCircle, Loader, AlertTriangle, Plus, Globe, CreditCard, Activity } from 'lucide-react';
 import type { AIMInfo } from '../../services/AdaPortal/types';
+import { paymentService, ADA_PORTAL_CONFIG } from '../../services/AdaPortal';
+import type { PaymentResult } from '../../services/AdaPortal';
 import { stargateRegistry } from '../../services/StargateSkillRegistry';
 import { localNodeBridge, BridgeAIM } from '../../services/LocalNodeBridge';
 import { enhancedLocalNodeBridge, ExtendedBridgeTelemetry } from '../../services/stargate/EnhancedLocalNodeBridge';
@@ -29,9 +31,10 @@ interface FallbackAIM {
 
 interface StargateCommunityAIMPanelProps {
   hyperInsightAIMs?: AIMInfo[];  // Official HyperCycle AIMs tracked by HyperInsight
+  onNavigateToChat?: (message: string) => void;  // Open AI Chat with a message
 }
 
-const StargateCommunityAIMPanel: React.FC<StargateCommunityAIMPanelProps> = ({ hyperInsightAIMs = [] }) => {
+const StargateCommunityAIMPanel: React.FC<StargateCommunityAIMPanelProps> = ({ hyperInsightAIMs = [], onNavigateToChat }) => {
   const [localAIMs, setLocalAIMs] = useState<BridgeAIM[]>([]);
   const [telemetry, setTelemetry] = useState<ExtendedBridgeTelemetry | null>(null);
   const [fallbackAIM, setFallbackAIM] = useState<FallbackAIM | null>(null);
@@ -137,19 +140,58 @@ const StargateCommunityAIMPanel: React.FC<StargateCommunityAIMPanelProps> = ({ h
 
   const handleCallAIM = async (aim: AIMInfo) => {
     const price = aim.pricePerCall || 0.02;
-    if (credits < price) {
-      alert(`Insufficient Stargate Credits. Balance: ${credits.toFixed(4)} USDC. Required: ${price.toFixed(2)} USDC`);
+
+    // 1. Detect wallet
+    const wallet = await paymentService.detectWallet();
+    if (wallet.type === 'none' || !wallet.connected || !wallet.address) {
+      alert('Connect an EVM wallet (MetaMask) first to use AIMs.');
+      if (onNavigateToChat) onNavigateToChat('How do I connect my EVM wallet to use community AIMs?');
       return;
     }
+    if (wallet.type === 'cardano') {
+      alert('Cardano wallet detected. Please connect an EVM wallet (MetaMask) to pay in USDC on Base.');
+      if (onNavigateToChat) onNavigateToChat('How do I switch from Cardano to an EVM wallet for USDC payments?');
+      return;
+    }
+
+    // 2. Check USDC balance
+    const balanceCheck = await paymentService.checkBalance(wallet.address, price);
+    if (!balanceCheck.sufficient) {
+      alert(`Insufficient funds: ${balanceCheck.currentUsdc} USDC (need ${price} USDC). Also need ETH for gas.`);
+      if (onNavigateToChat) onNavigateToChat('How do I fund my wallet with USDC on Base?');
+      return;
+    }
+
+    // 3. Prompt for query
     const prompt = window.prompt(`Enter query for ${aim.name}:\nSupported: ${(aim.supportedQueries || ['any']).join(', ')}`, 'dao HPEC_DAO_NF1');
     if (!prompt) return;
+
+    // 4. Execute real USDC payment on Base
+    const result: PaymentResult = await paymentService.executePayment({
+      amount: price,
+      recipient: ADA_PORTAL_CONFIG.treasuryAddress,
+      description: `AIM call: ${aim.name}`,
+      metadata: { type: 'aim_call', aimName: aim.name, endpoint: aim.endpointUrl },
+    });
+
+    if (!result.success || !result.receipt) {
+      alert(`Payment failed: ${result.error || 'Unknown error'}`);
+      return;
+    }
+
+    // 5. Call the AIM
     try {
-      stargateCredits.deduct(price);
-      setCredits(stargateCredits.getBalance());
-      const resp = await fetch(aim.requestUrl!, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }), signal: AbortSignal.timeout(15000) });
+      const resp = await fetch(aim.requestUrl!, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+        signal: AbortSignal.timeout(15000),
+      });
       const data = await resp.json().catch(() => ({}));
-      alert(`Result:\n${JSON.stringify(data, null, 2)}\n\nDeducted ${price} USDC. New balance: ${stargateCredits.getBalance().toFixed(4)}`);
-    } catch (e: any) { alert(`AIM call failed: ${e.message || e}`); }
+      alert(`Result:\n${JSON.stringify(data, null, 2)}\n\nPaid ${price} USDC. TX: ${result.receipt.txHash}`);
+    } catch (e: any) {
+      alert(`AIM call failed: ${e.message || e}\n\nBut payment went through (TX: ${result.receipt.txHash}). Contact the AIM operator.`);
+    }
   };
 
   const renderHealthBadge = (status: RemoteAIMStatus['healthStatus']) => {

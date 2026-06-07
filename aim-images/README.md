@@ -81,7 +81,14 @@ The Node Manager's internal config (`setup.json`) is encrypted and currently sto
 |----------|---------|-------------|
 | `HERMES_BASE_URL` | `http://localhost:3000` | Ollama / Hermes backend URL |
 | `HERMES_MODEL` | `kimi-k2.5:cloud` | Default model to use |
-| `PORT` | `4000` | Internal AIM server port (mapped to external) |
+| `PORT` | `4000` | Internal AIM server port (must be read from env at runtime) |
+
+> **Important:** When Aimify deploys this AIM, it assigns a random port (49000-49999) and injects it via the `PORT` environment variable. The AIM server **must** read `PORT` dynamically at startup. Hardcoding a port causes health checks to fail with "connection reset by peer."
+
+In `app/main.py` this is already handled correctly:
+```python
+self.port = int(port or os.environ.get("PORT", "4000"))
+```
 
 ## Dependencies
 
