@@ -70,8 +70,9 @@ import UnifiedAssetPanel from './UnifiedAssetPanel';
 import TasteSkillDialPanel from './stargate/TasteSkillDialPanel';
 import StargateSkillsMarketplacePanel from './stargate/StargateSkillsMarketplacePanel';
 import NodeFactoryTrackerPanel from './stargate/NodeFactoryTrackerPanel';
+import AIMForgePanel from './stargate/AIMForgePanel';
 import StargateCommunityAIMPanel from './stargate/StargateCommunityAIMPanel';
-import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus } from 'lucide-react';
+import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus, Hammer } from 'lucide-react';
 
 // ---- Module-level helper: ensure wallet is on Base chain ----
 async function ensureOnBaseChain(): Promise<void> {
@@ -98,7 +99,7 @@ interface AdaPortalPanelProps {
   onNavigateToChat?: (message: string) => void;
 }
 
-type TabId = 'start' | 'marketplace' | 'aims' | 'leaderboard' | 'training' | 'packages' | 'skills' | 'compute' | 'dashboard' | 'stargate' | 'asp';
+type TabId = 'start' | 'marketplace' | 'aims' | 'aimforge' | 'leaderboard' | 'training' | 'packages' | 'skills' | 'compute' | 'dashboard' | 'stargate' | 'asp';
 type LeaderboardPeriod = 'daily' | 'weekly' | 'all_time';
 type ComputeTier = 'standard' | 'high_performance' | 'dedicated';
 
@@ -129,6 +130,15 @@ const INTENT_OPTIONS: {
     color: 'text-purple-400',
     bg: 'bg-purple-400/10',
     tab: 'aims',
+  },
+  {
+    id: 'forge_aim',
+    label: 'Forge AIM',
+    description: 'Build your own HyperCycle AIM — fill the tree, generate files, edit, build, deploy',
+    icon: <Hammer size={24} />,
+    color: 'text-pink-400',
+    bg: 'bg-pink-400/10',
+    tab: 'aimforge',
   },
   {
     id: 'rankings',
@@ -208,6 +218,7 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'start', label: 'Start', icon: <Rocket size={18} /> },
   { id: 'marketplace', label: 'Hire Agents', icon: <Users size={18} /> },
   { id: 'aims', label: 'AI Models', icon: <Bot size={18} /> },
+  { id: 'aimforge', label: 'AIM Forge', icon: <Hammer size={18} /> },
   { id: 'leaderboard', label: 'Rankings', icon: <Trophy size={18} /> },
   { id: 'training', label: 'Train Agents', icon: <GraduationCap size={18} /> },
   { id: 'packages', label: 'Bundles', icon: <Package size={18} /> },
@@ -239,6 +250,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     if (!url) return 'start';
     if (url.includes('/start')) return 'start';
     if (url.includes('/skills')) return 'skills';
+    if (url.includes('/aimforge')) return 'aimforge';
     if (url.includes('/train')) return 'training';
     if (url.includes('/compute') || url.includes('/nodes')) return 'compute';
     if (url.includes('/bundles')) return 'packages';
@@ -4367,6 +4379,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             {activeTab === 'start' && renderStart()}
             {activeTab === 'marketplace' && renderMarketplace()}
             {activeTab === 'aims' && <StargateCommunityAIMPanel hyperInsightAIMs={aims} onNavigateToChat={onNavigateToChat} />}
+            {activeTab === 'aimforge' && <AIMForgePanel onNavigateToChat={onNavigateToChat} />}
             {activeTab === 'leaderboard' && renderLeaderboard()}
             {activeTab === 'training' && renderTraining()}
             {activeTab === 'packages' && renderPackages()}

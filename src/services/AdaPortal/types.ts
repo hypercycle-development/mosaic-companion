@@ -374,6 +374,7 @@ export type UserIntent =
   | 'dashboard'
   | 'stargate_pool'
   | 'deploy_system'
+  | 'forge_aim'
   | 'custom';
 
 export interface IntentOption {
