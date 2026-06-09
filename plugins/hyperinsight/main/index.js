@@ -1,4 +1,4 @@
-import { safeStorage, app } from 'electron';
+import { safeStorage, app, BrowserWindow } from 'electron';
 import path from 'path';
 import fs from 'fs';
 
@@ -7,7 +7,7 @@ const STORAGE_FILE = 'hyperinsight.json';
 
 // --- Score cache (Stage 7C) ---
 const TOOL_SCORES_PATH = path.join(app.getPath('userData'), 'hyperinsight-tool-scores.json');
-const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes — tool scores update no faster than probe cycles
+const POLL_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes — tool scores update no faster than probe cycles
 let _pollIntervalId = null;
 
 // --- In-memory TTL response cache ---
@@ -165,6 +165,8 @@ async function fetchAndWriteToolScores() {
 function startScorePolling() {
   fetchAndWriteToolScores().catch(console.error); // fire-and-forget on startup
   _pollIntervalId = setInterval(() => {
+    const anyFocused = BrowserWindow.getAllWindows().some(w => w.isFocused() && !w.isMinimized());
+    if (!anyFocused) return;
     fetchAndWriteToolScores().catch(console.error);
   }, POLL_INTERVAL_MS);
 }
@@ -374,13 +376,13 @@ export function registerHyperInsightIpc(ipcMain) {
 
   ipcMain.handle('hyperinsight:get-aim-deployments', async (event, aimId) => {
     try {
-      return await handleDataRequest(`/tools/${encodeURIComponent(String(aimId))}/deployments`);
+      return await handleDataRequest(`/tools/${encodeURIComponent(String(aimId))}/deployments`, 'GET', null, 2 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
   ipcMain.handle('hyperinsight:get-tool-status', async (event, toolId) => {
     try {
-      return await handleDataRequest(`/tools/${encodeURIComponent(String(toolId))}/status`);
+      return await handleDataRequest(`/tools/${encodeURIComponent(String(toolId))}/status`, 'GET', null, 1 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 
@@ -393,7 +395,7 @@ export function registerHyperInsightIpc(ipcMain) {
 
   ipcMain.handle('hyperinsight:get-subscriptions', async () => {
     try {
-      return await handleDataRequest('/subscriptions');
+      return await handleDataRequest('/subscriptions', 'GET', null, 2 * 60 * 1000);
     } catch (e) { return { error: e.message }; }
   });
 

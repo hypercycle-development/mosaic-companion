@@ -165,21 +165,13 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({ licenseKey, on
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
-      // Fetch legacy detail (always — used as fallback)
-      try {
-        const result = await window.electronAPI.hyperinsight.getNodeDetail(licenseKey);
-        setNode(result);
-      } catch (e) {
-        console.error(e);
-      }
-      // Fetch full profile (primary source for enriched data)
-      try {
-        const prof = await window.electronAPI.hyperinsight.getNodeProfile(licenseKey);
-        if (prof && !prof.error) setProfile(prof);
-        else console.warn('[NodeDetailPanel] getNodeProfile failed, using fallback');
-      } catch (e) {
-        console.warn('[NodeDetailPanel] getNodeProfile failed, using fallback', e);
-      }
+      const [nodeResult, profileResult] = await Promise.all([
+        window.electronAPI.hyperinsight.getNodeDetail(licenseKey).catch((e: unknown) => { console.error(e); return null; }),
+        window.electronAPI.hyperinsight.getNodeProfile(licenseKey).catch((e: unknown) => { console.warn('[NodeDetailPanel] getNodeProfile failed, using fallback', e); return null; }),
+      ]);
+      if (nodeResult) setNode(nodeResult);
+      if (profileResult && !profileResult.error) setProfile(profileResult);
+      else if (profileResult?.error) console.warn('[NodeDetailPanel] getNodeProfile failed, using fallback');
       setLoading(false);
     };
     fetchAll();
