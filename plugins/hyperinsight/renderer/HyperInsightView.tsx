@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Loader2, RefreshCw, Trophy, Activity, Server, HelpCircle } from 'lucide-react';
 import { ActiveNodesDisplay } from './components/ActiveNodesDisplay';
 import { AimProfilePage } from './components/AimProfilePage';
@@ -28,6 +28,8 @@ export const HyperInsightView = () => {
   const [selectedAim, setSelectedAim] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [toolScores, setToolScores] = useState<Record<string, ToolScoreData>>({});
+  const lastManualRefreshAt = useRef<number>(0);
+  const MANUAL_REFRESH_COOLDOWN_MS = 15 * 60 * 1000;
 
   // Initial Registration / Key Check
   useEffect(() => {
@@ -56,6 +58,23 @@ export const HyperInsightView = () => {
     };
     init();
   }, []);
+
+  const handleRefresh = async () => {
+    if (dataLoading) return;
+    if (Date.now() - lastManualRefreshAt.current < MANUAL_REFRESH_COOLDOWN_MS) return;
+    lastManualRefreshAt.current = Date.now();
+    await window.electronAPI.hyperinsight.clearCache?.().catch(() => {});
+    // Prime the active-tab endpoint in cache so the subsequent Promise.all doesn't
+    // cold-start all 6 requests simultaneously.
+    if (activeTab === TABS.LEADERBOARD) {
+      await window.electronAPI.hyperinsight.getLeaderboard?.().catch(() => {});
+    } else if (activeTab === TABS.NODES) {
+      await window.electronAPI.hyperinsight.getNodes?.().catch(() => {});
+    } else if (activeTab === TABS.AIMS) {
+      await window.electronAPI.hyperinsight.getAims?.().catch(() => {});
+    }
+    fetchData();
+  };
 
   const fetchData = async () => {
     setDataLoading(true);
@@ -173,7 +192,7 @@ export const HyperInsightView = () => {
         <div className="flex items-center space-x-4">
             <ActiveNodesDisplay stats={data.stats} history={data.history} />
             <button
-                onClick={fetchData}
+                onClick={handleRefresh}
                 disabled={dataLoading}
                 className="p-2 rounded-full hover:bg-[var(--surface)] transition-colors disabled:opacity-50"
             >
