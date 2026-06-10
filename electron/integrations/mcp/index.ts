@@ -129,6 +129,55 @@ function ensureDefaultPlugins(): void {
       console.warn(`[MCP] hermes-tools bridge not found at ${hermesToolsPath}; skipping`);
     }
   }
+
+  // ── Midnight Wallet MCP Server ──
+  // Exposes Midnight blockchain wallet operations via MCP.
+  // Uses the published npm package midnight-wallet-cli which provides
+  // the midnight-wallet-mcp binary for stdio transport.
+  const hasMidnight = existing.some((p) => p.name === "midnight-wallet");
+  if (!hasMidnight) {
+    // Try to find the MCP server binary - prefer npx if not globally installed
+    const { execSync } = require("node:child_process");
+    let cmd: string;
+    let args: string[];
+    let env: Record<string, string> = {
+      // Optional: configure default network
+      MIDNIGHT_NETWORK: process.env.MIDNIGHT_NETWORK || "",
+    };
+
+    try {
+      // Check if midnight-wallet-cli is available in node_modules
+      const resolvePath = require.resolve("midnight-wallet-cli/package.json", { paths: [process.cwd()] });
+      const pkgDir = path.dirname(resolvePath);
+      const mcpPath = path.join(pkgDir, "dist", "mcp-server.js");
+      if (fs.existsSync(mcpPath)) {
+        cmd = "node";
+        args = [mcpPath];
+        console.log(`[MCP] Found midnight-wallet-cli MCP server at: ${mcpPath}`);
+      } else {
+        // Fall back to npx
+        cmd = "npx";
+        args = ["-y", "midnight-wallet-cli@latest", "--mcp"];
+        console.log(`[MCP] Using npx for midnight-wallet-cli (package not found locally)`);
+      }
+    } catch {
+      // Fall back to npx
+      cmd = "npx";
+      args = ["-y", "midnight-wallet-cli@latest", "--mcp"];
+      console.log(`[MCP] Using npx for midnight-wallet-cli`);
+    }
+
+    pluginManager.add({
+      name: "midnight-wallet",
+      description: "Midnight Blockchain Wallet — manage wallets, check balances, transfer NIGHT tokens, deploy contracts",
+      transport: "stdio",
+      command: cmd,
+      args: args,
+      env: env,
+      autoConnect: true,
+    });
+    console.log(`[MCP] Registered default plugin: midnight-wallet`);
+  }
 }
 
 export async function initPlugins(): Promise<void> {
