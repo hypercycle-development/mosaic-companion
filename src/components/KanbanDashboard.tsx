@@ -346,7 +346,12 @@ export const KanbanDashboard: React.FC = () => {
               const j = await r.json();
               reply = j.content || JSON.stringify(j);
             } else {
-              const r = await fetch(`${agent.baseUrl || PROVIDER_INFO[agent.provider]?.baseUrl || ""}/v1/chat/completions`, {
+              // Fix: correct baseUrl for ollama-cloud agents
+              let baseUrl = agent.baseUrl || PROVIDER_INFO[agent.provider]?.baseUrl || "";
+              if (agent.provider === 'ollama-cloud' && baseUrl.includes("ollama.com") && !baseUrl.includes("api.ollama.com")) {
+                baseUrl = "https://api.ollama.com";
+              }
+              const r = await fetch(`${baseUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
