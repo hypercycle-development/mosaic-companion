@@ -52,6 +52,7 @@ import {
 import { localNodeBridge } from '../services/LocalNodeBridge';
 import type { BridgeANFE, BridgeComputeNode } from '../services/LocalNodeBridge';
 import { skillMarketplace } from '../services/AdaPortal';
+import { tasteSkillService } from '../services/TasteSkillService';
 import {
   NFTCollectionGrid,
   NFTAssetModal,
@@ -338,6 +339,11 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [agentSelectMode, setAgentSelectMode] = useState<'hire' | 'train' | 'package' | 'skill' | null>(null);
   const [selectedUserAgent, setSelectedUserAgent] = useState<any | null>(null);
   const [selectedAgentForDelegation, setSelectedAgentForDelegation] = useState<string | null>(null);
+  
+  // Taste-Skill Service state
+  const [tasteSkills, setTasteSkills] = useState<any[]>([]);
+  const [isLoadingTasteSkills, setIsLoadingTasteSkills] = useState(false);
+  const [tasteSkillError, setTasteSkillError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -433,10 +439,11 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       setTrainingListings(registryJobs.map(j => ({
         listingId: j.id,
         trainerName: j.name || `${j.model} Training`,
+        trainerId: j.id,
         description: `Training ${j.model} on ${j.dataset} — Status: ${j.status}`,
         specializations: [j.status, j.model],
         rating: j.status === 'completed' ? 5.0 : j.status === 'running' ? 4.0 : 0,
-        price: 0.0,
+        pricePerSession: 0.0,
         model: j.model,
         dataset: j.dataset,
         progress: j.progress,
@@ -453,8 +460,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         agents: b.agents.map((ag, idx) => ({
           agentId: `${b.id}-agent-${idx}`,
           name: ag.role,
-          role: ag.role,
+          role: ag.role as any, // Map BundleConfig's role string to AgentRole
+          included: true, // Required by PackageAgent interface
         })),
+        computeAllocation: undefined, // Optional field, not in BundleConfig
       })) as any);
 
       // Populate skills marketplace
@@ -621,6 +630,37 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     }, 30000);
     return () => { mounted = false; clearInterval(timer); };
   }, []);
+
+  // Load Taste-Skills when Skills tab is active
+  useEffect(() => {
+    if (activeTab !== 'skills') return;
+    
+    let mounted = true;
+    (async () => {
+      try {
+        setIsLoadingTasteSkills(true);
+        setTasteSkillError(null);
+        
+        // Initialize the service first
+        await tasteSkillService.initialize();
+        
+        // Load available Taste-Skills from Vault
+        const skills = await tasteSkillService.getAvailableSkills();
+        
+        if (!mounted) return;
+        setTasteSkills(skills);
+        console.log(`[AdaPortal] Loaded ${skills.length} Taste-Skills from Vault`);
+      } catch (e: any) {
+        if (!mounted) return;
+        console.error('[AdaPortal] Failed to load Taste-Skills:', e);
+        setTasteSkillError(e.message || 'Failed to load Taste-Skills');
+      } finally {
+        if (mounted) setIsLoadingTasteSkills(false);
+      }
+    })();
+    
+    return () => { mounted = false; };
+  }, [activeTab]);
 
   useEffect(() => {
     // Check access and update state - wrapped separately to not block UI
@@ -2093,56 +2133,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     </div>
   );
 
-  // ============== AI MODELS TAB ==============
-  const renderAims = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-white">AI Models (AIMs)</h3>
-          <p className="text-sm text-gray-400 mt-0.5">Explore AI models you can deploy on HyperCycle compute nodes.</p>
-        </div>
-        <span className="text-sm text-gray-400">{aims.length} models available</span>
-      </div>
-      
-      {aims.length === 0 ? (
-        <div className="text-center py-12">
-          <Bot size={48} className="mx-auto text-gray-600 mb-4" />
-          <p className="text-gray-400">No verified AIMs available</p>
-          <p className="text-sm text-gray-600 mt-1">Connect to HyperInsight MCP to see AI models</p>
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {aims.slice(0, 20).map((aim, idx) => (
-            <div key={idx} className="p-4 rounded-xl border border-gray-800 bg-gray-900/50 hover:border-gray-700 transition-colors">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                    <Bot size={20} className="text-purple-400" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-white">{aim.name || 'Unnamed AIM'}</h4>
-                    {aim.description && <p className="text-sm text-gray-400 mt-1">{aim.description}</p>}
-                    <div className="flex items-center gap-3 mt-2">
-                      {aim.rank && (
-                        <span className="text-xs text-cyan-400">Rank: #{aim.rank}</span>
-                      )}
-                      {aim.origin && (
-                        <span className="text-xs text-purple-400">Origin: {aim.origin}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {aim.isActive && (
-                  <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400">Active</span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
   // ============== DASHBOARD TAB ==============
   const renderDashboard = () => {
     const stats = skillMarketplace.getStats();
@@ -2463,7 +2453,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         </div>
       </div>
 
-        <div className="grid gap-3">
+      <div className="grid gap-3">
         {trainingListings.map(listing => (
           <div
             key={listing.listingId}

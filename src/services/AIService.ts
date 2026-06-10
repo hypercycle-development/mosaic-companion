@@ -76,13 +76,20 @@ export class AIService {
     messages: ChatMessage[],
     callbacks?: StreamCallbacks
   ): Promise<string> {
+    // Fix: migrate old ollama.com URLs to api.ollama.com for ollama-cloud provider
+    let baseUrl = config.baseUrl || "https://api.openai.com";
+    if (config.provider === "ollama-cloud" && baseUrl.includes("ollama.com") && !baseUrl.includes("api.ollama.com")) {
+      console.log('[AIService.sendToOpenAI] Migrating old baseUrl:', baseUrl, '→ https://api.ollama.com');
+      baseUrl = "https://api.ollama.com";
+    }
+
     // For Hermes API Server, default the key if empty
     const actualApiKey =
       config.provider === "hermes-api" && !config.apiKey?.trim()
         ? "mosaic-hermes-2025"
         : config.apiKey?.trim() || config.apiKey;
     const response = await fetch(
-      `${config.baseUrl || "https://api.openai.com"}/v1/chat/completions`,
+      `${baseUrl}/v1/chat/completions`,
       {
         method: "POST",
         headers: {
