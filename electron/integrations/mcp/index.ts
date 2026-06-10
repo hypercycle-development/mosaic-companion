@@ -17,7 +17,7 @@ import type { MCPServerConfig } from "./MCPClient";
 // Singletons
 // =============================================================================
 
-const mcpClient = new MCPClient({ debug: true });
+const mcpClient = new MCPClient({ debug: true, timeout: 60000 }); // 60s timeout for slow npx startups
 const pluginManager = new MCPPluginManager();
 
 let mainWindow: BrowserWindow | null = null;
@@ -136,7 +136,7 @@ function ensureDefaultPlugins(): void {
   // the midnight-wallet-mcp binary for stdio transport.
   const hasMidnight = existing.some((p) => p.name === "midnight-wallet");
   if (!hasMidnight) {
-    // Try to find the MCP server binary - prefer npx if not globally installed
+    // Try to find the MCP server binary in node_modules first
     const { execSync } = require("node:child_process");
     let cmd: string;
     let args: string[];
@@ -155,16 +155,16 @@ function ensureDefaultPlugins(): void {
         args = [mcpPath];
         console.log(`[MCP] Found midnight-wallet-cli MCP server at: ${mcpPath}`);
       } else {
-        // Fall back to npx
+        // Fall back to npx - use the correct MCP launch syntax
         cmd = "npx";
         args = ["-y", "midnight-wallet-cli@latest", "--mcp"];
-        console.log(`[MCP] Using npx for midnight-wallet-cli (package not found locally)`);
+        console.log(`[MCP] Using npx midnight-wallet-cli@latest --mcp for MCP server`);
       }
     } catch {
-      // Fall back to npx
+      // Fall back to npx - use the correct MCP launch syntax
       cmd = "npx";
       args = ["-y", "midnight-wallet-cli@latest", "--mcp"];
-      console.log(`[MCP] Using npx for midnight-wallet-cli`);
+      console.log(`[MCP] Using npx midnight-wallet-cli@latest --mcp for MCP server`);
     }
 
     pluginManager.add({

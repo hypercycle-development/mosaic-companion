@@ -2154,10 +2154,11 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             <p className="text-sm text-gray-400 mt-0.5">Overview of your AI workforce, compute, and network activity.</p>
           </div>
           <button
-            onClick={loadData}
-            className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <RefreshCw size={18} />
+            <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
           </button>
         </div>
 
