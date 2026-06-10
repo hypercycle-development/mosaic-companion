@@ -540,9 +540,9 @@ export class AIService {
       case "ollama":
         return this.sendToOllama(config, enrichedMessages, callbacks);
       case "ollama-cloud":
-        // Ollama Cloud uses OpenAI-compatible /v1/chat/completions endpoint
+        // Ollama Cloud uses OpenAI-compatible endpoint at api.ollama.com
         return this.sendToOpenAI(
-          { ...config, baseUrl: config.baseUrl || "https://ollama.com/v1" },
+          { ...config, baseUrl: config.baseUrl || "https://api.ollama.com" },
           enrichedMessages,
           callbacks,
         );

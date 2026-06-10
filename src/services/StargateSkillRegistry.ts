@@ -295,7 +295,7 @@ class StargateSkillRegistry {
       console.log('[StargateSkillRegistry] Ollama not available, using fallback models');
       // Fallback: known models for R2D2
       this.models = [
-        { id: 'kimi-k2.5:cloud', name: 'Kimi K2.5', provider: 'ollama-cloud', status: 'loaded', capability: ['code', 'reasoning', 'long-context'], local: false, baseUrl: 'https://ollama.com/v1' },
+        { id: 'kimi-k2.5:cloud', name: 'Kimi K2.5', provider: 'ollama-cloud', status: 'loaded', capability: ['code', 'reasoning', 'long-context'], local: false, baseUrl: 'https://api.ollama.com' },
         { id: 'llama3.2:3b', name: 'Llama 3.2 (3B)', provider: 'ollama', status: 'available', capability: ['general', 'chat', 'vision'], local: true, baseUrl: 'http://localhost:11434' },
         { id: 'qwen2.5-coder:7b', name: 'Qwen 2.5 Coder (7B)', provider: 'ollama', status: 'available', capability: ['code'], local: true, baseUrl: 'http://localhost:11434' },
         { id: 'qwen2.5:32b', name: 'Qwen 2.5 (32B)', provider: 'ollama', status: 'available', capability: ['general', 'chat', 'reasoning'], local: true, baseUrl: 'http://localhost:11434' },

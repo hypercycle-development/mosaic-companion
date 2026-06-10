@@ -153,7 +153,7 @@ export const PROVIDER_INFO: Record<
   "ollama-cloud": {
     name: "Ollama Cloud",
     color: "#22D3EE",
-    baseUrl: "https://ollama.com",
+    baseUrl: "https://api.ollama.com",
   },
   custom: {
     name: "Custom Endpoint",
