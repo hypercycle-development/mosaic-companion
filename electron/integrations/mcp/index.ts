@@ -147,24 +147,27 @@ function ensureDefaultPlugins(): void {
 
     try {
       // Check if midnight-wallet-cli is available in node_modules
-      const resolvePath = require.resolve("midnight-wallet-cli/package.json", { paths: [process.cwd()] });
+      // Use __dirname to ensure we look from the correct location
+      const resolvePath = require.resolve("midnight-wallet-cli/package.json", { paths: [__dirname, process.cwd()] });
+      console.log(`[MCP] Resolved midnight-wallet-cli at: ${resolvePath}`);
       const pkgDir = path.dirname(resolvePath);
       const mcpPath = path.join(pkgDir, "dist", "mcp-server.js");
+      console.log(`[MCP] Checking MCP server path: ${mcpPath}`);
       if (fs.existsSync(mcpPath)) {
         cmd = "node";
         args = [mcpPath];
-        console.log(`[MCP] Found midnight-wallet-cli MCP server at: ${mcpPath}`);
+        console.log(`[MCP] ✓ Found local midnight-wallet-cli MCP server at: ${mcpPath}`);
       } else {
         // Fall back to npx - use the correct MCP launch syntax
         cmd = "npx";
         args = ["-y", "midnight-wallet-cli@latest", "--mcp"];
-        console.log(`[MCP] Using npx midnight-wallet-cli@latest --mcp for MCP server`);
+        console.log(`[MCP] ⚠ Local MCP server not found at ${mcpPath}, using npx fallback (slower startup)`);
       }
-    } catch {
+    } catch (e) {
       // Fall back to npx - use the correct MCP launch syntax
       cmd = "npx";
       args = ["-y", "midnight-wallet-cli@latest", "--mcp"];
-      console.log(`[MCP] Using npx midnight-wallet-cli@latest --mcp for MCP server`);
+      console.log(`[MCP] ⚠ Could not resolve midnight-wallet-cli locally (${e}), using npx fallback (slower startup)`);
     }
 
     pluginManager.add({
@@ -197,6 +200,13 @@ export async function initPlugins(): Promise<void> {
         apiKey: plugin.apiKey,
       });
       console.log(`[MCP] Connected: ${plugin.name} (${result.serverInfo?.name} v${result.serverInfo?.version})`);
+      // Log available tools for debugging
+      try {
+        const tools = await mcpClient.listTools(plugin.name);
+        console.log(`[MCP] ${plugin.name} has ${tools.length} tools:`, tools.slice(0, 5).map((t: any) => t.name));
+      } catch (toolErr) {
+        console.warn(`[MCP] Could not list tools for ${plugin.name}:`, toolErr);
+      }
       notifyRenderer("mcp:server-connected", {
         name: plugin.name,
         tools: result.capabilities.tools ? [] : undefined,
@@ -308,9 +318,16 @@ ipcMain.handle(
     args: Record<string, unknown>,
   ) => {
     try {
-      const result = await mcpClient.callTool(serverName, toolName, args);
+      // Add timeout handling for slow tool calls (npx downloads, etc.)
+      const timeoutMs = 120000; // 120s for tool calls
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`Tool call timed out after ${timeoutMs}ms`)), timeoutMs);
+      });
+      const resultPromise = mcpClient.callTool(serverName, toolName, args);
+      const result = await Promise.race([resultPromise, timeoutPromise]);
       return { success: true, result };
     } catch (error) {
+      console.error(`[MCP] callTool error for ${serverName}/${toolName}:`, error);
       return { success: false, error: (error as Error).message };
     }
   },
