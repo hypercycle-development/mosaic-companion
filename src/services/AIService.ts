@@ -103,8 +103,15 @@ export class AIService {
     );
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || "OpenAI API error");
+      const error = await response.text().catch(() => null);
+      let errorMessage = "OpenAI API error";
+      try {
+        const parsed = error ? JSON.parse(error) : null;
+        errorMessage = parsed?.error?.message || error || `HTTP ${response.status}`;
+      } catch {
+        errorMessage = error || `HTTP ${response.status}`;
+      }
+      throw new Error(errorMessage);
     }
 
     if (callbacks && response.body) {
@@ -541,8 +548,12 @@ export class AIService {
         return this.sendToOllama(config, enrichedMessages, callbacks);
       case "ollama-cloud":
         // Ollama Cloud uses OpenAI-compatible endpoint at api.ollama.com
+        // Fix: migrate any saved agents that have the old/incorrect baseUrl
+        const ollamaCloudBaseUrl = config.baseUrl?.includes("ollama.com") && !config.baseUrl?.includes("api.ollama.com")
+          ? "https://api.ollama.com"
+          : (config.baseUrl || "https://api.ollama.com");
         return this.sendToOpenAI(
-          { ...config, baseUrl: config.baseUrl || "https://api.ollama.com" },
+          { ...config, baseUrl: ollamaCloudBaseUrl },
           enrichedMessages,
           callbacks,
         );
