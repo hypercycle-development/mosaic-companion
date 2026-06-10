@@ -490,6 +490,13 @@ export class AIService {
     messages: ChatMessage[],
     callbacks?: StreamCallbacks
   ): Promise<string> {
+    // AGGRESSIVE FIX: Any agent with ollama.com URLs gets migrated immediately
+    // This catches agents saved with wrong baseUrl regardless of provider
+    if (config.baseUrl?.includes("ollama.com") && !config.baseUrl?.includes("api.ollama.com")) {
+      console.log(`[AIService] Force-migrating ${config.name} baseUrl: ${config.baseUrl} → https://api.ollama.com`);
+      config = { ...config, baseUrl: "https://api.ollama.com" };
+    }
+
     // ─── Skill Injection (v2.6) ─────────────────────────────────────────────
     // If the agent has skills[] configured, load them from ~/.hermes/skills/
     // or Mosaic Vault, and inject their content as a system prompt before
