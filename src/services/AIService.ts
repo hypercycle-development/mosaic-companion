@@ -88,8 +88,16 @@ export class AIService {
       config.provider === "hermes-api" && !config.apiKey?.trim()
         ? "mosaic-hermes-2025"
         : config.apiKey?.trim() || config.apiKey;
+
+    // AGGRESSIVE FIX: Final safety check - rewrite ollama.com URLs at request time
+    let finalBaseUrl = baseUrl;
+    if (finalBaseUrl.includes("ollama.com") && !finalBaseUrl.includes("api.ollama.com")) {
+      console.warn(`[AIService.sendToOpenAI] FINAL SAFETY: Rewriting ${finalBaseUrl} → https://api.ollama.com`);
+      finalBaseUrl = "https://api.ollama.com";
+    }
+
     const response = await fetch(
-      `${baseUrl}/v1/chat/completions`,
+      `${finalBaseUrl}/v1/chat/completions`,
       {
         method: "POST",
         headers: {
