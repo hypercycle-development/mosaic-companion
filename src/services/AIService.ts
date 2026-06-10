@@ -590,19 +590,6 @@ export class AIService {
           enrichedMessages,
           callbacks,
         );
-      case "custom":
-        // Custom endpoints assume OpenAI-compatible API
-        // AGGRESSIVE: Check for ollama.com URLs - redirect to ollama-cloud
-        if (config.baseUrl?.includes("ollama.com") && !config.baseUrl?.includes("api.ollama.com")) {
-          console.log(`[AIService] Re-routing custom agent with ollama.com URL to ollama-cloud handler`);
-          const fixedBaseUrl = "https://api.ollama.com";
-          return this.sendToOpenAI(
-            { ...config, baseUrl: fixedBaseUrl, provider: "ollama-cloud" },
-            enrichedMessages,
-            callbacks,
-          );
-        }
-        return this.sendToOpenAI(config, enrichedMessages, callbacks);
       case "hypercycle":
         return this.sendToHypercycle(config, enrichedMessages, callbacks);
       case "hermes":

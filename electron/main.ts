@@ -822,14 +822,24 @@ function readAgents(): AIAgent[] {
     console.error("Failed to read AI agents:", error);
   }
   // Migrate old Ollama agents that were saved with cloud model names to ollama-cloud provider
+  // Also fix any agents with the wrong baseUrl
   let sanitized = false;
   for (const a of raw) {
     const model = (a as any).model as string;
     if (a.provider === "ollama" && model && model.includes(":cloud")) {
       console.log(`[Main] Migrating Ollama agent "${a.name}" model ${a.model} → ollama-cloud provider`);
       a.provider = "ollama-cloud" as AIAgent["provider"];
-      a.baseUrl = a.baseUrl || "https://ollama.com";
+      // FIX: Use correct api.ollama.com baseUrl, not ollama.com
+      if (!a.baseUrl || a.baseUrl === "https://ollama.com") {
+        a.baseUrl = "https://api.ollama.com";
+      }
       a.model = (a.model as string).replace(/:cloud$/, ""); // strip :cloud suffix
+      sanitized = true;
+    }
+    // ADDITIONAL FIX: Any ollama-cloud agent with wrong baseUrl
+    if (a.provider === "ollama-cloud" && a.baseUrl === "https://ollama.com") {
+      console.log(`[Main] Fixing ollama-cloud agent "${a.name}" baseUrl: ${a.baseUrl} → https://api.ollama.com`);
+      a.baseUrl = "https://api.ollama.com";
       sanitized = true;
     }
   }
