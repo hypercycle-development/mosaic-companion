@@ -21,6 +21,7 @@ export { cardanoWallet, CardanoWalletService } from './CardanoWalletService';
 export { skillMarketplace, SkillMarketplaceService, SKILL_CATEGORIES, type SkillInfo, type SkillCategory, type AgentSkillAttachment } from './SkillMarketplaceService';
 export { accessControl, AccessControlService, type AccessCheck, type AccessLevel, type AccessType, type WalletState, type NFTHoldings, type NFTGatingConfig } from './AccessControlService';
 export { stargatePoolService, type NodeFactory, type ChainType, type FactoryStatus, type AccessType as StargateAccessType, type FactoryRegistrationInput, type WalletNFTs, type UserNFT, type ANFEInfo } from '../StargatePool';
+export { batteryOrgPool, batteryOrgAdapter, type BatteryBox, type BatteryPoolNode } from '../BatteryOrg';
 export { ADA_PORTAL_CONFIG } from './types';
 import { mcpIntegration } from './MCPIntegrationService';
 import { hyperInsight } from './HyperInsightService';

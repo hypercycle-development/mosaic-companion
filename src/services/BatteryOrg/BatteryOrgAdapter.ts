@@ -322,3 +322,6 @@ class BatteryOrgAdapter {
 // Singleton instance
 export const batteryOrgAdapter = new BatteryOrgAdapter();
 export default batteryOrgAdapter;
+
+// Export class for extension
+export { BatteryOrgAdapter };

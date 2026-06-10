@@ -346,9 +346,10 @@ export const KanbanDashboard: React.FC = () => {
               const j = await r.json();
               reply = j.content || JSON.stringify(j);
             } else {
-              // Fix: correct baseUrl for ollama-cloud agents
+              // AGGRESSIVE: Fix any ollama.com URLs regardless of provider
               let baseUrl = agent.baseUrl || PROVIDER_INFO[agent.provider]?.baseUrl || "";
-              if (agent.provider === 'ollama-cloud' && baseUrl.includes("ollama.com") && !baseUrl.includes("api.ollama.com")) {
+              if (baseUrl.includes("ollama.com") && !baseUrl.includes("api.ollama.com")) {
+                console.log(`[KanbanDashboard] Re-routing ${agent.name} with ollama.com URL to api.ollama.com`);
                 baseUrl = "https://api.ollama.com";
               }
               const r = await fetch(`${baseUrl}/v1/chat/completions`, {

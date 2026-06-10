@@ -53,6 +53,7 @@ import { localNodeBridge } from '../services/LocalNodeBridge';
 import type { BridgeANFE, BridgeComputeNode } from '../services/LocalNodeBridge';
 import { skillMarketplace } from '../services/AdaPortal';
 import { tasteSkillService } from '../services/TasteSkillService';
+import { batteryOrgPool, BatteryPoolNode } from '../services/BatteryOrg';
 import {
   NFTCollectionGrid,
   NFTAssetModal,
@@ -255,6 +256,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [packages, setPackages] = useState<AgentPackage[]>([]);
   const [nodes, setNodes] = useState<ComputeNode[]>([]);
   const [hboxNodes, setHboxNodes] = useState<any[]>([]);
+  const [batteryOrgNodes, setBatteryOrgNodes] = useState<BatteryPoolNode[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
   const [selectedSkill, setSelectedSkill] = useState<any | null>(null);
   const [tasteSkillImporting, setTasteSkillImporting] = useState(false);
@@ -399,6 +401,22 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       } catch (e) {
         console.warn('[AdaPortal] HBox load failed:', e);
         setHboxNodes([]);
+      }
+
+      // 2c. Load Battery Org boxes (new integration)
+      try {
+        const batteryResult = await batteryOrgPool.init();
+        if (batteryResult.success) {
+          const batteryNodes = batteryOrgPool.getNodes();
+          setBatteryOrgNodes(batteryNodes);
+          console.log('[AdaPortal] Loaded', batteryNodes.length, 'Battery Org boxes');
+        } else {
+          console.warn('[AdaPortal] Battery Org init failed:', batteryResult.error);
+          setBatteryOrgNodes([]);
+        }
+      } catch (e: any) {
+        console.warn('[AdaPortal] Battery Org load failed:', e);
+        setBatteryOrgNodes([]);
       }
 
       // 3. Leaderboard from HyperInsight
@@ -3088,24 +3106,24 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
 
       <div className="grid grid-cols-2 gap-3 mt-4">
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-          <div className="text-2xl font-bold text-cyan-400">{nodes.length}</div>
+          <div className="text-2xl font-bold text-cyan-400">{nodes.length + hboxNodes.length + batteryOrgNodes.length}</div>
           <div className="text-sm text-gray-400">Total Nodes</div>
         </div>
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
           <div className="text-2xl font-bold text-green-400">
-            {nodes.filter(n => n.status === 'online').length}
+            {nodes.filter(n => n.status === 'online').length + hboxNodes.filter((h: any) => h.status === 'online').length + batteryOrgNodes.filter(b => b.status === 'online').length}
           </div>
           <div className="text-sm text-gray-400">Online</div>
         </div>
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
           <div className="text-2xl font-bold text-yellow-400">
-            {nodes.filter(n => n.reliability >= 0.9).length}
+            {nodes.filter(n => n.reliability >= 0.9).length + batteryOrgNodes.filter(b => b.tflops > 200).length}
           </div>
           <div className="text-sm text-gray-400">Reliable (90%+)</div>
         </div>
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
           <div className="text-2xl font-bold text-purple-400">
-            {nodes.reduce((sum, n) => sum + n.availableCompute, 0)}
+            {nodes.reduce((sum, n) => sum + n.availableCompute, 0) + batteryOrgNodes.reduce((sum, b) => sum + b.tflops, 0)}
           </div>
           <div className="text-sm text-gray-400">Available Units</div>
         </div>
@@ -3117,6 +3135,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     const allNodes = [
       ...nodes.map((n) => ({ ...n, _source: 'hyperinsight' as const })),
       ...hboxNodes.map((n) => ({ ...n, _source: 'hyperaibox' as const })),
+      ...batteryOrgNodes.map((n) => ({ ...n, _source: 'batteryorg' as const })),
     ];
 
     return (
@@ -3130,6 +3149,11 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             {hboxNodes.length > 0 && (
               <span className="text-xs px-2 py-0.5 bg-violet-500/20 text-violet-400 rounded-full">
                 {hboxNodes.length} HBox{hboxNodes.length !== 1 ? 'es' : ''}
+              </span>
+            )}
+            {batteryOrgNodes.length > 0 && (
+              <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full">
+                {batteryOrgNodes.length} Battery Box{batteryOrgNodes.length !== 1 ? 'es' : ''}
               </span>
             )}
             <button
@@ -3222,6 +3246,43 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                     <div className="text-right">
                       <div className="text-sm text-white">{node.availableCompute} units</div>
                       <div className="text-xs text-gray-500">${node.pricePerHour}/hr</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Section header for Battery Org nodes */}
+            {batteryOrgNodes.length > 0 && (
+              <div className="mb-2">
+                <h4 className="text-xs font-medium text-green-400 uppercase tracking-wider mb-2">Battery Org Compute</h4>
+                {batteryOrgNodes.map((node: BatteryPoolNode) => (
+                  <div key={node.id} className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg border border-green-500/20">
+                    <div className={`w-3 h-3 rounded-full ${node.isAvailable && node.status === 'online' ? 'bg-green-500' : node.status === 'maintenance' ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                    <div className="flex-1">
+                      <div className="font-mono text-sm text-white">{node.name}</div>
+                      <div className="text-xs text-gray-500">
+                        {node.location.region} | {node.gpuCount}x {node.gpuModel} | {node.energySource} energy
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right mr-2">
+                        <div className="text-sm text-white">{node.tflops} TFLOPS</div>
+                        <div className="text-xs text-gray-500">${node.pricePerHourUsd}/hr</div>
+                      </div>
+                      {node.isAvailable ? (
+                        <button
+                          onClick={() => {
+                            showNotification('success', `Selected ${node.name} for compute`);
+                            // In future: trigger job submission to this Battery Box
+                          }}
+                          className="px-3 py-1 text-xs bg-green-600 hover:bg-green-500 text-white rounded flex items-center gap-1"
+                        >
+                          <Rocket size={10} /> Use
+                        </button>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 bg-gray-500/20 text-gray-400 rounded">{node.status}</span>
+                      )}
                     </div>
                   </div>
                 ))}
