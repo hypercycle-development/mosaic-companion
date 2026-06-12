@@ -254,26 +254,28 @@ export default function IDEPage({ url }: IDEPageProps) {
             </div>
           </div>
 
-          {/* Terminal */}
+          {/* Terminal — always mounted to preserve PTY sessions; hidden with CSS when toggled */}
           {showTerminal && (
-            <>
-              <div
-                className="h-1 cursor-row-resize bg-gray-800 hover:bg-blue-500/50 flex-shrink-0"
-                onMouseDown={handleTermResizeStart}
-              />
-              <div style={{ height: terminalHeight }} className="flex-shrink-0 overflow-hidden">
-                <TerminalPanel
-                  ref={terminalRef}
-                  projectPath={projectPath}
-                  terminals={terminals}
-                  activeTerminalId={activeTerminalId}
-                  onAddTerminal={addTerminal}
-                  onRemoveTerminal={removeTerminal}
-                  onSetActive={setActiveTerminalId}
-                />
-              </div>
-            </>
+            <div
+              className="h-1 cursor-row-resize bg-gray-800 hover:bg-blue-500/50 flex-shrink-0"
+              onMouseDown={handleTermResizeStart}
+            />
           )}
+          <div
+            style={{ height: showTerminal ? terminalHeight : 0 }}
+            className="flex-shrink-0 overflow-hidden"
+          >
+            <TerminalPanel
+              ref={terminalRef}
+              projectPath={projectPath}
+              terminals={terminals}
+              activeTerminalId={activeTerminalId}
+              onAddTerminal={addTerminal}
+              onRemoveTerminal={removeTerminal}
+              onSetActive={setActiveTerminalId}
+              visible={showTerminal}
+            />
+          </div>
         </div>
 
         {/* AI assist panel */}

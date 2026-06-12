@@ -539,7 +539,7 @@ export const MCPPage: React.FC = () => {
           <h2 className="text-sm font-bold text-gray-200">MCP Servers</h2>
           <div className="flex items-center gap-1">
             <button
-              onClick={loadServers}
+              onClick={async () => { await api?.reloadPlugins(); await loadPlugins(); await loadServers(); }}
               title="Refresh"
               className="p-1 text-gray-500 hover:text-gray-300 rounded transition-colors"
             >
