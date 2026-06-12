@@ -164,6 +164,10 @@ export const mcpAPI = {
   // Plugin Management
   // ===========================================================================
 
+  reloadPlugins: (): Promise<void> => {
+    return ipcRenderer.invoke("mcp:reload-plugins");
+  },
+
   listPlugins: (): Promise<MCPPlugin[]> => {
     return ipcRenderer.invoke("mcp:list-plugins");
   },

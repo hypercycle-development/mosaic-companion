@@ -70,6 +70,10 @@ export class MCPPluginManager {
     }
   }
 
+  reload(): void {
+    this._load();
+  }
+
   list(): MCPPlugin[] {
     return [...this.plugins];
   }
