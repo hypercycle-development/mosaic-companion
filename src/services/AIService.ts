@@ -189,12 +189,35 @@ export class AIService {
       throw new Error(errorMessage);
     }
 
-    if (callbacks && response.body) {
-      return this.handleStream(response.body, callbacks, "openai");
-    }
+    // Note: XHR implementation doesn't support streaming (stream: false is hardcoded)
+    // For streaming support, the fetch implementation with response.body would be needed
+    // if (callbacks && response.body) {
+    //   return this.handleStream(response.body, callbacks, "openai");
+    // }
 
+    console.log('[AIService.sendToOpenAI] Response received, parsing JSON...');
+    
     const data = await response.json();
-    return data.choices[0].message.content;
+    console.log('[AIService.sendToOpenAI] Parsed data:', data);
+    console.log('[AIService.sendToOpenAI] Choices:', data.choices);
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('[AIService.sendToOpenAI] Invalid response structure:', data);
+      throw new Error('Invalid response structure from API');
+    }
+    
+    const content = data.choices[0].message.content;
+    console.log('[AIService.sendToOpenAI] Extracted content:', content?.substring(0, 100));
+    
+    // If callbacks are provided but we didn't use streaming (XHR doesn't support it),
+    // emulate streaming by calling onToken with the full content and then onComplete
+    if (callbacks) {
+      console.log('[AIService.sendToOpenAI] Calling callbacks.onToken and onComplete...');
+      callbacks.onToken(content);
+      callbacks.onComplete(content);
+    }
+    
+    return content;
   }
 
   // Send message to Gemini API
