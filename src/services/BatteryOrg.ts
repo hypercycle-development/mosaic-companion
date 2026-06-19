@@ -7,7 +7,10 @@ export interface BatteryPoolNode {
   capacity: number;
   used: number;
   tflops: number;
-  location: string;
+  location: {
+    region: string;
+    city?: string;
+  };
   gpuCount: number;
   gpuModel: string;
   energySource: string;
