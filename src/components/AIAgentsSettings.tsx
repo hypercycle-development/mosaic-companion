@@ -27,7 +27,9 @@ import {
   HypercycleBackend,
   PROVIDER_INFO,
 } from "../types/ai";
+import { SoulGrade } from "../types/soul";
 import { AIService } from "../services/AIService";
+import { SoulSelector } from "./SoulSelector";
 import { HypercycleBalancePanel } from "./HypercycleBalancePanel";
 import {
   getHypercycleAimIndex,
@@ -358,6 +360,13 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
       temperature: 0.7,
       isActive: false,
       createdAt: Date.now(),
+      // Default SOUL configuration
+      soulId: "executor",
+      soulOverride: "",
+      capabilities: {
+        enabledCapabilities: ["file_read", "memory_management", "session_search"],
+        vaultBoxAccess: [],
+      },
     };
 
     try {
@@ -1461,6 +1470,31 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                           will be injected into the system prompt before each API call.
                         </div>
                       )}
+                    </div>
+
+                    {/* ─── Agent Soul / Identity ───────────────────── */}
+                    <div className="pt-4 border-t border-gray-800">
+                      <SoulSelector
+                        selectedSoulId={agent.soulId || null}
+                        customSoulMarkdown={agent.soulOverride || null}
+                        soulGrade={agent.soulGrade}
+                        onSelectSoul={(soulId) =>
+                          updateAgent(agent.id, {
+                            soulId,
+                            soulOverride: "", // Clear override when selecting predefined
+                          })
+                        }
+                        onCustomizeSoul={(customMarkdown) =>
+                          updateAgent(agent.id, {
+                            soulOverride: customMarkdown,
+                          })
+                        }
+                        onGradeChange={(grade) =>
+                          updateAgent(agent.id, {
+                            soulGrade: grade,
+                          })
+                        }
+                      />
                     </div>
 
                     <div className="flex flex-col gap-2 pt-4 border-t border-gray-800">

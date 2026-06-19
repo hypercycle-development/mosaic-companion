@@ -17,7 +17,7 @@ import type { MCPServerConfig } from "./MCPClient";
 // Singletons
 // =============================================================================
 
-const mcpClient = new MCPClient({ debug: true });
+const mcpClient = new MCPClient({ debug: true, timeout: 60000 }); // 60s timeout for slow npx startups
 const pluginManager = new MCPPluginManager();
 
 let mainWindow: BrowserWindow | null = null;
@@ -100,7 +100,9 @@ function ensureDefaultPlugins(): void {
   // without a separate Hermes repository checkout.
   const hasHermesTools = existing.some((p) => p.name === "hermes-tools");
   if (!hasHermesTools) {
-    const hermesToolsPath = path.join(home, "mosaic-companion", "electron", "integrations", "mcp", "servers", "hermes-tools-mcp-server.py");
+    // Use environment variable for custom path, fallback to default path
+    const hermesToolsPath = process.env.HERMES_TOOLS_MCP_PATH 
+      || path.join(home, "mosaic-companion", "electron", "integrations", "mcp", "servers", "hermes-tools-mcp-server.py");
     if (fs.existsSync(hermesToolsPath)) {
       // Use the system Python3 — the script is self-contained and imports
       // model_tools at runtime via PYTHONPATH if Hermes is available.
@@ -129,6 +131,102 @@ function ensureDefaultPlugins(): void {
       console.warn(`[MCP] hermes-tools bridge not found at ${hermesToolsPath}; skipping`);
     }
   }
+
+  // ── Midnight Wallet MCP Server ──
+  // Exposes Midnight blockchain wallet operations via MCP.
+  // Uses the published npm package midnight-wallet-cli which provides
+  // the midnight-wallet-mcp binary for stdio transport.
+  const hasMidnight = existing.some((p) => p.name === "midnight-wallet");
+  if (!hasMidnight) {
+    // Try to find the MCP server binary in node_modules first
+    const { execSync } = require("node:child_process");
+    let cmd: string;
+    let args: string[];
+    let env: Record<string, string> = {
+      // Optional: configure default network
+      MIDNIGHT_NETWORK: process.env.MIDNIGHT_NETWORK || "",
+    };
+
+    try {
+      // Check if midnight-wallet-cli is available in node_modules
+      // Use __dirname to ensure we look from the correct location
+      const resolvePath = require.resolve("midnight-wallet-cli/package.json", { paths: [__dirname, process.cwd()] });
+      console.log(`[MCP] Resolved midnight-wallet-cli at: ${resolvePath}`);
+      const pkgDir = path.dirname(resolvePath);
+      const mcpPath = path.join(pkgDir, "dist", "mcp-server.js");
+      console.log(`[MCP] Checking MCP server path: ${mcpPath}`);
+      if (fs.existsSync(mcpPath)) {
+        cmd = "node";
+        args = [mcpPath];
+        console.log(`[MCP] ✓ Found local midnight-wallet-cli MCP server at: ${mcpPath}`);
+      } else {
+        // Fall back to npx - use the correct MCP launch syntax
+        cmd = "npx";
+        args = ["-y", "midnight-wallet-cli@latest", "--mcp"];
+        console.log(`[MCP] ⚠ Local MCP server not found at ${mcpPath}, using npx fallback (slower startup)`);
+      }
+    } catch (e) {
+      // Fall back to npx - use the correct MCP launch syntax
+      cmd = "npx";
+      args = ["-y", "midnight-wallet-cli@latest", "--mcp"];
+      console.log(`[MCP] ⚠ Could not resolve midnight-wallet-cli locally (${e}), using npx fallback (slower startup)`);
+    }
+
+    pluginManager.add({
+      name: "midnight-wallet",
+      description: "Midnight Blockchain Wallet — manage wallets, check balances, transfer NIGHT tokens, deploy contracts",
+      transport: "stdio",
+      command: cmd,
+      args: args,
+      env: env,
+      autoConnect: true,
+    });
+    console.log(`[MCP] Registered default plugin: midnight-wallet`);
+  }
+
+  // ── Midnight Development MCP Server ──
+  // Exposes Compact language tools, contract generation, compilation,
+  // analysis, documentation search, and example discovery for Midnight
+  // blockchain development. Complements midnight-wallet (operations).
+  const hasMidnightDev = existing.some((p) => p.name === "midnight-mcp");
+  if (!hasMidnightDev) {
+    let devCmd: string;
+    let devArgs: string[];
+    try {
+      // Prefer a local midnight-mcp install in Mosaic's node_modules.
+      // The stdio entry point is dist/bin.js (dist/index.js only exports helpers).
+      const resolvePath = require.resolve("midnight-mcp/package.json", { paths: [__dirname, process.cwd()] });
+      const pkgDir = path.dirname(resolvePath);
+      const mcpEntry = path.join(pkgDir, "dist", "bin.js");
+      if (fs.existsSync(mcpEntry)) {
+        devCmd = "node";
+        devArgs = [mcpEntry];
+        console.log(`[MCP] ✓ Found local midnight-mcp at: ${mcpEntry}`);
+      } else {
+        devCmd = "npx";
+        devArgs = ["-y", "midnight-mcp@latest"];
+        console.log(`[MCP] ⚠ Local midnight-mcp entry not found at ${mcpEntry}, using npx fallback`);
+      }
+    } catch (e) {
+      devCmd = "npx";
+      devArgs = ["-y", "midnight-mcp@latest"];
+      console.log(`[MCP] ⚠ Could not resolve midnight-mcp locally (${e}), using npx fallback`);
+    }
+
+    pluginManager.add({
+      name: "midnight-mcp",
+      description: "Midnight Development MCP — Compact language, contract generation, compilation, analysis, docs search, examples",
+      transport: "stdio",
+      command: devCmd,
+      args: devArgs,
+      env: {
+        // Silence ChromaDB tenant warnings; server falls back to in-memory vector store
+        CHROMA_SERVER_HOST: process.env.CHROMA_SERVER_HOST || "",
+      },
+      autoConnect: true,
+    });
+    console.log(`[MCP] Registered default plugin: midnight-mcp`);
+  }
 }
 
 export async function initPlugins(): Promise<void> {
@@ -148,6 +246,13 @@ export async function initPlugins(): Promise<void> {
         apiKey: plugin.apiKey,
       });
       console.log(`[MCP] Connected: ${plugin.name} (${result.serverInfo?.name} v${result.serverInfo?.version})`);
+      // Log available tools for debugging
+      try {
+        const tools = await mcpClient.listTools(plugin.name);
+        console.log(`[MCP] ${plugin.name} has ${tools.length} tools:`, tools.slice(0, 5).map((t: any) => t.name));
+      } catch (toolErr) {
+        console.warn(`[MCP] Could not list tools for ${plugin.name}:`, toolErr);
+      }
       notifyRenderer("mcp:server-connected", {
         name: plugin.name,
         tools: result.capabilities.tools ? [] : undefined,
@@ -259,9 +364,16 @@ ipcMain.handle(
     args: Record<string, unknown>,
   ) => {
     try {
-      const result = await mcpClient.callTool(serverName, toolName, args);
+      // Add timeout handling for slow tool calls (npx downloads, etc.)
+      const timeoutMs = 120000; // 120s for tool calls
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`Tool call timed out after ${timeoutMs}ms`)), timeoutMs);
+      });
+      const resultPromise = mcpClient.callTool(serverName, toolName, args);
+      const result = await Promise.race([resultPromise, timeoutPromise]);
       return { success: true, result };
     } catch (error) {
+      console.error(`[MCP] callTool error for ${serverName}/${toolName}:`, error);
       return { success: false, error: (error as Error).message };
     }
   },

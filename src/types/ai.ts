@@ -1,4 +1,5 @@
 import { ToolUIBlock } from "../components/tool-ui";
+import { SoulGrade, AgentCapabilityConfig } from "./soul";
 // AI Agent Types and Configuration
 
 export type AIProvider =
@@ -44,11 +45,11 @@ export interface AIAgentConfig {
    */
   hypercycleServerPort?: number;
   /**
-   * Hypercycle: app port (POST `/api/aim/{index}/request`). TODA default 8006; Basechain 8016.
+   * Hypercycle: app port (POST \`/api/aim/{index}/request\`). TODA default 8006; Basechain 8016.
    */
   hypercycleAppPort?: number;
   /**
-   * Hypercycle: AIM route index (`/api/aim/{index}/request`). Default 0 (TODA) or 2 (Basechain) when unset.
+   * Hypercycle: AIM route index (\`/api/aim/{index}/request\`). Default 0 (TODA) or 2 (Basechain) when unset.
    */
   hypercycleAimIndex?: number;
   /**
@@ -56,19 +57,39 @@ export interface AIAgentConfig {
    */
   hypercycleStreamPort?: number;
   /**
-   * Hypercycle: optional `tx-signature` override.
+   * Hypercycle: optional \`tx-signature\` override.
    * TODA: placeholder if unset. Basechain: wallet EIP-191 signs the nonce automatically if unset.
    */
   hypercycleTxSignature?: string;
-  /** Hypercycle: override `tx-driver` header (default: toda_micropay / basechain). */
+  /** Hypercycle: override \`tx-driver\` header (default: toda_micropay / basechain). */
   hypercycleTxDriver?: string;
   /**
-   * Hypercycle: optional `tx-sender` for POST /stream only (e.g. name.hypercycle.biz.todaq.net).
+   * Hypercycle: optional \`tx-sender\` for POST /stream only (e.g. name.hypercycle.biz.todaq.net).
    * If omitted, uses the same TODA address as nonce/AIM steps.
    */
   hypercycleStreamTxSender?: string;
   /** Optional ANFE token ID this agent is deployed to (for Hermes AIM tracking). */
   anfeTokenId?: string;
+  /**
+   * SOUL.md identity layer — predefined soul archetype ID.
+   * One of: executor, researcher, creative, guardian, navigator, fast, custom
+   */
+  soulId?: string;
+  /**
+   * Custom SOUL.md content override.
+   * Takes precedence over soulId if non-empty.
+   */
+  soulOverride?: string;
+  /**
+   * Last SOUL grade from soul-grader.
+   * Contains score, verdict, blockers, and recommendations.
+   */
+  soulGrade?: SoulGrade;
+  /**
+   * Capability configuration for Hermes tools access.
+   * Defines which tools and vault boxes the agent can access.
+   */
+  capabilities?: AgentCapabilityConfig;
 }
 
 export interface ChatMessage {

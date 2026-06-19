@@ -334,9 +334,13 @@ export const KanbanDashboard: React.FC = () => {
               const msg = { id: '1', role: 'user' as const, content: globalPrompt, timestamp: Date.now(), agentId: agent.id };
               reply = await completeWithHermes(agent, [msg]);
             } else if (agent.provider === 'hermes-aim') {
-              const { AIService } = await import('../services/AIService');
+              const AIServiceModule = await import('../services/AIService');
+              const AIServiceClass = AIServiceModule.AIService || (AIServiceModule as any).default?.AIService || (AIServiceModule as any).default;
+              if (!AIServiceClass || typeof AIServiceClass.sendToHermesAIM !== 'function') {
+                throw new Error('AIService.sendToHermesAIM not available - check AIService export');
+              }
               const msg = { id: '1', role: 'user' as const, content: globalPrompt, timestamp: Date.now(), agentId: agent.id };
-              reply = await AIService.sendToHermesAIM(agent, [msg]);
+              reply = await AIServiceClass.sendToHermesAIM(agent, [msg]);
             } else if (agent.provider === 'hypercycle') {
               const r = await fetch(`${agent.baseUrl}${agent.hypercycleBackend === 'basechain' ? '/api/aim/2/request' : '/api/aim/0/request'}`, {
                 method: 'POST',

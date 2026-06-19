@@ -58,7 +58,7 @@ interface ContentAreaProps {
   };
   onUpdateTab: (updates: Partial<Tab>) => void;
   onStartDemo?: () => void;
-  onCreateNewChatTab?: (initialMessage?: string) => void;
+  onCreateNewChatTab?: () => void;
   onOnboardingComplete?: () => void;
   tabId?: string;
 }
@@ -571,10 +571,33 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
         <AdaPortalPanel
           url={url}
           onNavigate={onNavigate}
-          onNavigateToChat={(message) => onCreateNewChatTab?.(message)}
-          onHireAgent={async (agentId, agentName) => {
-            // Intentionally left as no-op: AdaPortalPanel shows its own notification
-            // and stays on the marketplace tab. Chat fallback removed for presentation flow.
+          onHireAgent={(agentId, agentName) => {
+            console.log('[ContentArea] Hiring agent:', agentId, agentName);
+            // Navigate to marketplace tab for agent hiring
+            onNavigate(INTERNAL_ADAPORTAL_URL);
+          }}
+          onBookTraining={(trainerId, trainerName) => {
+            console.log('[ContentArea] Booking training:', trainerId, trainerName);
+            // Navigate to training tab
+            onNavigate(INTERNAL_ADAPORTAL_TRAIN_URL);
+          }}
+          onGetPackage={(packageId, packageName) => {
+            console.log('[ContentArea] Getting package:', packageId, packageName);
+            // Navigate to packages tab
+            onNavigate(INTERNAL_ADAPORTAL_BUNDLES_URL);
+          }}
+          onSelectCompute={(tier) => {
+            console.log('[ContentArea] Selecting compute tier:', tier);
+            // Navigate to compute tab
+            onNavigate(INTERNAL_ADAPORTAL_COMPUTE_URL);
+          }}
+          onNavigateToChat={(message) => {
+            // Navigate to chat with the message
+            if (onCreateNewChatTab) {
+              onCreateNewChatTab();
+            } else {
+              onNavigate(INTERNAL_CHAT_URL);
+            }
           }}
         />
       </div>

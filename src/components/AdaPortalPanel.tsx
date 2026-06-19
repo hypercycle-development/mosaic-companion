@@ -22,7 +22,6 @@ declare global {
 import { 
   initializeAdaPortal,
   agentMarketplace,
-  agentEconomy,
   leaderboard,
   trainingMarketplace,
   agentPackages,
@@ -32,12 +31,10 @@ import {
   AgentMarketplaceService,
   accessControl,
   stargatePoolService,
-  paymentService,
-  ADA_PORTAL_CONFIG,
   NodeFactory,
   ANFEInfo
 } from '../services/AdaPortal';
-import type { AccessCheck, UserIntent, MarketplaceListing, LeaderboardEntry, TrainingListing, AgentPackage, ComputeNode, AIMInfo, PaymentResult } from '../services/AdaPortal/types';
+import type { AccessCheck, UserIntent, MarketplaceListing, LeaderboardEntry, TrainingListing, AgentPackage, ComputeNode, AIMInfo } from '../services/AdaPortal/types';
 
 // Stargate Pool - ANFE Integration
 import { 
@@ -55,6 +52,8 @@ import {
 import { localNodeBridge } from '../services/LocalNodeBridge';
 import type { BridgeANFE, BridgeComputeNode } from '../services/LocalNodeBridge';
 import { skillMarketplace } from '../services/AdaPortal';
+import { tasteSkillService } from '../services/TasteSkillService';
+import { batteryOrgPool, BatteryPoolNode } from '../services/BatteryOrg';
 import {
   NFTCollectionGrid,
   NFTAssetModal,
@@ -70,9 +69,8 @@ import UnifiedAssetPanel from './UnifiedAssetPanel';
 import TasteSkillDialPanel from './stargate/TasteSkillDialPanel';
 import StargateSkillsMarketplacePanel from './stargate/StargateSkillsMarketplacePanel';
 import NodeFactoryTrackerPanel from './stargate/NodeFactoryTrackerPanel';
-import AIMForgePanel from './stargate/AIMForgePanel';
 import StargateCommunityAIMPanel from './stargate/StargateCommunityAIMPanel';
-import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus, Hammer } from 'lucide-react';
+import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus } from 'lucide-react';
 
 // ---- Module-level helper: ensure wallet is on Base chain ----
 async function ensureOnBaseChain(): Promise<void> {
@@ -99,7 +97,7 @@ interface AdaPortalPanelProps {
   onNavigateToChat?: (message: string) => void;
 }
 
-type TabId = 'start' | 'marketplace' | 'aims' | 'aimforge' | 'leaderboard' | 'training' | 'packages' | 'skills' | 'compute' | 'dashboard' | 'stargate' | 'asp';
+type TabId = 'start' | 'marketplace' | 'aims' | 'leaderboard' | 'training' | 'packages' | 'skills' | 'compute' | 'dashboard' | 'stargate' | 'asp';
 type LeaderboardPeriod = 'daily' | 'weekly' | 'all_time';
 type ComputeTier = 'standard' | 'high_performance' | 'dedicated';
 
@@ -130,15 +128,6 @@ const INTENT_OPTIONS: {
     color: 'text-purple-400',
     bg: 'bg-purple-400/10',
     tab: 'aims',
-  },
-  {
-    id: 'forge_aim',
-    label: 'Forge AIM',
-    description: 'Build your own HyperCycle AIM — fill the tree, generate files, edit, build, deploy',
-    icon: <Hammer size={24} />,
-    color: 'text-pink-400',
-    bg: 'bg-pink-400/10',
-    tab: 'aimforge',
   },
   {
     id: 'rankings',
@@ -218,7 +207,6 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'start', label: 'Start', icon: <Rocket size={18} /> },
   { id: 'marketplace', label: 'Hire Agents', icon: <Users size={18} /> },
   { id: 'aims', label: 'AI Models', icon: <Bot size={18} /> },
-  { id: 'aimforge', label: 'AIM Forge', icon: <Hammer size={18} /> },
   { id: 'leaderboard', label: 'Rankings', icon: <Trophy size={18} /> },
   { id: 'training', label: 'Train Agents', icon: <GraduationCap size={18} /> },
   { id: 'packages', label: 'Bundles', icon: <Package size={18} /> },
@@ -250,7 +238,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     if (!url) return 'start';
     if (url.includes('/start')) return 'start';
     if (url.includes('/skills')) return 'skills';
-    if (url.includes('/aimforge')) return 'aimforge';
     if (url.includes('/train')) return 'training';
     if (url.includes('/compute') || url.includes('/nodes')) return 'compute';
     if (url.includes('/bundles')) return 'packages';
@@ -269,6 +256,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [packages, setPackages] = useState<AgentPackage[]>([]);
   const [nodes, setNodes] = useState<ComputeNode[]>([]);
   const [hboxNodes, setHboxNodes] = useState<any[]>([]);
+  const [batteryOrgNodes, setBatteryOrgNodes] = useState<BatteryPoolNode[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
   const [selectedSkill, setSelectedSkill] = useState<any | null>(null);
   const [tasteSkillImporting, setTasteSkillImporting] = useState(false);
@@ -353,6 +341,11 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [agentSelectMode, setAgentSelectMode] = useState<'hire' | 'train' | 'package' | 'skill' | null>(null);
   const [selectedUserAgent, setSelectedUserAgent] = useState<any | null>(null);
   const [selectedAgentForDelegation, setSelectedAgentForDelegation] = useState<string | null>(null);
+  
+  // Taste-Skill Service state
+  const [tasteSkills, setTasteSkills] = useState<any[]>([]);
+  const [isLoadingTasteSkills, setIsLoadingTasteSkills] = useState(false);
+  const [tasteSkillError, setTasteSkillError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -410,6 +403,22 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         setHboxNodes([]);
       }
 
+      // 2c. Load Battery Org boxes (new integration)
+      try {
+        const batteryResult = await batteryOrgPool.init();
+        if (batteryResult.success) {
+          const batteryNodes = batteryOrgPool.getNodes();
+          setBatteryOrgNodes(batteryNodes);
+          console.log('[AdaPortal] Loaded', batteryNodes.length, 'Battery Org boxes');
+        } else {
+          console.warn('[AdaPortal] Battery Org init failed:', batteryResult.error);
+          setBatteryOrgNodes([]);
+        }
+      } catch (e: any) {
+        console.warn('[AdaPortal] Battery Org load failed:', e);
+        setBatteryOrgNodes([]);
+      }
+
       // 3. Leaderboard from HyperInsight
       const unifiedLb = hyperInsight.getUnifiedLeaderboard();
       setLeaderboardData(unifiedLb.map((e, i) => ({
@@ -430,20 +439,17 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       const registryModels = stargateRegistry.getModels();
       const registryJobs = stargateRegistry.getTrainingJobs();
 
-      // Populate marketplace listings from built-in agent profiles if marketplace is empty
-      if (marketplaceListings.length === 0 && registryAgents.length > 0) {
+      // Populate marketplace listings from built-in agent profiles if empty
+      if (listings.length === 0 && registryAgents.length > 0) {
         setListings(registryAgents.map(a => ({
           listingId: a.id,
-          agentId: a.id,
           agentName: a.name,
           roles: [a.role.replace('_', ' ')],
-          primarySkills: a.skills || [],
-          pricing: { model: 'per_task', perTaskMin: a.hourlyRate || 0.5, perTaskMax: (a.hourlyRate || 0.5) * 2 },
-          rating: a.rating || 4.0,
-          successRate: 0.95,
-          availability: a.status === 'idle' ? 'available' : 'offline',
-          skillCount: (a.skills || []).length,
-          attachedSkills: a.skills || [],
+          price: a.hourlyRate || 0.5,
+          skills: a.skills,
+          rating: a.rating,
+          status: a.status,
+          computeNode: a.computeNode,
         })) as any);
       }
 
@@ -451,10 +457,11 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       setTrainingListings(registryJobs.map(j => ({
         listingId: j.id,
         trainerName: j.name || `${j.model} Training`,
+        trainerId: j.id,
         description: `Training ${j.model} on ${j.dataset} — Status: ${j.status}`,
         specializations: [j.status, j.model],
         rating: j.status === 'completed' ? 5.0 : j.status === 'running' ? 4.0 : 0,
-        price: 0.0,
+        pricePerSession: 0.0,
         model: j.model,
         dataset: j.dataset,
         progress: j.progress,
@@ -471,8 +478,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         agents: b.agents.map((ag, idx) => ({
           agentId: `${b.id}-agent-${idx}`,
           name: ag.role,
-          role: ag.role,
+          role: ag.role as any, // Map BundleConfig's role string to AgentRole
+          included: true, // Required by PackageAgent interface
         })),
+        computeAllocation: undefined, // Optional field, not in BundleConfig
       })) as any);
 
       // Populate skills marketplace
@@ -580,8 +589,8 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
 
   useEffect(() => {
     try {
-      initializeAdaPortal().catch(e => console.error('[AdaPortal] initializeAdaPortal failed:', e));
-      stargateRegistry.initialize().catch(e => console.error('[AdaPortal] stargateRegistry.initialize failed:', e));
+      initializeAdaPortal();
+      stargateRegistry.initialize();
       stargateRegistry.seedCommunityAIMs();
       loadData();
       loadUserAgents();
@@ -639,6 +648,37 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     }, 30000);
     return () => { mounted = false; clearInterval(timer); };
   }, []);
+
+  // Load Taste-Skills when Skills tab is active
+  useEffect(() => {
+    if (activeTab !== 'skills') return;
+    
+    let mounted = true;
+    (async () => {
+      try {
+        setIsLoadingTasteSkills(true);
+        setTasteSkillError(null);
+        
+        // Initialize the service first
+        await tasteSkillService.initialize();
+        
+        // Load available Taste-Skills from Vault
+        const skills = await tasteSkillService.getAvailableSkills();
+        
+        if (!mounted) return;
+        setTasteSkills(skills);
+        console.log(`[AdaPortal] Loaded ${skills.length} Taste-Skills from Vault`);
+      } catch (e: any) {
+        if (!mounted) return;
+        console.error('[AdaPortal] Failed to load Taste-Skills:', e);
+        setTasteSkillError(e.message || 'Failed to load Taste-Skills');
+      } finally {
+        if (mounted) setIsLoadingTasteSkills(false);
+      }
+    })();
+    
+    return () => { mounted = false; };
+  }, [activeTab]);
 
   useEffect(() => {
     // Check access and update state - wrapped separately to not block UI
@@ -962,129 +1002,43 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     setTimeout(() => setIsRefreshing(false), 1000);
   }, [loadData]);
 
-  const handleHireAgent = useCallback(async (listing: MarketplaceListing) => {
+  const handleHireAgent = useCallback((listing: MarketplaceListing) => {
     console.log('[AdaPortal] handleHireAgent called:', listing.agentName);
-
-    // 1. Check wallet
-    const wallet = await paymentService.detectWallet();
-    if (wallet.type === 'none' || !wallet.connected || !wallet.address) {
-      showNotification('error', 'Connect an EVM wallet (MetaMask) first to hire agents.');
-      if (onNavigateToChat) onNavigateToChat('How do I connect my wallet to hire agents?');
-      return;
-    }
-
-    const amount = listing.pricing?.perTaskMin ?? 5;
-
-    // 2. Check balance
-    const balanceCheck = await paymentService.checkBalance(wallet.address, amount);
-    if (!balanceCheck.sufficient) {
-      showNotification('error', `Insufficient funds: ${balanceCheck.currentUsdc} USDC (need ${amount} USDC). Also need ETH for gas.`);
-      if (onNavigateToChat) onNavigateToChat('How do I fund my wallet with USDC on Base?');
-      return;
-    }
-
-    // 3. Execute payment
-    showNotification('info', `Paying ${amount} USDC to hire ${listing.agentName}...`);
-    const result: PaymentResult = await paymentService.payForAgent(
-      listing.agentId,
-      listing.agentName,
-      amount,
-      ADA_PORTAL_CONFIG.treasuryAddress
-    );
-
-    if (!result.success || !result.receipt) {
-      showNotification('error', result.error || 'Payment failed. Check wallet and retry.');
-      return;
-    }
-
-    // 4. Record contract
-    const contract = agentEconomy.createContract({
-      requesterId: wallet.address,
-      agentId: listing.agentId,
-      terms: `Hire ${listing.agentName} for project`,
-      paymentAmount: amount,
-    });
-
-    showNotification('success', `Hired ${listing.agentName}! TX: ${result.receipt.txHash.slice(0, 10)}... Contract: ${contract.contractId}`);
-
-    // 5. Stay on marketplace tab; only open chat if explicit onHireAgent not provided
     if (onHireAgent) {
       onHireAgent(listing.agentId, listing.agentName);
+    } else if (onNavigateToChat) {
+      onNavigateToChat(`Hire agent ${listing.agentName} for my project`);
     }
-    // onNavigateToChat fallback removed — user stays in marketplace to see the result
-  }, [onHireAgent]);
+    showNotification('success', `Hiring ${listing.agentName}...`);
+  }, [onHireAgent, onNavigateToChat]);
 
   const handleBookTraining = useCallback((listing: TrainingListing) => {
-    // Stay on training tab; only open chat if explicit onBookTraining not provided
     if (onBookTraining) {
       onBookTraining(listing.trainerId, listing.trainerName);
+    } else if (onNavigateToChat) {
+      onNavigateToChat(`Book training session with ${listing.trainerName}`);
     }
-    // onNavigateToChat fallback removed — user stays in training tab
     showNotification('success', `Booking training with ${listing.trainerName}...`);
-  }, [onBookTraining]);
+  }, [onBookTraining, onNavigateToChat]);
 
-  const handleGetPackage = useCallback(async (pkg: AgentPackage) => {
-    // 1. Check wallet
-    const wallet = await paymentService.detectWallet();
-    if (wallet.type === 'none' || !wallet.connected || !wallet.address) {
-      showNotification('error', 'Connect an EVM wallet (MetaMask) first to purchase bundles.');
-      if (onNavigateToChat) onNavigateToChat('How do I connect my wallet to buy agent bundles?');
-      return;
-    }
-
-    const amount = pkg.price;
-
-    // 2. Check balance
-    const balanceCheck = await paymentService.checkBalance(wallet.address, amount);
-    if (!balanceCheck.sufficient) {
-      showNotification('error', `Insufficient funds: ${balanceCheck.currentUsdc} USDC (need ${amount} USDC). Also need ETH for gas.`);
-      if (onNavigateToChat) onNavigateToChat('How do I fund my wallet with USDC on Base?');
-      return;
-    }
-
-    // 3. Execute payment
-    showNotification('info', `Paying ${amount} USDC for ${pkg.name}...`);
-    const result: PaymentResult = await paymentService.payForBundle(
-      pkg.packageId,
-      pkg.name,
-      amount,
-      ADA_PORTAL_CONFIG.treasuryAddress
-    );
-
-    if (!result.success || !result.receipt) {
-      showNotification('error', result.error || 'Payment failed. Check wallet and retry.');
-      return;
-    }
-
-    // 4. Subscribe to package + record contract for each agent
-    const sub = agentPackages.subscribe(pkg.packageId);
-    pkg.agents.forEach(agent => {
-      agentEconomy.createContract({
-        requesterId: wallet.address!,
-        agentId: agent.agentId,
-        terms: `Bundle "${pkg.name}" — agent ${agent.name}`,
-        paymentAmount: amount / pkg.agents.length,
-      });
-    });
-
-    showNotification('success', `Acquired ${pkg.name}! TX: ${result.receipt.txHash.slice(0, 10)}... Subscription: ${sub.subscriptionId}`);
-
-    // 5. Stay on packages tab; only open chat if explicit onGetPackage not provided
+  const handleGetPackage = useCallback((pkg: AgentPackage) => {
     if (onGetPackage) {
       onGetPackage(pkg.packageId, pkg.name);
+    } else if (onNavigateToChat) {
+      onNavigateToChat(`Get the ${pkg.name} package`);
     }
-    // onNavigateToChat fallback removed — user stays in packages to see the result
-  }, [onGetPackage]);
+    showNotification('success', `Acquiring ${pkg.name} package...`);
+  }, [onGetPackage, onNavigateToChat]);
 
   const handleSelectCompute = useCallback((tier: ComputeTier) => {
     setSelectedComputeTier(tier);
-    // Stay on compute tab; only open chat if explicit onSelectCompute not provided
     if (onSelectCompute) {
       onSelectCompute(tier);
+    } else if (onNavigateToChat) {
+      onNavigateToChat(`Allocate ${tier.replace('_', ' ')} compute resources`);
     }
-    // onNavigateToChat fallback removed — user stays in compute tab
     showNotification('success', `${tier.replace('_', ' ')} compute selected`);
-  }, [onSelectCompute]);
+  }, [onSelectCompute, onNavigateToChat]);
 
   const showNotification = (type: 'success' | 'error' | 'info' | 'warning', message: string) => {
     setNotification({ type, message });
@@ -1496,8 +1450,8 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             onClick={() => {
               setSelectedIntent(intent.id);
               setActiveTab(intent.tab as TabId);
-              // Only navigate to chat if the intent has no dedicated tab
-              // (all current intents have their own tab, so chat fallback is removed)
+              // Intent buttons should navigate to the tab, not to chat
+              // The user wants to explore the feature, not chat about it
             }}
             className={`p-4 rounded-xl border text-left transition-all ${
               selectedIntent === intent.id
@@ -2196,56 +2150,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     </div>
   );
 
-  // ============== AI MODELS TAB ==============
-  const renderAims = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-white">AI Models (AIMs)</h3>
-          <p className="text-sm text-gray-400 mt-0.5">Explore AI models you can deploy on HyperCycle compute nodes.</p>
-        </div>
-        <span className="text-sm text-gray-400">{aims.length} models available</span>
-      </div>
-      
-      {aims.length === 0 ? (
-        <div className="text-center py-12">
-          <Bot size={48} className="mx-auto text-gray-600 mb-4" />
-          <p className="text-gray-400">No verified AIMs available</p>
-          <p className="text-sm text-gray-600 mt-1">Connect to HyperInsight MCP to see AI models</p>
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {aims.slice(0, 20).map((aim, idx) => (
-            <div key={idx} className="p-4 rounded-xl border border-gray-800 bg-gray-900/50 hover:border-gray-700 transition-colors">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                    <Bot size={20} className="text-purple-400" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-white">{aim.name || 'Unnamed AIM'}</h4>
-                    {aim.description && <p className="text-sm text-gray-400 mt-1">{aim.description}</p>}
-                    <div className="flex items-center gap-3 mt-2">
-                      {aim.rank && (
-                        <span className="text-xs text-cyan-400">Rank: #{aim.rank}</span>
-                      )}
-                      {aim.origin && (
-                        <span className="text-xs text-purple-400">Origin: {aim.origin}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {aim.isActive && (
-                  <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400">Active</span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
   // ============== DASHBOARD TAB ==============
   const renderDashboard = () => {
     const stats = skillMarketplace.getStats();
@@ -2257,10 +2161,11 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             <p className="text-sm text-gray-400 mt-0.5">Overview of your AI workforce, compute, and network activity.</p>
           </div>
           <button
-            onClick={loadData}
-            className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <RefreshCw size={18} />
+            <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
           </button>
         </div>
 
@@ -2324,70 +2229,47 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           <span className="text-sm text-gray-400">{listings.length} agents available</span>
         </div>
       </div>
-
-      {isLoading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader size={24} className="text-cyan-400 animate-spin" />
-          <span className="ml-2 text-sm text-gray-400">Loading marketplace...</span>
-        </div>
-      )}
-
-      {!isLoading && listings.length === 0 && (
-        <div className="text-center py-12">
-          <Bot size={32} className="text-gray-600 mx-auto mb-3" />
-          <p className="text-sm text-gray-400">No agents available yet.</p>
-          <p className="text-xs text-gray-500 mt-1">Try refreshing or check your StargateSkillRegistry seed data.</p>
-          <button
-            onClick={() => { stargateRegistry.initialize(); stargateRegistry.seedCommunityAIMs(); loadData(); }}
-            className="mt-3 px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-          >
-            Refresh
-          </button>
-        </div>
-      )}
-
-      {listings.length > 0 && (
-        <div className="grid gap-3">
-          {listings.map(listing => (
-            <div key={listing.listingId || `listing-${Math.random()}`} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700 hover:border-cyan-500/50 transition-colors">
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-white truncate">{listing.agentName || 'Unnamed Agent'}</h4>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {(listing.roles || []).map(role => (
-                      <span key={role} className="text-xs px-2 py-0.5 bg-gray-700 rounded-full text-gray-300 capitalize">
-                        {(role || '').replace('_', ' ')}
-                      </span>
-                    ))}
-                    {(listing.attachedSkills || []).slice(0, 2).map((skill: any, idx: number) => (
-                      <span key={`${skill}-${idx}`} className="text-xs px-2 py-0.5 bg-green-900/50 border border-green-500/30 rounded-full text-green-400">⚡ {(skill || '').split('-')[0]}</span>
-                    ))}
-                  </div>
-                  <div className="flex gap-3 mt-2 text-sm text-gray-400">
-                    <span className="flex items-center gap-1">
-                      <Star size={14} className="text-yellow-500" />
-                      {(listing.rating ?? 0).toFixed(1)}
+      
+      <div className="grid gap-3">
+        {listings.map(listing => (
+          <div key={listing.listingId} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700 hover:border-cyan-500/50 transition-colors">
+            <div className="flex items-start justify-between">
+              <div>
+                <h4 className="font-medium text-white">{listing.agentName}</h4>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {listing.roles.map(role => (
+                    <span key={role} className="text-xs px-2 py-0.5 bg-gray-700 rounded-full text-gray-300 capitalize">
+                      {role.replace('_', ' ')}
                     </span>
-                    <span>{((listing.successRate ?? 0) * 100).toFixed(0)}% success</span>
-                    <span className="capitalize">{listing.availability || 'unknown'}</span>
-                  </div>
+                  ))}
+                  {listing.attachedSkills?.slice(0, 2).map(skill => (
+                    <span key={skill} className="text-xs px-2 py-0.5 bg-green-900/50 border border-green-500/30 rounded-full text-green-400">⚡ {skill.split('-')[0]}</span>
+                  ))}
                 </div>
-                <div className="text-right shrink-0 ml-3">
-                  <div className="text-lg font-bold text-cyan-400">${(listing.pricing?.perTaskMin ?? 0).toFixed(2)}+</div>
-                  <div className="text-xs text-gray-500">per task</div>
+                <div className="flex gap-3 mt-2 text-sm text-gray-400">
+                  <span className="flex items-center gap-1">
+                    <Star size={14} className="text-yellow-500" />
+                    {listing.rating.toFixed(1)}
+                  </span>
+                  <span>{listing.successRate * 100}% success</span>
+                  <span className="capitalize">{listing.availability}</span>
                 </div>
               </div>
-              <button
-                onClick={() => handleHireAgent(listing)}
-                className="mt-3 w-full py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                <ArrowRight size={16} />
-                Hire Agent
-              </button>
+              <div className="text-right">
+                <div className="text-lg font-bold text-cyan-400">${listing.pricing.perTaskMin}+</div>
+                <div className="text-xs text-gray-500">per task</div>
+              </div>
             </div>
-          ))}
-        </div>
-      )}
+            <button 
+              onClick={() => handleHireAgent(listing)}
+              className="mt-3 w-full py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              <ArrowRight size={16} />
+              Hire Agent
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 
@@ -2588,7 +2470,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         </div>
       </div>
 
-        <div className="grid gap-3">
+      <div className="grid gap-3">
         {trainingListings.map(listing => (
           <div
             key={listing.listingId}
@@ -3223,24 +3105,24 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
 
       <div className="grid grid-cols-2 gap-3 mt-4">
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-          <div className="text-2xl font-bold text-cyan-400">{nodes.length}</div>
+          <div className="text-2xl font-bold text-cyan-400">{nodes.length + hboxNodes.length + batteryOrgNodes.length}</div>
           <div className="text-sm text-gray-400">Total Nodes</div>
         </div>
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
           <div className="text-2xl font-bold text-green-400">
-            {nodes.filter(n => n.status === 'online').length}
+            {nodes.filter(n => n.status === 'online').length + hboxNodes.filter((h: any) => h.status === 'online').length + batteryOrgNodes.filter(b => b.status === 'online').length}
           </div>
           <div className="text-sm text-gray-400">Online</div>
         </div>
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
           <div className="text-2xl font-bold text-yellow-400">
-            {nodes.filter(n => n.reliability >= 0.9).length}
+            {nodes.filter(n => n.reliability >= 0.9).length + batteryOrgNodes.filter(b => b.tflops > 200).length}
           </div>
           <div className="text-sm text-gray-400">Reliable (90%+)</div>
         </div>
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
           <div className="text-2xl font-bold text-purple-400">
-            {nodes.reduce((sum, n) => sum + n.availableCompute, 0)}
+            {nodes.reduce((sum, n) => sum + n.availableCompute, 0) + batteryOrgNodes.reduce((sum, b) => sum + b.tflops, 0)}
           </div>
           <div className="text-sm text-gray-400">Available Units</div>
         </div>
@@ -3252,6 +3134,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     const allNodes = [
       ...nodes.map((n) => ({ ...n, _source: 'hyperinsight' as const })),
       ...hboxNodes.map((n) => ({ ...n, _source: 'hyperaibox' as const })),
+      ...batteryOrgNodes.map((n) => ({ ...n, _source: 'batteryorg' as const })),
     ];
 
     return (
@@ -3265,6 +3148,11 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             {hboxNodes.length > 0 && (
               <span className="text-xs px-2 py-0.5 bg-violet-500/20 text-violet-400 rounded-full">
                 {hboxNodes.length} HBox{hboxNodes.length !== 1 ? 'es' : ''}
+              </span>
+            )}
+            {batteryOrgNodes.length > 0 && (
+              <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full">
+                {batteryOrgNodes.length} Battery Box{batteryOrgNodes.length !== 1 ? 'es' : ''}
               </span>
             )}
             <button
@@ -3357,6 +3245,43 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                     <div className="text-right">
                       <div className="text-sm text-white">{node.availableCompute} units</div>
                       <div className="text-xs text-gray-500">${node.pricePerHour}/hr</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Section header for Battery Org nodes */}
+            {batteryOrgNodes.length > 0 && (
+              <div className="mb-2">
+                <h4 className="text-xs font-medium text-green-400 uppercase tracking-wider mb-2">Battery Org Compute</h4>
+                {batteryOrgNodes.map((node: BatteryPoolNode) => (
+                  <div key={node.id} className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg border border-green-500/20">
+                    <div className={`w-3 h-3 rounded-full ${node.isAvailable && node.status === 'online' ? 'bg-green-500' : node.status === 'maintenance' ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                    <div className="flex-1">
+                      <div className="font-mono text-sm text-white">{node.name}</div>
+                      <div className="text-xs text-gray-500">
+                        {node.location.region} | {node.gpuCount}x {node.gpuModel} | {node.energySource} energy
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right mr-2">
+                        <div className="text-sm text-white">{node.tflops} TFLOPS</div>
+                        <div className="text-xs text-gray-500">${node.pricePerHourUsd}/hr</div>
+                      </div>
+                      {node.isAvailable ? (
+                        <button
+                          onClick={() => {
+                            showNotification('success', `Selected ${node.name} for compute`);
+                            // In future: trigger job submission to this Battery Box
+                          }}
+                          className="px-3 py-1 text-xs bg-green-600 hover:bg-green-500 text-white rounded flex items-center gap-1"
+                        >
+                          <Rocket size={10} /> Use
+                        </button>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 bg-gray-500/20 text-gray-400 rounded">{node.status}</span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -4378,8 +4303,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           <>
             {activeTab === 'start' && renderStart()}
             {activeTab === 'marketplace' && renderMarketplace()}
-            {activeTab === 'aims' && <StargateCommunityAIMPanel hyperInsightAIMs={aims} onNavigateToChat={onNavigateToChat} />}
-            {activeTab === 'aimforge' && <AIMForgePanel onNavigateToChat={onNavigateToChat} />}
+            {activeTab === 'aims' && <StargateCommunityAIMPanel hyperInsightAIMs={aims} />}
             {activeTab === 'leaderboard' && renderLeaderboard()}
             {activeTab === 'training' && renderTraining()}
             {activeTab === 'packages' && renderPackages()}

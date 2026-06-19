@@ -58,6 +58,16 @@ function readAgentById(id: string): AgentConfig | null {
  * Returns null (and logs a warning) when no active agent is configured.
  * The caller is responsible for falling back to HEARTBEAT_OK.
  */
+// Helper to detect effective provider from agent config
+// Handles :cloud suffix in model names (e.g., "llama3.1:cloud" -> ollama-cloud)
+function getEffectiveProvider(agent: AgentConfig): AgentConfig["provider"] {
+  // Check for :cloud suffix in model name
+  if (agent.model?.endsWith(":cloud")) {
+    return "ollama-cloud";
+  }
+  return agent.provider;
+}
+
 export async function callActiveLLM(
   prompt: string,
   systemPrompt?: string,
@@ -73,10 +83,16 @@ export async function callActiveLLM(
     return null;
   }
 
-  console.log(`[MosaicBot/LLM] Using agent "${agent.name}" (${agent.provider}/${agent.model})`);
+  // Determine effective provider (handles :cloud suffix)
+  const effectiveProvider = getEffectiveProvider(agent);
+  const effectiveModel = agent.model?.endsWith(":cloud")
+    ? agent.model.replace(/:cloud$/, "")
+    : agent.model;
+
+  console.log(`[MosaicBot/LLM] Using agent "${agent.name}" (${effectiveProvider}/${effectiveModel})`);
 
   try {
-    switch (agent.provider) {
+    switch (effectiveProvider) {
       case "claude":
         return await callClaude(agent, [{ role: "user", content: prompt }], systemPrompt);
       case "openai":
@@ -88,22 +104,24 @@ export async function callActiveLLM(
         return await callOllama(agent, [{ role: "user", content: prompt }], systemPrompt);
       case "ollama-cloud":
         // Ollama Cloud is OpenAI-compatible; use Bearer auth against /v1/chat/completions
-        return await callOpenAI(agent, [{ role: "user", content: prompt }], systemPrompt);
+        // Route through api.ollama.com with proper auth
+        return await callOllamaCloud(agent, [{ role: "user", content: prompt }], systemPrompt);
       case "hypercycle":
         console.warn(
           "[MosaicBot/LLM] Hypercycle provider needs token + stream steps; skipping LLM call.",
         );
         return null;
       case "hermes":
-      case "hermes-aim":
         return await callHermes(agent, [{ role: "user", content: prompt }], systemPrompt);
+      case "hermes-aim":
+        return await callHermesAIM(agent, [{ role: "user", content: prompt }], systemPrompt);
       case "hermes-api":
         return await callHermes(agent, [{ role: "user", content: prompt }], systemPrompt);
       default:
-        throw new Error(`Unknown provider: ${(agent as AgentConfig).provider}`);
+        throw new Error(`Unknown provider: ${effectiveProvider}`);
     }
   } catch (e) {
-    console.error(`[MosaicBot/LLM] Call failed (${agent.provider}):`, e);
+    console.error(`[MosaicBot/LLM] Call failed (${effectiveProvider}):`, e);
     return null;
   }
 }
@@ -228,7 +246,70 @@ async function callOllama(
   return data.message.content;
 }
 
+async function callOllamaCloud(
+  agent: AgentConfig,
+  messages: Message[],
+  systemPrompt?: string,
+): Promise<string> {
+  const allMessages: Message[] = systemPrompt
+    ? [{ role: "system", content: systemPrompt }, ...messages]
+    : messages;
+
+  // Strip :cloud suffix from model name if present
+  const effectiveModel = agent.model?.endsWith(":cloud")
+    ? agent.model.replace(/:cloud$/, "")
+    : agent.model;
+
+  const res = await fetch(
+    "https://api.ollama.com/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${agent.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: effectiveModel,
+        messages: allMessages,
+        max_tokens: agent.maxTokens ?? 1024,
+        temperature: agent.temperature ?? 0.7,
+      }),
+    },
+  );
+
+  if (!res.ok) throw new Error(`OllamaCloud ${res.status}: ${await res.text()}`);
+  const data = (await res.json()) as {
+    choices: Array<{ message: { content: string } }>;
+  };
+  return data.choices[0].message.content;
+}
+
 // ── Hermes Agent caller ──────────────────────────────────────────────────────
+
+async function callHermesAIM(
+  agent: AgentConfig,
+  messages: Message[],
+  systemPrompt?: string,
+): Promise<string> {
+  const lastUser = messages.filter((m) => m.role === "user").pop()?.content || "";
+  const system = systemPrompt || messages.find((m) => m.role === "system")?.content || "";
+
+  const res = await fetch(
+    `${agent.baseUrl || "http://127.0.0.1:9000"}/chat`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: lastUser,
+        system_prompt: system,
+      }),
+    },
+  );
+
+  if (!res.ok) throw new Error(`HermesAIM ${res.status}: ${await res.text()}`);
+  const data = (await res.json()) as { response?: string };
+  return data.response || "";
+}
 
 async function callHermes(
   agent: AgentConfig,

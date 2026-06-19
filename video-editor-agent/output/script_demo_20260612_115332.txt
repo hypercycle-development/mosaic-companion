@@ -1,0 +1,13 @@
+[HOOK] Watch me deploy an AI agent in 60 seconds.
+
+→ Open Mosaic Companion
+→ Select "Create Agent"
+→ Choose your LLM
+→ Define the agent's skills
+→ Click deploy
+
+Done. Your agent is running locally.
+
+Ask it anything. It responds using your hardware.
+
+Mosaic Companion. Local AI, supercharged.
