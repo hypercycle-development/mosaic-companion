@@ -146,6 +146,7 @@ export class AIService {
         console.log('[AIService.XHR] Response URL:', xhr.responseURL);
         console.log('[AIService.XHR] Status:', xhr.status);
         console.log('[AIService.XHR] Status Text:', xhr.statusText);
+        console.log('[AIService.XHR] Response Text (first 500 chars):', xhr.responseText?.substring(0, 500));
         
         resolve({
           ok: xhr.status >= 200 && xhr.status < 300,
