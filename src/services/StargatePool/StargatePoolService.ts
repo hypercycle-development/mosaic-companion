@@ -169,9 +169,9 @@ const ERC721_ABI = {
 
 // Public Base RPC fallbacks when window.ethereum is absent
 const BASE_RPC_FALLBACKS = [
-  'https://mainnet.base.org',
-  'https://base.llamarpc.com',
-  'https://1rpc.io/base',
+  'https://base.publicnode.com',
+  'https://base-rpc.publicnode.com',
+  'https://rpc.ankr.com/base',
 ];
 
 // =============================================================================

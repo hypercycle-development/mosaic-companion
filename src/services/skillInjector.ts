@@ -245,13 +245,25 @@ class SkillInjector {
     const failedSkills: string[] = [];
     const skillParts: string[] = [];
 
-    // Include base system prompt
+    // Token budget: reserve room for conversation. Default 12k tokens for skill content.
+    const maxTokens = options?.maxTokens ?? 12000;
+    const perSkillCap = Math.floor(maxTokens / Math.max(skillNames.length, 1));
+    let usedTokens = 0;
+
+    // Include base system prompt first (typically small)
     if (baseSystemPrompt) {
       skillParts.push(baseSystemPrompt);
+      usedTokens += Math.ceil(baseSystemPrompt.length / 4);
     }
 
-    // Load and inject each skill
+    // Load and inject each skill, respecting budget
     for (const skillName of skillNames) {
+      if (usedTokens >= maxTokens) {
+        failedSkills.push(skillName);
+        console.warn(`[SkillInjector] Skill ${skillName} skipped: token budget exhausted (${usedTokens}/${maxTokens})`);
+        continue;
+      }
+
       const skill = this.getSkill(skillName);
       if (!skill) {
         failedSkills.push(skillName);
@@ -280,26 +292,40 @@ class SkillInjector {
         parts.push(dialBlock);
       }
 
-      parts.push(skill.skillMd);
+      // Truncate skill markdown to per-skill cap to stay within budget
+      let skillText = skill.skillMd;
+      const availableTokens = Math.max(0, Math.min(perSkillCap, maxTokens - usedTokens));
+      if (skillText.length > availableTokens * 4) {
+        skillText = skillText.slice(0, availableTokens * 4 - 100)
+          + "\n\n[... skill content truncated to fit context window ...]";
+      }
+      parts.push(skillText);
 
-      // Include reference files if requested
+      // Include reference files if requested, but only while budget remains
       if (options?.includeReferences !== false && skill.references.size > 0) {
         parts.push(`--- REFERENCES FOR ${skillName} ---`);
         const refsArray = Array.from(skill.references.entries());
         for (let i = 0; i < refsArray.length; i++) {
+          if (usedTokens >= maxTokens) break;
           const [refName, refContent] = refsArray[i];
+          const refCap = Math.max(0, maxTokens - usedTokens) * 4;
+          const refText = refContent.length > refCap
+            ? refContent.slice(0, refCap - 100) + "\n[... reference truncated ...]"
+            : refContent;
           parts.push(`[${refName}]`);
-          parts.push(refContent);
+          parts.push(refText);
         }
       }
 
       parts.push(`--- END SKILL: ${skillName} ---`);
-      skillParts.push(parts.join("\n\n"));
+      const section = parts.join("\n\n");
+      skillParts.push(section);
       loadedSkills.push(skillName);
+      usedTokens += Math.ceil(section.length / 4);
     }
 
     const systemPrompt = skillParts.join("\n\n");
-    const totalTokens = Math.ceil(systemPrompt.length / 4); // Rough estimate: ~4 chars per token
+    const totalTokens = Math.ceil(systemPrompt.length / 4);
 
     return {
       systemPrompt,

@@ -17,6 +17,11 @@ export interface ParsedAction {
 
 /**
  * Parse an AI response for a <use_tool> invocation.
+ * Supports three argument formats:
+ *   1. JSON object:      <use_tool server="x" tool="y">{"a":1}</use_tool>
+ *   2. Empty/no args:    <use_tool server="x" tool="y"></use_tool>  → {}
+ *   3. <parameter> XML:   <use_tool server="x" tool="y"><parameter name="a">1</parameter></use_tool>
+ *
  * Returns the parsed tool call or NONE if no invocation found.
  */
 export function parseAction(response: string): ParsedAction {
@@ -25,11 +30,36 @@ export function parseAction(response: string): ParsedAction {
   );
 
   if (match) {
+    const rawInner = match[3].trim();
     let args: Record<string, unknown> = {};
-    try {
-      args = JSON.parse(match[3]);
-    } catch {
-      console.error("[ActionParser] Failed to parse tool args:", match[3]);
+
+    if (rawInner === "" || rawInner === "JSON_ARGS") {
+      // Case 2: empty / placeholder
+      args = {};
+    } else if (rawInner.startsWith("<parameter")) {
+      // Case 3: <parameter name="key">value</parameter> format
+      const paramRe = /<parameter\s+name="([^"]+)"\s*>([^<]*)<\/parameter>/g;
+      let paramMatch;
+      while ((paramMatch = paramRe.exec(rawInner)) !== null) {
+        const key = paramMatch[1];
+        let val: unknown = paramMatch[2].trim();
+        // Try JSON parse for numbers, booleans, objects, arrays
+        try {
+          val = JSON.parse(val as string);
+        } catch {
+          // keep as string
+        }
+        args[key] = val;
+      }
+    } else {
+      // Case 1: assume JSON object
+      try {
+        args = JSON.parse(rawInner);
+      } catch {
+        console.warn("[ActionParser] Could not parse tool args as JSON:", rawInner.substring(0, 200));
+        // fallback: treat as plain text single arg if possible
+        args = { _raw: rawInner };
+      }
     }
 
     return {
@@ -177,6 +207,13 @@ export async function executeToolCall(action: ParsedAction, agentId?: string): P
 export function getMCPSystemPrompt(servers: any[]): string {
   if (!servers || servers.length === 0) return "";
 
+  // Filter to ONLY initialized (connected) servers — disconnected servers have
+  // no tools available and should not be presented to the agent.
+  const connected = servers.filter((s) => s.initialized === true);
+  if (connected.length === 0) {
+    return `⚠️ MCP Integration: All MCP servers are currently offline. No MCP tools are available right now. The built-in tools (vault, web3, gmail, etc.) may still work.`;
+  }
+
   let prompt = "You have access to the following tools. To use a tool, output its XML tag.\n\n";
   prompt += "CRITICAL RULES:\n";
   prompt += "1. When you want to use a tool, output ONLY a short intro sentence, then the <use_tool> XML tag.\n";
@@ -186,7 +223,7 @@ export function getMCPSystemPrompt(servers: any[]): string {
   prompt += "5. ABSOLUTELY NEVER state prices, balances, numbers, or ANY live data before receiving [Tool Output]. Your training data is outdated. ANY number you write before a tool call is a hallucination and WILL be wrong.\n";
   prompt += "6. For ANY question about current prices, balances, exchange rates, or real-time data: call the tool FIRST, speak AFTER.\n\n";
 
-  servers.forEach((server) => {
+  connected.forEach((server) => {
     if (!server.tools || server.tools.length === 0) return;
     prompt += `Server: ${server.name}\n`;
     server.tools.forEach((tool: any) => {

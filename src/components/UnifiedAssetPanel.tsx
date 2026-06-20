@@ -47,13 +47,16 @@ const UnifiedAssetPanel: React.FC<UnifiedAssetPanelProps> = ({
     [showNotification]
   );
 
-  // Auto-scan when wallet address changes
+  // Auto-scan when wallet address changes (debounced)
   useEffect(() => {
-    if (walletAddress) {
-      refresh(walletAddress, true);
-    } else {
+    if (!walletAddress) {
       setAssets([]);
+      return;
     }
+    const timer = setTimeout(() => {
+      refresh(walletAddress, true);
+    }, 1000);
+    return () => clearTimeout(timer);
   }, [walletAddress, refresh]);
 
   const ethAssets = assets.filter((a) => a.chain === 'ethereum');

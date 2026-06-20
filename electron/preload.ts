@@ -403,6 +403,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("vault:get-box-content", boxId),
     addEntry: (boxId: string, input: { content: string; label?: string }) =>
       ipcRenderer.invoke("vault:add-entry", boxId, input),
+    importExternalSkills: (
+      refs?: Array<{ owner: string; repo: string; branch?: string; skillPath?: string; installName?: string }>,
+      targetBoxId?: string,
+    ) => ipcRenderer.invoke("vault:import-external-skills", refs, targetBoxId),
     updateEntry: (
       boxId: string,
       entryId: string,

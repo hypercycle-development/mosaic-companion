@@ -3,24 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://aistudiocdn.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http: https: ws: wss:; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';">
     <title>Mosaic Companion</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            colors: {
-              gray: {
-                750: "#2d3748",
-                850: "#1a202c",
-                950: "#0d1117",
-              },
-            },
-          },
-        },
-      };
-    </script>
     <style>
       ::-webkit-scrollbar {
         width: 8px;

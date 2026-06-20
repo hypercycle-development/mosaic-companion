@@ -80,7 +80,12 @@ async function marketplaceCall<T>(tool: string, args: Record<string, unknown>): 
         const raw = result.content[0].text;
         // Strip markdown code fences if present
         const json = raw.replace(/^```json\n/, '').replace(/\n```$/, '').trim();
-        return JSON.parse(json) as T;
+        try {
+          return JSON.parse(json) as T;
+        } catch (parseErr) {
+          console.warn(`[Marketplace] MCP response for ${tool} is not valid JSON, falling back to HTTP`);
+          throw new Error(`MCP non-JSON response for ${tool}`);
+        }
       }
       if (error) throw new Error(`MCP error: ${error}`);
     } catch (e: any) {

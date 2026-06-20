@@ -71,16 +71,46 @@ export interface WalletAssets {
 // ---------------------------------------------------------------------------
 const RPC_URLS: Record<AssetChain, string[]> = {
   ethereum: [
-    import.meta.env.VITE_RPC_ETHEREUM || 'https://eth.llamarpc.com',
-    'https://1rpc.io/eth',
+    import.meta.env.VITE_RPC_ETHEREUM || 'https://cloudflare-eth.com',
+    'https://ethereum.publicnode.com',
     'https://rpc.ankr.com/eth',
   ],
   base: [
-    import.meta.env.VITE_RPC_BASE || 'https://mainnet.base.org',
-    'https://base.llamarpc.com',
-    'https://1rpc.io/base',
+    import.meta.env.VITE_RPC_BASE || 'https://base.publicnode.com',
+    'https://base-rpc.publicnode.com',
+    'https://rpc.ankr.com/base',
   ],
 };
+
+// Circuit-breaker state per endpoint so we stop hammering dead/rate-limited RPCs
+const rpcFailures: Map<string, { failures: number; until: number }> = new Map();
+const RPC_MAX_FAILURES = 3;
+const RPC_COOLDOWN_MS = 30000; // 30 seconds
+
+function isEndpointTripped(url: string): boolean {
+  const state = rpcFailures.get(url);
+  if (!state) return false;
+  if (Date.now() < state.until) return true;
+  // cooldown expired — allow one probe
+  rpcFailures.delete(url);
+  return false;
+}
+
+function recordRpcFailure(url: string, status?: number): void {
+  const state = rpcFailures.get(url) || { failures: 0, until: 0 };
+  state.failures += 1;
+  // Trip faster on client errors (4xx) because retrying won't help
+  const multiplier = status && status >= 400 && status < 500 ? 2 : 1;
+  if (state.failures >= RPC_MAX_FAILURES * multiplier) {
+    state.until = Date.now() + RPC_COOLDOWN_MS;
+    console.warn(`[AssetDiscovery] RPC endpoint ${url} tripped — cooling off for ${RPC_COOLDOWN_MS}ms`);
+  }
+  rpcFailures.set(url, state);
+}
+
+function recordRpcSuccess(url: string): void {
+  rpcFailures.delete(url);
+}
 
 // ---------------------------------------------------------------------------
 // Contract Registry — All contracts to scan
@@ -163,6 +193,10 @@ async function hiNodesByWallet(walletAddress: string): Promise<any[]> {
 async function rpcCall(chain: AssetChain, payload: object): Promise<any | null> {
   const urls = RPC_URLS[chain];
   for (const url of urls) {
+    if (isEndpointTripped(url)) {
+      console.log(`[AssetDiscovery] Skipping tripped RPC ${url}`);
+      continue;
+    }
     try {
       const r = await fetch(url, {
         method: 'POST',
@@ -170,14 +204,21 @@ async function rpcCall(chain: AssetChain, payload: object): Promise<any | null> 
         body: JSON.stringify({ jsonrpc: '2.0', ...payload, id: Date.now() }),
         signal: AbortSignal.timeout(10000),
       });
-      if (!r.ok) continue;
+      if (!r.ok) {
+        recordRpcFailure(url, r.status);
+        console.warn('[AssetDiscovery] RPC HTTP error:', url, r.status);
+        continue;
+      }
       const j = await r.json();
       if (j.error) {
+        recordRpcFailure(url);
         console.warn('[AssetDiscovery] RPC error:', j.error);
         continue;
       }
+      recordRpcSuccess(url);
       return j.result;
     } catch (e) {
+      recordRpcFailure(url);
       continue;
     }
   }

@@ -190,6 +190,11 @@ function httpRequest(method, urlStr, body = null, timeoutMs = 15000) {
         res.setEncoding("utf8");
         res.on("data", (chunk) => (data += chunk));
         res.on("end", () => {
+          if (res.statusCode && res.statusCode >= 400) {
+            const preview = data.slice(0, 200).replace(/\s+/g, " ");
+            reject(new Error(`HTTP ${res.statusCode} from ${urlStr}: ${preview}`));
+            return;
+          }
           try {
             const json = JSON.parse(data);
             resolve({ status: res.statusCode, data: json });
@@ -386,15 +391,7 @@ async function handleMessage(msg) {
         sendResponse(id, result);
       } catch (err) {
         const code = err.code || -32600;
-        sendResponse(id, {
-          content: [
-            {
-              type: "text",
-              text: `[stargate-marketplace-mcp] Error calling ${toolName}: ${err.message}`,
-            },
-          ],
-          isError: true,
-        });
+        sendError(id, code, err.message || String(err));
       }
       break;
     }

@@ -37,7 +37,6 @@ import {
   Rocket,
 } from 'lucide-react';
 import type { AIAgentConfig, AIProvider } from '../types/ai';
-import { PROVIDER_INFO } from '../types/ai';
 import { HermesAimPanel } from './HermesAimPanel';
 import { GenericAimPanel } from './GenericAimPanel';
 import { fleetDiscoveryService, FleetNode, FleetNodeStatus, EnrichedFleetNode } from '../services/stargate/FleetDiscoveryService';
@@ -350,16 +349,16 @@ export const KanbanDashboard: React.FC = () => {
               const j = await r.json();
               reply = j.content || JSON.stringify(j);
             } else {
-              const r = await fetch(`${agent.baseUrl || PROVIDER_INFO[agent.provider]?.baseUrl || ""}/v1/chat/completions`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(agent.apiKey ? { Authorization: `Bearer ${agent.apiKey}` } : {}),
-                },
-                body: JSON.stringify({ model: agent.model, messages: [{ role: 'user', content: globalPrompt }] }),
-              });
-              const j = await r.json();
-              reply = j.choices?.[0]?.message?.content || JSON.stringify(j);
+              // Reuse AIService for all standard providers so Stargate Dashboard
+              // uses the same code path (URL fixes, auth guards, streaming, etc.)
+              // as the main AI Chat.
+              const AIServiceModule = await import('../services/AIService');
+              const AIServiceClass = AIServiceModule.AIService || (AIServiceModule as any).default?.AIService || (AIServiceModule as any).default;
+              if (!AIServiceClass || typeof AIServiceClass.sendMessage !== 'function') {
+                throw new Error('AIService.sendMessage not available');
+              }
+              const msg = { id: '1', role: 'user' as const, content: globalPrompt, timestamp: Date.now(), agentId: agent.id };
+              reply = await AIServiceClass.sendMessage(agent, [msg]);
             }
 
             addResponse({

@@ -48,6 +48,7 @@ import { createRequire } from 'module';
 import { KreaClient } from "../src/services/krea/KreaClient";
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { skillInjector } from "../src/services/skillInjector";
+import { importRepoSkills, defaultExternalRepoPresets, type ExternalRepoRef } from "../src/services/externalSkillImporter";
 import { startVaultSkillWatcher } from "../src/services/vaultSkillCache";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
 import {
@@ -1286,6 +1287,34 @@ ipcMain.handle(
   "vault:delete-entry",
   async (_event: IpcMainInvokeEvent, boxId: string, entryId: string) => {
     return deleteEntry(boxId, entryId);
+  },
+);
+
+ipcMain.handle(
+  "vault:import-external-skills",
+  async (_event: IpcMainInvokeEvent, refs?: ExternalRepoRef[], targetBoxId?: string) => {
+    try {
+      // Ensure target box exists
+      let boxId = targetBoxId;
+      if (!boxId) {
+        const existing = getBoxes().find((b) => b.name.toLowerCase() === "external skills");
+        if (existing) {
+          boxId = existing.id;
+        } else {
+          const created = addBox({ name: "External Skills", description: "Imported SKILL.md files from external repos", sourceType: "import" });
+          if (!created.success || !created.box) {
+            return { success: false, imported: 0, failed: 0, errors: [created.error || "Failed to create External Skills box"] };
+          }
+          boxId = created.box.id;
+        }
+      }
+      const skillRefs = refs && refs.length > 0 ? refs : defaultExternalRepoPresets();
+      const result = await importRepoSkills(skillRefs, async (entry) => addEntry(boxId!, entry));
+      return { ...result, boxId };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { success: false, imported: 0, failed: 0, errors: [msg] };
+    }
   },
 );
 

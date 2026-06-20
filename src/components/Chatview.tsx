@@ -555,7 +555,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     activeAgents.length,
   ]);
 
-  // Fetch MCP Servers
+  // Fetch MCP Servers — reactive to connection/disconnection events
   const [mcpServers, setMcpServers] = useState<any[]>([]);
   useEffect(() => {
     const loadServers = async () => {
@@ -567,6 +567,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
         }
     };
     loadServers();
+
+    // Listen for real-time connect/disconnect so the UI (and system prompt)
+    // always reflects the CURRENTLY CONNECTED tool set.
+    const api = window.electronAPI.mcpAPI;
+    const offConnected = api.onServerConnected ? api.onServerConnected(loadServers) : undefined;
+    const offDisconnected = api.onServerDisconnected ? api.onServerDisconnected(loadServers) : undefined;
+
+    return () => {
+      if (offConnected) offConnected();
+      if (offDisconnected) offDisconnected();
+    };
   }, []);
 
   // Recursive handler for AI conversation flow
@@ -577,6 +588,47 @@ export const ChatView: React.FC<ChatViewProps> = ({
   ) => {
     if (depth > 10) {
       console.warn("Max recursion depth reached");
+      const stopMsg: ChatMessage = {
+        id: `msg-${Date.now()}`,
+        role: "assistant",
+        content: "I hit the maximum agent-response recursion limit while trying to complete this task. Please ask a more focused question or split the request into smaller steps.",
+        timestamp: Date.now(),
+        agentId: selectedAgent!.id,
+      };
+      const stopSession = {
+        ...currentSession,
+        messages: [...stripSystemContext(currentMessages), stopMsg],
+        updatedAt: Date.now(),
+      };
+      setSessions((prev) => prev.map((s) => (s.id === currentSession.id ? stopSession : s)));
+      await saveSession(stopSession);
+      setStreamingContent("");
+      setIsGenerating(false);
+      return;
+    }
+
+    // Hard safety: count tool-result turns in the current message thread and
+    // stop the loop if the model is chaining tools instead of synthesizing.
+    const toolResultCount = currentMessages.filter(
+      (m) => m.role === "user" && m.content.startsWith("[Tool Output for")
+    ).length;
+    if (toolResultCount >= 6) {
+      console.warn(`[processAIResponse] Tool-chain limit reached (${toolResultCount} tool results). Stopping loop to force synthesis.`);
+      const stopMsg: ChatMessage = {
+        id: `msg-${Date.now()}`,
+        role: "assistant",
+        content: "I’ve gathered enough data from the available tools. Continuing to chain more tools would exceed the safety limit. Please ask a more specific follow-up question if you need additional details.",
+        timestamp: Date.now(),
+        agentId: selectedAgent!.id,
+      };
+      const stopSession = {
+        ...currentSession,
+        messages: [...stripSystemContext(currentMessages), stopMsg],
+        updatedAt: Date.now(),
+      };
+      setSessions((prev) => prev.map((s) => (s.id === currentSession.id ? stopSession : s)));
+      await saveSession(stopSession);
+      setStreamingContent("");
       setIsGenerating(false);
       return;
     }
@@ -672,10 +724,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
              );
 
              // Create Tool Output message
+             const chainCount = currentMessages.filter(
+               (m) => m.role === "user" && m.content.startsWith("[Tool Output for")
+             ).length + 1;
+             const synthesisHint = chainCount >= 5
+               ? "\n\n[CRITICAL LOOP PREVENTION: You have already received data from several tools. Do NOT call another tool. Synthesize the collected tool outputs into a concise final answer NOW.]"
+               : "";
              const toolMsg: ChatMessage = {
                  id: `msg-${Date.now() + 1}`,
                  role: "user",
-                 content: `[Tool Output for ${action.params?.server}:${action.params?.tool}]\n${result.text}\n\n[Instruction: Use ONLY the data above. Respond in 1-2 sentences. Do not add data from your training — only from this tool output.]`,
+                 content: `[Tool Output for ${action.params?.server}:${action.params?.tool}]\n${result.text}\n\n[Instruction: Use ONLY the data above. If this answers the user's original question, respond in 1-2 sentences with the answer. Only call another tool if the user explicitly asked for a NEW, unrelated fact. Do not chain tools to explore the same topic further.]${synthesisHint}`,
                  timestamp: Date.now(),
                  agentId: selectedAgent!.id,
                  uiBlocks: inlineBlocks,
@@ -973,22 +1031,124 @@ export const ChatView: React.FC<ChatViewProps> = ({
         // prompts. If we inject Web3 + "must use tools / say if none" rules, the model refuses
         // general questions (e.g. weather) because no weather tool exists.
         let idCounter = 0;
+        // ═══════════════════════════════════════════════════════════════════
+        // AUTO-DISPATCH: Proactively call tools for known intents
+        // kimi-k2.6 cannot reliably emit <use_tool> XML. Instead of
+        // waiting for the model to volunteer tool calls, we detect the
+        // user's intent and dispatch relevant tools ourselves, then inject
+        // the results into the conversation before the LLM ever sees it.
+        // ═══════════════════════════════════════════════════════════════════
+        let autoDispatchedResults: { role: "tool"; content: string }[] = [];
+        const lowerMsg = messageContent.toLowerCase();
+
+        // Intent: MCP / integrations / servers / tools inventory
+        const isMCPTopicsQuery = /\bmcp\b|\bintegrations?\b|\bservers?\b|\btools?\b|\bwhat.*(have|available)|\blist.*tool/i.test(lowerMsg);
+        if (isMCPTopicsQuery) {
+          try {
+            const servers = await window.electronAPI.mcpAPI.listServers();
+            const connected = (servers || []).filter((s: any) => s.initialized === true);
+            const disconnected = (servers || []).filter((s: any) => s.initialized !== true);
+            const toolsSummary = connected.map((s: any) => {
+              const toolNames = (s.tools || []).map((t: any) => t.name).join(", ");
+              return `  • ${s.name}: ${s.tools?.length || 0} tools (${toolNames || "none listed"})`;
+            }).join("\n");
+            autoDispatchedResults.push({
+              role: "tool",
+              content: `MCP SERVER STATUS\n════════════════\nConnected (${connected.length}):\n${toolsSummary || "  (none)"}\n\nDisconnected (${disconnected.length}):\n${disconnected.map((s: any) => `  • ${s.name}`).join("\n") || "  (none)"}`
+            });
+          } catch (e) {
+            console.error("[AutoDispatch] MCP list failed:", e);
+          }
+        }
+
+        // Intent: Vault / boxes
+        const isVaultQuery = /\bvault\b|\bbox(es)?\b|\bstorage\b/i.test(lowerMsg);
+        if (isVaultQuery && selectedAgent) {
+          try {
+            const boxes = await window.electronAPI.vault.getAgentBoxes(selectedAgent.id);
+            if (boxes && boxes.length > 0) {
+              autoDispatchedResults.push({
+                role: "tool",
+                content: `VAULT BOXES FOR ${selectedAgent.name}\n════════════════\n${boxes.map((b: any) => `  • "${b.name}" (ID: ${b.id})${b.description ? ` — ${b.description}` : ""}`).join("\n")}`
+              });
+            }
+          } catch (e) {
+            console.error("[AutoDispatch] Vault read failed:", e);
+          }
+        }
+
+        // Intent: Skills / marketplace
+        const isSkillsQuery = /\bskills?\b|\bmarketplace\b|\bcapabilit(y|ies)\b/i.test(lowerMsg);
+        if (isSkillsQuery) {
+          try {
+            const prompt = await window.electronAPI.tools.getSystemPrompt();
+            if (prompt) {
+              // Truncate to avoid bloating context
+              const truncated = prompt.length > 4000 ? prompt.slice(0, 4000) + "\n...[truncated]" : prompt;
+              autoDispatchedResults.push({
+                role: "tool",
+                content: `BUILT-IN TOOLS\n════════════════\n${truncated}`
+              });
+            }
+          } catch (e) {
+            console.error("[AutoDispatch] Tools prompt failed:", e);
+          }
+        }
+
+        // Inject auto-dispatched results as system/tool messages
+        if (autoDispatchedResults.length > 0) {
+          for (const r of autoDispatchedResults) {
+            messagesForAI.push({
+              id: `autotool-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              role: "system",
+              content: `[Auto-Retrieved Data]\n${r.content}`,
+              timestamp: Date.now(),
+              agentId: selectedAgent.id
+            });
+          }
+          console.log(`[AutoDispatch] Injected ${autoDispatchedResults.length} tool result(s) into context`);
+        }
+
         const systemPrompts: string[] = [];
         const useMosaicAgentContext = selectedAgent.provider !== "hypercycle";
 
         if (useMosaicAgentContext) {
-          // 0. Universal anti-hallucination header
+          // 0a. ABSOLUTE MANDATE — tool-first execution
+          // Models (especially kimi-k2.6) tend to describe plans in prose instead of
+          // emitting `<use_tool>`. This block uses negative reinforcement + repetition to
+          // break that habit. It MUST appear before the legacy anti-hallucination header.
+          systemPrompts.push(
+            `ABSOLUTE RULE -- NO EXCEPTIONS:\n` +
+            `1. If the user asks for ANY data, search, lookup, balance, price, status, or fact that you do not know with 100% certainty from THIS conversation, you MUST call a tool IMMEDIATELY.\n` +
+            `2. You are FORBIDDEN from saying "Let me search...", "I'll check...", "I'll dig into...", or ANY plan-description sentence UNLESS the very NEXT thing after that sentence is a <use_tool> XML tag.\n` +
+            `3. NEVER describe what you WILL do. JUST DO IT by outputting the <use_tool> tag. Descriptions without tags are WORTHLESS and WRONG.\n` +
+            `4. If you do not call a tool, the user gets ZERO information. Your training data is outdated. ANY number, name, or fact you write without a tool call is a HALLUCINATION.\n` +
+            `5. If no tool exists for the request, say exactly: "No tool is available for that request." -- nothing else.\n` +
+            `6. After a <use_tool> tag, STOP writing. Do not add a single character. The system will inject [Tool Output] and you will continue then.\n` +
+            `7. LOOP PREVENTION: If you have already called 3 or more tools in this conversation, do NOT call another tool unless the user explicitly asked for a NEW, unrelated fact. Instead, SYNTHESIZE the tool outputs you already have into a concise final answer. Continuing to chain tools after you have enough data is a bug and is forbidden.`
+          );
+
+          // 0b. Legacy anti-hallucination header (kept for overlap coverage)
           systemPrompts.push(
             `IMPORTANT: Your training data is OUTDATED. For ANY question involving prices, balances, ` +
               `exchange rates, availability, status, or any real-time/time-sensitive data, you MUST call ` +
               `a tool FIRST. NEVER answer from memory or training data for factual claims. ` +
-              `If no tool is available for the request, say so — do not guess.`,
+              `If no tool exists for the request, say so -- do not guess. ` +
+              `After gathering at most 3 pieces of relevant data, STOP calling tools and answer from the collected tool outputs only.`
           );
 
           // 1. MCP Context
           const mcpPrompt = getMCPSystemPrompt(mcpServers);
           if (mcpPrompt) {
             systemPrompts.push(mcpPrompt);
+          } else if (mcpServers.length > 0) {
+            // getMCPSystemPrompt returned empty because all servers are disconnected
+            // Add a diagnostic line so the agent knows MCP is offline
+            const offline = mcpServers.map((s) => s.name).join(", ");
+            systemPrompts.push(
+              `MCP DIAGNOSTIC: All MCP servers are currently offline (${offline}). ` +
+              `No MCP tools are available. Use built-in tools only (vault, web3, gmail, etc.).`
+            );
           }
 
           // 2. Built-in tools context (Gmail, Web3, Vault, WASM) — the ToolRegistry
@@ -1030,8 +1190,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
         if (systemPrompts.length > 0) {
             const systemMessage: ChatMessage = {
                 id: `system-${Date.now()}-${idCounter++}`,
-                role: "user", // Inject as user for compatibility
-                content: `[System Context]\n${systemPrompts.join("\n\n")}`,
+                role: "system",
+                content: systemPrompts.join("\n\n"),
                 timestamp: Date.now(),
                 agentId: selectedAgent.id
             };

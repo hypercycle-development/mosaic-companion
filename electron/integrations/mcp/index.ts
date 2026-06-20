@@ -227,6 +227,69 @@ function ensureDefaultPlugins(): void {
     });
     console.log(`[MCP] Registered default plugin: midnight-mcp`);
   }
+
+  // ── Codebase Memory MCP Server ──
+  // High-performance code-intelligence knowledge graph. Static binary, no deps.
+  const hasCodebaseMemory = existing.some((p) => p.name === "codebase-memory");
+  if (!hasCodebaseMemory) {
+    const cbmBinary = process.env.CODEBASE_MEMORY_MCP_PATH
+      || path.join(home, ".local", "bin", "codebase-memory-mcp");
+    if (fs.existsSync(cbmBinary)) {
+      pluginManager.add({
+        name: "codebase-memory",
+        description: "Codebase Memory — persistent code knowledge graph via MCP (search, call chains, architecture, blast radius)",
+        transport: "stdio",
+        command: cbmBinary,
+        args: [],
+        env: {},
+        autoConnect: true,
+      });
+      console.log(`[MCP] Registered default plugin: codebase-memory (${cbmBinary})`);
+    } else {
+      console.warn(`[MCP] codebase-memory-mcp binary not found at ${cbmBinary}; run the installer to enable it`);
+    }
+  }
+
+  // ── Atomic Mail MCP Server ──
+  // Agentic @atomicmail.ai inboxes: autonomous email signup, send/receive, drafts,
+  // search, and attachments via JMAP. Each Mosaic agent can get its own inbox.
+  const hasAtomicMail = existing.some((p) => p.name === "atomicmail");
+  if (!hasAtomicMail) {
+    let amCmd: string;
+    let amArgs: string[];
+    try {
+      // Prefer a local @atomicmail/mcp-github install in Mosaic's node_modules.
+      // The published package uses ESM under esm/mcp/main.js with bin entry
+      // atomicmail-mcp pointing to the same file.
+      const resolvePath = require.resolve("@atomicmail/mcp-github/package.json", { paths: [__dirname, process.cwd()] });
+      const pkgDir = path.dirname(resolvePath);
+      const mcpEntry = path.join(pkgDir, "esm", "mcp", "main.js");
+      if (fs.existsSync(mcpEntry)) {
+        amCmd = "node";
+        amArgs = [mcpEntry];
+        console.log(`[MCP] ✓ Found local @atomicmail/mcp-github at: ${mcpEntry}`);
+      } else {
+        amCmd = "npx";
+        amArgs = ["-y", "@atomicmail/mcp-github"];
+        console.log(`[MCP] ⚠ Local @atomicmail/mcp-github entry not found at ${mcpEntry}, using npx fallback`);
+      }
+    } catch (e) {
+      amCmd = "npx";
+      amArgs = ["-y", "@atomicmail/mcp-github"];
+      console.log(`[MCP] ⚠ Could not resolve @atomicmail/mcp-github locally (${e}), using npx fallback`);
+    }
+
+    pluginManager.add({
+      name: "atomicmail",
+      description: "Atomic Mail — autonomous @atomicmail.ai inboxes for agents (signup, send, receive, search, drafts, attachments via JMAP)",
+      transport: "stdio",
+      command: amCmd,
+      args: amArgs,
+      env: {},
+      autoConnect: true,
+    });
+    console.log(`[MCP] Registered default plugin: atomicmail`);
+  }
 }
 
 export async function initPlugins(): Promise<void> {

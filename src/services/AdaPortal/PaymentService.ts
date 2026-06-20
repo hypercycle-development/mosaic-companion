@@ -84,7 +84,7 @@ const ERC20_BALANCE_ABI = {
 
 const publicClient = createPublicClient({
   chain: base,
-  transport: http('https://mainnet.base.org'),
+  transport: http('https://base.publicnode.com'),
 });
 
 // ============================================
@@ -301,7 +301,7 @@ class PaymentService {
                 chainId: '0x2105',
                 chainName: 'Base Mainnet',
                 nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-                rpcUrls: ['https://mainnet.base.org'],
+                rpcUrls: ['https://base.publicnode.com', 'https://base-rpc.publicnode.com'],
                 blockExplorerUrls: ['https://basescan.org'],
               }],
             });

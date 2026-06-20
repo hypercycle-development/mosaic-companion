@@ -30,13 +30,13 @@ import {
 } from '../HyperCycleContracts';
 
 const RPC_CONFIG: Record<SupportedChain, string> = {
-  1:    import.meta.env.VITE_RPC_ETHEREUM || 'https://eth.llamarpc.com',
-  8453: import.meta.env.VITE_RPC_BASE     || 'https://base.llamarpc.com',
+  1:    import.meta.env.VITE_RPC_ETHEREUM || 'https://cloudflare-eth.com',
+  8453: import.meta.env.VITE_RPC_BASE     || 'https://base.publicnode.com',
 };
 
 const RPC_FALLBACKS: Record<SupportedChain, string[]> = {
-  1:    ['https://1rpc.io/eth', 'https://rpc.ankr.com/eth'],
-  8453: ['https://1rpc.io/base', 'https://base-mainnet.g.alchemy.com/v2/demo'],
+  1:    ['https://ethereum.publicnode.com', 'https://rpc.ankr.com/eth', 'https://1rpc.io/eth'],
+  8453: ['https://base-rpc.publicnode.com', 'https://rpc.ankr.com/base', 'https://1rpc.io/base'],
 };
 
 // ANFE contract addresses by chain — Base only (ANFE lives on Base)

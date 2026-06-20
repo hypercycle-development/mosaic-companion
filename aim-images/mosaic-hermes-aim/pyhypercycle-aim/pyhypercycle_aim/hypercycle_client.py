@@ -16,7 +16,7 @@ import argparse
 client_config = {
     "seed_hosts": ["3.17.97.74:8000"],
     "driver": "ethereum",
-    "rpc_provider": "https://eth.llamarpc.com",
+    "rpc_provider": "https://cloudflare-eth.com",
     "network": "mainnet"
 }
 

@@ -125,12 +125,18 @@ export class AIService {
     // to avoid 301 redirect that converts POST to GET
     let url;
     if (config.provider === 'ollama-cloud') {
+      // Ollama Cloud REQUIRES a Bearer API key; without it Cloudflare returns 405.
+      if (!actualApiKey) {
+        throw new Error(
+          `Ollama Cloud API key is missing for agent "${config.name}". Please add an API key at ollama.com/settings/api-keys and paste it into the agent settings.`
+        );
+      }
       url = 'https://ollama.com/v1/chat/completions';
       console.log('[AIService.sendToOpenAI] Using ollama.com directly (api.ollama.com redirects here):', url);
     } else {
       url = `${finalBaseUrl}/v1/chat/completions`;
     }
-    
+
     console.log('[AIService.sendToOpenAI] DEBUG - Final URL:', url);
     console.log('[AIService.sendToOpenAI] DEBUG - Request method:', "POST");
     console.log('[AIService.sendToOpenAI] ABOUT TO FETCH:', url);
@@ -160,14 +166,24 @@ export class AIService {
       
       xhr.onerror = () => reject(new Error('XHR request failed'));
       
+      const CONTEXT_BUDGET = 150000; // ~ chars budget for all messages combined (well under 196608 token model max)
+      let runningChars = 0;
+      const truncatedMessages = messages.map((m) => {
+        const safeContent = typeof m.content === "string" ? m.content : String(m.content ?? "");
+        runningChars += safeContent.length;
+        // Cap the most recent messages; older messages are dropped by the caller if needed
+        const maxMsgChars = 100000;
+        if (safeContent.length > maxMsgChars) {
+          return { role: m.role, content: safeContent.slice(0, maxMsgChars) + "\n\n[message truncated]" };
+        }
+        return { role: m.role, content: safeContent };
+      });
+
       const body = JSON.stringify({
         model: config.model,
         max_tokens: config.maxTokens || 4096,
         temperature: config.temperature || 0.7,
-        messages: messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
+        messages: truncatedMessages,
         stream: false,
       });
       
@@ -661,6 +677,7 @@ export class AIService {
         const result = await (window as any).electronAPI?.skills?.buildSystemPrompt?.({
           baseSystemPrompt: soulCapabilitySystemPrompt, // Include SOUL/capability content
           skillNames: config.skills,
+          maxTokens: 12000, // cap skill injection to leave room for conversation
         });
 
         if (!result || result.loadedSkills.length === 0) {

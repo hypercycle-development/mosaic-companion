@@ -11,7 +11,7 @@ import {
   getCapabilities, 
   buildCapabilitySystemPrompt 
 } from "./HermesCapabilityRegistry";
-import { gradeSoul, generateDefaultSoul } from "./SoulGraderService";
+import { gradeSoul } from "./SoulGraderService";
 import { getSoulById, DEFAULT_SOUL } from "../data/predefined-souls";
 
 // =============================================================================
@@ -95,10 +95,10 @@ export function buildSoulContent(
     return predefinedSoul.soulMarkdown;
   }
 
-  if (agentName) {
-    return generateDefaultSoul(agentName);
-  }
-
+  // Agents without an explicit soul get the DEFAULT soul (executor),
+  // which enforces tool-first, evidence-based behavior. The generic
+  // generateDefaultSoul template is too weak and causes agents to ignore
+  // <use_tool> mandates.
   return DEFAULT_SOUL.soulMarkdown;
 }
 
