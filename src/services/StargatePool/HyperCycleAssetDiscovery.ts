@@ -96,6 +96,10 @@ function isEndpointTripped(url: string): boolean {
   return false;
 }
 
+function allEndpointsTripped(chain: AssetChain): boolean {
+  return RPC_URLS[chain].every(url => isEndpointTripped(url));
+}
+
 function recordRpcFailure(url: string, status?: number): void {
   const state = rpcFailures.get(url) || { failures: 0, until: 0 };
   state.failures += 1;
@@ -239,6 +243,7 @@ function padAddr(addr: string): string {
 class HyperCycleAssetDiscovery {
   private cache: Map<string, WalletAssets> = new Map();
   private cacheTTL = 60000; // 1 minute
+  private scanLocks: Map<string, Promise<WalletAssets>> = new Map();
 
   private cacheKey(address: string, chain: AssetChain): string {
     return `${address.toLowerCase()}:${chain}`;
@@ -247,6 +252,21 @@ class HyperCycleAssetDiscovery {
   /** Discover ALL HyperCycle assets for a wallet on a given chain */
   async discover(address: string, chain: AssetChain): Promise<WalletAssets> {
     const key = this.cacheKey(address, chain);
+
+    // Deduplicate concurrent scans for the same wallet+chain
+    const existing = this.scanLocks.get(key);
+    if (existing) {
+      console.log(`[AssetDiscovery] Reusing in-flight scan for ${address.slice(0, 8)}... on ${chain}`);
+      return existing;
+    }
+
+    const promise = this._doDiscover(address, chain, key);
+    this.scanLocks.set(key, promise);
+    promise.finally(() => this.scanLocks.delete(key));
+    return promise;
+  }
+
+  private async _doDiscover(address: string, chain: AssetChain, key: string): Promise<WalletAssets> {
     const cached = this.cache.get(key);
     if (cached && Date.now() - cached.fetchedAt < this.cacheTTL) {
       console.log(`[AssetDiscovery] Returning cached assets for ${address.slice(0, 8)}... on ${chain}`);
@@ -261,6 +281,11 @@ class HyperCycleAssetDiscovery {
     const hiNodesPromise = chain === 'base' ? hiNodesByWallet(address) : Promise.resolve([]);
 
     for (const contract of contracts) {
+      // If every RPC endpoint is tripped, fail fast instead of hammering.
+      if (allEndpointsTripped(chain)) {
+        console.warn(`[AssetDiscovery] All ${chain} RPC endpoints tripped — aborting scan early.`);
+        break;
+      }
       try {
         const found = await this.scanContract(address, contract);
         assets.push(...found);

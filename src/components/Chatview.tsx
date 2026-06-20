@@ -584,7 +584,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const processAIResponse = async (
     currentSession: ChatSession,
     currentMessages: ChatMessage[],
-    depth: number = 0
+    depth: number = 0,
+    chainDepth: number = 0,
   ) => {
     if (depth > 10) {
       console.warn("Max recursion depth reached");
@@ -612,12 +613,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const toolResultCount = currentMessages.filter(
       (m) => m.role === "user" && m.content.startsWith("[Tool Output for")
     ).length;
-    if (toolResultCount >= 6) {
-      console.warn(`[processAIResponse] Tool-chain limit reached (${toolResultCount} tool results). Stopping loop to force synthesis.`);
+    if (toolResultCount >= 4 || chainDepth >= 3) {
+      console.warn(`[processAIResponse] Tool-chain limit reached (${toolResultCount} tool results, chainDepth=${chainDepth}). Stopping loop to force synthesis.`);
       const stopMsg: ChatMessage = {
         id: `msg-${Date.now()}`,
         role: "assistant",
-        content: "I’ve gathered enough data from the available tools. Continuing to chain more tools would exceed the safety limit. Please ask a more specific follow-up question if you need additional details.",
+        content: "I’ve reached the tool-chain safety limit to prevent runaway loops. I’ll summarize what I know so far, or you can ask a more specific follow-up question.",
         timestamp: Date.now(),
         agentId: selectedAgent!.id,
       };
@@ -763,7 +764,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
              // "analyze" (default) = send data back to agent for commentary
              // Keep system context for the AI on the recursive call
              const aiMessages = [...currentMessages, cleanedAssistantMsg, toolMsg];
-             await processAIResponse(nextSession, aiMessages, depth + 1);
+             await processAIResponse(nextSession, aiMessages, depth + 1, chainDepth + 1);
              return;
           }
 
