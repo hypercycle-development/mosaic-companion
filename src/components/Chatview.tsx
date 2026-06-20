@@ -608,11 +608,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
       return;
     }
 
-    // Hard safety: count tool-result turns in the current message thread and
-    // stop the loop if the model is chaining tools instead of synthesizing.
-    const toolResultCount = currentMessages.filter(
-      (m) => m.role === "user" && m.content.startsWith("[Tool Output for")
-    ).length;
+    // Hard safety: count only the *trailing* contiguous tool-result messages
+    // at the end of the current turn, not every tool result ever sent in history.
+    // Prevents a session with 100+ historical tool calls from locking every reply.
+    const toolResultCount = (() => {
+      let count = 0;
+      for (let i = currentMessages.length - 1; i >= 0; i--) {
+        const m = currentMessages[i];
+        if (m.role === "user" && m.content.startsWith("[Tool Output for")) {
+          count++;
+        } else {
+          break;
+        }
+      }
+      return count;
+    })();
     if (toolResultCount >= 4 || chainDepth >= 3) {
       console.warn(`[processAIResponse] Tool-chain limit reached (${toolResultCount} tool results, chainDepth=${chainDepth}). Stopping loop to force synthesis.`);
       const stopMsg: ChatMessage = {
@@ -725,10 +735,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
              );
 
              // Create Tool Output message
-             const chainCount = currentMessages.filter(
-               (m) => m.role === "user" && m.content.startsWith("[Tool Output for")
-             ).length + 1;
-             const synthesisHint = chainCount >= 5
+             const chainCount = (() => {
+               let count = 0;
+               for (let i = currentMessages.length - 1; i >= 0; i--) {
+                 const m = currentMessages[i];
+                 if (m.role === "user" && m.content.startsWith("[Tool Output for")) {
+                   count++;
+                 } else {
+                   break;
+                 }
+               }
+               return count;
+             })() + 1;
+             const synthesisHint = chainCount >= 3
                ? "\n\n[CRITICAL LOOP PREVENTION: You have already received data from several tools. Do NOT call another tool. Synthesize the collected tool outputs into a concise final answer NOW.]"
                : "";
              const toolMsg: ChatMessage = {
