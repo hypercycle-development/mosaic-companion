@@ -12,6 +12,7 @@ import { AIAgentConfig } from "../types/ai";
 import { CORE_TABS } from "../tabs/registry";
 import GmailClient from "./GmailClient";
 import { AIAgentsSettings } from "./AIAgentsSettings";
+import { AddonsSettings } from "./AddonsSettings";
 import { useTheme } from "../ThemeProvider";
 import { ThemeKey } from "../themes";
 
@@ -44,6 +45,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const agentsSectionRef = useRef<HTMLElement>(null);
   const nodesSectionRef = useRef<HTMLElement>(null);
   const tabsSectionRef = useRef<HTMLElement>(null);
+  const addonsSectionRef = useRef<HTMLElement>(null);
 
   // Scroll to section when scrollSection prop is set
   useEffect(() => {
@@ -51,6 +53,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       agents: agentsSectionRef,
       nodes: nodesSectionRef,
       tabs: tabsSectionRef,
+      addons: addonsSectionRef,
     };
 
     const targetSection = scrollSection ? sectionMap[scrollSection] : undefined;
@@ -78,11 +81,43 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [autoDisplayMedia, setAutoDisplayMediaState] = useState(false);
 
   // Sidebar tab visibility (absent key = visible). Only toggleable tabs render
-  // a row here; at launch no core tab is toggleable, so the section is empty.
+  // a row here; at launch no core tab is toggleable, so only addon tabs
+  // (always toggleable, §3.3) populate this section until that changes.
   const [tabVisibility, setTabVisibilityState] = useState<Record<string, boolean>>({});
   const toggleableTabs = CORE_TABS.filter((tab) => tab.toggleable).sort(
     (a, b) => a.order - b.order,
   );
+
+  // Addon tabs for the Sidebar Tabs section (§7.1) — merged in alongside any
+  // toggleable core tabs above. Linked addons show the same combined switch
+  // as Settings → Addons (§3.4: "same control, same state, not two things
+  // that can drift apart"); decoupled addons get the plain visibility toggle.
+  interface AddonRowForTabsSection {
+    id: string;
+    label: string;
+    activated: boolean;
+    linkVisibilityToActivation: boolean;
+  }
+  const [addonRows, setAddonRows] = useState<AddonRowForTabsSection[]>([]);
+
+  useEffect(() => {
+    const loadAddonRows = async () => {
+      const list = await window.electronAPI?.addons?.list?.();
+      setAddonRows(
+        (list ?? []).map((a) => ({
+          id: a.id,
+          label: a.name,
+          activated: a.activated,
+          linkVisibilityToActivation: a.linkVisibilityToActivation,
+        })),
+      );
+    };
+    loadAddonRows();
+    const cleanup = window.electronAPI?.addons?.onChanged?.(() => loadAddonRows());
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, []);
 
   // Toast feedback for settings changes
   const [settingsToast, setSettingsToast] = useState<{
@@ -197,6 +232,19 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       }
     } catch (e) {
       toast.error("Failed to update tab visibility");
+    }
+  };
+
+  // Combined switch for a linked addon's row in this section (§3.4) — same
+  // control, same state, as the Addons list below; not a separate toggle.
+  const handleAddonEnabledToggle = async (addonId: string, enabled: boolean) => {
+    try {
+      const result = await window.electronAPI?.addons?.setEnabled(addonId, enabled);
+      if (result?.success === false) {
+        toast.error(result?.error || "Failed to update addon");
+      }
+    } catch (e) {
+      toast.error("Failed to update addon");
     }
   };
 
@@ -335,7 +383,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             here as they become available.
           </p>
 
-          {toggleableTabs.length === 0 ? (
+          {toggleableTabs.length === 0 && addonRows.length === 0 ? (
             <div className="text-center py-10 border border-dashed border-gray-700 rounded-xl">
               <Layout className="mx-auto size-10 text-gray-600 mb-3" />
               <p className="text-gray-500">No tabs can be hidden yet</p>
@@ -376,9 +424,54 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   </div>
                 );
               })}
+
+              {/* Addon tabs (§7.1) — linked addons show the same combined
+                  switch as Settings → Addons; decoupled addons get the plain
+                  visibility-only toggle. */}
+              {addonRows.map((addon) => {
+                const tabId = `addon:${addon.id}`;
+                const visible = tabVisibility[tabId] !== false;
+                const combinedOn = addon.linkVisibilityToActivation ? addon.activated : visible;
+                return (
+                  <div key={tabId} className="py-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-gray-200 font-medium block">{addon.label}</span>
+                        <p className="text-sm text-gray-500">Addon — {addon.label}</p>
+                      </div>
+                      <button
+                        onClick={() =>
+                          addon.linkVisibilityToActivation
+                            ? handleAddonEnabledToggle(addon.id, !combinedOn)
+                            : handleTabVisibilityToggle(tabId, !visible)
+                        }
+                        className={`
+                          relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 shrink-0
+                          ${combinedOn ? "bg-indigo-600" : "bg-gray-700"}
+                        `}
+                        title={combinedOn ? "Hide from sidebar" : "Show in sidebar"}
+                      >
+                        <span
+                          className={`
+                          inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out
+                          ${combinedOn ? "translate-x-6" : "translate-x-1"}
+                        `}
+                        />
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">
+                      {addon.linkVisibilityToActivation
+                        ? "Hiding this tab also turns it off — no background activity, no permissions. Decouple this in Settings → Addons → Advanced if you want it to keep running while hidden."
+                        : "Hiding a tab only removes it from the sidebar. To stop an addon from running, deactivate it in Addons."}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
+
+        <AddonsSettings sectionRef={addonsSectionRef} />
 
         {/* Hypercycle Nodes Section */}
         <section

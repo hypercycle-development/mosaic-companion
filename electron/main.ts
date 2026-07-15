@@ -55,11 +55,23 @@ import {
   listAddons,
   listAddonTabs,
   setAddonEnabled,
+  setLinkVisibilityToActivation,
+  setUpdateCheckMode,
 } from "./addons/loader";
 import { installWebviewAttachGuards, ADDON_PRELOAD_PATH, broadcastAddonEvent } from "./addons/webviews";
 import { ADDON_SCHEME_PRIVILEGE, registerAddonProtocolHandler } from "./addons/protocol";
 import { registerAddonApi } from "./addons/api/index";
 import { broadcastThemeToAddons } from "./addons/theme";
+import {
+  fetchCatalogue,
+  beginInstall,
+  confirmInstall,
+  uninstallAddon,
+  getDataSize,
+  upgradeAddon,
+  getAvailableUpdateVersion,
+  runAutomaticUpdateCheckPass,
+} from "./addons/installer";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
@@ -379,7 +391,12 @@ app.whenReady().then(() => {
   // Addon system — registered after the static core plugins above so
   // reserved-namespace collision checks see reality, and before the
   // renderer subsystems below (§8).
-  ipcMain.handle("addons:list", async () => listAddons());
+  ipcMain.handle("addons:list", async () =>
+    listAddons().map((summary) => ({
+      ...summary,
+      updateAvailable: getAvailableUpdateVersion(summary.id),
+    })),
+  );
   ipcMain.handle("addons:list-tabs", async () => listAddonTabs());
   ipcMain.handle("addons:activate", async (_event: IpcMainInvokeEvent, id: string) => {
     const result = await activateAddon(id);
@@ -400,11 +417,70 @@ app.whenReady().then(() => {
   ipcMain.handle("addons:install-dev", async (_event: IpcMainInvokeEvent, devPath: string) => installDevAddon(devPath));
   ipcMain.handle("addons:get-preload-path", async () => ADDON_PRELOAD_PATH);
 
+  // Phase 4 — registry/installer surface
+  ipcMain.handle(
+    "addons:fetch-catalogue",
+    async (_event: IpcMainInvokeEvent, opts?: { registryUrl?: string; sigUrl?: string }) => fetchCatalogue(opts),
+  );
+  ipcMain.handle("addons:install", async (_event: IpcMainInvokeEvent, id: string) => beginInstall(id));
+  ipcMain.handle(
+    "addons:install-confirm",
+    async (_event: IpcMainInvokeEvent, id: string, acceptedPermissions: string[]) => {
+      const result = await confirmInstall(id, acceptedPermissions);
+      broadcastAddonsChanged();
+      return result;
+    },
+  );
+  ipcMain.handle(
+    "addons:uninstall",
+    async (_event: IpcMainInvokeEvent, id: string, opts: { keepSettings: boolean; keepData: boolean }) => {
+      const result = await uninstallAddon(id, opts);
+      broadcastAddonsChanged();
+      broadcastTabPrefsChanged(getTabVisibility());
+      return result;
+    },
+  );
+  ipcMain.handle("addons:get-data-size", async (_event: IpcMainInvokeEvent, id: string) => getDataSize(id));
+  ipcMain.handle(
+    "addons:upgrade",
+    async (_event: IpcMainInvokeEvent, id: string, acceptedPermissions?: string[]) => {
+      const result = await upgradeAddon(id, acceptedPermissions);
+      broadcastAddonsChanged();
+      return result;
+    },
+  );
+  ipcMain.handle(
+    "addons:set-visibility-link",
+    async (_event: IpcMainInvokeEvent, id: string, linked: boolean) => {
+      setLinkVisibilityToActivation(id, linked);
+      broadcastAddonsChanged();
+      return { success: true };
+    },
+  );
+  ipcMain.handle(
+    "addons:set-update-check-mode",
+    async (_event: IpcMainInvokeEvent, id: string, mode: "manual" | "automatic") => {
+      setUpdateCheckMode(id, mode);
+      broadcastAddonsChanged();
+      return { success: true };
+    },
+  );
+
   // The addonAPI dispatcher (§5.1) — one invoke channel + one event channel
   // for every addon webview.
   registerAddonApi();
 
-  initAddons().catch((e) => console.error("[Addons] Init failed:", e));
+  initAddons()
+    .then(() => {
+      // Once-per-launch automatic-update-check pass (§7.2, decision 7) — not
+      // a recurring poll. Only addons opted into "Automatic" are checked,
+      // and only via a single registry fetch. Best-effort: failures (e.g.
+      // no network) just mean no "Update available" badge this session.
+      runAutomaticUpdateCheckPass()
+        .then(() => broadcastAddonsChanged())
+        .catch((e) => console.error("[Addons] Automatic update check failed:", e));
+    })
+    .catch((e) => console.error("[Addons] Init failed:", e));
 
   // Now auto-connect MCP plugins (with correct env already set)
   initPlugins().catch((e) => console.error("[MCP] Plugin init failed:", e));
@@ -506,6 +582,15 @@ ipcMain.handle("dialog:open-file", async (_event, options?: { filters?: Array<{ 
     properties: ["openFile"],
     filters: options?.filters ?? [{ name: "WebAssembly", extensions: ["wasm"] }],
   });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
+// Directory picker — used by Settings → Addons → Dev corner's "Load unpacked
+// addon…" (§7.4).
+ipcMain.handle("dialog:open-directory", async () => {
+  const { dialog } = await import("electron");
+  const result = await dialog.showOpenDialog(mainWindow!, { properties: ["openDirectory"] });
   if (result.canceled || result.filePaths.length === 0) return null;
   return result.filePaths[0];
 });

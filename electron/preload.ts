@@ -156,6 +156,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   dialog: {
     openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) =>
       ipcRenderer.invoke("dialog:open-file", options),
+    openDirectory: () => ipcRenderer.invoke("dialog:open-directory"),
   },
   // Window controls (for custom title bar)
   window: {
@@ -277,8 +278,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getAutoDisplay: () => ipcRenderer.invoke("media:get-auto-display"),
     setAutoDisplay: (enabled: boolean) => ipcRenderer.invoke("media:set-auto-display", enabled),
   },
-  // Addon management (renderer-side management bridge subset — §6.2; the
-  // full catalogue/install/uninstall/upgrade surface arrives in Phase 4)
+  // Addon management (renderer-side management bridge — §6.2)
   addons: {
     list: () => ipcRenderer.invoke("addons:list"),
     listTabs: () => ipcRenderer.invoke("addons:list-tabs"),
@@ -287,6 +287,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
     setEnabled: (id: string, enabled: boolean) => ipcRenderer.invoke("addons:set-enabled", id, enabled),
     installDev: (devPath: string) => ipcRenderer.invoke("addons:install-dev", devPath),
     getPreloadPath: () => ipcRenderer.invoke("addons:get-preload-path"),
+    // Phase 4 — registry/installer surface
+    fetchCatalogue: (opts?: { registryUrl?: string; sigUrl?: string }) =>
+      ipcRenderer.invoke("addons:fetch-catalogue", opts),
+    install: (id: string) => ipcRenderer.invoke("addons:install", id),
+    installConfirm: (id: string, acceptedPermissions: string[]) =>
+      ipcRenderer.invoke("addons:install-confirm", id, acceptedPermissions),
+    uninstall: (id: string, opts: { keepSettings: boolean; keepData: boolean }) =>
+      ipcRenderer.invoke("addons:uninstall", id, opts),
+    getDataSize: (id: string) => ipcRenderer.invoke("addons:get-data-size", id),
+    upgrade: (id: string, acceptedPermissions?: string[]) =>
+      ipcRenderer.invoke("addons:upgrade", id, acceptedPermissions),
+    setVisibilityLink: (id: string, linked: boolean) => ipcRenderer.invoke("addons:set-visibility-link", id, linked),
+    setUpdateCheckMode: (id: string, mode: "manual" | "automatic") =>
+      ipcRenderer.invoke("addons:set-update-check-mode", id, mode),
     onChanged: (callback: (tabs: unknown[]) => void) => {
       const handler = (_event: IpcRendererEvent, tabs: unknown[]) => callback(tabs);
       ipcRenderer.on("addons:changed", handler);

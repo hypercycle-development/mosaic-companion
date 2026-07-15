@@ -390,16 +390,20 @@ declare global {
         setAutoDisplay: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean; error?: string }>;
       };
 
-      // Addon management (renderer-side management bridge subset — §6.2)
+      // Addon management (renderer-side management bridge — §6.2)
       addons: {
         list: () => Promise<Array<{
           id: string;
           name: string;
+          description?: string;
           version: string;
           activated: boolean;
           lastError?: string;
           source: { type: "registry"; tarballUrl: string; sha256: string; registrySignatureVerified: boolean; verifiedKeyId: string } | { type: "dev"; path: string };
           permissions: string[];
+          linkVisibilityToActivation: boolean;
+          updateCheckMode: "manual" | "automatic";
+          updateAvailable?: string;
         }>>;
         listTabs: () => Promise<Array<{
           tabId: string;
@@ -417,6 +421,29 @@ declare global {
         setEnabled: (id: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
         installDev: (devPath: string) => Promise<{ success: boolean; id?: string; error?: string }>;
         getPreloadPath: () => Promise<string>;
+        fetchCatalogue: (opts?: { registryUrl?: string; sigUrl?: string }) => Promise<{
+          success: boolean;
+          addons?: Array<{
+            id: string;
+            name: string;
+            description: string;
+            version: string;
+            minAppVersion?: string;
+            tarballUrl: string;
+            sha256: string;
+            permissions: string[];
+            icon?: string;
+            homepage?: string;
+          }>;
+          error?: string;
+        }>;
+        install: (id: string) => Promise<{ success: boolean; needsConsent?: string[]; error?: string }>;
+        installConfirm: (id: string, acceptedPermissions: string[]) => Promise<{ success: boolean; error?: string }>;
+        uninstall: (id: string, opts: { keepSettings: boolean; keepData: boolean }) => Promise<{ success: boolean; error?: string }>;
+        getDataSize: (id: string) => Promise<number>;
+        upgrade: (id: string, acceptedPermissions?: string[]) => Promise<{ success: boolean; needsConsent?: string[]; error?: string }>;
+        setVisibilityLink: (id: string, linked: boolean) => Promise<{ success: boolean; error?: string }>;
+        setUpdateCheckMode: (id: string, mode: "manual" | "automatic") => Promise<{ success: boolean; error?: string }>;
         onChanged: (callback: (tabs: unknown[]) => void) => () => void;
         onTitleChanged: (callback: (data: { addonId: string; title: string }) => void) => () => void;
       };
@@ -475,6 +502,7 @@ declare global {
       // File dialog
       dialog: {
         openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string | null>;
+        openDirectory: () => Promise<string | null>;
       };
     };
 

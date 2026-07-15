@@ -29,12 +29,17 @@ import {
   setActivated,
   setLastError,
   setGrantedPermissions,
+  setLinkVisibilityToActivation,
+  setUpdateCheckMode,
+  recordUpgrade,
+  removeAddonEntry,
   type AddonStateEntry,
 } from "./state";
 
-// Re-exported so callers (e.g. a future Settings consent flow, or a test
-// harness) only need to import from loader.ts, not reach into state.ts too.
-export { setGrantedPermissions };
+// Re-exported so callers (e.g. a future Settings consent flow, installer.ts,
+// or a test harness) only need to import from loader.ts, not reach into
+// state.ts too.
+export { setGrantedPermissions, setLinkVisibilityToActivation, setUpdateCheckMode, recordUpgrade, removeAddonEntry };
 import { broadcastAddonEvent } from "./webviews";
 
 // =============================================================================
@@ -139,7 +144,11 @@ export function clearAddonSettings(id: string): void {
 // Root resolution + manifest (re-)loading
 // =============================================================================
 
-function getAddonRoot(id: string, entry: AddonStateEntry): string {
+/** Resolves the addon's on-disk root regardless of whether it's currently
+ * live — `getLiveAddonRoot` (below) only answers for active addons, which
+ * isn't enough for installer.ts operations (uninstall, data-size) that must
+ * work on an installed-but-deactivated addon too. */
+export function getAddonRoot(id: string, entry: AddonStateEntry): string {
   if (entry.source.type === "dev") return entry.source.path;
   return path.join(app.getPath("userData"), "addons", id);
 }
@@ -414,12 +423,15 @@ export async function initAddons(): Promise<void> {
 export interface AddonSummary {
   id: string;
   name: string;
+  description?: string;
   version: string;
   /** Actually running right now — distinct from the persisted desired state. */
   activated: boolean;
   lastError?: string;
   source: AddonStateEntry["source"];
   permissions: string[];
+  linkVisibilityToActivation: boolean;
+  updateCheckMode: AddonStateEntry["updateCheckMode"];
 }
 
 export function listAddons(): AddonSummary[] {
@@ -429,11 +441,14 @@ export function listAddons(): AddonSummary[] {
     return {
       id,
       name: live?.manifest.name ?? id,
+      description: live?.manifest.description,
       version: entry.version,
       activated: liveAddons.has(id),
       lastError: entry.lastError,
       source: entry.source,
       permissions: entry.grantedPermissions,
+      linkVisibilityToActivation: entry.linkVisibilityToActivation,
+      updateCheckMode: entry.updateCheckMode,
     };
   });
 }

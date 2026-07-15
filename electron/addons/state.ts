@@ -172,5 +172,44 @@ export function removeAddonEntry(id: string): void {
   saveAddonState();
 }
 
+/** §3.4's per-addon "Advanced: control activation and visibility
+ * independently" override — flipping it takes no action on current state,
+ * it only changes how future `setAddonEnabled` toggles behave. */
+export function setLinkVisibilityToActivation(id: string, linked: boolean): void {
+  const entry = state.addons[id];
+  if (!entry) return;
+  entry.linkVisibilityToActivation = linked;
+  entry.updatedAt = new Date().toISOString();
+  saveAddonState();
+}
+
+/** §7.2/decision 7 — per-addon manual/automatic update-*check* mode (never
+ * auto-*install*). */
+export function setUpdateCheckMode(id: string, mode: UpdateCheckMode): void {
+  const entry = state.addons[id];
+  if (!entry) return;
+  entry.updateCheckMode = mode;
+  entry.updatedAt = new Date().toISOString();
+  saveAddonState();
+}
+
+/**
+ * Records a completed upgrade in place: bumps `version`, replaces `source`
+ * (new tarballUrl/sha256/signature bookkeeping), and — critically — does
+ * **not** touch `grantedPermissions`. The caller (`installer.ts`) is
+ * responsible for having already confirmed `newManifest.permissions ⊆
+ * grantedPermissions` (or collected fresh consent and called
+ * `setGrantedPermissions` first) before calling this; that ordering is what
+ * makes the upgrade-escalation pause real.
+ */
+export function recordUpgrade(id: string, version: string, source: AddonSource): void {
+  const entry = state.addons[id];
+  if (!entry) return;
+  entry.version = version;
+  entry.source = source;
+  entry.updatedAt = new Date().toISOString();
+  saveAddonState();
+}
+
 // Load on module initialization, mirroring electron/settings.ts.
 loadAddonState();

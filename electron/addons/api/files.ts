@@ -23,7 +23,9 @@ function resolveJailedPath(addonId: string, relPath: string): string {
   return resolved;
 }
 
-function dirSizeBytes(dir: string): number {
+/** Exported for installer.ts's uninstall-dialog data-size display
+ * (`addons:get-data-size`, §3.1) — same recursive walk, one implementation. */
+export function dirSizeBytes(dir: string): number {
   if (!fs.existsSync(dir)) return 0;
   let total = 0;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
