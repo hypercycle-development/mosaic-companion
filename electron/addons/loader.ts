@@ -19,6 +19,8 @@ import path from "path";
 import { pathToFileURL } from "url";
 import semver from "semver";
 import { getErrorMessage } from "../utils";
+import { getTabVisibility, setTabVisibility as setCoreTabVisibility } from "../settings";
+import { ADDON_TAB_ID_PREFIX } from "../../src/tabs/registry";
 import { validateManifest, type AddonManifest } from "./manifest";
 import {
   getAddonEntry,
@@ -28,6 +30,7 @@ import {
   setLastError,
   type AddonStateEntry,
 } from "./state";
+import { broadcastAddonEvent } from "./webviews";
 
 // =============================================================================
 // ctx — the addon-main contract (§5.4)
@@ -61,6 +64,10 @@ interface LiveAddon {
   mainModule?: AddonMainModule;
   /** Full ipcMain channel names this addon registered, e.g. "addon:ping-addon:ping" — tracked for teardown on deactivate/crash. */
   channels: Set<string>;
+  /** Method name -> raw handler fn, so addonAPI.invoke (§5.3) can call
+   * straight into an addon's own ctx.ipc.handle registration without a
+   * second IPC round-trip (Electron has no main-to-main ipcMain.invoke). */
+  handlersByMethod: Map<string, (...args: unknown[]) => unknown>;
   granted: Set<string>;
 }
 
@@ -78,7 +85,7 @@ function addonSettingsPath(id: string): string {
   return path.join(app.getPath("userData"), "addon-settings", `${id}.json`);
 }
 
-function readAddonSettings(id: string): Record<string, unknown> {
+export function readAddonSettings(id: string): Record<string, unknown> {
   try {
     const p = addonSettingsPath(id);
     if (!fs.existsSync(p)) return {};
@@ -89,9 +96,8 @@ function readAddonSettings(id: string): Record<string, unknown> {
   }
 }
 
-function writeAddonSettings(id: string, patch: Record<string, unknown>): void {
-  const next = { ...readAddonSettings(id), ...patch };
-  const json = JSON.stringify(next, null, 2);
+function writeAddonSettingsValue(id: string, value: Record<string, unknown>): void {
+  const json = JSON.stringify(value, null, 2);
   if (Buffer.byteLength(json, "utf8") > ADDON_SETTINGS_MAX_BYTES) {
     throw new Error(`Addon settings for "${id}" would exceed ${ADDON_SETTINGS_MAX_BYTES} bytes`);
   }
@@ -100,6 +106,20 @@ function writeAddonSettings(id: string, patch: Record<string, unknown>): void {
   const tmpPath = `${p}.tmp`;
   fs.writeFileSync(tmpPath, json, "utf8");
   fs.renameSync(tmpPath, p);
+}
+
+/** Shallow-merge write — the shape both `ctx.settings.set` and
+ * `addonAPI.settings.set` use (§5.3, §5.4). */
+export function writeAddonSettings(id: string, patch: Record<string, unknown>): void {
+  writeAddonSettingsValue(id, { ...readAddonSettings(id), ...patch });
+}
+
+export function replaceAddonSettings(id: string, value: Record<string, unknown>): void {
+  writeAddonSettingsValue(id, value);
+}
+
+export function clearAddonSettings(id: string): void {
+  writeAddonSettingsValue(id, {});
 }
 
 // =============================================================================
@@ -135,8 +155,12 @@ function loadAndValidateManifest(root: string, expectedId: string): { manifest?:
 // ctx construction
 // =============================================================================
 
-function buildCtx(manifest: AddonManifest, root: string): { ctx: AddonCtx; channels: Set<string> } {
+function buildCtx(
+  manifest: AddonManifest,
+  root: string,
+): { ctx: AddonCtx; channels: Set<string>; handlersByMethod: Map<string, (...args: unknown[]) => unknown> } {
   const channels = new Set<string>();
+  const handlersByMethod = new Map<string, (...args: unknown[]) => unknown>();
   const dataDir = path.join(root, "data");
   try {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -151,21 +175,20 @@ function buildCtx(manifest: AddonManifest, root: string): { ctx: AddonCtx; chann
         const channel = `addon:${manifest.ipcNamespace}:${name}`;
         ipcMain.handle(channel, (_event, ...args: unknown[]) => fn(...args));
         channels.add(channel);
+        // Also reachable via addonAPI.invoke() from the addon's own webview
+        // (§5.3) — same handler, no second registration needed.
+        handlersByMethod.set(name, fn);
       },
       removeHandler: (name) => {
         const channel = `addon:${manifest.ipcNamespace}:${name}`;
         ipcMain.removeHandler(channel);
         channels.delete(channel);
+        handlersByMethod.delete(name);
       },
     },
     events: {
-      // No live webContents registry exists yet — that's Phase 2's
-      // webviews.ts. Accepting the call as a documented no-op means addon
-      // mains can call ctx.events.send from day one without a call-site
-      // change once Phase 2 wires real delivery.
-      send: () => {
-        /* no-op until Phase 2 */
-      },
+      // Pushes to this addon's own live webview(s) as `self:<name>` (§5.4).
+      send: (name, payload) => broadcastAddonEvent(`self:${name}`, payload, { onlyAddonId: manifest.id }),
     },
     paths: { root, data: dataDir },
     settings: {
@@ -175,7 +198,7 @@ function buildCtx(manifest: AddonManifest, root: string): { ctx: AddonCtx; chann
     log: (...args: unknown[]) => console.log(`[addon:${manifest.id}]`, ...args),
   };
 
-  return { ctx, channels };
+  return { ctx, channels, handlersByMethod };
 }
 
 function teardownChannels(channels: Iterable<string>): void {
@@ -259,6 +282,7 @@ export async function activateAddon(id: string): Promise<{ success: boolean; err
       root,
       mainModule,
       channels: built.channels,
+      handlersByMethod: built.handlersByMethod,
       granted: new Set(entry.grantedPermissions),
     });
 
@@ -399,4 +423,111 @@ export function listAddons(): AddonSummary[] {
       permissions: entry.grantedPermissions,
     };
   });
+}
+
+// =============================================================================
+// Live-registry accessors (Phase 2: protocol, webviews, addonAPI dispatcher)
+// =============================================================================
+
+export function isAddonActivated(id: string): boolean {
+  return liveAddons.has(id);
+}
+
+/** Absolute addon root (dev path or `userData/addons/<id>`) — only returned
+ * while the addon is actually live, which is what makes the protocol
+ * handler's "deactivated ⇒ unreachable" guarantee (§4.1) hold. */
+export function getLiveAddonRoot(id: string): string | undefined {
+  return liveAddons.get(id)?.root;
+}
+
+export function getAddonDataDir(id: string): string | undefined {
+  const live = liveAddons.get(id);
+  return live ? path.join(live.root, "data") : undefined;
+}
+
+export function getGrantedPermissions(id: string): Set<string> {
+  return liveAddons.get(id)?.granted ?? new Set();
+}
+
+export function getLiveManifest(id: string): AddonManifest | undefined {
+  return liveAddons.get(id)?.manifest;
+}
+
+/** Looks up a method the addon's own `main/index.js` registered via
+ * `ctx.ipc.handle` — the routing target for `addonAPI.invoke()` (§5.3). */
+export function getAddonOwnHandler(
+  id: string,
+  method: string,
+): ((...args: unknown[]) => unknown) | undefined {
+  return liveAddons.get(id)?.handlersByMethod.get(method);
+}
+
+// =============================================================================
+// Sidebar tab list (§6.3) and combined enable/disable (§3.4)
+// =============================================================================
+
+export interface AddonTabInfo {
+  tabId: string;
+  addonId: string;
+  label: string;
+  icon: string;
+  order: number;
+  activated: boolean;
+  visible: boolean;
+  /** manifest.renderer.entry, e.g. "renderer/index.html" — AddonHostView
+   * strips the leading "renderer/" since the protocol already serves from
+   * that directory. */
+  rendererEntry: string;
+  deepLinkParam?: string;
+}
+
+/**
+ * Sidebar-ready addon tabs. Rule 1 (§3.2): "the sidebar shows an addon tab
+ * iff installed && activated && visible" — an inactive addon contributes no
+ * row at all here (not merely a hidden one), so an unknown/inactive addonId
+ * reaching `AddonHostView` is unambiguously the "not available" case.
+ */
+export function listAddonTabs(): AddonTabInfo[] {
+  const visibility = getTabVisibility();
+  const tabs: AddonTabInfo[] = [];
+  for (const [id, live] of liveAddons) {
+    const tabId = `${ADDON_TAB_ID_PREFIX}${id}`;
+    tabs.push({
+      tabId,
+      addonId: id,
+      label: live.manifest.tab.label,
+      icon: live.manifest.tab.icon,
+      order: live.manifest.tab.order,
+      activated: true,
+      visible: visibility[tabId] !== false,
+      rendererEntry: live.manifest.renderer.entry,
+      deepLinkParam: live.manifest.tab.deepLink?.param,
+    });
+  }
+  return tabs;
+}
+
+/**
+ * The default combined on/off switch (§3.4, decision 8). Turning off runs
+ * `deactivate()` then hides the tab; turning on runs `activate()` then shows
+ * it. These stay two separate primitive calls run back-to-back — nothing
+ * about `activateAddon`/`deactivateAddon`/the tab-visibility store changes;
+ * this is orchestration on top, not a new transition.
+ */
+export async function setAddonEnabled(id: string, enabled: boolean): Promise<{ success: boolean; error?: string }> {
+  const tabId = `${ADDON_TAB_ID_PREFIX}${id}`;
+
+  if (enabled) {
+    const result = await activateAddon(id);
+    if (!result.success) return result;
+    setCoreTabVisibility(tabId, true);
+    return { success: true };
+  }
+
+  if (liveAddons.has(id)) {
+    const result = await deactivateAddon(id);
+    if (!result.success) return result;
+  }
+  setCoreTabVisibility(tabId, false);
+  return { success: true };
 }

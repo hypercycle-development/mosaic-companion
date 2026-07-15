@@ -59,7 +59,21 @@ export const CORE_TABS: CoreTabDef[] = [
   { id: "settings", label: "Configuration", icon: "Settings", url: INTERNAL_SETTINGS_URL, toggleable: false, order: 100 },
 ];
 
-/** The set of tab ids that may legitimately carry a visibility flag. */
+/**
+ * Tab-id prefix for addon-contributed tabs (§1, §3.3): `addon:<addonId>`.
+ * Distinct from `ADDON_URL_PREFIX` ("addon://", the navigation URL scheme in
+ * `types.ts`) — this is the key shape used in the `tabVisibility` map and by
+ * `electron/settings.ts`'s toggleability check below.
+ */
+export const ADDON_TAB_ID_PREFIX = "addon:";
+
+/**
+ * The set of tab ids that may legitimately carry a visibility flag. Addon
+ * tabs are always toggleable (fixed decision, §3.3: "Addon tabs are appended
+ * from the addon manifest list with toggleable: true always") — every core
+ * tab's toggleability is governed by its own `CORE_TABS` entry instead.
+ */
 export function isToggleableTab(tabId: string): boolean {
+  if (tabId.startsWith(ADDON_TAB_ID_PREFIX)) return true;
   return CORE_TABS.some((tab) => tab.id === tabId && tab.toggleable);
 }

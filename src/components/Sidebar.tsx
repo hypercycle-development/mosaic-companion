@@ -31,11 +31,18 @@ import {
   Shield,
   Hash,
   Code2,
+  Rocket,
+  Store,
+  Wallet,
+  Network,
+  Boxes,
+  Telescope,
 } from "lucide-react";
 import {
   INTERNAL_SETTINGS_URL,
   INTERNAL_CHAT_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
+  ADDON_URL_PREFIX,
 } from "../types/types";
 import { CORE_TABS } from "../tabs/registry";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
@@ -48,6 +55,31 @@ const TOOL_ICON_MAP: Record<string, React.FC<{ size?: number; className?: string
   chart: BarChart3, globe: Globe, database: Database, layers: Layers,
   box: Box, shield: Shield, hash: Hash,
 };
+
+/**
+ * Addon tab icons (§6.6) — manifest `tab.icon` uses Lucide PascalCase names
+ * (unlike `TOOL_ICON_MAP`'s lowercase WASM-tool-manifest keys). Curated, not
+ * a passthrough to all of lucide-react, to keep the bundle small; fallback
+ * is LayoutGrid via `renderNavIcon`'s existing default case.
+ */
+const ADDON_ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
+  Server, Zap, Cpu, Activity, Trophy, BarChart3, Globe, Database, Layers, Box,
+  Shield, Hash, Rocket, Store, Wallet, Network, Boxes, Telescope, Sparkles,
+  Lock, Bot, MessageSquare, Settings, Home, Plug, BrainCircuit, Code2, Star,
+  Clock, Power, LayoutGrid,
+};
+
+interface AddonTabInfo {
+  tabId: string;
+  addonId: string;
+  label: string;
+  icon: string;
+  order: number;
+  activated: boolean;
+  visible: boolean;
+  rendererEntry: string;
+  deepLinkParam?: string;
+}
 
 // HypercycleNode is declared globally in global.d.ts — no local duplicate needed.
 
@@ -73,6 +105,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Per-tab sidebar visibility (absent key = visible). Only toggleable tabs
   // can ever be hidden; at launch no core tab is toggleable so this stays empty.
   const [tabVisibility, setTabVisibility] = useState<Record<string, boolean>>({});
+
+  // Addon-contributed tabs (§6.3) — installed && activated addons only;
+  // listTabs() already excludes anything not currently live.
+  const [addonTabs, setAddonTabs] = useState<AddonTabInfo[]>([]);
 
   // Node detail panel state — when set, the NodeDetailPanel slides in
   const [selectedNodeLicense, setSelectedNodeLicense] = useState<string | null>(null);
@@ -202,6 +238,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
   }, []);
 
+  // Load addon tabs on mount and subscribe to changes (activate/deactivate/
+  // install/uninstall all funnel through the same addons:changed broadcast)
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    const loadAddonTabs = async () => {
+      if (window.electronAPI?.addons?.listTabs) {
+        const tabs = await window.electronAPI.addons.listTabs();
+        setAddonTabs(tabs || []);
+      }
+    };
+    loadAddonTabs();
+
+    if (window.electronAPI?.addons?.onChanged) {
+      cleanup = window.electronAPI.addons.onChanged((tabs) => {
+        setAddonTabs((tabs as AddonTabInfo[]) || []);
+      });
+    }
+
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, []);
+
   // Load pinned sandbox tools (refresh periodically to reflect pin changes)
   useEffect(() => {
     let cancelled = false;
@@ -235,12 +295,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
   }, []);
 
-  // Navigation Items — sourced from the tab registry (single source of truth),
-  // filtered by visibility. Only toggleable tabs can ever be hidden; a
-  // non-toggleable tab never has a `false` entry, so it always shows.
-  const navItems = CORE_TABS.filter(
-    (tab) => tabVisibility[tab.id] !== false,
-  ).sort((a, b) => a.order - b.order);
+  // Navigation Items — sourced from the tab registry (single source of
+  // truth) merged with addon tabs (§6.3). Only toggleable tabs can ever be
+  // hidden; a non-toggleable core tab never has a `false` entry, so it
+  // always shows. Ordering: core tabs in registry order, addon tabs after
+  // IDE/Sandbox and before Configuration, sorted by (order, label).
+  const visibleCoreTabs = CORE_TABS.filter((tab) => tabVisibility[tab.id] !== false);
+  const coreTabsBeforeSettings = visibleCoreTabs
+    .filter((tab) => tab.id !== "settings")
+    .sort((a, b) => a.order - b.order);
+  const settingsTab = visibleCoreTabs.find((tab) => tab.id === "settings");
+  const visibleAddonTabs = addonTabs
+    .filter((tab) => tab.visible)
+    .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
+
+  const navItems: { id: string; label: string; icon: string; url: string }[] = [
+    ...coreTabsBeforeSettings,
+    ...visibleAddonTabs.map((tab) => ({
+      id: tab.tabId,
+      label: tab.label,
+      icon: tab.icon,
+      url: `${ADDON_URL_PREFIX}${tab.addonId}`,
+    })),
+    ...(settingsTab ? [settingsTab] : []),
+  ];
 
   // --- UI State for New Sections ---
   const [aiContexts, setAiContexts] = useState([
@@ -309,8 +387,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <Cpu className={className} />;
       case "Code2":
         return <Code2 className={className} />;
-      default:
+      default: {
+        // Addon tab icons (§6.6) — curated PascalCase Lucide name lookup,
+        // falling back to LayoutGrid for anything unrecognized.
+        const AddonIcon = ADDON_ICON_MAP[iconName];
+        if (AddonIcon) return <AddonIcon className={className} />;
         return <LayoutGrid className={className} />;
+      }
     }
   };
 

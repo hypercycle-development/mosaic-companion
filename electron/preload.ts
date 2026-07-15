@@ -277,12 +277,26 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getAutoDisplay: () => ipcRenderer.invoke("media:get-auto-display"),
     setAutoDisplay: (enabled: boolean) => ipcRenderer.invoke("media:set-auto-display", enabled),
   },
-  // Addon management (Phase 1 subset — list/activate/deactivate/install-dev only)
+  // Addon management (renderer-side management bridge subset — §6.2; the
+  // full catalogue/install/uninstall/upgrade surface arrives in Phase 4)
   addons: {
     list: () => ipcRenderer.invoke("addons:list"),
+    listTabs: () => ipcRenderer.invoke("addons:list-tabs"),
     activate: (id: string) => ipcRenderer.invoke("addons:activate", id),
     deactivate: (id: string) => ipcRenderer.invoke("addons:deactivate", id),
+    setEnabled: (id: string, enabled: boolean) => ipcRenderer.invoke("addons:set-enabled", id, enabled),
     installDev: (devPath: string) => ipcRenderer.invoke("addons:install-dev", devPath),
+    getPreloadPath: () => ipcRenderer.invoke("addons:get-preload-path"),
+    onChanged: (callback: (tabs: unknown[]) => void) => {
+      const handler = (_event: IpcRendererEvent, tabs: unknown[]) => callback(tabs);
+      ipcRenderer.on("addons:changed", handler);
+      return () => ipcRenderer.removeListener("addons:changed", handler);
+    },
+    onTitleChanged: (callback: (data: { addonId: string; title: string }) => void) => {
+      const handler = (_event: IpcRendererEvent, data: { addonId: string; title: string }) => callback(data);
+      ipcRenderer.on("addons:title-changed", handler);
+      return () => ipcRenderer.removeListener("addons:title-changed", handler);
+    },
   },
   // Sidebar tab visibility preferences
   tabPrefs: {

@@ -24,6 +24,8 @@ import {
   setAutoDisplayMedia,
   getTabVisibility,
   setTabVisibility,
+  readThemeSettings,
+  writeThemeSettings,
 } from "./settings";
 import {
   getDirectoryStatus,
@@ -43,8 +45,21 @@ import { initIDE, cleanupIDE } from "./integrations/ide/index";
 import { registerHyperInsightIpc, stopScorePolling } from "../plugins/hyperinsight/main/index.js";
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
 import { registerPaymentsJitIpc } from "../plugins/payments-jit/main/index.ts";
-// Addon system (Phase 1: main-process loader only — no webview/UI yet)
-import { initAddons, deactivateAll, activateAddon, deactivateAddon, installDevAddon, listAddons } from "./addons/loader";
+// Addon system
+import {
+  initAddons,
+  deactivateAll,
+  activateAddon,
+  deactivateAddon,
+  installDevAddon,
+  listAddons,
+  listAddonTabs,
+  setAddonEnabled,
+} from "./addons/loader";
+import { installWebviewAttachGuards, ADDON_PRELOAD_PATH, broadcastAddonEvent } from "./addons/webviews";
+import { ADDON_SCHEME_PRIVILEGE, registerAddonProtocolHandler } from "./addons/protocol";
+import { registerAddonApi } from "./addons/api/index";
+import { broadcastThemeToAddons } from "./addons/theme";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
@@ -127,10 +142,6 @@ interface ChatSession {
   id: string;
   agentId: string;
   [key: string]: unknown;
-}
-
-interface ThemeSettings {
-  activeTheme: string;
 }
 
 // =============================================================================
@@ -246,6 +257,15 @@ function createWindow(urlToLoad: string | null = null): BrowserWindow {
     console.error(`Failed to load ${validatedURL}: ${errorCode} (${errorDescription})`);
   });
 
+  // Addon webview attach guards (§4.2) — main-process enforcement of
+  // contextIsolation/sandbox/nodeIntegration/preload for every
+  // mosaic-addon:// webview, and preload-stripping for every other one.
+  installWebviewAttachGuards(win);
+
+  // Pushed to addon webviews subscribed to "window:focus-changed" (§4.3).
+  win.on('focus', () => broadcastAddonEvent('window:focus-changed', { focused: true }));
+  win.on('blur', () => broadcastAddonEvent('window:focus-changed', { focused: false }));
+
   // Handle loss of CSS syles after hibernation (Mac)
   powerMonitor.on('resume', () => {
     if (win) {
@@ -304,7 +324,8 @@ app.on("web-contents-created", (_event, contents) => {
 
 // Must be called before app is ready
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'mosaic-media', privileges: { bypassCSP: true, supportFetchAPI: true, corsEnabled: true } }
+  { scheme: 'mosaic-media', privileges: { bypassCSP: true, supportFetchAPI: true, corsEnabled: true } },
+  ADDON_SCHEME_PRIVILEGE,
 ]);
 
 app.whenReady().then(() => {
@@ -328,6 +349,10 @@ app.whenReady().then(() => {
     
     return net.fetch(`file://${filePath}`);
   });
+
+  // Register mosaic-addon:// (§4.1) — serves each addon's renderer/ dir,
+  // 403 unless the addon is currently activated.
+  registerAddonProtocolHandler();
 
   // Ensure agents history directory exists
   const agentsHistoryPathExist = getDirectoryStatus(agentsHistoryPath);
@@ -354,13 +379,34 @@ app.whenReady().then(() => {
   registerAimNodesIpc(ipcMain);
   registerPaymentsJitIpc(ipcMain);
 
-  // Addon system (Phase 1) — registered after the static core plugins above
-  // so reserved-namespace collision checks see reality, and before the
+  // Addon system — registered after the static core plugins above so
+  // reserved-namespace collision checks see reality, and before the
   // renderer subsystems below (§8).
   ipcMain.handle("addons:list", async () => listAddons());
-  ipcMain.handle("addons:activate", async (_event: IpcMainInvokeEvent, id: string) => activateAddon(id));
-  ipcMain.handle("addons:deactivate", async (_event: IpcMainInvokeEvent, id: string) => deactivateAddon(id));
+  ipcMain.handle("addons:list-tabs", async () => listAddonTabs());
+  ipcMain.handle("addons:activate", async (_event: IpcMainInvokeEvent, id: string) => {
+    const result = await activateAddon(id);
+    broadcastAddonsChanged();
+    return result;
+  });
+  ipcMain.handle("addons:deactivate", async (_event: IpcMainInvokeEvent, id: string) => {
+    const result = await deactivateAddon(id);
+    broadcastAddonsChanged();
+    return result;
+  });
+  ipcMain.handle("addons:set-enabled", async (_event: IpcMainInvokeEvent, id: string, enabled: boolean) => {
+    const result = await setAddonEnabled(id, enabled);
+    broadcastAddonsChanged();
+    broadcastTabPrefsChanged(getTabVisibility());
+    return result;
+  });
   ipcMain.handle("addons:install-dev", async (_event: IpcMainInvokeEvent, devPath: string) => installDevAddon(devPath));
+  ipcMain.handle("addons:get-preload-path", async () => ADDON_PRELOAD_PATH);
+
+  // The addonAPI dispatcher (§5.1) — one invoke channel + one event channel
+  // for every addon webview.
+  registerAddonApi();
+
   initAddons().catch((e) => console.error("[Addons] Init failed:", e));
 
   // Now auto-connect MCP plugins (with correct env already set)
@@ -568,7 +614,6 @@ ipcMain.handle("sandbox:get-state", async () => sandboxState);
 
 // AI Agents Storage
 const aiAgentsPath = path.join(app.getPath("userData"), "ai-agents.json");
-const themesPath = path.join(app.getPath("userData"), "themes.json");
 
 function validateActiveHypercycleAgent(agent: AIAgent): string | null {
   if (agent.provider !== "hypercycle") return null;
@@ -615,28 +660,6 @@ function writeAgents(agents: AIAgent[]): boolean {
     return true;
   } catch (error) {
     console.error("Failed to write AI agents:", error);
-    return false;
-  }
-}
-
-function readThemeSettings(): ThemeSettings {
-  try {
-    if (fs.existsSync(themesPath)) {
-      const data = fs.readFileSync(themesPath, "utf8");
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error("Failed to read theme settings:", error);
-  }
-  return { activeTheme: "dark" };
-}
-
-function writeThemeSettings(settings: ThemeSettings): boolean {
-  try {
-    fs.writeFileSync(themesPath, JSON.stringify(settings, null, 2), "utf8");
-    return true;
-  } catch (error) {
-    console.error("Failed to write theme settings:", error);
     return false;
   }
 }
@@ -944,8 +967,10 @@ ipcMain.handle("themes:get", async () => {
 });
 
 ipcMain.handle("themes:set", async (_event: IpcMainInvokeEvent, activeTheme: string) => {
-  const settings: ThemeSettings = { activeTheme };
-  const success = writeThemeSettings(settings);
+  const success = writeThemeSettings({ activeTheme });
+  if (success) {
+    broadcastThemeToAddons(activeTheme);
+  }
   return { success };
 });
 
@@ -1121,3 +1146,16 @@ ipcMain.handle(
     return result;
   },
 );
+
+// =============================================================================
+// Addon lifecycle broadcast — tells the main app renderer (Sidebar,
+// AddonHostView), not addon webviews, that installed/activated/tab state may
+// have changed. Addon webviews get their own, differently-scoped pushes via
+// addon-api:event (webviews.ts's broadcastAddonEvent).
+// =============================================================================
+
+function broadcastAddonsChanged(): void {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    win.webContents.send("addons:changed", listAddonTabs());
+  });
+}

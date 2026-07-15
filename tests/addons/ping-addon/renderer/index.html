@@ -1,10 +1,113 @@
 <!doctype html>
 <!--
-  Placeholder only — Phase 1 has no webview host yet (that's Phase 2). This
-  file exists so manifest validation's "renderer.entry required for
-  mountPoint 'tab'" rule has something real to point at.
+  Phase 2 test fixture renderer. Exercises the addonAPI surface end to end:
+  theme vars (read via getComputedStyle, live-updated by theme:changed),
+  settings round-trip, a jailed file write, and calling its own main via
+  addonAPI.invoke('ping') — the same handler the Phase 1 fixture registered.
+
+  Results are written both to the visible DOM (for a human looking at a
+  rendered window) and to `window.__addonVerify` (a plain JSON-able object)
+  so a headless harness can read them via webContents.executeJavaScript
+  without needing a human to look at anything.
 -->
 <html>
-  <head><meta charset="utf-8" /><title>Ping Fixture</title></head>
-  <body>Ping fixture addon — not yet loaded by anything in Phase 1.</body>
+  <head>
+    <meta charset="utf-8" />
+    <title>Ping Fixture</title>
+    <style>
+      body {
+        background: var(--background, #111);
+        color: var(--text, #eee);
+        font-family: system-ui, sans-serif;
+        padding: 24px;
+      }
+      #results {
+        white-space: pre-wrap;
+        font-family: monospace;
+        font-size: 12px;
+        border: 1px solid var(--border, #444);
+        padding: 12px;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Ping Fixture</h1>
+    <p>window.electronAPI should be undefined here: <span id="electronapi-check"></span></p>
+    <div id="results">running checks…</div>
+
+    <script>
+      (async () => {
+        const out = { checks: {}, errors: [] };
+        const resultsEl = document.getElementById("results");
+        const electronApiEl = document.getElementById("electronapi-check");
+
+        electronApiEl.textContent = typeof window.electronAPI === "undefined" ? "undefined (correct)" : "LEAKED!";
+        out.electronApiLeak = typeof window.electronAPI !== "undefined";
+
+        try {
+          const init = await window.addonAPI.init();
+          out.checks.init = { addonId: init?.addonId, themeKey: init?.theme?.themeKey };
+        } catch (e) {
+          out.errors.push("init: " + e.message);
+        }
+
+        try {
+          const bg = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
+          out.checks.themeVar = { background: bg, present: bg.length > 0 };
+        } catch (e) {
+          out.errors.push("themeVar: " + e.message);
+        }
+
+        try {
+          await window.addonAPI.settings.set({ counter: 1, note: "fixture" });
+          const read1 = await window.addonAPI.settings.get();
+          await window.addonAPI.settings.set({ counter: 2 });
+          const read2 = await window.addonAPI.settings.get();
+          out.checks.settings = { read1, read2, roundTripOk: read1.note === "fixture" && read2.counter === 2 && read2.note === "fixture" };
+        } catch (e) {
+          out.errors.push("settings: " + e.message);
+        }
+
+        try {
+          await window.addonAPI.files.write("fixture-check.txt", "hello from the fixture renderer");
+          const content = await window.addonAPI.files.read("fixture-check.txt");
+          const listing = await window.addonAPI.files.list(".");
+          out.checks.files = { content, listedCount: listing.length, writeReadOk: content === "hello from the fixture renderer" };
+        } catch (e) {
+          out.errors.push("files: " + e.message);
+        }
+
+        try {
+          const rejected = await window.addonAPI.files
+            .read("../../../etc/passwd")
+            .then(() => ({ rejected: false }))
+            .catch((e) => ({ rejected: true, message: e.message }));
+          out.checks.filesTraversalRejected = rejected;
+        } catch (e) {
+          out.errors.push("filesTraversal: " + e.message);
+        }
+
+        try {
+          const pong = await window.addonAPI.invoke("ping");
+          out.checks.invoke = { pong, ok: pong && pong.ok === true && pong.manifestId === "ping-addon" };
+        } catch (e) {
+          out.errors.push("invoke: " + e.message);
+        }
+
+        window.__addonVerify = out;
+        resultsEl.textContent = JSON.stringify(out, null, 2);
+        document.title = out.errors.length === 0 ? "Ping Fixture — OK" : "Ping Fixture — ERRORS";
+      })();
+
+      // Re-render the results panel whenever the theme changes live, so a
+      // human (or a screenshot) can see the restyle happen without a reload.
+      if (window.addonAPI?.events?.on) {
+        window.addonAPI.events.on("theme:changed", (theme) => {
+          const el = document.getElementById("results");
+          if (el) el.textContent = "theme:changed received -> " + JSON.stringify(theme);
+        });
+      }
+    </script>
+  </body>
 </html>

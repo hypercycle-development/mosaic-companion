@@ -390,7 +390,7 @@ declare global {
         setAutoDisplay: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean; error?: string }>;
       };
 
-      // Addon management (Phase 1 subset — list/activate/deactivate/install-dev only)
+      // Addon management (renderer-side management bridge subset — §6.2)
       addons: {
         list: () => Promise<Array<{
           id: string;
@@ -401,9 +401,24 @@ declare global {
           source: { type: "registry"; tarballUrl: string; sha256: string; registrySignatureVerified: boolean; verifiedKeyId: string } | { type: "dev"; path: string };
           permissions: string[];
         }>>;
+        listTabs: () => Promise<Array<{
+          tabId: string;
+          addonId: string;
+          label: string;
+          icon: string;
+          order: number;
+          activated: boolean;
+          visible: boolean;
+          rendererEntry: string;
+          deepLinkParam?: string;
+        }>>;
         activate: (id: string) => Promise<{ success: boolean; error?: string }>;
         deactivate: (id: string) => Promise<{ success: boolean; error?: string }>;
+        setEnabled: (id: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
         installDev: (devPath: string) => Promise<{ success: boolean; id?: string; error?: string }>;
+        getPreloadPath: () => Promise<string>;
+        onChanged: (callback: (tabs: unknown[]) => void) => () => void;
+        onTitleChanged: (callback: (data: { addonId: string; title: string }) => void) => () => void;
       };
 
       // Sidebar tab visibility preferences (keyed by tab id; absent = visible)

@@ -201,6 +201,44 @@ export function setAutoDisplayMedia(value: boolean): { success: boolean; error?:
 }
 
 // =============================================================================
+// Theme Settings
+// =============================================================================
+// Moved here from electron/main.ts (Phase 2 of the addon architecture, §4.3):
+// electron/addons/api/system.ts and electron/addons/theme.ts both need to
+// read the currently active theme key (for `addonAPI.system.getTheme()` and
+// the `addon-api:init` payload) — this module is already a dependency of
+// electron/addons/loader.ts, so it's the natural shared home rather than
+// addons/* reaching back into main.ts.
+
+interface ThemeSettings {
+  activeTheme: string;
+}
+
+const themesPath = path.join(app.getPath("userData"), "themes.json");
+
+export function readThemeSettings(): ThemeSettings {
+  try {
+    if (fs.existsSync(themesPath)) {
+      const data = fs.readFileSync(themesPath, "utf8");
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error("Failed to read theme settings:", getErrorMessage(error));
+  }
+  return { activeTheme: "dark" };
+}
+
+export function writeThemeSettings(settings: ThemeSettings): boolean {
+  try {
+    fs.writeFileSync(themesPath, JSON.stringify(settings, null, 2), "utf8");
+    return true;
+  } catch (error) {
+    console.error("Failed to write theme settings:", getErrorMessage(error));
+    return false;
+  }
+}
+
+// =============================================================================
 // Sidebar Tab Visibility
 // =============================================================================
 
