@@ -65,8 +65,18 @@ export const AddonDeepLinkCTA: React.FC<AddonDeepLinkCTAProps> = ({
     };
     check();
 
+    // Re-check on every install/uninstall/activate/deactivate and every
+    // sidebar-tab-visibility change — this component previously only ever
+    // checked once on mount, so e.g. uninstalling the addon while its
+    // NodeMiniDetailPanel deep-link CTA was already on screen left it
+    // stuck showing stale state until the panel was closed and reopened.
+    const cleanupAddons = window.electronAPI?.addons?.onChanged?.(() => check());
+    const cleanupTabPrefs = window.electronAPI?.tabPrefs?.onChanged?.(() => check());
+
     return () => {
       cancelled = true;
+      cleanupAddons?.();
+      cleanupTabPrefs?.();
     };
   }, [addonId]);
 
