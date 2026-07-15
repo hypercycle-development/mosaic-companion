@@ -32,16 +32,44 @@ import { activateAddon, deactivateAddon, isAddonActivated, getAddonRoot } from "
 import { dirSizeBytes } from "./api/files";
 
 // =============================================================================
-// Registry location (placeholders — mosaic-addons doesn't exist until
-// Phase 6; these constants exist so the fetch path is real code today, but
-// they are never reachable in practice before then. Every function below
-// also accepts an explicit URL override, which is what tests use.)
+// Registry location — mosaic-addons is real now (private repo, pending
+// public release). Every function below also accepts an explicit URL
+// override, which is what tests use.
 // =============================================================================
 
 export const DEFAULT_REGISTRY_URL =
   "https://raw.githubusercontent.com/hypercycle-development/mosaic-addons/main/addon-registry.json";
 export const DEFAULT_REGISTRY_SIG_URL =
   "https://raw.githubusercontent.com/hypercycle-development/mosaic-addons/main/addon-registry.json.sig";
+
+// =============================================================================
+// TEMPORARY pre-release testing shim — remove once mosaic-addons goes public.
+//
+// mosaic-addons is currently a *private* GitHub repo, so unauthenticated
+// fetches to raw.githubusercontent.com 404. `MOSAIC_ADDON_REGISTRY_TOKEN`
+// (a narrowly-scoped, read-only, repo-specific fine-grained PAT — set by a
+// human, never generated or persisted by this app) lets a dev build reach
+// it for testing. When the env var is unset — the only supported state for
+// any real user — every fetch below is byte-identical to a plain
+// unauthenticated `fetch(url)`, exactly as before this shim existed.
+//
+// Header scheme: fine-grained PATs use `Authorization: Bearer <token>`
+// (the current GitHub-documented scheme; also what api.github.com's own
+// `/user` endpoint accepts for this token, confirmed against the real repo).
+// The token is read fresh from `process.env` on every call — never cached,
+// never written to disk, never logged.
+// =============================================================================
+
+function registryFetchHeaders(): HeadersInit | undefined {
+  const token = process.env.MOSAIC_ADDON_REGISTRY_TOKEN;
+  if (!token) return undefined;
+  return { Authorization: `Bearer ${token}` };
+}
+
+function authedFetch(url: string): Promise<Response> {
+  const headers = registryFetchHeaders();
+  return headers ? fetch(url, { headers }) : fetch(url);
+}
 
 // =============================================================================
 // Types
@@ -89,7 +117,7 @@ export async function fetchCatalogue(opts?: {
   let registryBytes: Buffer;
   let sigJson: unknown;
   try {
-    const [registryResp, sigResp] = await Promise.all([fetch(registryUrl), fetch(sigUrl)]);
+    const [registryResp, sigResp] = await Promise.all([authedFetch(registryUrl), authedFetch(sigUrl)]);
     if (!registryResp.ok) return { success: false, error: `Failed to fetch registry: HTTP ${registryResp.status}` };
     if (!sigResp.ok) return { success: false, error: `Failed to fetch registry signature: HTTP ${sigResp.status}` };
     registryBytes = Buffer.from(await registryResp.arrayBuffer());
@@ -144,7 +172,7 @@ interface StagedTarball {
 async function downloadVerifyUnpack(entry: CatalogueEntry): Promise<StagedTarball> {
   let tarballBuf: Buffer;
   try {
-    const resp = await fetch(entry.tarballUrl);
+    const resp = await authedFetch(entry.tarballUrl);
     if (!resp.ok) throw new Error(`Failed to download tarball: HTTP ${resp.status}`);
     tarballBuf = Buffer.from(await resp.arrayBuffer());
   } catch (error) {
