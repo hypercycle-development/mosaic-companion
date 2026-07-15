@@ -390,6 +390,22 @@ declare global {
         setAutoDisplay: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean; error?: string }>;
       };
 
+      // Addon management (Phase 1 subset — list/activate/deactivate/install-dev only)
+      addons: {
+        list: () => Promise<Array<{
+          id: string;
+          name: string;
+          version: string;
+          activated: boolean;
+          lastError?: string;
+          source: { type: "registry"; tarballUrl: string; sha256: string; registrySignatureVerified: boolean; verifiedKeyId: string } | { type: "dev"; path: string };
+          permissions: string[];
+        }>>;
+        activate: (id: string) => Promise<{ success: boolean; error?: string }>;
+        deactivate: (id: string) => Promise<{ success: boolean; error?: string }>;
+        installDev: (devPath: string) => Promise<{ success: boolean; id?: string; error?: string }>;
+      };
+
       // Sidebar tab visibility preferences (keyed by tab id; absent = visible)
       tabPrefs: {
         get: () => Promise<Record<string, boolean>>;

@@ -277,6 +277,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getAutoDisplay: () => ipcRenderer.invoke("media:get-auto-display"),
     setAutoDisplay: (enabled: boolean) => ipcRenderer.invoke("media:set-auto-display", enabled),
   },
+  // Addon management (Phase 1 subset — list/activate/deactivate/install-dev only)
+  addons: {
+    list: () => ipcRenderer.invoke("addons:list"),
+    activate: (id: string) => ipcRenderer.invoke("addons:activate", id),
+    deactivate: (id: string) => ipcRenderer.invoke("addons:deactivate", id),
+    installDev: (devPath: string) => ipcRenderer.invoke("addons:install-dev", devPath),
+  },
   // Sidebar tab visibility preferences
   tabPrefs: {
     get: () => ipcRenderer.invoke("tab-prefs:get"),

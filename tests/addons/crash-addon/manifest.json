@@ -1,0 +1,21 @@
+{
+  "manifestVersion": 1,
+  "id": "crash-addon",
+  "version": "1.0.0",
+  "name": "Crash Fixture",
+  "description": "Phase 1 test fixture — activate() throws synchronously, to verify a crashing addon leaves the app healthy with lastError set.",
+  "ipcNamespace": "crash-addon",
+  "mountPoint": "tab",
+  "tab": {
+    "label": "Crash",
+    "icon": "Zap",
+    "order": 100
+  },
+  "main": {
+    "entry": "main/index.js"
+  },
+  "renderer": {
+    "entry": "renderer/index.html"
+  },
+  "permissions": []
+}

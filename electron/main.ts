@@ -43,6 +43,8 @@ import { initIDE, cleanupIDE } from "./integrations/ide/index";
 import { registerHyperInsightIpc, stopScorePolling } from "../plugins/hyperinsight/main/index.js";
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
 import { registerPaymentsJitIpc } from "../plugins/payments-jit/main/index.ts";
+// Addon system (Phase 1: main-process loader only — no webview/UI yet)
+import { initAddons, deactivateAll, activateAddon, deactivateAddon, installDevAddon, listAddons } from "./addons/loader";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
@@ -288,6 +290,7 @@ app.on("before-quit", () => {
   if (mosaicBotStop) mosaicBotStop().catch(console.error);
   stopChat();
   cleanupIDE();
+  deactivateAll().catch((e) => console.error("[Addons] Deactivate-all failed:", e));
 });
 
 // Suppress ERR_ABORTED errors from webviews
@@ -350,6 +353,15 @@ app.whenReady().then(() => {
   registerHyperInsightIpc(ipcMain);
   registerAimNodesIpc(ipcMain);
   registerPaymentsJitIpc(ipcMain);
+
+  // Addon system (Phase 1) — registered after the static core plugins above
+  // so reserved-namespace collision checks see reality, and before the
+  // renderer subsystems below (§8).
+  ipcMain.handle("addons:list", async () => listAddons());
+  ipcMain.handle("addons:activate", async (_event: IpcMainInvokeEvent, id: string) => activateAddon(id));
+  ipcMain.handle("addons:deactivate", async (_event: IpcMainInvokeEvent, id: string) => deactivateAddon(id));
+  ipcMain.handle("addons:install-dev", async (_event: IpcMainInvokeEvent, devPath: string) => installDevAddon(devPath));
+  initAddons().catch((e) => console.error("[Addons] Init failed:", e));
 
   // Now auto-connect MCP plugins (with correct env already set)
   initPlugins().catch((e) => console.error("[MCP] Plugin init failed:", e));
