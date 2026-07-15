@@ -28,8 +28,13 @@ import {
   recordInstall,
   setActivated,
   setLastError,
+  setGrantedPermissions,
   type AddonStateEntry,
 } from "./state";
+
+// Re-exported so callers (e.g. a future Settings consent flow, or a test
+// harness) only need to import from loader.ts, not reach into state.ts too.
+export { setGrantedPermissions };
 import { broadcastAddonEvent } from "./webviews";
 
 // =============================================================================
@@ -96,10 +101,18 @@ export function readAddonSettings(id: string): Record<string, unknown> {
   }
 }
 
+/** Thrown by `writeAddonSettingsValue` on the 64 KB cap — a distinct class
+ * (rather than a plain Error) so `electron/addons/api/settings.ts` can map
+ * this specifically to `BAD_ARGS` (a caller-input problem) instead of the
+ * dispatcher's generic `HANDLER_ERROR`. `ctx.settings.set` (addon-main
+ * callers, §5.4) doesn't care about this distinction — it's still just an
+ * Error to them. */
+export class AddonSettingsSizeError extends Error {}
+
 function writeAddonSettingsValue(id: string, value: Record<string, unknown>): void {
   const json = JSON.stringify(value, null, 2);
   if (Buffer.byteLength(json, "utf8") > ADDON_SETTINGS_MAX_BYTES) {
-    throw new Error(`Addon settings for "${id}" would exceed ${ADDON_SETTINGS_MAX_BYTES} bytes`);
+    throw new AddonSettingsSizeError(`Addon settings for "${id}" would exceed ${ADDON_SETTINGS_MAX_BYTES} bytes`);
   }
   const p = addonSettingsPath(id);
   fs.mkdirSync(path.dirname(p), { recursive: true });

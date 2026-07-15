@@ -24,6 +24,19 @@ export type ApiNamespace = Record<string, ApiMethodSpec>;
  * this to the `BAD_ARGS` error code instead of a generic `HANDLER_ERROR`. */
 export class ApiValidationError extends Error {}
 
+/**
+ * Thrown by a handler whose permission requirement depends on its
+ * *arguments* rather than being fixed per-method (events.ts's `subscribe`,
+ * where the required permission depends on which channel was requested) —
+ * the dispatcher maps this to `PERMISSION_DENIED`, same as the generic
+ * method-level `spec.permission` check.
+ */
+export class ApiPermissionError extends Error {
+  constructor(public readonly permission: string) {
+    super(`Missing permission "${permission}"`);
+  }
+}
+
 export function assertString(value: unknown, name: string): string {
   if (typeof value !== "string") throw new ApiValidationError(`${name} must be a string`);
   return value;

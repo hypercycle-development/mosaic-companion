@@ -34,10 +34,27 @@ interface ApiResponse {
 function invoke(ns: string, method: string, ...args: unknown[]): Promise<unknown> {
   return ipcRenderer.invoke("addon-api:invoke", { ns, method, args }).then((res: ApiResponse) => {
     if (res && res.ok) return res.data;
-    const error = new Error(res?.message || "addonAPI call failed") as Error & { code?: string };
-    error.code = res?.code;
-    throw error;
+    const code = res?.code || "UNKNOWN_ERROR";
+    const message = res?.message || "addonAPI call failed";
+    // NOTE: contextBridge sanitizes thrown Errors crossing the isolated-world
+    // boundary — only the standard `message`/`stack` properties survive; a
+    // custom `.code` property set here is silently dropped on the far side
+    // (verified empirically). Encoding the code into the message itself
+    // (`[CODE] message`) is what actually reaches the addon's page script;
+    // `parseAddonApiError()` below is the documented way to recover it.
+    throw new Error(`[${code}] ${message}`);
   });
+}
+
+/**
+ * Recovers `{ code, message }` from an addonAPI error's `.message` — see the
+ * contextBridge note in `invoke()` above for why this exists instead of a
+ * plain `error.code` property.
+ */
+function parseAddonApiError(error: unknown): { code: string; message: string } {
+  const raw = error instanceof Error ? error.message : String(error);
+  const match = /^\[([A-Z_]+)\] ([\s\S]*)$/.exec(raw);
+  return match ? { code: match[1], message: match[2] } : { code: "UNKNOWN_ERROR", message: raw };
 }
 
 function applyTheme(theme: ThemePayload | undefined | null): void {
@@ -94,6 +111,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 // ── window.addonAPI surface (§5.3) ──────────────────────────────────────────
 const addonAPI = {
+  /** Recovers `{ code, message }` from a rejected addonAPI call — e.g.
+   * `catch (e) { const { code } = addonAPI.parseError(e); if (code === 'PERMISSION_DENIED') ... }`.
+   * Needed because a thrown Error's custom properties don't survive the
+   * contextBridge isolation boundary; only `.message`/`.stack` do. */
+  parseError: parseAddonApiError,
   system: {
     getManifest: () => invoke("system", "getManifest"),
     getAppInfo: () => invoke("system", "getAppInfo"),
@@ -135,7 +157,28 @@ const addonAPI = {
   },
   ui: {
     setTitle: (title: string) => invoke("ui", "setTitle", title),
-    // openExternal ships in Phase 3 alongside permission enforcement.
+    openExternal: (url: string) => invoke("ui", "openExternal", url),
+  },
+  wallet: {
+    getAddress: () => invoke("wallet", "getAddress"),
+    getBalance: (tokenSymbol?: string) => invoke("wallet", "getBalance", tokenSymbol),
+    getNetworkInfo: () => invoke("wallet", "getNetworkInfo"),
+  },
+  agents: {
+    list: () => invoke("agents", "list"),
+    get: (id: string) => invoke("agents", "get", id),
+    add: (agent: Record<string, unknown>) => invoke("agents", "add", agent),
+    update: (id: string, patch: Record<string, unknown>) => invoke("agents", "update", id, patch),
+  },
+  mcp: {
+    listServers: () => invoke("mcp", "listServers"),
+    listTools: (serverId: string) => invoke("mcp", "listTools", serverId),
+    callTool: (serverId: string, toolName: string, args: Record<string, unknown>) =>
+      invoke("mcp", "callTool", serverId, toolName, args),
+  },
+  nodes: {
+    list: () => invoke("nodes", "list"),
+    getSavedAims: (license?: string) => invoke("nodes", "getSavedAims", license),
   },
   /** The addon-main bridge (§5.3) — calls the method the addon's own
    * main/index.js registered via ctx.ipc.handle. */

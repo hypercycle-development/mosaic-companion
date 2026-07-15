@@ -148,6 +148,25 @@ export function setLastError(id: string, error: string | undefined): void {
   saveAddonState();
 }
 
+/**
+ * Overwrites the granted-permissions snapshot — the enforcement source
+ * (§3.1), independent of whatever the manifest currently requests. This is
+ * what a future Settings → Addons consent flow (Phase 4) will call after the
+ * user approves a permission set; it's also what makes the
+ * upgrade-escalation pause (§3.1: "if an upgrade's manifest requests
+ * permissions beyond the granted snapshot, the addon stays deactivated
+ * until the user re-consents") a real, testable state rather than an
+ * aspirational note — `activateAddon` already refuses to activate when
+ * `manifest.permissions ⊄ grantedPermissions`.
+ */
+export function setGrantedPermissions(id: string, permissions: string[]): void {
+  const entry = state.addons[id];
+  if (!entry) return;
+  entry.grantedPermissions = [...permissions];
+  entry.updatedAt = new Date().toISOString();
+  saveAddonState();
+}
+
 export function removeAddonEntry(id: string): void {
   delete state.addons[id];
   saveAddonState();

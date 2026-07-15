@@ -22,20 +22,27 @@ import { readThemeSettings } from "../../settings";
 import { getAddonIdForSender } from "../webviews";
 import { isAddonActivated, getLiveManifest, getGrantedPermissions, getAddonOwnHandler } from "../loader";
 import { getThemePayload } from "../theme";
-import { ApiValidationError, type ApiNamespace, type AddonApiContext } from "./types";
+import { ApiValidationError, ApiPermissionError, type ApiNamespace, type AddonApiContext } from "./types";
 import { methods as systemMethods } from "./system";
 import { methods as settingsMethods } from "./settings";
 import { methods as filesMethods } from "./files";
 import { methods as eventsMethods } from "./events";
 import { methods as uiMethods } from "./ui";
+import { methods as walletMethods } from "./wallet";
+import { methods as agentsMethods } from "./agents";
+import { methods as mcpMethods } from "./mcp";
+import { methods as nodesMethods } from "./nodes";
 
-// Phase 2: only the unprivileged namespaces. Phase 3 adds wallet/agents/mcp/nodes.
 const NAMESPACES: Record<string, ApiNamespace> = {
   system: systemMethods,
   settings: settingsMethods,
   files: filesMethods,
   events: eventsMethods,
   ui: uiMethods,
+  wallet: walletMethods,
+  agents: agentsMethods,
+  mcp: mcpMethods,
+  nodes: nodesMethods,
 };
 
 interface InvokePayload {
@@ -105,6 +112,7 @@ export function registerAddonApi(): void {
         return { ok: true, data };
       } catch (error) {
         if (error instanceof ApiValidationError) return errorResponse("BAD_ARGS", error.message);
+        if (error instanceof ApiPermissionError) return errorResponse("PERMISSION_DENIED", error.message);
         return errorResponse("HANDLER_ERROR", getErrorMessage(error));
       }
     },

@@ -81,7 +81,7 @@ import {
   type NetworkConfig,
   clearTodaTwinInfoAddress,
 } from "./integrations/web3/config";
-import { getWalletKey, saveWalletKey } from "./integrations/web3/index";
+import { getWalletKey, saveWalletKey, getWalletAddress } from "./integrations/web3/index";
 import { signHypercycleNonceWithWallet } from "./integrations/web3/hypercycleSign";
 import {
   saveTodaApiKey,
@@ -102,7 +102,15 @@ import {
   deleteEntry,
 } from "./integrations/vault";
 import type { VaultBox } from "./integrations/vault/types";
-import { mergeBuiltinAgents } from "./defaultAiAgents";
+import {
+  type AIAgent,
+  agentsHistoryPath,
+  readAgents,
+  writeAgents,
+  validateActiveHypercycleAgent,
+  validateAgentsListForActivation,
+  ensureAgentHistoryDir,
+} from "./agents";
 
 // =============================================================================
 // ESM Path Setup
@@ -130,12 +138,6 @@ interface Node {
   isActive: boolean;
   // Need licenseKey to connect to node manifests in hyperinsight-aims.json
   licenseKey?: string;
-}
-
-interface AIAgent {
-  id: string | number;
-  name: string;
-  [key: string]: unknown;
 }
 
 interface ChatSession {
@@ -181,11 +183,6 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 }
-
-// =============================================================================
-// App Paths
-// =============================================================================
-const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 
 // =============================================================================
 // Window Management
@@ -612,58 +609,6 @@ ipcMain.handle("nodes:delete", async (_event: IpcMainInvokeEvent, id: string) =>
 // Sandbox State
 ipcMain.handle("sandbox:get-state", async () => sandboxState);
 
-// AI Agents Storage
-const aiAgentsPath = path.join(app.getPath("userData"), "ai-agents.json");
-
-function validateActiveHypercycleAgent(agent: AIAgent): string | null {
-  if (agent.provider !== "hypercycle") return null;
-  if (agent.isActive !== true) return null;
-  const basechain = agent.hypercycleBackend === "basechain";
-  if (basechain) {
-    if (!getWalletKey()) {
-      return "Import an EVM wallet in Web3 settings (Base) before activating this Basechain Hypercycle agent.";
-    }
-  } else if (!hasTodaConfig()) {
-    return "Configure TODA Twin (hostname + API key) in Web3 settings before activating this TODA Hypercycle agent.";
-  }
-  return null;
-}
-
-function validateAgentsListForActivation(agents: AIAgent[]): string | null {
-  for (const a of agents) {
-    const err = validateActiveHypercycleAgent(a);
-    if (err) return err;
-  }
-  return null;
-}
-
-function readAgents(): AIAgent[] {
-  let raw: AIAgent[] = [];
-  try {
-    if (fs.existsSync(aiAgentsPath)) {
-      const data = fs.readFileSync(aiAgentsPath, "utf8");
-      raw = JSON.parse(data);
-    }
-  } catch (error) {
-    console.error("Failed to read AI agents:", error);
-  }
-  const { agents, changed } = mergeBuiltinAgents(raw);
-  if (changed) {
-    writeAgents(agents);
-  }
-  return agents;
-}
-
-function writeAgents(agents: AIAgent[]): boolean {
-  try {
-    fs.writeFileSync(aiAgentsPath, JSON.stringify(agents, null, 2), "utf8");
-    return true;
-  } catch (error) {
-    console.error("Failed to write AI agents:", error);
-    return false;
-  }
-}
-
 ipcMain.handle("ai-agents:get", async () => {
   return readAgents();
 });
@@ -940,6 +885,9 @@ const SECURE_IMPORT_HTML = `<!DOCTYPE html><html lang="en"><head><meta charset="
 
 ipcMain.on("web3:wallet-imported", () => {
   mainWindow?.webContents.send("wallet:imported");
+  // addonAPI.wallet:changed (§5.2/§5.3, wallet:read) — same trigger point as
+  // the core-renderer "wallet:imported" notice above.
+  broadcastAddonEvent("wallet:changed", { address: getWalletAddress() });
 });
 
 ipcMain.handle("web3:open-secure-import-window", async () => {
