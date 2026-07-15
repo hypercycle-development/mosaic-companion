@@ -8,6 +8,7 @@ import { app } from "electron";
 import fs from "fs";
 import path from "path";
 import { getErrorMessage } from "./utils";
+import { isToggleableTab } from "../src/tabs/registry";
 
 // =============================================================================
 // Type Definitions
@@ -32,6 +33,12 @@ interface Settings {
   gmailAutoMarkRead: boolean;
   /** When true, media returned by tool calls is displayed inline without confirmation */
   autoDisplayMedia: boolean;
+  /**
+   * Per-tab sidebar visibility. Keyed by tab id ("home", "web3", …). An absent
+   * key means the tab is visible; only toggleable tabs may ever have an entry.
+   * Presentation state only — nothing else reads this map.
+   */
+  tabVisibility: Record<string, boolean>;
 }
 
 // =============================================================================
@@ -47,6 +54,7 @@ const DEFAULT_SETTINGS: Settings = {
   nodes: [],
   gmailAutoMarkRead: false, // Auto-mark emails as read when viewed
   autoDisplayMedia: false, // Media from tool calls is blocked by default (requires user confirmation)
+  tabVisibility: {}, // Empty = all tabs visible; only toggleable tabs may be hidden
 };
 
 // Current settings (loaded from file or defaults)
@@ -65,6 +73,7 @@ export function loadSettings(): Settings {
         ...DEFAULT_SETTINGS,
         ...loaded,
         nodes: loaded.nodes || [],
+        tabVisibility: loaded.tabVisibility || {},
       };
 
       // Ensure titleBarStyle has a valid default if missing from file
@@ -189,6 +198,38 @@ export function getAutoDisplayMedia(): boolean {
 export function setAutoDisplayMedia(value: boolean): { success: boolean; error?: string } {
   settings.autoDisplayMedia = !!value;
   return saveSettings();
+}
+
+// =============================================================================
+// Sidebar Tab Visibility
+// =============================================================================
+
+/**
+ * Get the full tab-visibility map. Absent key = visible.
+ */
+export function getTabVisibility(): Record<string, boolean> {
+  return { ...settings.tabVisibility };
+}
+
+/**
+ * Set the visibility of a single tab. Rejects ids whose tab is not toggleable
+ * (the registry is the source of truth for which tabs may be hidden).
+ */
+export function setTabVisibility(
+  tabId: string,
+  visible: boolean,
+): {
+  success: boolean;
+  error?: string;
+  tabVisibility?: Record<string, boolean>;
+} {
+  if (!isToggleableTab(tabId)) {
+    return { success: false, error: `Tab "${tabId}" is not toggleable` };
+  }
+
+  settings.tabVisibility = { ...settings.tabVisibility, [tabId]: visible };
+  const saveResult = saveSettings();
+  return { ...saveResult, tabVisibility: getTabVisibility() };
 }
 
 // =============================================================================

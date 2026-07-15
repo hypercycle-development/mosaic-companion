@@ -277,6 +277,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getAutoDisplay: () => ipcRenderer.invoke("media:get-auto-display"),
     setAutoDisplay: (enabled: boolean) => ipcRenderer.invoke("media:set-auto-display", enabled),
   },
+  // Sidebar tab visibility preferences
+  tabPrefs: {
+    get: () => ipcRenderer.invoke("tab-prefs:get"),
+    setVisibility: (tabId: string, visible: boolean) =>
+      ipcRenderer.invoke("tab-prefs:set-visibility", tabId, visible),
+    onChanged: (callback: (visibility: Record<string, boolean>) => void) => {
+      const handler = (
+        _event: IpcRendererEvent,
+        visibility: Record<string, boolean>,
+      ) => callback(visibility);
+      ipcRenderer.on("tab-prefs:changed", handler);
+      return () => ipcRenderer.removeListener("tab-prefs:changed", handler);
+    },
+  },
   // JIT Payments plugin
   paymentsJit: {
     onRequestApproval: (handler: (data: any) => void) => {

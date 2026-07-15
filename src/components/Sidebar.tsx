@@ -33,20 +33,11 @@ import {
   Code2,
 } from "lucide-react";
 import {
-  SidebarItem,
-  INTERNAL_HOME_URL,
-  INTERNAL_MCP_URL,
-  INTERNAL_MOSAICBOT_URL,
-  INTERNAL_MULTI_CHAT_URL,
   INTERNAL_SETTINGS_URL,
   INTERNAL_CHAT_URL,
-  INTERNAL_WEB3_URL,
-  INTERNAL_VAULT_URL,
-  INTERNAL_HYPERINSIGHT_URL,
-  INTERNAL_SANDBOX_URL,
-  INTERNAL_IDE_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
 } from "../types/types";
+import { CORE_TABS } from "../tabs/registry";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
 import { NodeDetailPanel } from "../../plugins/hyperinsight/renderer/components/NodeDetailPanel";
 import type { InstalledTool } from "../../electron/integrations/sandbox/types";
@@ -78,6 +69,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Hypercycle nodes state
   const [nodes, setNodes] = useState<HypercycleNode[]>([]);
   const [pinnedTools, setPinnedTools] = useState<InstalledTool[]>([]);
+
+  // Per-tab sidebar visibility (absent key = visible). Only toggleable tabs
+  // can ever be hidden; at launch no core tab is toggleable so this stays empty.
+  const [tabVisibility, setTabVisibility] = useState<Record<string, boolean>>({});
 
   // Node detail panel state — when set, the NodeDetailPanel slides in
   const [selectedNodeLicense, setSelectedNodeLicense] = useState<string | null>(null);
@@ -184,6 +179,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return () => clearInterval(interval);
   }, [nodes, checkNodeConnection]);
 
+  // Load tab visibility on mount and subscribe to changes
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    const loadVisibility = async () => {
+      if (window.electronAPI?.tabPrefs?.get) {
+        const visibility = await window.electronAPI.tabPrefs.get();
+        setTabVisibility(visibility || {});
+      }
+    };
+    loadVisibility();
+
+    if (window.electronAPI?.tabPrefs?.onChanged) {
+      cleanup = window.electronAPI.tabPrefs.onChanged((visibility) => {
+        setTabVisibility(visibility || {});
+      });
+    }
+
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, []);
+
   // Load pinned sandbox tools (refresh periodically to reflect pin changes)
   useEffect(() => {
     let cancelled = false;
@@ -217,35 +235,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
   }, []);
 
-  // Navigation Items
-  const navItems: SidebarItem[] = [
-    { id: "home", label: "Home", icon: "Home", url: INTERNAL_HOME_URL },
-    { id: "chat", label: "AI Chat", icon: "Bot", url: INTERNAL_CHAT_URL },
-    {
-      id: "mosaicbot",
-      label: "Mosaic Bot",
-      icon: "BrainCircuit",
-      url: INTERNAL_MOSAICBOT_URL,
-    },
-    { id: "mcp", label: "MCP Servers", icon: "Plug", url: INTERNAL_MCP_URL },
-    {
-      id: "multi-chat",
-      label: "Chat Rooms",
-      icon: "MessageSquare",
-      url: INTERNAL_MULTI_CHAT_URL,
-    },
-    { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL },
-    { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL },
-    { id: "hyperinsight", label: "HyperInsight", icon: "Activity", url: INTERNAL_HYPERINSIGHT_URL },
-    { id: "ide", label: "IDE", icon: "Code2", url: INTERNAL_IDE_URL },
-    { id: "sandbox", label: "Tool Sandbox", icon: "Cpu", url: INTERNAL_SANDBOX_URL },
-    {
-      id: "settings",
-      label: "Configuration",
-      icon: "Settings",
-      url: INTERNAL_SETTINGS_URL,
-    },
-  ];
+  // Navigation Items — sourced from the tab registry (single source of truth),
+  // filtered by visibility. Only toggleable tabs can ever be hidden; a
+  // non-toggleable tab never has a `false` entry, so it always shows.
+  const navItems = CORE_TABS.filter(
+    (tab) => tabVisibility[tab.id] !== false,
+  ).sort((a, b) => a.order - b.order);
 
   // --- UI State for New Sections ---
   const [aiContexts, setAiContexts] = useState([

@@ -390,6 +390,17 @@ declare global {
         setAutoDisplay: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean; error?: string }>;
       };
 
+      // Sidebar tab visibility preferences (keyed by tab id; absent = visible)
+      tabPrefs: {
+        get: () => Promise<Record<string, boolean>>;
+        setVisibility: (tabId: string, visible: boolean) => Promise<{
+          success: boolean;
+          error?: string;
+          tabVisibility?: Record<string, boolean>;
+        }>;
+        onChanged: (callback: (visibility: Record<string, boolean>) => void) => () => void;
+      };
+
       // JIT Payments plugin
       paymentsJit: {
         onRequestApproval: (handler: (data: any) => void) => () => void;

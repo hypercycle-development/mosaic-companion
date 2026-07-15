@@ -9,6 +9,7 @@ import {
   Server,
 } from "lucide-react";
 import { AIAgentConfig } from "../types/ai";
+import { CORE_TABS } from "../tabs/registry";
 import GmailClient from "./GmailClient";
 import { AIAgentsSettings } from "./AIAgentsSettings";
 import { useTheme } from "../ThemeProvider";
@@ -42,12 +43,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   // Ref for scrolling to sections
   const agentsSectionRef = useRef<HTMLElement>(null);
   const nodesSectionRef = useRef<HTMLElement>(null);
+  const tabsSectionRef = useRef<HTMLElement>(null);
 
   // Scroll to section when scrollSection prop is set
   useEffect(() => {
     const sectionMap: Record<string, React.RefObject<HTMLElement | null>> = {
       agents: agentsSectionRef,
       nodes: nodesSectionRef,
+      tabs: tabsSectionRef,
     };
 
     const targetSection = scrollSection ? sectionMap[scrollSection] : undefined;
@@ -73,6 +76,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   // Media auto-display setting
   const [autoDisplayMedia, setAutoDisplayMediaState] = useState(false);
+
+  // Sidebar tab visibility (absent key = visible). Only toggleable tabs render
+  // a row here; at launch no core tab is toggleable, so the section is empty.
+  const [tabVisibility, setTabVisibilityState] = useState<Record<string, boolean>>({});
+  const toggleableTabs = CORE_TABS.filter((tab) => tab.toggleable).sort(
+    (a, b) => a.order - b.order,
+  );
 
   // Toast feedback for settings changes
   const [settingsToast, setSettingsToast] = useState<{
@@ -151,6 +161,44 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     };
     loadMediaSetting();
   }, []);
+
+  // Load tab visibility on mount and subscribe to changes
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    const loadVisibility = async () => {
+      if (window.electronAPI?.tabPrefs?.get) {
+        const visibility = await window.electronAPI.tabPrefs.get();
+        setTabVisibilityState(visibility || {});
+      }
+    };
+    loadVisibility();
+
+    if (window.electronAPI?.tabPrefs?.onChanged) {
+      cleanup = window.electronAPI.tabPrefs.onChanged((visibility) => {
+        setTabVisibilityState(visibility || {});
+      });
+    }
+
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, []);
+
+  // Toggle a single tab's sidebar visibility
+  const handleTabVisibilityToggle = async (tabId: string, visible: boolean) => {
+    try {
+      const result = await window.electronAPI?.tabPrefs?.setVisibility(tabId, visible);
+      if (result?.success !== false) {
+        // Optimistic update; the tab-prefs:changed broadcast will confirm it.
+        setTabVisibilityState((prev) => ({ ...prev, [tabId]: visible }));
+      } else {
+        toast.error(result?.error || "Failed to update tab visibility");
+      }
+    } catch (e) {
+      toast.error("Failed to update tab visibility");
+    }
+  };
 
   // Load nodes on mount
   useEffect(() => {
@@ -271,6 +319,66 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           setAiAgents={externalSetAiAgents}
           sectionRef={agentsSectionRef}
         />
+
+        {/* Sidebar Tabs Section */}
+        <section
+          id="tabs"
+          ref={tabsSectionRef}
+          className="bg-gray-900/50 p-6 rounded-xl border border-gray-800 backdrop-blur-sm"
+        >
+          <h2 className="text-xl font-semibold mb-2 text-indigo-400 flex items-center gap-2">
+            <Layout size={20} />
+            Sidebar Tabs
+          </h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Hiding a tab only removes it from the sidebar. Optional tabs appear
+            here as they become available.
+          </p>
+
+          {toggleableTabs.length === 0 ? (
+            <div className="text-center py-10 border border-dashed border-gray-700 rounded-xl">
+              <Layout className="mx-auto size-10 text-gray-600 mb-3" />
+              <p className="text-gray-500">No tabs can be hidden yet</p>
+              <p className="text-sm text-gray-600 mt-1">
+                All built-in tabs are always shown.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {toggleableTabs.map((tab) => {
+                const visible = tabVisibility[tab.id] !== false;
+                return (
+                  <div
+                    key={tab.id}
+                    className="flex items-center justify-between py-2"
+                  >
+                    <div>
+                      <span className="text-gray-200 font-medium block">
+                        {tab.label}
+                      </span>
+                      <p className="text-sm text-gray-500">Built-in</p>
+                    </div>
+                    <button
+                      onClick={() => handleTabVisibilityToggle(tab.id, !visible)}
+                      className={`
+                        relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 shrink-0
+                        ${visible ? "bg-indigo-600" : "bg-gray-700"}
+                      `}
+                      title={visible ? "Hide from sidebar" : "Show in sidebar"}
+                    >
+                      <span
+                        className={`
+                        inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out
+                        ${visible ? "translate-x-6" : "translate-x-1"}
+                      `}
+                      />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
         {/* Hypercycle Nodes Section */}
         <section

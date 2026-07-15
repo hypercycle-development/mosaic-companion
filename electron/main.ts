@@ -22,6 +22,8 @@ import {
   setGmailAutoMarkRead,
   getAutoDisplayMedia,
   setAutoDisplayMedia,
+  getTabVisibility,
+  setTabVisibility,
 } from "./settings";
 import {
   getDirectoryStatus,
@@ -1082,3 +1084,28 @@ ipcMain.handle("media:set-auto-display", (_event, enabled: boolean) => {
   const result = setAutoDisplayMedia(enabled);
   return { ...result, enabled: getAutoDisplayMedia() };
 });
+
+// =============================================================================
+// Sidebar Tab Visibility
+// =============================================================================
+
+function broadcastTabPrefsChanged(visibility: Record<string, boolean>): void {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    win.webContents.send("tab-prefs:changed", visibility);
+  });
+}
+
+ipcMain.handle("tab-prefs:get", () => {
+  return getTabVisibility();
+});
+
+ipcMain.handle(
+  "tab-prefs:set-visibility",
+  (_event: IpcMainInvokeEvent, tabId: string, visible: boolean) => {
+    const result = setTabVisibility(tabId, visible);
+    if (result.success) {
+      broadcastTabPrefsChanged(getTabVisibility());
+    }
+    return result;
+  },
+);
