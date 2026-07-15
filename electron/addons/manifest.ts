@@ -74,8 +74,9 @@ export type ManifestValidationResult =
  * `electron/main.ts`, `preload.ts`, and the plugin integrations, plus the
  * addon system's own namespaces (§2). An addon's `ipcNamespace` must not
  * collide with any of these. This list shrinks as core migrates features to
- * addons (e.g. `hyperinsight` drops out once Phase 7 ships) — kept as a
- * flat, hand-maintained constant per the design doc, not derived dynamically.
+ * addons (`hyperinsight` dropped out in Phase 7 — see the addon's own
+ * manifest.json in mosaic-addons) — kept as a flat, hand-maintained
+ * constant per the design doc, not derived dynamically.
  */
 export const RESERVED_IPC_NAMESPACES: readonly string[] = [
   "nodes",
@@ -95,7 +96,9 @@ export const RESERVED_IPC_NAMESPACES: readonly string[] = [
   "mcp",
   "chat",
   "ide",
-  "hyperinsight",
+  // "hyperinsight" removed (§10 Phase 7) — that's now the HyperInsight
+  // addon's own ipcNamespace (mosaic-addons/addons/hyperinsight), not a
+  // core plugin's IPC prefix anymore.
   "aimnodes",
   "payments-jit",
   "addon",

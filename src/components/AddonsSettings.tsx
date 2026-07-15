@@ -26,7 +26,8 @@ interface AddonSummary {
   lastError?: string;
   source:
     | { type: "registry"; tarballUrl: string; sha256: string; registrySignatureVerified: boolean; verifiedKeyId: string }
-    | { type: "dev"; path: string };
+    | { type: "dev"; path: string }
+    | { type: "bundled"; bundledFromVersion: string };
   permissions: string[];
   linkVisibilityToActivation: boolean;
   updateCheckMode: "manual" | "automatic";
@@ -288,6 +289,7 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
           {addons.map((addon) => {
             const isBusy = busyIds.has(addon.id);
             const isDev = addon.source.type === "dev";
+            const isBundled = addon.source.type === "bundled";
             const stateBadge = addon.lastError
               ? { label: "Error", color: "text-red-400 border-red-500/30 bg-red-900/20" }
               : addon.activated
@@ -308,6 +310,14 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
                       {isDev && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full border border-amber-500/30 bg-amber-900/20 text-amber-400">
                           DEV
+                        </span>
+                      )}
+                      {isBundled && (
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded-full border border-sky-500/30 bg-sky-900/20 text-sky-300"
+                          title="Carried over automatically from your previous Mosaic version"
+                        >
+                          Built-in
                         </span>
                       )}
                       {addon.updateAvailable && (

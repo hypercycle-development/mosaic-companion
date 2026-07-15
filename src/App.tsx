@@ -13,10 +13,11 @@ import {
   INTERNAL_CHAT_URL,
   INTERNAL_MULTI_CHAT_URL,
   INTERNAL_ONBOARDING_URL,
+  INTERNAL_SETTINGS_URL,
   Tab,
 } from "./types/types";
 import { useTheme } from "./ThemeProvider";
-import { ToastContainer } from "react-toastify";
+import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 function App() {
@@ -70,6 +71,33 @@ function App() {
       }
     };
     checkAgents();
+  }, []);
+
+  // §9.2/§10 Phase 7 — one-time non-blocking notice for profiles that just
+  // had HyperInsight auto-installed as part of this app update (decision 1:
+  // no consent dialog, just a heads-up with a link to Settings → Addons).
+  // Queried once per launch; the main-process flag it reads is in-memory
+  // only and false again on every subsequent launch.
+  useEffect(() => {
+    window.electronAPI.addons
+      .wasHyperInsightJustMigrated()
+      .then((justMigrated) => {
+        if (!justMigrated) return;
+        toast.info(
+          <span>
+            HyperInsight is now an addon — carried over automatically.{" "}
+            <button
+              onClick={() => navigateTo(`${INTERNAL_SETTINGS_URL}#addons`)}
+              className="underline font-medium"
+            >
+              Manage it in Settings → Addons
+            </button>
+          </span>,
+          { autoClose: 12000 },
+        );
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load title bar style setting

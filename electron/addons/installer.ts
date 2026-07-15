@@ -332,10 +332,12 @@ export async function uninstallAddon(
     console.warn(`[addons] Failed to handle webview partition for "${id}":`, getErrorMessage(error));
   }
 
-  // Code is always deleted — but only for registry installs. A dev addon's
-  // "root" is the addon author's own working directory; Mosaic must never
-  // delete that (§6.7's dev workflow — uninstall just forgets the state entry).
-  if (entry.source.type === "registry") {
+  // Code is always deleted — but only for registry and bundled installs. A
+  // dev addon's "root" is the addon author's own working directory; Mosaic
+  // must never delete that (§6.7's dev workflow — uninstall just forgets
+  // the state entry). "bundled" (§9.2) is a real copy under userData/addons/
+  // just like "registry", safe to delete the same way.
+  if (entry.source.type === "registry" || entry.source.type === "bundled") {
     try {
       fs.rmSync(root, { recursive: true, force: true });
     } catch (error) {

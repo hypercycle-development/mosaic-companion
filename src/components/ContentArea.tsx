@@ -24,7 +24,7 @@ import { MCPPage } from "./MCPPage";
 import { ChatPage } from "./ChatPage";
 import { Web3Page } from "./Web3Page";
 import { VaultPage } from "./VaultPage";
-import { HyperInsightView } from "../../plugins/hyperinsight/renderer/HyperInsightView";
+import { HyperInsightRedirect } from "./HyperInsightRedirect";
 import { SandboxPage } from "./SandboxPage";
 import { ToolPanelView } from "./ToolPanelView";
 import { OnboardingPage } from "./OnboardingPage";
@@ -507,15 +507,13 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   }
 
   if (url === INTERNAL_HYPERINSIGHT_URL) {
+    // §9.2: HyperInsight moved into an addon (Phase 7) — this URL now only
+    // exists for old bookmarks/history entries, handled by a redirect.
     useEffect(() => {
-      onUpdateTab({ title: "HyperInsight", isLoading: false, favicon: undefined });
+      onUpdateTab({ title: "HyperInsight", isLoading: true, favicon: undefined });
     }, [url]);
 
-    return wrap(
-      <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
-        <HyperInsightView />
-      </div>
-    );
+    return wrap(<HyperInsightRedirect onNavigate={onNavigate} />);
   }
 
   if (url === INTERNAL_SANDBOX_URL) {

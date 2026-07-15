@@ -231,42 +231,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     signHypercycleNonce: (nonce: string) =>
       ipcRenderer.invoke("web3:sign-hypercycle-nonce", nonce),
   },
-  // HyperInsight plugin
-  hyperinsight: {
-    getStatus: () => ipcRenderer.invoke("hyperinsight:get-status"),
-    ensureKey: () => ipcRenderer.invoke("hyperinsight:ensure-key"),
-    resetKey: () => ipcRenderer.invoke("hyperinsight:reset-key"),
-    getAims: () => ipcRenderer.invoke("hyperinsight:get-aims"),
-    getLeaderboard: () => ipcRenderer.invoke("hyperinsight:get-leaderboard"),
-    getNodes: (params?: any) => ipcRenderer.invoke("hyperinsight:get-nodes", params),
-    getNodeDetail: (license: string) => ipcRenderer.invoke("hyperinsight:get-node-detail", license),
-    getNodeProfile: (license: number | string) => ipcRenderer.invoke("hyperinsight:get-node-profile", license),
-    getAimManifest: (license: string, aimName: string) => ipcRenderer.invoke("hyperinsight:get-node-aim-manifest", license, aimName),
-    getNetworkStats: () => ipcRenderer.invoke("hyperinsight:get-network-stats"),
-    getNetworkHistory: () => ipcRenderer.invoke("hyperinsight:get-network-history"),
-    getAimStats: (name: string, range?: string) => ipcRenderer.invoke("hyperinsight:get-aim-stats", name, range),
-    getAimStatsCurrent: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-stats-current", name),
-    getAimDetails: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-details", name),
-    getAimReleases: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-releases", name),
-    getAimReleaseDetail: (name: string, tag: string) => ipcRenderer.invoke("hyperinsight:get-aim-release-detail", name, tag),
-    saveGeneratedImage: (base64Data: string) => ipcRenderer.invoke("hyperinsight:save-generated-image", base64Data),
-    // Stage 8A: AIM profile endpoints
-    getAimProfile:  (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-profile", name),
-    getAimNodes:    (name: string, opts?: any) => ipcRenderer.invoke("hyperinsight:get-aim-nodes", name, opts),
-    getAimBestNode: (name: string, opts?: any) => ipcRenderer.invoke("hyperinsight:get-aim-best-node", name, opts),
-    // Stage 7C: score cache access
-    getToolScore: (endpointUrl: string) => ipcRenderer.invoke("hyperinsight:get-tool-score", endpointUrl),
-    getAllToolScores: () => ipcRenderer.invoke("hyperinsight:get-all-tool-scores"),
-    getToolScoresLastUpdated: () => ipcRenderer.invoke("hyperinsight:get-tool-scores-last-updated"),
-    // Stage 8B: new endpoint bridge
-    getAimDeployments:      (aimId: number) => ipcRenderer.invoke("hyperinsight:get-aim-deployments", aimId),
-    getToolStatus:          (toolId: string) => ipcRenderer.invoke("hyperinsight:get-tool-status", toolId),
-    subscribe:              (payload: any) => ipcRenderer.invoke("hyperinsight:subscribe", payload),
-    getSubscriptions:       () => ipcRenderer.invoke("hyperinsight:get-subscriptions"),
-    unsubscribe:            (subscriptionId: string) => ipcRenderer.invoke("hyperinsight:unsubscribe", subscriptionId),
-    getVerificationHistory: (subscriptionId: string) => ipcRenderer.invoke("hyperinsight:get-verification-history", subscriptionId),
-    clearCache:             () => ipcRenderer.invoke("hyperinsight:clear-cache"),
-  },
+  // §9.2/Phase 7: HyperInsight is no longer a core plugin — it moved
+  // wholesale into its own addon (main + renderer), reached through
+  // addonAPI.invoke from inside its own webview, not window.electronAPI.
+  // There is no core handler left to back a `hyperinsight` group here.
   // AIM Nodes — core's own local node registry / AIM data cache and payment
   // interception (§9.1). Moved out of the `hyperinsight` group: none of this
   // is HyperInsight-API-specific, and aim-nodes stays core permanently even
@@ -307,6 +275,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     setVisibilityLink: (id: string, linked: boolean) => ipcRenderer.invoke("addons:set-visibility-link", id, linked),
     setUpdateCheckMode: (id: string, mode: "manual" | "automatic") =>
       ipcRenderer.invoke("addons:set-update-check-mode", id, mode),
+    // §9.2/Phase 7 — one-time notice after the HyperInsight auto-install
+    // migration; true only on the launch that actually performed it.
+    wasHyperInsightJustMigrated: () => ipcRenderer.invoke("addons:was-hyperinsight-just-migrated"),
     onChanged: (callback: (tabs: unknown[]) => void) => {
       const handler = (_event: IpcRendererEvent, tabs: unknown[]) => callback(tabs);
       ipcRenderer.on("addons:changed", handler);

@@ -22,7 +22,6 @@ import {
   INTERNAL_MULTI_CHAT_URL,
   INTERNAL_WEB3_URL,
   INTERNAL_VAULT_URL,
-  INTERNAL_HYPERINSIGHT_URL,
   INTERNAL_IDE_URL,
   INTERNAL_SANDBOX_URL,
   INTERNAL_SETTINGS_URL,
@@ -53,7 +52,10 @@ export const CORE_TABS: CoreTabDef[] = [
   { id: "multi-chat", label: "Chat Rooms", icon: "MessageSquare", url: INTERNAL_MULTI_CHAT_URL, toggleable: false, order: 40 },
   { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL, toggleable: false, order: 50 },
   { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL, toggleable: false, order: 60 },
-  { id: "hyperinsight", label: "HyperInsight", icon: "Activity", url: INTERNAL_HYPERINSIGHT_URL, toggleable: false, order: 70 },
+  // §9.2/Phase 7: HyperInsight is no longer a core tab — it's an addon tab
+  // now (mosaic-addons/addons/hyperinsight, mounted via the generic addon
+  // tab mechanism, §6.3). See ContentArea.tsx for the old
+  // browser://hyperinsight URL's redirect handling.
   { id: "ide", label: "IDE", icon: "Code2", url: INTERNAL_IDE_URL, toggleable: false, order: 80 },
   { id: "sandbox", label: "Tool Sandbox", icon: "Cpu", url: INTERNAL_SANDBOX_URL, toggleable: false, order: 90 },
   { id: "settings", label: "Configuration", icon: "Settings", url: INTERNAL_SETTINGS_URL, toggleable: false, order: 100 },

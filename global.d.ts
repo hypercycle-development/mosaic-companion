@@ -328,45 +328,9 @@ declare global {
         deleteEntry: (boxId: string, entryId: string) => Promise<{ success: boolean; error?: string }>;
       };
 
-      // HyperInsight plugin
-      hyperinsight: {
-        getStatus: () => Promise<{ registered: boolean; tier?: string; clientId?: string }>;
-        ensureKey: () => Promise<{ success: boolean; clientId?: string; error?: string }>;
-        resetKey: () => Promise<{ success: boolean; error?: string }>;
-        getAims: () => Promise<any>;
-        getLeaderboard: () => Promise<any>;
-        getNodes: (params?: any) => Promise<any>;
-        getNodeDetail: (license: string) => Promise<any>;
-        getAimManifest: (license: string, aimName: string) => Promise<any>;
-        getNetworkStats: () => Promise<any>;
-        getNetworkHistory: () => Promise<any>;
-        getAimStats: (name: string, range?: string) => Promise<any>;
-        getAimStatsCurrent: (name: string) => Promise<any>;
-        getAimDetails: (name: string) => Promise<any>;
-        getAimReleases: (name: string) => Promise<any>;
-        getAimReleaseDetail: (name: string, tag: string) => Promise<any>;
-        saveGeneratedImage: (base64Data: string) => Promise<{ success: boolean; url?: string; error?: string }>;
-        // AIM Nodes data (save/delete/getSavedAims/handlePayment) moved to
-        // electronAPI.aimNodes below (§9.1) — none of it is HyperInsight-API-specific.
-        // Stage 7B: Node profile
-        getNodeProfile: (license: number | string) => Promise<any>;
-        // Stage 7C: Tool score cache
-        getToolScore: (endpointUrl: string) => Promise<any>;
-        getAllToolScores: () => Promise<any>;
-        getToolScoresLastUpdated: () => Promise<any>;
-        // Stage 8A: AIM profile / nodes
-        getAimProfile:  (name: string) => Promise<any>;
-        getAimNodes:    (name: string, opts?: { version?: string; userLat?: number; userLng?: number }) => Promise<any>;
-        getAimBestNode: (name: string, opts?: { version?: string; userLat?: number; userLng?: number }) => Promise<any>;
-        // Stage 8B / Stage 7 probe data
-        getAimDeployments: (aimId: number) => Promise<any[]>;
-        getToolStatus: (toolId: string) => Promise<any>;
-        subscribe: (payload: { endpointUrl: string; aimId?: number; nodeLicense?: number }) => Promise<any>;
-        getSubscriptions: () => Promise<any[]>;
-        unsubscribe: (subscriptionId: string) => Promise<any>;
-        getVerificationHistory: (subscriptionId: string) => Promise<any[]>;
-        clearCache: () => Promise<void>;
-      };
+      // §9.2/Phase 7: HyperInsight moved wholesale into its own addon — no
+      // more window.electronAPI.hyperinsight. Its renderer reaches its own
+      // main/index.js through window.addonAPI.invoke() instead.
 
       // AIM Nodes (separate namespace for new hooks/components)
       aimNodes: {
@@ -396,7 +360,7 @@ declare global {
           version: string;
           activated: boolean;
           lastError?: string;
-          source: { type: "registry"; tarballUrl: string; sha256: string; registrySignatureVerified: boolean; verifiedKeyId: string } | { type: "dev"; path: string };
+          source: { type: "registry"; tarballUrl: string; sha256: string; registrySignatureVerified: boolean; verifiedKeyId: string } | { type: "dev"; path: string } | { type: "bundled"; bundledFromVersion: string };
           permissions: string[];
           linkVisibilityToActivation: boolean;
           updateCheckMode: "manual" | "automatic";
@@ -441,6 +405,7 @@ declare global {
         upgrade: (id: string, acceptedPermissions?: string[]) => Promise<{ success: boolean; needsConsent?: string[]; error?: string }>;
         setVisibilityLink: (id: string, linked: boolean) => Promise<{ success: boolean; error?: string }>;
         setUpdateCheckMode: (id: string, mode: "manual" | "automatic") => Promise<{ success: boolean; error?: string }>;
+        wasHyperInsightJustMigrated: () => Promise<boolean>;
         onChanged: (callback: (tabs: unknown[]) => void) => () => void;
         onTitleChanged: (callback: (data: { addonId: string; title: string }) => void) => () => void;
       };

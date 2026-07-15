@@ -1,8 +1,7 @@
 /**
  * `addon-state.json` — the install/activation registry (§3.1). Owned entirely
- * by this module; atomic write-temp-then-rename, mirroring the pattern
- * `plugins/hyperinsight/main/index.js` already uses for
- * `hyperinsight-tool-scores.json`.
+ * by this module; atomic write-temp-then-rename (the same pattern the
+ * HyperInsight addon's own main/index.js uses for its tool-scores cache).
  *
  * `grantedPermissions` on each entry is the enforcement source, not the
  * manifest — `loader.ts` checks a manifest's declared permissions against
@@ -27,7 +26,18 @@ export type AddonSource =
       registrySignatureVerified: boolean;
       verifiedKeyId: string;
     }
-  | { type: "dev"; path: string };
+  | { type: "dev"; path: string }
+  | {
+      /** Copied from mosaic-companion's own `bundled-addons/<id>/` at
+       * auto-install time (§9.2, §10 Phase 7) — never downloaded, never
+       * network-verified, trusted because it shipped inside this app
+       * release. Root resolves the same as "registry" (a real copy under
+       * userData/addons/<id>/, safe to delete on uninstall) — see
+       * loader.ts's getAddonRoot and installer.ts's uninstall code-deletion
+       * check, both of which treat "bundled" the same as "registry". */
+      type: "bundled";
+      bundledFromVersion: string;
+    };
 
 export interface AddonStateEntry {
   version: string;

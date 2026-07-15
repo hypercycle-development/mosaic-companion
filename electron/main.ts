@@ -42,7 +42,10 @@ import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integrations/chat/index";
 import { initIDE, cleanupIDE } from "./integrations/ide/index";
 // Plugin IPC handler registrations
-import { registerHyperInsightIpc, stopScorePolling } from "../plugins/hyperinsight/main/index.js";
+// Phase 7 (§9.2): HyperInsight is no longer a static core plugin — it's
+// carried entirely by its own addon (mosaic-addons/addons/hyperinsight),
+// including registration and score polling. See ./addons/hyperinsight-migration
+// for the one-time auto-install that gives upgrading profiles continuity.
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
 import { registerPaymentsJitIpc } from "../plugins/payments-jit/main/index.ts";
 // Addon system
@@ -72,6 +75,7 @@ import {
   getAvailableUpdateVersion,
   runAutomaticUpdateCheckPass,
 } from "./addons/installer";
+import { runHyperInsightAutoInstallMigration, wasHyperInsightJustAutoInstalled } from "./addons/hyperinsight-migration";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
@@ -313,7 +317,6 @@ function recreateWindow(): void {
 // App Lifecycle
 // =============================================================================
 app.on("before-quit", () => {
-  stopScorePolling();
   mcpClient.disconnectAll();
   cleanupTools().catch(console.error);
   if (mosaicBotStop) mosaicBotStop().catch(console.error);
@@ -384,7 +387,6 @@ app.whenReady().then(() => {
   // process using that env, so the key is available from process start.
   // Reversing this order causes the MCP server to launch without WALLET_PRIVATE_KEY.
   // ==========================================================================
-  registerHyperInsightIpc(ipcMain);
   registerAimNodesIpc(ipcMain);
   registerPaymentsJitIpc(ipcMain);
 
@@ -465,12 +467,23 @@ app.whenReady().then(() => {
       return { success: true };
     },
   );
+  // §9.2/§10 Phase 7 — queried once by the renderer on startup to show the
+  // one-time "HyperInsight is now an addon" non-blocking notice. True only
+  // for the launch that actually performed the auto-install (see
+  // ./addons/hyperinsight-migration); false on every later launch.
+  ipcMain.handle("addons:was-hyperinsight-just-migrated", async () => wasHyperInsightJustAutoInstalled());
 
   // The addonAPI dispatcher (§5.1) — one invoke channel + one event channel
   // for every addon webview.
   registerAddonApi();
 
-  initAddons()
+  // §8/§9.2: the one-time HyperInsight auto-install migration runs before
+  // initAddons()'s regular activation convergence, so — for an upgrading
+  // profile — the newly-installed addon activates in the very same pass as
+  // every other already-installed addon, not a separate later step.
+  runHyperInsightAutoInstallMigration()
+    .catch((e) => console.error("[Addons] HyperInsight auto-install migration failed:", e))
+    .then(() => initAddons())
     .then(() => {
       // Once-per-launch automatic-update-check pass (§7.2, decision 7) — not
       // a recurring poll. Only addons opted into "Automatic" are checked,
