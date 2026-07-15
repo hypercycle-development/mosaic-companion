@@ -46,7 +46,7 @@ import {
 } from "../types/types";
 import { CORE_TABS } from "../tabs/registry";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
-import { NodeDetailPanel } from "../../plugins/hyperinsight/renderer/components/NodeDetailPanel";
+import { NodeMiniDetailPanel } from "./nodes/NodeMiniDetailPanel";
 import type { InstalledTool } from "../../electron/integrations/sandbox/types";
 
 /** Map manifest icon names → lucide components (shared with ToolPanelView) */
@@ -751,14 +751,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
 
-      {/* Node Detail Panel — slides in when a node card with a licenseKey is clicked */}
-      {selectedNodeLicense && (
-        <NodeDetailPanel
-          licenseKey={selectedNodeLicense}
-          sidebarOpen={isOpen}
-          onClose={() => setSelectedNodeLicense(null)}
-        />
-      )}
+      {/* Node Mini Detail Panel — slides in when a node card with a licenseKey
+          is clicked. Deliberately minimal (§9.2) — only what Sidebar already
+          computes for the node cards themselves; the deep-link CTA inside
+          points to the HyperInsight addon for anything richer. */}
+      {selectedNodeLicense &&
+        (() => {
+          const selectedNode = nodes.find((n) => n.licenseKey === selectedNodeLicense);
+          if (!selectedNode) return null;
+          const status = nodeStatuses[selectedNode.id];
+          return (
+            <NodeMiniDetailPanel
+              licenseKey={selectedNodeLicense}
+              name={selectedNode.name}
+              isActive={selectedNode.isActive}
+              isLive={status?.isLive ?? false}
+              checking={status?.checking ?? false}
+              lastChecked={status?.lastChecked ?? null}
+              latency={status?.latency ?? null}
+              sidebarOpen={isOpen}
+              onClose={() => setSelectedNodeLicense(null)}
+              onNavigate={onNavigate}
+            />
+          );
+        })()}
     </aside>
   );
 };

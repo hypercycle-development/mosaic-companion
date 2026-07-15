@@ -346,11 +346,8 @@ declare global {
         getAimReleases: (name: string) => Promise<any>;
         getAimReleaseDetail: (name: string, tag: string) => Promise<any>;
         saveGeneratedImage: (base64Data: string) => Promise<{ success: boolean; url?: string; error?: string }>;
-        // AIM Nodes data
-        saveNodeData: (license: string, data: any) => Promise<{ success: boolean; error?: string }>;
-        deleteNodeData: (license: string) => Promise<{ success: boolean; error?: string }>;
-        getSavedAims: (license?: string) => Promise<any>;
-        handlePayment: (paymentData: any) => Promise<{ success: boolean; error?: string; result?: any }>;
+        // AIM Nodes data (save/delete/getSavedAims/handlePayment) moved to
+        // electronAPI.aimNodes below (§9.1) — none of it is HyperInsight-API-specific.
         // Stage 7B: Node profile
         getNodeProfile: (license: number | string) => Promise<any>;
         // Stage 7C: Tool score cache

@@ -17,7 +17,7 @@ interface Node {
   adminHost: string;
   adminPort: string;
   isActive: boolean;
-  // Need licenseKey to connect to node manifests in hyperinsight-aims.json
+  // Need licenseKey to connect to node manifests in aim-nodes-data.json
   licenseKey?: string;
 }
 
@@ -266,7 +266,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     unsubscribe:            (subscriptionId: string) => ipcRenderer.invoke("hyperinsight:unsubscribe", subscriptionId),
     getVerificationHistory: (subscriptionId: string) => ipcRenderer.invoke("hyperinsight:get-verification-history", subscriptionId),
     clearCache:             () => ipcRenderer.invoke("hyperinsight:clear-cache"),
-    // AIM Nodes data
+  },
+  // AIM Nodes — core's own local node registry / AIM data cache and payment
+  // interception (§9.1). Moved out of the `hyperinsight` group: none of this
+  // is HyperInsight-API-specific, and aim-nodes stays core permanently even
+  // after the HyperInsight addon migration (§9.2/Phase 7). IPC channel names
+  // (`aimnodes:*`) are unchanged — only which preload group exposes them.
+  aimNodes: {
     saveNodeData: (license: string, data: any) => ipcRenderer.invoke("aimnodes:save-node-data", license, data),
     deleteNodeData: (license: string) => ipcRenderer.invoke("aimnodes:delete-node-data", license),
     getSavedAims: (license?: string) => ipcRenderer.invoke("aimnodes:get-saved-aims", license),

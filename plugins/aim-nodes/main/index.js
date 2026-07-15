@@ -2,11 +2,26 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 
-const AIMS_STORAGE_FILE = 'hyperinsight-aims.json';
+// Renamed from 'hyperinsight-aims.json' (§9.1 decoupling) — this is the
+// user's local node registry / AIM data cache, unrelated to and unaffected
+// by the HyperInsight addon split (decision 4). getAimsStoragePath() below
+// migrates any pre-existing file under the old name, once, on first call.
+const AIMS_STORAGE_FILE = 'aim-nodes-data.json';
+const LEGACY_AIMS_STORAGE_FILE = 'hyperinsight-aims.json';
 
 // Utility: Get aims storage path
 export function getAimsStoragePath() {
-  return path.join(app.getPath('userData'), AIMS_STORAGE_FILE);
+  const newPath = path.join(app.getPath('userData'), AIMS_STORAGE_FILE);
+  const legacyPath = path.join(app.getPath('userData'), LEGACY_AIMS_STORAGE_FILE);
+  if (!fs.existsSync(newPath) && fs.existsSync(legacyPath)) {
+    try {
+      fs.renameSync(legacyPath, newPath);
+      console.log('[AimNodes] Migrated legacy hyperinsight-aims.json -> aim-nodes-data.json');
+    } catch (error) {
+      console.error('[AimNodes] Failed to migrate legacy aims storage file:', error);
+    }
+  }
+  return newPath;
 }
 
 // Utility: Load saved aims
@@ -526,13 +541,21 @@ export async function handlePaymentRequired(paymentData) {
 
 // Exported Registration Function
 export function registerAimNodesIpc(ipcMain) {
-  // Auto-register MCP Adapter
-  const adapterName = 'HyperInsight-AIMs';
-  const existing = pluginManager.list().find(p => p.name === adapterName);
+  // Auto-register MCP Adapter. Renamed from 'HyperInsight-AIMs' (§9.1) — this
+  // adapter is core's own local AIM/MCP bridge, not HyperInsight-specific.
+  // Startup migration below preserves the plugin's id (and therefore its MCP
+  // connection state/config) across the rename for upgrading profiles.
+  const adapterName = 'AIM-Node-Tools';
+  const legacyAdapterName = 'HyperInsight-AIMs';
+  const existingByNewName = pluginManager.list().find(p => p.name === adapterName);
+  const existingLegacy = !existingByNewName
+    ? pluginManager.list().find(p => p.name === legacyAdapterName)
+    : null;
+  const existing = existingByNewName || existingLegacy;
   const configPath = path.join(app.getPath('userData'), 'app-settings.json');
   const mediaStoragePath = path.join(app.getPath('userData'), 'mosaic-media');
   const serverArgs = [path.join(__dirname, 'mcp-server.js'), getAimsStoragePath(), configPath, mediaStoragePath];
-  
+
   // Read wallet private key from safeStorage (only accessible in main process)
   // Pass it to the child process via env so mcp-server.js can sign NM requests
   const walletKey = getWalletKey() || '';
@@ -550,13 +573,18 @@ export function registerAimNodesIpc(ipcMain) {
   if (!existing) {
     pluginManager.add({
       name: adapterName,
-      description: 'Automatically discovered AIM tools from connected HyperInsight nodes',
+      description: 'Automatically discovered AIM tools from connected HyperCycle nodes',
       transport: 'stdio',
       command: process.execPath, // Node executable (or electron run as node)
       args: serverArgs,
       env: mcpEnv,
       autoConnect: true
     });
+  } else if (existingLegacy) {
+    // Upgrading profile: rename in place, preserving id so MCP connection
+    // state/config survives the rename.
+    pluginManager.update(existingLegacy.id, { name: adapterName, args: serverArgs, env: mcpEnv });
+    console.log(`[AimNodes] Migrated MCP adapter "${legacyAdapterName}" -> "${adapterName}"`);
   } else {
     // Ensure args and env are up to date (key may have changed since last launch)
     pluginManager.update(existing.id, { args: serverArgs, env: mcpEnv });
@@ -576,11 +604,11 @@ export function registerAimNodesIpc(ipcMain) {
 
       // Refresh the MCPClient's cached tool list so the LLM sees the newly
       // connected node's tools immediately — without restarting the child process.
-      // mcp-server.js already reads hyperinsight-aims.json fresh on every
+      // mcp-server.js already reads aim-nodes-data.json fresh on every
       // list_tools call, so a refreshCapabilities() round-trip is all we need.
       // This is safe even if a tool call is in-flight: MCP stdio is multiplexed
       // by message ID, so the active callTool and our listTools coexist fine.
-      const mcpServerName = 'HyperInsight-AIMs';
+      const mcpServerName = 'AIM-Node-Tools';
       if (mcpClient.isConnected(mcpServerName)) {
         try {
           await mcpClient.refreshCapabilities(mcpServerName);

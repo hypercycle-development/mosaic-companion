@@ -148,7 +148,7 @@ interface Node {
   adminHost: string;
   adminPort: string;
   isActive: boolean;
-  // Need licenseKey to connect to node manifests in hyperinsight-aims.json
+  // Need licenseKey to connect to node manifests in aim-nodes-data.json
   licenseKey?: string;
 }
 
