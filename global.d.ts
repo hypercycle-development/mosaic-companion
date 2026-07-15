@@ -508,6 +508,53 @@ declare global {
       triggerHeartbeat: (agentId?: string) => Promise<{ ok: boolean }>;
       listSkills: () => Promise<Array<{ name: string; description: string }>>;
       onMessage: (cb: (msg: { to: string; text: string; channel: string; messageId: string }) => void) => void;
+      // ── NEW: Skill Importer ──
+      getImportLog: () => Promise<Array<{
+        hermesPath: string; mosaicPath: string; importedAt: number;
+        version: string; status: string;
+      }>>;
+      getPendingImports: () => Promise<Array<{
+        hermesPath: string; version: string; importedAt: number;
+      }>>;
+      approveSkill: (name: string) => Promise<boolean>;
+      removeSkill: (name: string) => Promise<boolean>;
+      forceScan: () => Promise<{ imported: number; pending: number; skipped: number }>;
+      // ── NEW: Orchestrator ──
+      getOrchestratorStatus: () => Promise<{
+        vaultBoxes: number; mcpServers: number; agents: number;
+        lastCheck: number;
+        infraHealth: Record<string, { healthy: boolean; checkedAt: number }>;
+      }>;
+      getAgentProfiles: () => Promise<Array<{
+        agentId: string; intervalMin: number;
+        activeHours: { start: string; end: string };
+        description: string;
+      }>>;
+      // ── NEW: Memory Bridge — Codebase Memory MCP ──
+      queryContext: (project: string, query: string, limit?: number) => Promise<Array<{
+        qualified_name: string; name: string; label: string;
+        file: string; score?: number;
+      }>>;
+      getSessionContext: () => Promise<{
+        recentSkills: string[];
+        recentProjects: string[];
+        activeBoxes: string[];
+        recentTasks: string[];
+        patterns: string[];
+      }>;
+      indexSession: (sessionId: string, summary: string, skills: string[], projects: string[]) => Promise<{ indexed: boolean }>;
+
+      // ── Stargate Registry — Component Self-Awareness ──
+      getStargateComponents: () => Promise<Array<{ id: string; name: string; category: string; description: string; status: string; commands: string[] }>>;
+      getStargateFleet: () => Promise<Array<{ id: string; name: string; ip: string; aimSlots: number; status: string; notes: string[] }>>;
+      getStargateContracts: () => Promise<Array<{ id: string; name: string; contractAddress: string; chain: string; status: string }>>;
+      getStargateDown: () => Promise<Array<{ id: string; name: string; status: string }>>;
+      getStargateSummary: () => Promise<string>;
+      getStargateCapabilities: () => Promise<string>;
+      // ── Stargate Indexer ──
+      indexStargate: () => Promise<{ indexed: boolean; entries: number; errors: string[] }>;
+      getStargateHistory: (limit?: number) => Promise<Array<{ timestamp: number; downCount: number; components: any[]; fleet: any[] }>>;
+      getStargateTrend: () => Promise<{ improving: boolean; currentDown: number; previousDown: number; trend: string }>;
     };
 
     // MosaicBot memory API

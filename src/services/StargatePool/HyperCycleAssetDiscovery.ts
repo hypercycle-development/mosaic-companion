@@ -24,10 +24,20 @@ import {
   decodeAddress,
   ERC721_TRANSFER_TOPIC,
 } from '../HyperCycleContracts';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+import {
+  rpcCall,
+  areAllEndpointsTrippedForChain,
+  withGlobalRateLimit,
+  RPC_COOLDOWN_MS,
+  isDegradedMode,
+  enterDegradedMode,
+  getDegradedModeStatus,
+  rpcCallWithRetry,
+} from './SharedRPCLimiter';
+import {
+  withRetry,
+  calculateBackoffDelay,
+} from './RPCResilience';
 export type AssetChain = 'ethereum' | 'base';
 export type AssetStandard = 'ERC-20' | 'ERC-721' | 'ERC-1155';
 export type AssetCategory = 'fungible' | 'identity' | 'license' | 'factory' | 'module';
@@ -64,57 +74,16 @@ export interface WalletAssets {
   chain: AssetChain;
   assets: HyperCycleAsset[];
   fetchedAt: number;
+  // Degraded mode support
+  degraded?: boolean;
+  degradedMessage?: string;
 }
 
 // ---------------------------------------------------------------------------
-// RPC Configuration
+// RPC Configuration — DELEGATED to SharedRPCLimiter.ts for global throttling
 // ---------------------------------------------------------------------------
-const RPC_URLS: Record<AssetChain, string[]> = {
-  ethereum: [
-    import.meta.env.VITE_RPC_ETHEREUM || 'https://cloudflare-eth.com',
-    'https://ethereum.publicnode.com',
-    'https://rpc.ankr.com/eth',
-  ],
-  base: [
-    import.meta.env.VITE_RPC_BASE || 'https://base.publicnode.com',
-    'https://base-rpc.publicnode.com',
-    'https://rpc.ankr.com/base',
-  ],
-};
-
-// Circuit-breaker state per endpoint so we stop hammering dead/rate-limited RPCs
-const rpcFailures: Map<string, { failures: number; until: number }> = new Map();
-const RPC_MAX_FAILURES = 3;
-const RPC_COOLDOWN_MS = 30000; // 30 seconds
-
-function isEndpointTripped(url: string): boolean {
-  const state = rpcFailures.get(url);
-  if (!state) return false;
-  if (Date.now() < state.until) return true;
-  // cooldown expired — allow one probe
-  rpcFailures.delete(url);
-  return false;
-}
-
-function allEndpointsTripped(chain: AssetChain): boolean {
-  return RPC_URLS[chain].every(url => isEndpointTripped(url));
-}
-
-function recordRpcFailure(url: string, status?: number): void {
-  const state = rpcFailures.get(url) || { failures: 0, until: 0 };
-  state.failures += 1;
-  // Trip faster on client errors (4xx) because retrying won't help
-  const multiplier = status && status >= 400 && status < 500 ? 2 : 1;
-  if (state.failures >= RPC_MAX_FAILURES * multiplier) {
-    state.until = Date.now() + RPC_COOLDOWN_MS;
-    console.warn(`[AssetDiscovery] RPC endpoint ${url} tripped — cooling off for ${RPC_COOLDOWN_MS}ms`);
-  }
-  rpcFailures.set(url, state);
-}
-
-function recordRpcSuccess(url: string): void {
-  rpcFailures.delete(url);
-}
+// Re-export for consumers who need these helpers
+export { rpcCall, isEndpointTripped, areAllEndpointsTripped, recordRpcFailure, recordRpcSuccess } from './SharedRPCLimiter';
 
 // ---------------------------------------------------------------------------
 // Contract Registry — All contracts to scan
@@ -192,42 +161,8 @@ async function hiNodesByWallet(walletAddress: string): Promise<any[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Low-level RPC helpers
+// Low-level RPC helpers — DELEGATED to SharedRPCLimiter.ts
 // ---------------------------------------------------------------------------
-async function rpcCall(chain: AssetChain, payload: object): Promise<any | null> {
-  const urls = RPC_URLS[chain];
-  for (const url of urls) {
-    if (isEndpointTripped(url)) {
-      console.log(`[AssetDiscovery] Skipping tripped RPC ${url}`);
-      continue;
-    }
-    try {
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', ...payload, id: Date.now() }),
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!r.ok) {
-        recordRpcFailure(url, r.status);
-        console.warn('[AssetDiscovery] RPC HTTP error:', url, r.status);
-        continue;
-      }
-      const j = await r.json();
-      if (j.error) {
-        recordRpcFailure(url);
-        console.warn('[AssetDiscovery] RPC error:', j.error);
-        continue;
-      }
-      recordRpcSuccess(url);
-      return j.result;
-    } catch (e) {
-      recordRpcFailure(url);
-      continue;
-    }
-  }
-  return null;
-}
 
 function strip0x(s: string): string {
   return s.replace(/^0x/i, '');
@@ -252,6 +187,19 @@ class HyperCycleAssetDiscovery {
   /** Discover ALL HyperCycle assets for a wallet on a given chain */
   async discover(address: string, chain: AssetChain): Promise<WalletAssets> {
     const key = this.cacheKey(address, chain);
+
+    // Check degraded mode first
+    if (isDegradedMode(chain)) {
+      console.warn(`[AssetDiscovery] ${chain} is in degraded mode — returning unavailable status`);
+      return {
+        address,
+        chain,
+        assets: [],
+        fetchedAt: Date.now(),
+        degraded: true,
+        degradedMessage: getDegradedModeStatus(chain).message || 'Network unavailable',
+      };
+    }
 
     // Deduplicate concurrent scans for the same wallet+chain
     const existing = this.scanLocks.get(key);
@@ -282,7 +230,7 @@ class HyperCycleAssetDiscovery {
 
     for (const contract of contracts) {
       // If every RPC endpoint is tripped, fail fast instead of hammering.
-      if (allEndpointsTripped(chain)) {
+      if (areAllEndpointsTrippedForChain(chain)) {
         console.warn(`[AssetDiscovery] All ${chain} RPC endpoints tripped — aborting scan early.`);
         break;
       }
@@ -318,6 +266,8 @@ class HyperCycleAssetDiscovery {
       chain,
       assets,
       fetchedAt: Date.now(),
+      degraded: isDegradedMode(chain),
+      degradedMessage: isDegradedMode(chain) ? getDegradedModeStatus(chain).message : undefined,
     };
 
     this.cache.set(key, result);

@@ -252,7 +252,7 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
 
     if (provider === "ollama-cloud") {
       // For cloud, try fetching from the cloud API if a key is set, otherwise use defaults
-      const baseUrl = (agent.baseUrl || "https://ollama.com").replace(/\/$/, "");
+      const baseUrl = (agent.baseUrl || "https://api.ollama.com").replace(/\/$/, "");
       const apiKey = agent.apiKey?.trim();
       if (apiKey) {
         try {

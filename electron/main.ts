@@ -34,8 +34,10 @@ import {
 } from "./utils/index";
 import { mcpClient, setMainWindow as mcpSetMainWindow, initPlugins } from "./integrations/mcp";
 import { startMarketplaceService } from "./services/marketplace/MarketplaceService";
+import { midnightCityService } from "./services/MidnightCityBackgroundService";
 import { initializeTools, cleanupTools } from "./integrations/tools";
 import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
+import { startSPOServer, stopSPOServer } from "./integrations/pool/orchestrator/SPOServer";
 import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integrations/chat/index";
 import { initIDE, cleanupIDE } from "./integrations/ide/index";
 import { registerCardanoIpc } from "./integrations/cardano/ipcHandlers";
@@ -227,6 +229,14 @@ function createWindow(urlToLoad: string | null = null): BrowserWindow {
     },
   });
 
+  // Suppress Chromium Autofill protocol errors (not available in current Electron)
+  // These are benign devtools warnings that spam the console
+  win.webContents.on('console-message', (_event, level, message) => {
+    if (message && message.includes('Autofill.')) {
+      return; // swallow Autofill protocol errors
+    }
+  });
+
   // Load the app
   if (urlToLoad) {
     win.loadURL(urlToLoad);
@@ -322,10 +332,11 @@ app.on('browser-window-created', (_, win) => {
 
 // Must be called before app is ready
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'mosaic-media', privileges: { bypassCSP: true, supportFetchAPI: true, corsEnabled: true } }
+  { scheme: 'mosaic-media', privileges: { bypassCSP: true, supportFetchAPI: true, corsEnabled: true } },
+  { scheme: 'stargate-vault', privileges: { bypassCSP: true, supportFetchAPI: true, corsEnabled: true } }
 ]);
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   console.log("App is packaged:", app.isPackaged);
   console.log("User data path:", app.getPath("userData"));
   console.log("__dirname:", __dirname);
@@ -347,6 +358,20 @@ app.whenReady().then(() => {
     // Only serve files that actually live inside the media directory
     if (!filePath.startsWith(mediaDir)) {
        return new Response('Access Denied', { status: 403 });
+    }
+    
+    return net.fetch(`file://${filePath}`);
+  });
+
+  // Register protocol for serving Stargate Vault JSON data
+  protocol.handle('stargate-vault', (request) => {
+    const urlStr = request.url.replace(/^stargate-vault:\/\//, '');
+    const vaultDir = path.join(__dirname, '..', 'renderer', 'stargate-vault');
+    const filePath = path.join(vaultDir, path.normalize(urlStr));
+    
+    // Security: ensure path is inside vault directory
+    if (!filePath.startsWith(vaultDir)) {
+      return new Response('Access Denied', { status: 403 });
     }
     
     return net.fetch(`file://${filePath}`);
@@ -391,11 +416,43 @@ app.whenReady().then(() => {
     console.warn("[VaultSkillCache] Failed to start watcher:", e);
   }
 
+  // Initialize SAFE Rev Pool vault for agent learning
+  try {
+    const { initializeSafePoolVault } = await import("./integrations/vault");
+    const result = initializeSafePoolVault();
+    if (result.success) {
+      console.log("[Vault]", result.message);
+    } else {
+      console.warn("[Vault] SAFE Rev Pool vault init failed:", result.message);
+    }
+  } catch (e) {
+    console.warn("[Vault] Failed to initialize SAFE Rev Pool vault:", e);
+  }
+
   initMosaicBot().then((bot) => {
     mosaicBotStop = bot.stop.bind(bot);
   }).catch((e) => {
     console.error("[MosaicBot] Init failed:", e);
   });
+
+  // ── Start Stargate Pool Orchestrator (SPO) Server ──
+  // NOTE: A standalone SPO may already be running as systemd service spo-server.service.
+  // Check port 9100 first — EADDRINUSE is an async 'error' event that would crash the app.
+  (async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:9100/api/health", {
+        signal: AbortSignal.timeout(1500),
+      }).catch(() => null);
+      if (res && res.ok) {
+        console.log("[SPO] External SPO already running on :9100 (systemd spo-server.service) — using it, skipping embedded server");
+        return;
+      }
+      startSPOServer(9100);
+      console.log("[SPO] Embedded server started on port 9100");
+    } catch (e) {
+      console.error("[SPO] Failed to start server:", e);
+    }
+  })();
 
   // Initialize updater (production only)
   if (app.isPackaged) {
@@ -829,7 +886,7 @@ function readAgents(): AIAgent[] {
     if (a.provider === "ollama" && model && model.includes(":cloud")) {
       console.log(`[Main] Migrating Ollama agent "${a.name}" model ${a.model} → ollama-cloud provider`);
       a.provider = "ollama-cloud" as AIAgent["provider"];
-      a.baseUrl = a.baseUrl || "https://ollama.com";
+      a.baseUrl = a.baseUrl || "https://api.ollama.com";
       a.model = (a.model as string).replace(/:cloud$/, ""); // strip :cloud suffix
       sanitized = true;
     }
@@ -1403,6 +1460,123 @@ ipcMain.handle(
   },
 );
 
+ipcMain.handle("stargate:tilling:provision", async (_event, payload) => {
+  try {
+    const res = await fetch("http://localhost:9100/api/v1/tilling/provision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    return data;
+  } catch (error: any) {
+    console.error("[stargate:tilling:provision] failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
+ipcMain.handle("stargate:tilling:stop", async (_event, tenantId: string) => {
+  try {
+    const res = await fetch("http://localhost:9100/api/v1/tilling/stop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId }),
+    });
+    const data = await res.json();
+    return data;
+  } catch (error: any) {
+    console.error("[stargate:tilling:stop] failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
+ipcMain.handle("stargate:tilling:getSessions", async (_event, wallet?: string) => {
+  try {
+    const url = wallet
+      ? `http://localhost:9100/api/v1/tilling/sessions?userWallet=${encodeURIComponent(wallet)}`
+      : "http://localhost:9100/api/v1/tilling/sessions";
+    const res = await fetch(url);
+    const data = await res.json();
+    return data;
+  } catch (error: any) {
+    console.error("[stargate:tilling:getSessions] failed:", error);
+    return { success: false, error: error.message || String(error), sessions: [] };
+  }
+});
+
+ipcMain.handle("stargate:tilling:resume", async (_event, tenantId: string) => {
+  try {
+    const res = await fetch("http://localhost:9100/api/v1/tilling/resume", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId }),
+    });
+    const data = await res.json();
+    return data;
+  } catch (error: any) {
+    console.error("[stargate:tilling:resume] failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
+ipcMain.handle("stargate:tilling:lock", async (_event, tenantId: string, locked: boolean) => {
+  try {
+    const res = await fetch("http://localhost:9100/api/v1/tilling/lock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId, locked }),
+    });
+    const data = await res.json();
+    return data;
+  } catch (error: any) {
+    console.error("[stargate:tilling:lock] failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
+// ── Tiller Management (Non-custodial signing flow) ───────────────────────────
+
+ipcMain.handle("stargate:tilling:create", async (_event, tenantId: string) => {
+  try {
+    const res = await fetch(`http://localhost:9100/api/v1/tilling/${tenantId}/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json();
+    return data;
+  } catch (error: any) {
+    console.error("[stargate:tilling:create] failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
+ipcMain.handle("stargate:tilling:getMessage", async (_event, tenantId: string, number: number, license: string, chypc: string) => {
+  try {
+    const url = `http://localhost:9100/api/v1/tilling/${tenantId}/message?number=${encodeURIComponent(number)}&license=${encodeURIComponent(license)}&chypc=${encodeURIComponent(chypc)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data;
+  } catch (error: any) {
+    console.error("[stargate:tilling:getMessage] failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
+ipcMain.handle("stargate:tilling:update", async (_event, tenantId: string, payload: any) => {
+  try {
+    const res = await fetch(`http://localhost:9100/api/v1/tilling/${tenantId}/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    return data;
+  } catch (error: any) {
+    console.error("[stargate:tilling:update] failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
 ipcMain.handle("stargate:dispatchPrompt", async (_event, nodeId: string, prompt: string) => {
   try {
     const nodes = getNodes();
@@ -1578,6 +1752,35 @@ ipcMain.handle(
         );
       } catch (e) {
         console.warn("[main.ts] MCP skill resolution failed:", e);
+      }
+    }
+
+    // Phase D: Stargate Vault index fallback (repo-shipped 283 skills)
+    if (result.failedSkills.length > 0) {
+      try {
+        const vaultIndexPath = path.join(app.getAppPath(), "stargate-vault", "vault-index.json");
+        if (fs.existsSync(vaultIndexPath)) {
+          const vault = JSON.parse(fs.readFileSync(vaultIndexPath, "utf-8"));
+          // Build flat map: skillName → category
+          const skillToCategory: Record<string, string> = {};
+          for (const [cat, names] of Object.entries(vault.categories as Record<string, string[]>)) {
+            for (const n of names) skillToCategory[n] = cat;
+          }
+
+          for (const name of [...result.failedSkills]) {
+            const category = skillToCategory[name];
+            if (category) {
+              const skillSection = `--- BEGIN SKILL: ${name} (Stargate Vault) ---\n\nThis skill is registered in the Stargate Vault under category "${category}".\nWhen the user references this skill, search the vault index for related skills in the ${category} category and use them to fulfill the request.\n\n--- END SKILL: ${name} ---`;
+              result.systemPrompt += (result.systemPrompt ? "\n\n" : "") + skillSection;
+              result.loadedSkills.push(name);
+              result.failedSkills = result.failedSkills.filter((f) => f !== name);
+              console.log(`[main.ts] Skill "${name}" resolved via Stargate Vault index (${category})`);
+            }
+          }
+          result.totalTokens = Math.ceil(result.systemPrompt.length / 4);
+        }
+      } catch (e) {
+        console.warn("[main.ts] Stargate Vault skill resolution failed:", e);
       }
     }
 
@@ -1829,3 +2032,259 @@ ipcMain.handle(
     }
   }
 );
+
+// =============================================================================
+// Midnight City Command Panel — IPC Bridge
+// =============================================================================
+
+// =============================================================================
+// Midnight City Command Panel — IPC Bridge (v2: Background Service)
+// Session + heartbeat + auto-reconnect live in the main process. Renderer only
+// holds UI state. Lock/unlock controls whether the session survives tab switches.
+// =============================================================================
+
+// Connect agent — creates session in main process
+ipcMain.handle("midnight:connect", async (_event, params: { agentId: string }) => {
+  const result = await midnightCityService.connect(params.agentId);
+  return result;
+});
+
+// Disconnect — respects lock (unless force=true)
+ipcMain.handle("midnight:disconnect", async (_event, params: { force?: boolean } = {}) => {
+  const result = await midnightCityService.disconnect(params.force);
+  return result;
+});
+
+// Get connection status from main process
+ipcMain.handle("midnight:getStatus", async () => {
+  return midnightCityService.getStatus();
+});
+
+// Get recent logs from main process
+ipcMain.handle("midnight:getLogs", async () => {
+  return midnightCityService.getLogs();
+});
+
+// Lock / unlock the agent session
+ipcMain.handle("midnight:setLock", async (_event, locked: boolean) => {
+  midnightCityService.setLock(locked);
+  return { locked };
+});
+
+// Generic API call — proxied through background service
+ipcMain.handle("midnight:apiCall", async (_event, params: { endpoint: string; method: "GET" | "POST"; body?: any }) => {
+  return midnightCityService.apiCall(params);
+});
+
+// Script operations (unchanged — filesystem only)
+ipcMain.handle("midnight:readScript", async (_event, filePath: string) => {
+  try {
+    const fs = require("fs");
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: `File not found: ${filePath}` };
+    }
+    const content = fs.readFileSync(filePath, "utf8");
+    return { success: true, content };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("midnight:writeScript", async (_event, params: { path: string; content: string }) => {
+  try {
+    const fs = require("fs");
+    fs.writeFileSync(params.path, params.content, "utf8");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("midnight:restartMiner", async () => {
+  try {
+    const { spawn } = require("child_process");
+    const scriptPath = "/home/mauricio/.hermes/scripts/sonofanton_miner.py";
+    const fs = require("fs");
+    if (!fs.existsSync(scriptPath)) {
+      return { success: false, error: "Miner script not found" };
+    }
+    // Kill any existing sonofanton process
+    try {
+      const { execSync } = require("child_process");
+      execSync("pkill -f sonofanton_miner.py || true", { stdio: "ignore" });
+      await new Promise((r) => setTimeout(r, 500));
+    } catch {}
+    // Spawn new process
+    const child = spawn("python3", [scriptPath], {
+      detached: true,
+      stdio: "ignore",
+      cwd: "/home/mauricio/.hermes/scripts",
+    });
+    child.unref();
+    return { success: true, pid: child.pid };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("midnight:deployAgent", async (_event, params: { name: string; profession: string; baseImage: string }) => {
+  try {
+    const { name, profession, baseImage } = params;
+    const nodeApi = "http://localhost:8000";
+    const infoResp = await fetch(`${nodeApi}/info`);
+    if (!infoResp.ok) {
+      return { success: false, error: "Node API unreachable" };
+    }
+    const info = await infoResp.json();
+    const usedSlots = (info.aim?.aims || []).map((a: any) => a.slot);
+    const nextSlot = Math.max(0, ...usedSlots) + 1;
+    const port = 9000 + nextSlot;
+    const { execSync } = require("child_process");
+    const imageId = execSync(`docker inspect --format='{{.Id}}' ${baseImage} 2>/dev/null || echo ""`, { encoding: "utf8" }).trim();
+    if (!imageId) {
+      return { success: false, error: `Docker image ${baseImage} not found locally` };
+    }
+    const shortId = imageId.replace("sha256:", "");
+    const mongoCmd = `mongosh node_manager --quiet --eval 'db.aims.insertOne({_id: ${port}, image_id: "${shortId}", image_name: "midnight-miner-${name.toLowerCase().replace(/[^a-z0-9]/g, "-")}", image_tag: "${baseImage.split(":").pop() || "latest"}", status: "offline", machine_type: "aim", whitelisted: true, next_download_try: 0, tries: 0})'`;
+    execSync(mongoCmd, { stdio: "ignore" });
+    return { success: true, slot: nextSlot, port };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+});
+
+// =============================================================================
+// STARGATE RPC RESILIENCE — Hermes Doctor IPC Handlers
+// =============================================================================
+// Provides health check and diagnostic endpoints for the Stargate Pool
+// RPC resilience system (exponential backoff, fallback rotation, degraded mode)
+// =============================================================================
+
+// Dynamic import for the RPC resilience modules (renderer-side code)
+// These handlers bridge to the StargatePool services via IPC
+ipcMain.handle("stargate:doctor:check", async () => {
+  try {
+    // Import the doctor check function dynamically
+    // Note: This runs in the renderer context through the preload bridge
+    // The actual implementation is in SharedRPCLimiter.ts
+    const { doctorCheck } = await import(
+      /* webpackIgnore: true */
+      "../src/services/StargatePool/SharedRPCLimiter"
+    );
+    const result = await doctorCheck();
+    return { success: true, ...result };
+  } catch (error: any) {
+    console.error("[stargate:doctor:check] failed:", error);
+    return {
+      success: false,
+      error: error.message || String(error),
+      timestamp: Date.now(),
+      chains: [],
+      alchemy: { usingDemoKey: true, ethereumKeyValid: null, baseKeyValid: null },
+      summary: { healthy: 0, unhealthy: 0, degraded: 0 },
+    };
+  }
+});
+
+ipcMain.handle("stargate:doctor:reset", async () => {
+  try {
+    const { resetGlobalCircuit } = await import(
+      /* webpackIgnore: true */
+      "../src/services/StargatePool/SharedRPCLimiter"
+    );
+    resetGlobalCircuit();
+    return { success: true, message: "All circuits reset" };
+  } catch (error: any) {
+    console.error("[stargate:doctor:reset] failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
+ipcMain.handle("stargate:doctor:status", async () => {
+  try {
+    const { debugCircuitState, getDegradedModeStatus, isDegradedMode } = await import(
+      /* webpackIgnore: true */
+      "../src/services/StargatePool/SharedRPCLimiter"
+    );
+    
+    return {
+      success: true,
+      timestamp: Date.now(),
+      circuits: debugCircuitState(),
+      ethereum: {
+        degraded: isDegradedMode('ethereum'),
+        ...getDegradedModeStatus('ethereum'),
+      },
+      base: {
+        degraded: isDegradedMode('base'),
+        ...getDegradedModeStatus('base'),
+      },
+    };
+  } catch (error: any) {
+    console.error("[stargate:doctor:status] failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
+ipcMain.handle("stargate:alchemy:status", async () => {
+  try {
+    const { alchemyKeyManager } = await import(
+      /* webpackIgnore: true */
+      "../src/services/StargatePool/AlchemyKeyManager"
+    );
+    
+    const status = alchemyKeyManager.getMigrationStatus();
+    return {
+      success: true,
+      ...status,
+    };
+  } catch (error: any) {
+    console.error("[stargate:alchemy:status] failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
+ipcMain.handle("stargate:alchemy:setKeys", async (_event, params: { ethereumKey?: string; baseKey?: string }) => {
+  try {
+    const { alchemyKeyManager } = await import(
+      /* webpackIgnore: true */
+      "../src/services/StargatePool/AlchemyKeyManager"
+    );
+    
+    if (params.ethereumKey) {
+      alchemyKeyManager.setEthereumKey(params.ethereumKey);
+    }
+    if (params.baseKey) {
+      alchemyKeyManager.setBaseKey(params.baseKey);
+    }
+    
+    // Validate the new keys
+    const validation = await alchemyKeyManager.validateCurrentKeys();
+    
+    return {
+      success: true,
+      validation,
+    };
+  } catch (error: any) {
+    console.error("[stargate:alchemy:setKeys] failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
+ipcMain.handle("stargate:alchemy:validate", async () => {
+  try {
+    const { alchemyKeyManager } = await import(
+      /* webpackIgnore: true */
+      "../src/services/StargatePool/AlchemyKeyManager"
+    );
+    
+    const result = await alchemyKeyManager.validateCurrentKeys();
+    return {
+      success: true,
+      ...result,
+    };
+  } catch (error: any) {
+    console.error("[stargate:alchemy:validate] failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+});

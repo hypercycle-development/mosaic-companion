@@ -51,6 +51,25 @@ class HBoxPoolService {
   private nodes: Map<string, HBoxComputeNode> = new Map();
   private initialized = false;
 
+  constructor() {
+    // Electron environment: verify we're in the renderer process
+    if (typeof process !== 'undefined' && process.type && process.type !== 'renderer') {
+      throw new Error(
+        `[HBoxPoolService] Cannot instantiate in ${process.type} process. ` +
+        `This service requires window.electronAPI which only exists in the renderer process. ` +
+        `Use IPC handlers in electron/main.ts to proxy calls from main process.`
+      );
+    }
+
+    // Browser environment: verify window exists
+    if (typeof window === 'undefined') {
+      throw new Error(
+        `[HBoxPoolService] Cannot instantiate outside browser environment. ` +
+        `window object is undefined.`
+      );
+    }
+  }
+
   async init(): Promise<void> {
     if (this.initialized) return;
     await this.refreshFromSidebar();

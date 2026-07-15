@@ -28,6 +28,20 @@ import {
   encodeERC1155BalanceOf,
   encodeTokenOfOwnerByIndex,
 } from '../HyperCycleContracts';
+import {
+  rpcCall as sharedRpcCall,
+  isDegradedMode,
+  getDegradedModeStatus,
+  rpcCallWithRetry,
+} from './SharedRPCLimiter';
+import {
+  calculateBackoffDelay,
+  hotRouteCache,
+  withRetry,
+} from './RPCResilience';
+import {
+  alchemyKeyManager,
+} from './AlchemyKeyManager';
 
 const RPC_CONFIG: Record<SupportedChain, string> = {
   1:    import.meta.env.VITE_RPC_ETHEREUM || 'https://cloudflare-eth.com',
@@ -78,7 +92,7 @@ function strip0x(s: string): string {
 // Paginated eth_getLogs to stay within RPC block-range limits (~2k blocks)
 // ---------------------------------------------------------------------------
 async function getLogsPaginated(
-  rpcUrl: string,
+  chain: 'ethereum' | 'base',
   contract: string,
   topics: (string | null)[],
   fromBlock: bigint | string = '0x0',
@@ -88,17 +102,15 @@ async function getLogsPaginated(
   let end = toBlock === 'latest' ? null : BigInt(toBlock);
   let start = BigInt(fromBlock);
   const allLogs: any[] = [];
-  let lastKnownBlock: bigint | null = null;
 
   // Fetch latest block number once if toBlock is 'latest'
   if (!end) {
-    const resp = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: Date.now() }),
-    });
-    const j = await resp.json();
-    end = j.result ? BigInt(j.result) : null;
+    try {
+      const j = await sharedRpcCall(chain, { method: 'eth_blockNumber', params: [], id: Date.now() });
+      end = j ? BigInt(j) : null;
+    } catch {
+      return allLogs;
+    }
   }
 
   // Estimate Base mainnet launched ~Aug 2023. For ANFE discovery we don't
@@ -114,27 +126,24 @@ async function getLogsPaginated(
 
   for (let cur = end; cur >= start; cur -= BigInt(step)) {
     const s = cur - BigInt(step - 1) < start ? start : cur - BigInt(step - 1);
-    const body = JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'eth_getLogs',
-      params: [{
-        address: contract,
-        topics,
-        fromBlock: `0x${s.toString(16)}`,
-        toBlock: `0x${cur.toString(16)}`,
-      }],
-      id: Number(cur),
-    });
-
-    const resp = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-    });
-    const j = await resp.json();
-    if (!j.result || !Array.isArray(j.result)) continue;
-    // Reverse so earliest-first
-    for (let i = j.result.length - 1; i >= 0; i--) allLogs.push(j.result[i]);
+    try {
+      const j = await sharedRpcCall(chain, {
+        method: 'eth_getLogs',
+        params: [{
+          address: contract,
+          topics,
+          fromBlock: `0x${s.toString(16)}`,
+          toBlock: `0x${cur.toString(16)}`,
+        }],
+        id: Number(cur),
+      });
+      if (!j || !Array.isArray(j)) continue;
+      // Reverse so earliest-first
+      for (let i = j.length - 1; i >= 0; i--) allLogs.push(j[i]);
+    } catch {
+      // All endpoints tripped or failed — stop paginating for this contract
+      break;
+    }
   }
 
   return allLogs;
@@ -181,6 +190,102 @@ class ANFEService {
   private anfeCache:      Map<string, ANFE>         = new Map();
   private pollInterval:   number | null              = null;
 
+  // ── Rate limiting + circuit breaker ──────────────────────────────────────
+  private inFlightRequests = 0;
+  private readonly MAX_CONCURRENT = 3;
+  private rpcFailCounts: Map<string, number> = new Map();
+  private rpcCircuitOpen: Map<string, number> = new Map(); // timestamp when circuit opens
+  private readonly CIRCUIT_THRESHOLD = 5;   // failures before opening
+  private readonly CIRCUIT_COOLDOWN_MS = 30000; // 30s cooldown
+
+  // ── Scan-level deduplication: multiple callers (AdaPortalPanel, UnifiedAssetPanel,
+  //    StargatePool) all request ANFEs for the same wallet at once ────────────
+  private scanLocks: Map<string, Promise<WalletANFEs>> = new Map();
+
+  /**
+   * Constructor - enforce renderer-only execution
+   * This service requires window.ethereum which only exists in the renderer process
+   */
+  constructor() {
+    // Electron environment: verify we're in the renderer process
+    if (typeof process !== 'undefined' && process.type && process.type !== 'renderer') {
+      throw new Error(
+        `[ANFEService] Cannot instantiate in ${process.type} process. ` +
+        `This service requires window.ethereum which only exists in the renderer process. ` +
+        `Use IPC handlers in electron/main.ts to proxy calls from main process.`
+      );
+    }
+
+    // Browser environment: verify window exists
+    if (typeof window === 'undefined') {
+      throw new Error(
+        `[ANFEService] Cannot instantiate outside browser environment. ` +
+        `window object is undefined.`
+      );
+    }
+  }
+
+  private async withRateLimit<T>(fn: () => Promise<T>, rpcUrl?: string): Promise<T> {
+    // 1. Circuit breaker check
+    if (rpcUrl) {
+      const openUntil = this.rpcCircuitOpen.get(rpcUrl) || 0;
+      if (Date.now() < openUntil) {
+        throw new Error(`Circuit open for ${rpcUrl}`);
+      }
+    }
+
+    // 2. Concurrent request limit (backpressure)
+    while (this.inFlightRequests >= this.MAX_CONCURRENT) {
+      await new Promise(r => setTimeout(r, 50));
+    }
+
+    this.inFlightRequests++;
+    try {
+      return await fn();
+    } catch (err: any) {
+      // 3. Track failures for circuit breaker
+      if (rpcUrl) {
+        const status = err?.status || err?.response?.status || 0;
+        const isRateLimit = status === 429 || status === 403 ||
+          err.message?.includes('429') || err.message?.includes('403') ||
+          err.message?.includes('Too Many Requests') || err.message?.includes('Forbidden');
+        if (isRateLimit) {
+          const count = (this.rpcFailCounts.get(rpcUrl) || 0) + 1;
+          this.rpcFailCounts.set(rpcUrl, count);
+          if (count >= this.CIRCUIT_THRESHOLD) {
+            console.warn(`[ANFEService] Circuit OPEN for ${rpcUrl} — too many rate limits`);
+            this.rpcCircuitOpen.set(rpcUrl, Date.now() + this.CIRCUIT_COOLDOWN_MS);
+            this.rpcFailCounts.delete(rpcUrl);
+          }
+        }
+      }
+      throw err;
+    } finally {
+      this.inFlightRequests--;
+    }
+  }
+
+  private async exponentialBackoff<T>(
+    fn: () => Promise<T>,
+    retries = 3,
+    baseDelay = 1000,
+    rpcUrl?: string
+  ): Promise<T> {
+    for (let i = 0; i <= retries; i++) {
+      try {
+        return await this.withRateLimit(fn, rpcUrl);
+      } catch (err: any) {
+        const status = err?.status || err?.response?.status || 0;
+        const isRetryable = status === 429 || status === 403 || status === 502 || status === 503 || status === 504;
+        if (!isRetryable || i === retries) throw err;
+        const delay = baseDelay * Math.pow(2, i); // 1s, 2s, 4s
+        console.warn(`[ANFEService] RPC ${status} — retry ${i + 1}/${retries} after ${delay}ms`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+    throw new Error('exponentialBackoff exhausted');
+  }
+
   async connectWallet(): Promise<string> {
     return walletAdapter.connect();
   }
@@ -197,15 +302,84 @@ class ANFEService {
 
   /** Main entry: load ANFEs for a wallet */
   async loadWalletANFEs(walletAddress: string): Promise<WalletANFEs> {
+    // Check degraded mode first
+    if (isDegradedMode(8453)) {
+      console.warn('[ANFEService] Base network in degraded mode — returning unavailable status');
+      const degradedResult: WalletANFEs = {
+        address: walletAddress,
+        anfes: [],
+        totalCount: 0,
+        fetchedAt: Date.now(),
+        byChain: { 1: [], 8453: [] },
+        degraded: true,
+        degradedMessage: getDegradedModeStatus(8453).message || 'Network unavailable',
+      };
+      return degradedResult;
+    }
+
+    // 0. Scan-level deduplication: if another caller is already scanning for this wallet,
+    //    return the same promise instead of spawning a redundant scan.
+    const existing = this.scanLocks.get(walletAddress);
+    if (existing) {
+      console.log(`[ANFEService] Deduplicating loadWalletANFEs for ${walletAddress.slice(0, 8)}... — reusing in-flight scan`);
+      return existing;
+    }
+
     const cached = this.walletANFEsCache.get(walletAddress);
     if (cached && Date.now() - cached.fetchedAt < 30000) {
       console.log('[ANFEService] Returning cached ANFEs');
       return cached;
     }
 
-    console.log('[ANFEService] Loading ANFEs for:', walletAddress.slice(0, 8) + '...');
+    const promise = this._doLoadWalletANFEs(walletAddress);
+    this.scanLocks.set(walletAddress, promise);
+    promise.finally(() => this.scanLocks.delete(walletAddress));
+    return promise;
+  }
+
+  private async _doLoadWalletANFEs(walletAddress: string): Promise<WalletANFEs> {
     let anfes: ANFE[] = [];
     const contract = ANFE_CONTRACTS[8453];
+
+    // --- FAST PATH: check balanceOf first; if 0, skip all discovery
+    let balance = 0;
+    if (contract) {
+      try {
+        // Use retry wrapper for better resilience
+        balance = await withRetry(
+          () => this.getERC721BalanceOf(walletAddress, contract, 8453),
+          {
+            maxRetries: 2,
+            baseDelayMs: 1000,
+            shouldRetry: (err) => {
+              const msg = String(err);
+              return msg.includes('429') || msg.includes('503') || msg.includes('exhausted') || msg.includes('timeout');
+            },
+            onRetry: (err, attempt, delay) => {
+              console.warn(`[ANFEService] balanceOf retry ${attempt}/3 after ${Math.round(delay)}ms: ${err}`);
+            },
+          }
+        );
+        console.log(`[ANFEService] ERC-721 balanceOf = ${balance} on Base`);
+        if (balance === 0) {
+          console.log('[ANFEService] Wallet has 0 ANFEs — skipping discovery');
+          const emptyResult: WalletANFEs = {
+            address: walletAddress,
+            anfes: [],
+            totalCount: 0,
+            fetchedAt: Date.now(),
+            byChain: { 1: [], 8453: [] },
+            degraded: isDegradedMode(8453),
+            degradedMessage: isDegradedMode(8453) ? getDegradedModeStatus(8453).message : undefined,
+          };
+          this.walletANFEsCache.set(walletAddress, emptyResult);
+          return emptyResult;
+        }
+      } catch (e) {
+        console.warn('[ANFEService] balanceOf check failed:', e);
+        // Continue to try HyperInsight even if RPC fails
+      }
+    }
 
     // --- PRIMARY: HyperInsight node discovery (API-first, avoids RPC downtime)
     try {
@@ -219,7 +393,7 @@ class ANFEService {
     }
 
     // --- SECONDARY: On-chain ERC-721 enumeration (fills gaps if HI is stale)
-    if (contract) {
+    if (contract && balance > 0 && anfes.length < balance) {
       try {
         const enumANFEs = await this.discoverANFEsViaERC721Enumeration(walletAddress, 8453);
         if (enumANFEs.length) {
@@ -234,7 +408,7 @@ class ANFEService {
     }
 
     // --- TERTIARY: On-chain ERC-721 event-log discovery (fills remaining gaps)
-    if (contract) {
+    if (contract && balance > 0 && anfes.length < balance) {
       try {
         const logANFEs = await this.discoverANFEsViaEventLogs(walletAddress, 8453);
         if (logANFEs.length) {
@@ -254,7 +428,7 @@ class ANFEService {
       try {
         for (const anfe of anfes) {
           const nodeData = await hiNode(anfe.tokenId);
-          if (nodeData) {
+          if (nodeData && typeof nodeData === 'object') {
             const merkelizerData = await this.fetchMerkelizerData(anfe.tokenId, walletAddress);
             anfe.verification.status = nodeData.isAlive ? 'online' : (merkelizerData?.status || 'offline');
             anfe.verification.uptime = nodeData.measuredUptime ?? merkelizerData?.uptime ?? anfe.verification.uptime;
@@ -282,6 +456,8 @@ class ANFEService {
       totalCount: anfes.length,
       fetchedAt: Date.now(),
       byChain,
+      degraded: isDegradedMode(8453),
+      degradedMessage: isDegradedMode(8453) ? getDegradedModeStatus(8453).message : undefined,
     };
     this.walletANFEsCache.set(walletAddress, result);
     console.log(`[ANFEService] Loaded ${anfes.length} ANFEs total`);
@@ -366,6 +542,16 @@ class ANFEService {
   }
 
   // ========================================================================
+  // ERC-721 balanceOf(address) => uint256
+  // ========================================================================
+  private async getERC721BalanceOf(wallet: string, contract: string, chainId: SupportedChain): Promise<number> {
+    const data = encodeBalanceOf(wallet);
+    const result = await this.callContract(contract, data, chainId);
+    if (!result || result === '0x') return 0;
+    return Number(decodeUint256(result));
+  }
+
+  // ========================================================================
   // ERC-721 ownerOf(uint256) => address
   // ========================================================================
   private async ownerOf(contract: string, tokenId: string, chainId: SupportedChain): Promise<string | null> {
@@ -387,47 +573,45 @@ class ANFEService {
     chainId: SupportedChain
   ): Promise<ANFE[]> {
     const contract = ANFE_CONTRACTS[chainId];
+    if (!contract) return [];
     const walletPad = padAddr(walletAddress);
-    const rpcUrls = [RPC_CONFIG[chainId], ...(RPC_FALLBACKS[chainId] || [])];
+    const chainName: 'ethereum' | 'base' = chainId === 1 ? 'ethereum' : 'base';
 
-    for (const rpcUrl of rpcUrls) {
-      try {
-        const logs = await getLogsPaginated(
-          rpcUrl,
-          contract,
-          [ERC721_TRANSFER_TOPIC, null, walletPad, null],
-          '0x0',
-          'latest',
-          2000,
-        );
-        console.log(`[ANFEService] ${logs.length} ERC-721 Transfer logs for wallet on ${CHAIN_NAMES[chainId]}`);
+    try {
+      const logs = await getLogsPaginated(
+        chainName,
+        contract,
+        [ERC721_TRANSFER_TOPIC, null, walletPad, null],
+        '0x0',
+        'latest',
+        2000,
+      );
+      console.log(`[ANFEService] ${logs.length} ERC-721 Transfer logs for wallet on ${CHAIN_NAMES[chainId]}`);
 
-        const tokenIds: string[] = [];
-        for (const log of logs) {
-          try {
-            // ERC-721 Transfer topic3 is the tokenId (32 bytes)
-            const topic3 = log.topics?.[3];
-            if (!topic3) continue;
-            const tokenId = String(BigInt(topic3));
-            if (!tokenIds.includes(tokenId)) tokenIds.push(tokenId);
-          } catch {}
-        }
-        console.log(`[ANFEService] Extracted ${tokenIds.length} unique tokenIds from logs`);
-
-        const anfes: ANFE[] = [];
-        for (const tokenId of tokenIds) {
-          const owner = await this.ownerOf(contract, tokenId, chainId);
-          if (!owner || owner.toLowerCase() !== walletAddress.toLowerCase()) continue;
-          const anfe = await this.buildANFE(contract, tokenId, chainId, walletAddress);
-          anfes.push(anfe);
-        }
-        return anfes;
-      } catch (e) {
-        console.warn('[ANFEService] RPC failed for event logs:', rpcUrl, e);
-        continue;
+      const tokenIds: string[] = [];
+      for (const log of logs) {
+        try {
+          // ERC-721 Transfer topic3 is the tokenId (32 bytes)
+          const topic3 = log.topics?.[3];
+          if (!topic3) continue;
+          const tokenId = String(BigInt(topic3));
+          if (!tokenIds.includes(tokenId)) tokenIds.push(tokenId);
+        } catch {}
       }
+      console.log(`[ANFEService] Extracted ${tokenIds.length} unique tokenIds from logs`);
+
+      const anfes: ANFE[] = [];
+      for (const tokenId of tokenIds) {
+        const owner = await this.ownerOf(contract, tokenId, chainId);
+        if (!owner || owner.toLowerCase() !== walletAddress.toLowerCase()) continue;
+        const anfe = await this.buildANFE(contract, tokenId, chainId, walletAddress);
+        anfes.push(anfe);
+      }
+      return anfes;
+    } catch (e) {
+      console.warn('[ANFEService] Event log discovery failed:', e);
+      return [];
     }
-    return [];
   }
 
   // ========================================================================
@@ -543,10 +727,10 @@ class ANFEService {
         const currentChain = await provider.request({ method: 'eth_chainId' }).catch(() => null);
         const targetChain = '0x' + chainId.toString(16);
         if (currentChain && currentChain.toLowerCase() === targetChain.toLowerCase()) {
-          const result = await provider.request({
+          const result = await this.withRateLimit(async () => provider.request({
             method: 'eth_call',
             params: [{ to: contractAddress, data }, 'latest'],
-          });
+          }));
           if (result && result !== '0x') {
             return result as string;
           }
@@ -554,27 +738,17 @@ class ANFEService {
       } catch { /* fall through */ }
     }
 
-    // --- PRIORITY 2: Direct HTTP RPC (works in Electron, may CORS-block in browser) ---
-    const rpcUrls = [RPC_CONFIG[chainId], ...(RPC_FALLBACKS[chainId] || [])];
-    for (const rpcUrl of rpcUrls) {
-      try {
-        const r = await fetch(rpcUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(5000),
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'eth_call',
-            params: [{ to: contractAddress, data }, 'latest'],
-            id: 1,
-          }),
-        });
-        if (!r.ok) continue;
-        const j = await r.json();
-        if (j.error) continue;
-        if (j.result && j.result !== '0x') return j.result;
-      } catch { continue; }
-    }
+    // --- PRIORITY 2: Shared RPC (global rate limit + circuit breaker) ---
+    try {
+      const chainName: 'ethereum' | 'base' = chainId === 1 ? 'ethereum' : 'base';
+      const result = await sharedRpcCall(chainName, {
+        method: 'eth_call',
+        params: [{ to: contractAddress, data }, 'latest'],
+      });
+      if (result && result !== '0x') {
+        return result as string;
+      }
+    } catch { /* fall through */ }
 
     return null;
   }
@@ -788,12 +962,51 @@ class ANFEService {
     return results;
   }
 
-  async healthCheck(): Promise<{ hyperinsight: boolean; rpc: boolean; wallet: boolean }> {
+  /**
+   * Get Alchemy key manager for UI migration
+   */
+  getAlchemyKeyManager() {
+    return alchemyKeyManager;
+  }
+
+  /**
+   * Check if Base network is in degraded mode
+   */
+  isDegradedMode(): boolean {
+    return isDegradedMode(8453);
+  }
+
+  /**
+   * Get degraded mode status for UI display
+   */
+  getDegradedModeStatus(): { active: boolean; message?: string } {
+    const status = getDegradedModeStatus(8453);
+    return { active: status.active, message: status.message };
+  }
+
+  /** 
+   * Health check with RPC resilience doctor
+   */
+  async healthCheck(): Promise<{ 
+    hyperinsight: boolean; 
+    rpc: boolean; 
+    wallet: boolean;
+    degraded: boolean;
+    degradedMessage?: string;
+  }> {
     const [hi, rpc] = await Promise.all([
       fetch(`${HI_BASE}/auth/me`, { headers: HI_HEADERS }).then(r => r.ok).catch(() => false),
       fetch(RPC_CONFIG[8453], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 }) }).then(r => r.ok).catch(() => false),
     ]);
-    return { hyperinsight: hi, rpc, wallet: walletAdapter.isAvailable() };
+    const degraded = isDegradedMode(8453);
+    const degradedStatus = getDegradedModeStatus(8453);
+    return { 
+      hyperinsight: hi, 
+      rpc, 
+      wallet: walletAdapter.isAvailable(),
+      degraded,
+      degradedMessage: degradedStatus.message,
+    };
   }
 
   /**
@@ -829,6 +1042,10 @@ class ANFEService {
         const tokenId = String(BigInt(result));
         tokenIds.push(tokenId);
       }
+      // Throttle: pause between each RPC call to avoid hammering public nodes
+      if (i < balance - 1) {
+        await new Promise(r => setTimeout(r, 300));
+      }
     }
 
     // 2b. FALLBACK: If enumeration returned nothing but balance > 0,
@@ -837,30 +1054,28 @@ class ANFEService {
     if (tokenIds.length === 0 && balance > 0) {
       console.log(`[ANFEService] Contract ${contract.slice(0, 10)}... lacks enumeration — falling back to event logs`);
       const walletPad = walletAddress.replace(/^0x/i, '').toLowerCase().padStart(64, '0');
-      const rpcUrls = [RPC_CONFIG[chainId], ...(RPC_FALLBACKS[chainId] || [])];
-      for (const rpcUrl of rpcUrls) {
-        try {
-          const logs = await getLogsPaginated(
-            rpcUrl,
-            contract,
-            [ERC721_TRANSFER_TOPIC, null, `0x${walletPad}`, null],
-            '0x0',
-            'latest',
-            2000,
-          );
-          for (const log of logs) {
-            try {
-              const topic3 = log.topics?.[3];
-              if (!topic3) continue;
-              const tid = String(BigInt(topic3));
-              if (!tokenIds.includes(tid)) tokenIds.push(tid);
-            } catch {}
-          }
-          console.log(`[ANFEService] Event logs found ${tokenIds.length} tokenIds on ${contract.slice(0, 10)}...`);
-          if (tokenIds.length > 0) break;
-        } catch (e) {
-          console.warn('[ANFEService] Event log RPC failed:', rpcUrl, e);
+      const chainName: 'ethereum' | 'base' = chainId === 1 ? 'ethereum' : 'base';
+
+      try {
+        const logs = await getLogsPaginated(
+          chainName,
+          contract,
+          [ERC721_TRANSFER_TOPIC, null, `0x${walletPad}`, null],
+          '0x0',
+          'latest',
+          2000,
+        );
+        for (const log of logs) {
+          try {
+            const topic3 = log.topics?.[3];
+            if (!topic3) continue;
+            const tid = String(BigInt(topic3));
+            if (!tokenIds.includes(tid)) tokenIds.push(tid);
+          } catch {}
         }
+        console.log(`[ANFEService] Event logs found ${tokenIds.length} tokenIds on ${contract.slice(0, 10)}...`);
+      } catch (e) {
+        console.warn('[ANFEService] Event log discovery failed:', e);
       }
     }
 
@@ -900,6 +1115,8 @@ class ANFEService {
         if (nfts.length > 0) {
           results.push({ symbol: token.symbol, name: token.name, chain: token.chain, standard: token.standard, nfts });
         }
+        // Throttle between contracts
+        await new Promise(r => setTimeout(r, 500));
       } else if (token.standard === 'ERC-1155') {
         // ERC-1155: check per-token-ID balanceOf
         // The HyperCycle Ethereum NodeFactory (0x4BFbA79CF...) uses tokenId=1 for Node Factory

@@ -149,11 +149,52 @@ export function defaultSkillSources(
   workspaceDir: string,
 ): SkillSource[] {
   return [
-    // Bundled with the app binary (lowest precedence)
-    { dir: path.join(__dirname, "../../bundled-skills"), source: "bundled" },
-    // User-managed skills
+    // Bundled with the app binary — MAIN IMPORTED SKILLS (198 skills)
+    { dir: path.join(__dirname, "../../../../../../bundled-skills"), source: "bundled" },
+    // Legacy runtime directory (8 skills — keep for backwards compatibility)
+    { dir: path.join(__dirname, "../../bundled-skills"), source: "extra" },
+    // User-managed skills (bot-authored)
     { dir: path.join(appDir, "skills"), source: "managed" },
     // Workspace-local skills (highest precedence)
     { dir: path.join(workspaceDir, "skills"), source: "workspace" },
   ];
+}
+
+/**
+ * Load Stargate Vault skills from vault-index.json.
+ * The vault contains 283 skill names in categories but NO actual SKILL.md files.
+ * This generates lightweight SkillEntry stubs so the bot knows they exist.
+ */
+export async function loadStargateVaultSkills(
+  vaultIndexPath: string,
+): Promise<SkillEntry[]> {
+  if (!await fs.access(vaultIndexPath).then(() => true).catch(() => false)) {
+    return [];
+  }
+
+  let vault: { total_skills?: number; categories?: Record<string, string[]> };
+  try {
+    const raw = await fs.readFile(vaultIndexPath, "utf-8");
+    vault = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+
+  const entries: SkillEntry[] = [];
+  for (const [category, skillNames] of Object.entries(vault.categories ?? {})) {
+    for (const name of skillNames) {
+      entries.push({
+        name,
+        description: `Stargate Vault skill — ${category}. Use TOOL:load_skill or ask me about it.`,
+        filePath: vaultIndexPath,
+        source: "vault",
+        baseDir: vaultIndexPath,
+        content: `---\nname: "${name}"\ndescription: "Stargate Vault skill — ${category}"\n---\n\nThis skill is registered in the Stargate Vault. The actual implementation lives in the skill registry.\n`,
+        metadata: {},
+        policy: { userInvocable: true, disableModelInvocation: false },
+        dispatch: undefined,
+      });
+    }
+  }
+  return entries;
 }

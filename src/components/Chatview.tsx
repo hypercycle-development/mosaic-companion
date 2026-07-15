@@ -623,12 +623,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
       }
       return count;
     })();
-    if (toolResultCount >= 4 || chainDepth >= 3) {
-      console.warn(`[processAIResponse] Tool-chain limit reached (${toolResultCount} tool results, chainDepth=${chainDepth}). Stopping loop to force synthesis.`);
+    // Safety limits — raised to allow deep exploration tasks (e.g. "learn everything
+    // about X") while still preventing infinite loops. Per-user request: no artificial
+    // low caps. Hard ceiling at 10 consecutive tool results / 10 recursion depth.
+    if (toolResultCount >= 10 || chainDepth >= 10) {
+      console.warn(`[processAIResponse] Tool-chain safety limit reached (${toolResultCount} tool results, chainDepth=${chainDepth}). Stopping loop to force synthesis.`);
       const stopMsg: ChatMessage = {
         id: `msg-${Date.now()}`,
         role: "assistant",
-        content: "I’ve reached the tool-chain safety limit to prevent runaway loops. I’ll summarize what I know so far, or you can ask a more specific follow-up question.",
+        content: "I've reached the tool-chain safety limit to prevent runaway loops. I'll summarize what I know so far, or you can ask a more specific follow-up question.",
         timestamp: Date.now(),
         agentId: selectedAgent!.id,
       };
@@ -747,7 +750,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                }
                return count;
              })() + 1;
-             const synthesisHint = chainCount >= 3
+             const synthesisHint = chainCount >= 10
                ? "\n\n[CRITICAL LOOP PREVENTION: You have already received data from several tools. Do NOT call another tool. Synthesize the collected tool outputs into a concise final answer NOW.]"
                : "";
              const toolMsg: ChatMessage = {
@@ -1145,7 +1148,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             `4. If you do not call a tool, the user gets ZERO information. Your training data is outdated. ANY number, name, or fact you write without a tool call is a HALLUCINATION.\n` +
             `5. If no tool exists for the request, say exactly: "No tool is available for that request." -- nothing else.\n` +
             `6. After a <use_tool> tag, STOP writing. Do not add a single character. The system will inject [Tool Output] and you will continue then.\n` +
-            `7. LOOP PREVENTION: If you have already called 3 or more tools in this conversation, do NOT call another tool unless the user explicitly asked for a NEW, unrelated fact. Instead, SYNTHESIZE the tool outputs you already have into a concise final answer. Continuing to chain tools after you have enough data is a bug and is forbidden.`
+            `7. LOOP PREVENTION: If you have already called 10 or more tools in this conversation, do NOT call another tool unless the user explicitly asked for a NEW, unrelated fact. Instead, SYNTHESIZE the tool outputs you already have into a concise final answer. Continuing to chain tools after you have enough data is a bug and is forbidden.`
           );
 
           // 0b. Legacy anti-hallucination header (kept for overlap coverage)

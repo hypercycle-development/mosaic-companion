@@ -50,6 +50,7 @@ class SkillInjector {
   /**
    * Resolve the full path to a skill directory.
    * Searches: ~/.hermes/skills/<name>/ and ~/.hermes/skills/<category>/<name>/
+   * Falls back to: bundled-skills/<name>/
    */
   private _resolveSkillPath(skillName: string): string | null {
     if (!NODE_AVAILABLE) return null;
@@ -86,7 +87,28 @@ class SkillInjector {
         }
       }
     } catch {
-      // skillsRoot doesn't exist
+      // skillsRoot doesn't exist - continue to bundled fallback
+    }
+
+    // Fallback: Try bundled-skills directory (for packaged app)
+    // The bundled-skills directory is relative to the app root in production builds
+    // Check multiple possible locations
+    const possibleBundledPaths = [
+      // Relative to current working directory (dev mode)
+      path.join(process.cwd(), "bundled-skills", skillName),
+      // Relative to app root (electron main process)
+      path.join(__dirname || "", "..", "..", "bundled-skills", skillName),
+      // Alternative electron paths
+      path.join(__dirname || "", "..", "bundled-skills", skillName),
+      // MosaicBot bundled-skills (for electron/integrations path)
+      path.join(__dirname || "", "..", "..", "electron", "integrations", "mosaicbot", "bundled-skills", skillName),
+    ];
+
+    for (const bundledPath of possibleBundledPaths) {
+      if (fs.existsSync(path.join(bundledPath, "SKILL.md"))) {
+        console.log(`[SkillInjector] Found skill "${skillName}" in bundled-skills: ${bundledPath}`);
+        return bundledPath;
+      }
     }
 
     return null;
@@ -340,7 +362,7 @@ class SkillInjector {
    */
   clearCache(): void {
     this.skillCache.clear();
-    console.log("[SkillInjector] Skill cache cleared");
+    console.debug("[SkillInjector] Skill cache cleared");
   }
 }
 

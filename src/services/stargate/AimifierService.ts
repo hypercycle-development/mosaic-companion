@@ -78,6 +78,7 @@ export interface AIMDiscoveryResult {
     port: number;
   };
   activeBackendModel?: string;
+  aimType?: 'proxy' | 'embedded' | 'unknown';
   error?: string;
 }
 
@@ -243,6 +244,17 @@ export class AimifierService extends EventEmitter {
     const healthCheck = result.endpointChecks.find(c => c.uri === '/health' && c.ok);
     if (healthCheck?.data) {
       result.activeBackendModel = healthCheck.data.model || healthCheck.data.status?.model;
+      
+      // Detect aimType: proxy (ollama provider + hermes_bridge) vs embedded (AIAgent runtime)
+      const provider = healthCheck.data.provider;
+      const mosaicAimType = healthCheck.data.mosaic_aim_type;
+      if (provider === 'ollama' && mosaicAimType === 'hermes_bridge') {
+        result.aimType = 'proxy';
+      } else if (healthCheck.data.mode === 'embedded' || healthCheck.data.agent_initialized === true) {
+        result.aimType = 'embedded';
+      } else {
+        result.aimType = 'unknown';
+      }
     }
 
     // 3. Inspect Docker container

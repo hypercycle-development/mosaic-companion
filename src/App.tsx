@@ -515,6 +515,7 @@ function App() {
           <BottomBar
             onSubmit={handleBottomBarSubmit}
             hasAgents={hasAgents}
+            currentUrl={activeTab.history.present}
           />
         )}
       </main>

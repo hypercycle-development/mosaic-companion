@@ -7,8 +7,32 @@ import { ANFEGraphData } from './GraphService';
 import { VerificationResult } from './MerkelizerService';
 
 // =============================================================================
-// ANFE Attribute Types (from tokenURI metadata)
+// Validator Fleet — Battery/CometBFT Node Telemetry
 // =============================================================================
+
+export interface ValidatorNode {
+  moniker: string;
+  nodeId: string;
+  address: string;
+  blockHeight: number;
+  maxBlockHeight: number;
+  peerCount: number;
+  syncStatus: 'synced' | 'catching_up' | 'offline';
+  lastSeen: number; // timestamp ms
+  isOnline: boolean;
+  cometBftVersion?: string;
+  network?: string;
+  earliestBlockHeight?: number;
+}
+
+export interface ValidatorPoolStatus {
+  validators: ValidatorNode[];
+  totalValidators: number;
+  onlineValidators: number;
+  syncedValidators: number;
+  highestBlock: number;
+  lastUpdated: number;
+}
 
 export interface ANFEAttribute {
   trait_type: string;
@@ -149,7 +173,7 @@ export function parseAttributes(metadata: ANFEMetadata): ANFEAttributes {
  * Get level from ANFE attributes
  */
 export function getLevelFromAttributes(attrs: ANFEAttributes): number {
-  const levelAttr = attrs.core.level;
+  const levelAttr = attrs?.core?.level;
   if (!levelAttr) return 1;
 
   if (typeof levelAttr.value === 'number') return levelAttr.value;
@@ -161,7 +185,7 @@ export function getLevelFromAttributes(attrs: ANFEAttributes): number {
  * Get primary license (HyPC) from attributes
  */
 export function getPrimaryLicense(attrs: ANFEAttributes): string {
-  const license = attrs.core.primaryLicense;
+  const license = attrs?.core?.primaryLicense;
   if (!license) return 'None';
 
   return String(license.value || license);
@@ -171,6 +195,7 @@ export function getPrimaryLicense(attrs: ANFEAttributes): string {
  * Get AI module names from attributes
  */
 export function getAIModuleNames(attrs: ANFEAttributes): string[] {
+  if (!attrs?.ai?.aiModules) return [];
   return attrs.ai.aiModules.map(m => {
     // Convert c_OpnAI -> OpenAI, c_IAlf -> Claude (Advanced), etc.
     const name = m.trait_type.replace('c_', '');
@@ -207,7 +232,7 @@ export function formatANFEForDisplay(anfe: ANFE): {
     level: getLevelFromAttributes(anfe.attributes),
     license: getPrimaryLicense(anfe.attributes),
     aiModules: getAIModuleNames(anfe.attributes),
-    verified: anfe.verification.valid,
+    verified: anfe.verification?.valid ?? false,
     displayName: anfe.metadata?.name || `ANFE #${anfe.tokenId}`,
   };
 }
@@ -270,6 +295,9 @@ export interface WalletANFEs {
   totalCount: number;
   fetchedAt: number;
   byChain: Record<SupportedChain, ANFE[]>;
+  // Degraded mode support
+  degraded?: boolean;
+  degradedMessage?: string;
 }
 
 // =============================================================================

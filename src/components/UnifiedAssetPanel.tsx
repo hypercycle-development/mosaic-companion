@@ -104,7 +104,7 @@ const UnifiedAssetPanel: React.FC<UnifiedAssetPanelProps> = ({
           >
             {asset.nodeData.isAlive ? 'Online' : 'Offline'}
           </span>
-          {asset.nodeData.measuredUptime !== undefined && (
+          {asset.nodeData.measuredUptime !== undefined && asset.nodeData.measuredUptime !== null && (
             <span className="text-gray-500">
               Uptime: {(asset.nodeData.measuredUptime * 100).toFixed(1)}%
             </span>

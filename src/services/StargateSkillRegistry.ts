@@ -66,7 +66,7 @@ export interface BundleConfig {
   skills: string[];
   price: number;
   popular?: boolean;
-  category: 'development' | 'research' | 'dao' | 'creative' | 'ops';
+  category: 'development' | 'research' | 'dao' | 'creative' | 'ops' | 'blockchain';
 }
 
 class StargateSkillRegistry {
@@ -235,6 +235,66 @@ class StargateSkillRegistry {
       rating: 4.6,
       hourlyRate: 0.7,
     },
+    {
+      id: 'midnight-dev-001',
+      name: 'Midnight Compact Developer',
+      role: 'midnight-dev',
+      skills: ['midnight-compact-core-basic-start', 'midnight-compact-core-compact-structure', 'midnight-compact-core-compact-patterns', 'midnight-verify-verify-compact', 'midnight-cq-compact-testing'],
+      model: 'kimi-k2.6',
+      provider: 'ollama-cloud',
+      status: 'idle',
+      tasksCompleted: 0,
+      rating: 4.9,
+      hourlyRate: 0.8,
+    },
+    {
+      id: 'midnight-ops-001',
+      name: 'Midnight Devnet Operator',
+      role: 'midnight-ops',
+      skills: ['midnight-tooling-devnet', 'midnight-tooling-devnet-health', 'midnight-wallet-managing-test-wallets', 'midnight-status-codes-status-codes-lookup'],
+      model: 'kimi-k2.6',
+      provider: 'ollama-cloud',
+      status: 'idle',
+      tasksCompleted: 0,
+      rating: 4.7,
+      hourlyRate: 0.6,
+    },
+    {
+      id: 'midnight-reviewer-001',
+      name: 'Midnight Security Reviewer',
+      role: 'midnight-review',
+      skills: ['midnight-compact-core-compact-security', 'midnight-compact-core-compact-privacy-disclosure', 'midnight-compact-core-compact-review', 'midnight-verify-verify-by-source'],
+      model: 'claude-sonnet-4',
+      provider: 'anthropic',
+      status: 'idle',
+      tasksCompleted: 0,
+      rating: 4.8,
+      hourlyRate: 0.7,
+    },
+    {
+      id: 'midnight-dapp-001',
+      name: 'Midnight DApp Engineer',
+      role: 'midnight-dapp',
+      skills: ['midnight-dapp-dev-core', 'midnight-dapp-dev-dapp-connector', 'midnight-compact-core-compact-witness-ts', 'midnight-cq-dapp-testing'],
+      model: 'kimi-k2.6',
+      provider: 'ollama-cloud',
+      status: 'idle',
+      tasksCompleted: 0,
+      rating: 4.7,
+      hourlyRate: 0.7,
+    },
+    {
+      id: 'midnight-orchestrator-001',
+      name: 'Midnight Orchestrator',
+      role: 'midnight-orchestrator',
+      skills: ['midnight-orchestrator', 'midnight-core-concepts-architecture', 'midnight-core-concepts-privacy-patterns', 'midnight-core-concepts-zero-knowledge'],
+      model: 'kimi-k2.6',
+      provider: 'ollama-cloud',
+      status: 'idle',
+      tasksCompleted: 0,
+      rating: 5.0,
+      hourlyRate: 0.9,
+    },
   ];
 
   // Pre-built agent bundles
@@ -352,6 +412,23 @@ class StargateSkillRegistry {
       skills: ['timesfm-forecasting', 'jupyter-live-kernel'],
       price: 1.5,
     },
+    {
+      id: 'midnight-privacy-team',
+      name: 'Midnight Privacy Team',
+      description: 'Zero-knowledge blockchain development: Compact contract author + Devnet operator + Security reviewer + DApp engineer + Orchestrator',
+      icon: 'Shield',
+      category: 'blockchain',
+      agents: [
+        { role: 'Compact Dev', skills: ['midnight-compact-core-basic-start', 'midnight-compact-core-compact-patterns', 'midnight-verify-verify-compact'], model: 'kimi-k2.6' },
+        { role: 'Devnet Ops', skills: ['midnight-tooling-devnet', 'midnight-wallet-managing-test-wallets'], model: 'kimi-k2.6' },
+        { role: 'Security Reviewer', skills: ['midnight-compact-core-compact-security', 'midnight-compact-core-compact-privacy-disclosure'], model: 'claude-sonnet-4' },
+        { role: 'DApp Engineer', skills: ['midnight-dapp-dev-core', 'midnight-dapp-dev-dapp-connector'], model: 'kimi-k2.6' },
+        { role: 'Orchestrator', skills: ['midnight-orchestrator', 'midnight-core-concepts-zero-knowledge'], model: 'kimi-k2.6' },
+      ],
+      skills: ['midnight-orchestrator', 'midnight-compact-core-compact-structure', 'midnight-verify-verify-compact', 'midnight-tooling-devnet'],
+      price: 3.5,
+      popular: true,
+    },
   ];
 
   async initialize(): Promise<void> {
@@ -398,7 +475,7 @@ class StargateSkillRegistry {
       console.log('[StargateSkillRegistry] Ollama not available, using fallback models');
       // Fallback: known models for R2D2
       this.models = [
-        { id: 'kimi-k2.5:cloud', name: 'Kimi K2.5', provider: 'ollama-cloud', status: 'loaded', capability: ['code', 'reasoning', 'long-context'], local: false, baseUrl: 'https://ollama.com/v1' },
+        { id: 'kimi-k2.5:cloud', name: 'Kimi K2.5', provider: 'ollama-cloud', status: 'loaded', capability: ['code', 'reasoning', 'long-context'], local: false, baseUrl: 'https://api.ollama.com/v1' },
         { id: 'llama3.2:3b', name: 'Llama 3.2 (3B)', provider: 'ollama', status: 'available', capability: ['general', 'chat', 'vision'], local: true, baseUrl: 'http://localhost:11434' },
         { id: 'qwen2.5-coder:7b', name: 'Qwen 2.5 Coder (7B)', provider: 'ollama', status: 'available', capability: ['code'], local: true, baseUrl: 'http://localhost:11434' },
         { id: 'qwen2.5:32b', name: 'Qwen 2.5 (32B)', provider: 'ollama', status: 'available', capability: ['general', 'chat', 'reasoning'], local: true, baseUrl: 'http://localhost:11434' },
@@ -493,6 +570,37 @@ class StargateSkillRegistry {
 
       // Social
       'xurl': { name: 'X/Twitter', description: 'Post, search, DM, media via xurl CLI', category: 'social-media', tags: ['twitter', 'x', 'social'] },
+
+      // Midnight Network — Privacy Blockchain & ZK
+      'midnight-compact-core-basic-start': { name: 'Compact Basic Start', description: 'Write your first Compact smart contract and deploy to devnet', category: 'midnight', tags: ['compact', 'devnet', 'hello-world'] },
+      'midnight-compact-core-compact-structure': { name: 'Compact Structure', description: 'Contract anatomy, types, declarations, pragma, ledger, circuits', category: 'midnight', tags: ['compact', 'structure', 'types'] },
+      'midnight-compact-core-compact-tokens': { name: 'Compact Tokens', description: 'Token patterns: ERC20, NFT, shielded tokens, mint/burn', category: 'midnight', tags: ['compact', 'tokens', 'erc20', 'nft'] },
+      'midnight-compact-core-compact-patterns': { name: 'Compact Patterns', description: '18+ reusable design patterns: access control, commitment, governance', category: 'midnight', tags: ['compact', 'patterns', 'access-control'] },
+      'midnight-compact-core-compact-witness-ts': { name: 'Compact Witness TS', description: 'TypeScript witness implementation patterns for private inputs', category: 'midnight', tags: ['compact', 'witness', 'typescript'] },
+      'midnight-compact-core-compact-debugging': { name: 'Compact Debugging', description: 'Debug failing Compact contracts with systematic walkthroughs', category: 'midnight', tags: ['compact', 'debug', 'troubleshoot'] },
+      'midnight-compact-core-compact-review': { name: 'Compact Review', description: 'Multi-axis code review: security, privacy, architecture, performance', category: 'midnight', tags: ['compact', 'review', 'audit'] },
+      'midnight-compact-core-compact-security': { name: 'Compact Security', description: 'Security audit patterns for Compact smart contracts', category: 'midnight', tags: ['compact', 'security', 'audit'] },
+      'midnight-compact-core-compact-privacy-disclosure': { name: 'Compact Privacy', description: 'Privacy analysis and leak detection in Compact contracts', category: 'midnight', tags: ['compact', 'privacy', 'disclosure'] },
+      'midnight-compact-core-compact-circuit-costs': { name: 'Compact Circuit Costs', description: 'Analyze and optimize ZK circuit complexity and performance', category: 'midnight', tags: ['compact', 'circuits', 'costs'] },
+      'midnight-verify-verify-compact': { name: 'Verify Compact', description: 'Compile, type-check, and verify Compact contracts', category: 'midnight', tags: ['verify', 'compact', 'compile'] },
+      'midnight-verify-verify-by-devnet': { name: 'Verify by Devnet', description: 'End-to-end verification against local Midnight devnet', category: 'midnight', tags: ['verify', 'devnet', 'e2e'] },
+      'midnight-verify-verify-by-source': { name: 'Verify by Source', description: 'Source code inspection and manual verification', category: 'midnight', tags: ['verify', 'source', 'inspection'] },
+      'midnight-tooling-devnet': { name: 'Devnet Tooling', description: 'Start, stop, and manage local Midnight devnet via Docker', category: 'midnight', tags: ['tooling', 'devnet', 'docker'] },
+      'midnight-tooling-devnet-health': { name: 'Devnet Health', description: 'Health checks and diagnostics for Midnight devnet', category: 'midnight', tags: ['tooling', 'devnet', 'health'] },
+      'midnight-tooling-compact-cli': { name: 'Compact CLI', description: 'Compact CLI reference and command guide', category: 'midnight', tags: ['tooling', 'cli', 'commands'] },
+      'midnight-wallet-managing-test-wallets': { name: 'Test Wallets', description: 'Create, fund, and manage Midnight test wallets with NIGHT/DUST', category: 'midnight', tags: ['wallet', 'test', 'night', 'dust'] },
+      'midnight-dapp-dev-core': { name: 'DApp Core', description: 'Scaffold Vite + React frontend for Midnight DApps', category: 'midnight', tags: ['dapp', 'react', 'vite'] },
+      'midnight-dapp-dev-dapp-connector': { name: 'DApp Connector', description: 'Wire Lace wallet to Midnight DApp frontend', category: 'midnight', tags: ['dapp', 'wallet', 'lace'] },
+      'midnight-core-concepts-architecture': { name: 'Midnight Architecture', description: 'Kachina, Zswap, dual-ledger, privacy architecture', category: 'midnight', tags: ['concepts', 'architecture', 'kachina'] },
+      'midnight-core-concepts-privacy-patterns': { name: 'Privacy Patterns', description: 'Privacy-preserving design patterns for Midnight', category: 'midnight', tags: ['concepts', 'privacy', 'patterns'] },
+      'midnight-core-concepts-zero-knowledge': { name: 'Zero Knowledge', description: 'ZK proof fundamentals for Midnight developers', category: 'midnight', tags: ['concepts', 'zk', 'proofs'] },
+      'midnight-proof-server-proof-server-api': { name: 'Proof Server API', description: 'REST API for Midnight proof generation and verification', category: 'midnight', tags: ['proof-server', 'api', 'proving'] },
+      'midnight-node-node-operations': { name: 'Node Operations', description: 'Run Midnight node: full, archive, validator modes', category: 'midnight', tags: ['node', 'operations', 'validator'] },
+      'midnight-indexer-indexer-graphql-api': { name: 'Indexer GraphQL', description: 'Query Midnight blockchain via GraphQL indexer', category: 'midnight', tags: ['indexer', 'graphql', 'query'] },
+      'midnight-status-codes-status-codes-lookup': { name: 'Status Codes', description: 'Lookup Midnight error codes across all components', category: 'midnight', tags: ['status-codes', 'errors', 'lookup'] },
+      'midnight-cq-compact-testing': { name: 'Compact Testing', description: 'Write tests for Compact contracts: Vitest, simulator', category: 'midnight', tags: ['testing', 'compact', 'vitest'] },
+      'midnight-cq-dapp-testing': { name: 'DApp Testing', description: 'Test Midnight DApps with Playwright', category: 'midnight', tags: ['testing', 'dapp', 'playwright'] },
+      'midnight-orchestrator': { name: 'Midnight Orchestrator', description: 'Master router: auto-detects context and routes to specialist skills', category: 'midnight', tags: ['orchestrator', 'routing', 'entry-point'] },
     };
 
     // Convert to HermesSkill array with fake install counts based on utility

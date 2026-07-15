@@ -220,4 +220,32 @@ interface Window {
       }>;
     };
   };
+  /** Mosaic Bot Agent API — exposed via mosaicbot/src/preload.ts */
+  agent?: {
+    send: (text: string) => Promise<{ type: string; skill?: string; args?: string; text?: string }>;
+    triggerHeartbeat: (agentId?: string) => Promise<{ ok: boolean }>;
+    listSkills: () => Promise<any[]>;
+    onMessage: (cb: (msg: { to: string; text: string; channel: string }) => void) => void;
+    getImportLog: () => Promise<any[]>;
+    getPendingImports: () => Promise<any[]>;
+    approveSkill: (name: string) => Promise<any>;
+    removeSkill: (name: string) => Promise<any>;
+    forceScan: () => Promise<any>;
+    getOrchestratorStatus: () => Promise<any>;
+    getAgentProfiles: () => Promise<any[]>;
+    queryContext: (project: string, query: string, limit?: number) => Promise<any>;
+    getSessionContext: () => Promise<any>;
+    indexSession: (sessionId: string, summary: string, skills: string[], projects: string[]) => Promise<void>;
+    getStargateComponents: () => Promise<any[]>;
+    getStargateFleet: () => Promise<any[]>;
+    getStargateContracts: () => Promise<any[]>;
+    getStargateDown: () => Promise<any[]>;
+    getStargateSummary: () => Promise<any>;
+    getStargateCapabilities: () => Promise<any>;
+    indexStargate: () => Promise<any>;
+    getStargateHistory: (limit?: number) => Promise<any[]>;
+    getStargateTrend: () => Promise<any>;
+    /** Team dispatch — call a specific agent with a prompt */
+    teamDispatch: (agentId: string, prompt: string, systemPrompt?: string) => Promise<{ type: string; text?: string }>;
+  };
 }

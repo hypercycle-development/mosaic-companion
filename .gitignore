@@ -58,3 +58,10 @@ project_dump.txt
 # Local planning docs
 /plans/
 message.txt
+
+# Runtime data directories
+.codebase-memory/
+memory/
+kanban-boards/
+video-editor-agent/output/
+1

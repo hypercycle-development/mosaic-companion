@@ -51,34 +51,71 @@ function readAgentById(id: string): AgentConfig | null {
   return readAgents().find((a) => a.id === id) ?? null;
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Provider detection ───────────────────────────────────────────────────────
 
-/**
- * Call the first active AI agent with the given prompt.
- * Returns null (and logs a warning) when no active agent is configured.
- * The caller is responsible for falling back to HEARTBEAT_OK.
- */
 // Helper to detect effective provider from agent config
 // Handles :cloud suffix in model names (e.g., "llama3.1:cloud" -> ollama-cloud)
 function getEffectiveProvider(agent: AgentConfig): AgentConfig["provider"] {
-  // Check for :cloud suffix in model name
   if (agent.model?.endsWith(":cloud")) {
     return "ollama-cloud";
   }
   return agent.provider;
 }
 
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * Call a specific agent by ID with the given prompt.
+ * Unlike callActiveLLM which always resolves to the first active agent,
+ * this allows per-agent dispatch for team orchestration.
+ */
+export async function callAgentLLM(
+  agentId: string,
+  prompt: string,
+  systemPrompt?: string,
+): Promise<string | null> {
+  const agent = readAgentById(agentId);
+  if (!agent) {
+    console.warn(`[MosaicBot/LLM] Agent "${agentId}" not found in ai-agents.json`);
+    return null;
+  }
+  if (!agent.isActive) {
+    console.warn(`[MosaicBot/LLM] Agent "${agent.name}" (${agentId}) is not active.`);
+    return null;
+  }
+
+  const effectiveProvider = getEffectiveProvider(agent);
+  const effectiveModel = agent.model?.endsWith(":cloud")
+    ? agent.model.replace(/:cloud$/, "")
+    : agent.model;
+
+  console.log(`[MosaicBot/LLM] Team dispatch to "${agent.name}" (${effectiveProvider}/${effectiveModel})`);
+
+  return await _callProvider(agent, effectiveProvider, effectiveModel, prompt, systemPrompt);
+}
+
+/**
+ * Call the first active AI agent with the given prompt.
+ * Returns null (and logs a warning) when no active agent is configured.
+ * The caller is responsible for falling back to HEARTBEAT_OK.
+ */
 export async function callActiveLLM(
   prompt: string,
   systemPrompt?: string,
   agentId?: string,
 ): Promise<string | null> {
-  const agent = agentId ? readAgentById(agentId) : readActiveAgent();
+  // Prefer the named agent; fall back to the active agent when the id is a
+  // MosaicBot profile name (main/coder/local) with no matching ai-agents entry.
+  let agent = agentId ? readAgentById(agentId) : readActiveAgent();
+  if (!agent && agentId) {
+    agent = readActiveAgent();
+    if (agent) {
+      console.log(`[MosaicBot/LLM] Agent "${agentId}" not in ai-agents.json — falling back to active agent "${agent.name}".`);
+    }
+  }
   if (!agent) {
     console.warn(
-      agentId
-        ? `[MosaicBot/LLM] Agent "${agentId}" not found in ai-agents.json.`
-        : "[MosaicBot/LLM] No active AI agent configured. Open Settings → AI Agents and set one as active.",
+      "[MosaicBot/LLM] No active AI agent configured. Open Settings → AI Agents and set one as active.",
     );
     return null;
   }
@@ -91,6 +128,18 @@ export async function callActiveLLM(
 
   console.log(`[MosaicBot/LLM] Using agent "${agent.name}" (${effectiveProvider}/${effectiveModel})`);
 
+  return await _callProvider(agent, effectiveProvider, effectiveModel, prompt, systemPrompt);
+}
+
+// ── Unified provider dispatcher ───────────────────────────────────────────────
+
+async function _callProvider(
+  agent: AgentConfig,
+  effectiveProvider: AgentConfig["provider"],
+  _effectiveModel: string,
+  prompt: string,
+  systemPrompt?: string,
+): Promise<string | null> {
   try {
     switch (effectiveProvider) {
       case "claude":
@@ -103,8 +152,6 @@ export async function callActiveLLM(
       case "ollama":
         return await callOllama(agent, [{ role: "user", content: prompt }], systemPrompt);
       case "ollama-cloud":
-        // Ollama Cloud is OpenAI-compatible; use Bearer auth against /v1/chat/completions
-        // Route through api.ollama.com with proper auth
         return await callOllamaCloud(agent, [{ role: "user", content: prompt }], systemPrompt);
       case "hypercycle":
         console.warn(
@@ -260,8 +307,10 @@ async function callOllamaCloud(
     ? agent.model.replace(/:cloud$/, "")
     : agent.model;
 
+  // CRITICAL FIX: Use ollama.com directly, NOT api.ollama.com (which 301 redirects)
+  // The 301 redirect from Cloudflare converts POST to GET, causing "Method not allowed"
   const res = await fetch(
-    "https://api.ollama.com/v1/chat/completions",
+    "https://ollama.com/v1/chat/completions",
     {
       method: "POST",
       headers: {

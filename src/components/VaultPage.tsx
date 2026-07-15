@@ -221,8 +221,9 @@ const AgentAccessPanel: React.FC<{
 // Box Content Panel
 // =============================================================================
 
-const BoxContentPanel: React.FC<{ box: VaultBox; onEntryCountChange: (count: number) => void }> = ({
+const BoxContentPanel: React.FC<{ box: VaultBox; agents: AIAgentConfig[]; onEntryCountChange: (count: number) => void }> = ({
   box,
+  agents,
   onEntryCountChange,
 }) => {
   const [entries, setEntries] = useState<VaultEntry[]>([]);
@@ -232,18 +233,69 @@ const BoxContentPanel: React.FC<{ box: VaultBox; onEntryCountChange: (count: num
   const [content, setContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<VaultEntry | null>(null);
+  const [entryAgents, setEntryAgents] = useState<Record<string, string[]>>({});
+
+  const isHermesVault = box.name === "Hermes Vault" || box.id.includes("hermes-vault");
 
   const loadEntries = useCallback(async () => {
     setIsLoading(true);
     const loaded = await window.electronAPI?.vault?.getBoxContent(box.id) ?? [];
     setEntries(loaded);
     onEntryCountChange(loaded.length);
+    
+    // Load agent skill assignments for Hermes Vault
+    if (isHermesVault) {
+      const loadedAgents = await window.electronAPI?.aiAgents?.get() ?? [];
+      const assignments: Record<string, string[]> = {};
+      loaded.forEach((entry: VaultEntry) => {
+        assignments[entry.id] = [];
+      });
+      loadedAgents.forEach((agent: AIAgentConfig) => {
+        (agent.vaultSkills?.[box.id] || []).forEach((skillId: string) => {
+          if (assignments[skillId]) {
+            assignments[skillId].push(agent.id);
+          }
+        });
+      });
+      setEntryAgents(assignments);
+    }
+    
     setIsLoading(false);
-  }, [box.id, onEntryCountChange]);
+  }, [box.id, box.name, isHermesVault, onEntryCountChange]);
 
   useEffect(() => {
     loadEntries();
   }, [loadEntries]);
+
+  const toggleSkillForAgent = async (entryId: string, agentId: string) => {
+    const currentAgents = entryAgents[entryId] || [];
+    const hasAccess = currentAgents.includes(agentId);
+    const newAgents = hasAccess
+      ? currentAgents.filter((id) => id !== agentId)
+      : [...currentAgents, agentId];
+    
+    setEntryAgents((prev) => ({ ...prev, [entryId]: newAgents }));
+    
+    // Update agent's vaultSkills
+    try {
+      const agent = agents.find((a) => a.id === agentId);
+      if (agent) {
+        const vaultSkills = agent.vaultSkills || {};
+        const boxSkills = new Set(vaultSkills[box.id] || []);
+        if (hasAccess) {
+          boxSkills.delete(entryId);
+        } else {
+          boxSkills.add(entryId);
+        }
+        await window.electronAPI?.aiAgents?.update(agentId, {
+          vaultSkills: { ...vaultSkills, [box.id]: Array.from(boxSkills) },
+        });
+      }
+    } catch (err) {
+      console.error("[VaultPage] Failed to update agent skills:", err);
+    }
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -307,9 +359,40 @@ const BoxContentPanel: React.FC<{ box: VaultBox; onEntryCountChange: (count: num
                 </p>
               )}
               <p className="text-xs text-gray-300 whitespace-pre-wrap break-words leading-relaxed">
-                {entry.content}
+                {entry.content.slice(0, 500)}{entry.content.length > 500 ? "..." : ""}
               </p>
-              <p className="text-[9px] text-gray-600 mt-1.5">
+              
+              {/* Agent skill toggles for Hermes Vault */}
+              {isHermesVault && (
+                <div className="mt-3 pt-3 border-t border-gray-800/50">
+                  <p className="text-[10px] text-gray-500 mb-2 flex items-center gap-1">
+                    <Bot size={10} />
+                    Delegate to agents:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {agents.map((agent) => {
+                      const assigned = (entryAgents[entry.id] || []).includes(agent.id);
+                      return (
+                        <button
+                          key={agent.id}
+                          onClick={() => toggleSkillForAgent(entry.id, agent.id)}
+                          className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-all ${
+                            assigned
+                              ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40"
+                              : "bg-gray-900 text-gray-500 border border-gray-800 hover:border-gray-600"
+                          }`}
+                          title={`${assigned ? "Remove" : "Grant"} access for ${agent.name}`}
+                        >
+                          {assigned ? <Check size={8} /> : <span className="w-2 h-2 rounded-full bg-gray-600" />}
+                          {agent.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              <p className="text-[9px] text-gray-600 mt-2">
                 {new Date(entry.createdAt).toLocaleString()}
               </p>
               <button
@@ -524,7 +607,7 @@ const BoxCard: React.FC<{
 
           {/* Tab content */}
           {activeTab === "content" ? (
-            <BoxContentPanel box={box} onEntryCountChange={setEntryCount} />
+            <BoxContentPanel box={box} agents={agents} onEntryCountChange={setEntryCount} />
           ) : (
             <AgentAccessPanel
               box={box}

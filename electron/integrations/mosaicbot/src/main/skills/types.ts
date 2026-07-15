@@ -28,7 +28,7 @@ export type SkillEntry = {
   name: string;
   description: string;
   filePath: string;
-  source: "bundled" | "managed" | "workspace" | "plugin" | "extra";
+  source: "bundled" | "managed" | "workspace" | "plugin" | "extra" | "vault";
   baseDir: string;
   content: string; // full SKILL.md text
   metadata: OpenMosaicSkillMetadata;

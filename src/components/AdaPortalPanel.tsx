@@ -51,6 +51,8 @@ import {
 } from '../services/StargatePool';
 import { localNodeBridge } from '../services/LocalNodeBridge';
 import type { BridgeANFE, BridgeComputeNode } from '../services/LocalNodeBridge';
+import { enhancedLocalNodeBridge } from '../services/stargate/EnhancedLocalNodeBridge';
+import type { ValidatorPoolStatus, ValidatorNode } from '../services/StargatePool';
 import { skillMarketplace } from '../services/AdaPortal';
 import { tasteSkillService } from '../services/TasteSkillService';
 import { batteryOrgPool, BatteryPoolNode } from '../services/BatteryOrg';
@@ -69,8 +71,13 @@ import UnifiedAssetPanel from './UnifiedAssetPanel';
 import TasteSkillDialPanel from './stargate/TasteSkillDialPanel';
 import StargateSkillsMarketplacePanel from './stargate/StargateSkillsMarketplacePanel';
 import NodeFactoryTrackerPanel from './stargate/NodeFactoryTrackerPanel';
+import StargatePoolHub from './stargate/StargatePoolHub';
+import StargateTelemetryCard from './stargate/StargateTelemetryCard';
 import StargateCommunityAIMPanel from './stargate/StargateCommunityAIMPanel';
-import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus } from 'lucide-react';
+import MidnightCityCommandPanel from './stargate/MidnightCityCommandPanel';
+import SafePoolVaultPanel from './stargate/SafePoolVaultPanel';
+import SafePoolKnowledgeModal from './stargate/SafePoolKnowledgeModal';
+import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus, Pickaxe, Info } from 'lucide-react';
 
 // ---- Module-level helper: ensure wallet is on Base chain ----
 async function ensureOnBaseChain(): Promise<void> {
@@ -97,7 +104,7 @@ interface AdaPortalPanelProps {
   onNavigateToChat?: (message: string) => void;
 }
 
-type TabId = 'start' | 'marketplace' | 'aims' | 'leaderboard' | 'training' | 'packages' | 'skills' | 'compute' | 'dashboard' | 'stargate' | 'asp';
+type TabId = 'start' | 'marketplace' | 'aims' | 'leaderboard' | 'training' | 'packages' | 'skills' | 'compute' | 'dashboard' | 'stargate' | 'midnight' | 'asp';
 type LeaderboardPeriod = 'daily' | 'weekly' | 'all_time';
 type ComputeTier = 'standard' | 'high_performance' | 'dedicated';
 
@@ -214,24 +221,19 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'compute', label: 'Compute & Nodes', icon: <Cpu size={18} /> },
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
   { id: 'stargate', label: 'Stargate Pool', icon: <Zap size={18} /> },
+  { id: 'midnight', label: 'Midnight City', icon: <Pickaxe size={18} /> },
   { id: 'asp', label: 'Deploy System', icon: <Building2 size={18} /> }
 ];
 
-const computeTiers: { id: ComputeTier; label: string; price: string; specs: string }[] = [
-  { id: 'standard', label: 'Standard', price: '$0.50/hr', specs: '8 CPU, 32GB RAM' },
-  { id: 'high_performance', label: 'High-Performance', price: '$1.50/hr', specs: '32 CPU, 128GB RAM, 1 GPU' },
-  { id: 'dedicated', label: 'Dedicated', price: '$5.00/hr', specs: '64 CPU, 512GB RAM, 4 GPUs' }
-];
-
-export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({ 
+export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   url,
   onNavigate,
-  onClose, 
-  onHireAgent, 
-  onBookTraining, 
+  onClose,
+  onHireAgent,
+  onBookTraining,
   onGetPackage,
   onSelectCompute,
-  onNavigateToChat 
+  onNavigateToChat
 }) => {
   // Determine initial tab from URL
   const getInitialTab = (): TabId => {
@@ -316,10 +318,15 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     symbol: string; name: string; chain: string; standard: string; nfts: ANFE[]
   }[]>([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
+  const [showSafeKnowledgeModal, setShowSafeKnowledgeModal] = useState(false);
 
   // Local Node Bridge (R2D2 directly — no wallet / blockchain needed)
   const [localNodeAvailable, setLocalNodeAvailable] = useState(false);
   const [localANFE, setLocalANFE] = useState<BridgeANFE | null>(null);
+
+  // Validator Fleet telemetry (Battery / CometBFT via EnhancedLocalNodeBridge)
+  const [validatorPool, setValidatorPool] = useState<ValidatorPoolStatus | null>(null);
+  const [isLoadingValidators, setIsLoadingValidators] = useState(false);
 
   // ANFE <-> Agent Bindings (Skill -> Agent -> ANFE deployment model)
   const [anfeAgentBindings, setAnfeAgentBindings] = useState<Record<string, string>>(() => {
@@ -587,7 +594,13 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     ]);
   };
 
+  // Init guard — prevents duplicate initialization on remount / StrictMode
+  const hasInitialized = useRef(false);
+
   useEffect(() => {
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+    
     try {
       initializeAdaPortal();
       stargateRegistry.initialize();
@@ -649,6 +662,23 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     return () => { mounted = false; clearInterval(timer); };
   }, []);
 
+  // Enhanced Local Node Bridge — telemetry + Validator Fleet polling
+  useEffect(() => {
+    let mounted = true;
+    // Wire validator pool updates from enhanced telemetry
+    const unsub = enhancedLocalNodeBridge.onUpdate((t) => {
+      if (!mounted || !t?.validatorPool) return;
+      setValidatorPool(t.validatorPool);
+    });
+    // Kick off polling (refresh already triggers onUpdate)
+    enhancedLocalNodeBridge.startPolling();
+    return () => {
+      mounted = false;
+      unsub();
+      enhancedLocalNodeBridge.stopPolling();
+    };
+  }, []);
+
   // Load Taste-Skills when Skills tab is active
   useEffect(() => {
     if (activeTab !== 'skills') return;
@@ -685,7 +715,9 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     try {
       accessControl.initialize().then(result => {
         setAccessCheck(result);
-        console.log('[AdaPortal] Access granted:', result.level, result.type);
+        if (result?.level && result.level !== 'none') {
+          console.log('[AdaPortal] Access granted:', result.level, result.type);
+        }
       }).catch(err => {
         console.error('[AdaPortal] Access check failed:', err);
       });
@@ -917,8 +949,34 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     };
   }, []);
 
+  // Debounced leaderboard refresh — only refresh leaderboard data, NOT full wallet scan
+  const leaderboardDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    loadData();
+    if (leaderboardDebounceRef.current) clearTimeout(leaderboardDebounceRef.current);
+    leaderboardDebounceRef.current = setTimeout(() => {
+      // Only refresh HyperInsight leaderboard, skip ANFE/asset discovery
+      (async () => {
+        try {
+          await hyperInsight.refreshData();
+          const unifiedLb = hyperInsight.getUnifiedLeaderboard();
+          setLeaderboardData(unifiedLb.map((e: any, i: number) => ({
+            rank: i + 1,
+            agentId: e.id,
+            agentName: e.name,
+            score: e.score,
+            tasksCompleted: e.activeNodes || 0,
+            earnings: e.computeTFLOPS || 0,
+            avatar: e.type === 'aims' ? '🤖' : '🖥️',
+            trend: 'stable' as const
+          })) as any);
+        } catch (e) {
+          console.warn('[AdaPortal] Leaderboard refresh failed:', e);
+        }
+      })();
+    }, 500);
+    return () => {
+      if (leaderboardDebounceRef.current) clearTimeout(leaderboardDebounceRef.current);
+    };
   }, [leaderboardPeriod, leaderboardCategory]);
 
   // Load user AI Agents from appData
@@ -1031,7 +1089,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   }, [onGetPackage, onNavigateToChat]);
 
   const handleSelectCompute = useCallback((tier: ComputeTier) => {
-    setSelectedComputeTier(tier);
     if (onSelectCompute) {
       onSelectCompute(tier);
     } else if (onNavigateToChat) {
@@ -1698,7 +1755,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             <div className="grid gap-3">
               {walletANFEs.map((anfe) => {
                 const display = formatANFEForDisplay(anfe);
-                console.log('[AdaPortal] Rendering ANFE:', anfe.id, 'verification:', anfe.verification);
                 return (
                   <div 
                     key={anfe.id}
@@ -1722,25 +1778,25 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                       </div>
                       {/* Merkelizer Info */}
                       <div className="space-y-1">
-                        {anfe.verification.valid ? (
+                        {anfe.verification && anfe.verification.valid ? (
                           <>
                             <span className="flex items-center gap-1 text-xs text-green-400">
                               <CheckCircle size={12} />
                               Verified
                             </span>
-                            {anfe.verification.nodeFactoryId && (
+                            {anfe.verification && anfe.verification.nodeFactoryId && (
                               <span className="text-xs text-gray-500 block">Node Factory: {anfe.verification.nodeFactoryId}</span>
                             )}
-                            {anfe.verification.tranche && (
+                            {anfe.verification && anfe.verification.tranche && (
                               <span className="text-xs text-cyan-400 block">Tranche: {anfe.verification.tranche}</span>
                             )}
-                            {(anfe.verification.uptime !== undefined || anfe.verification.reliability !== undefined) && (
+                            {(anfe.verification && (anfe.verification.uptime !== undefined && anfe.verification.uptime !== null || anfe.verification.reliability !== undefined && anfe.verification.reliability !== null)) && (
                               <div className="flex gap-2 text-xs">
-                                {anfe.verification.uptime !== undefined && (
-                                  <span className="text-gray-400">Uptime: {(anfe.verification.uptime * 100).toFixed(1)}%</span>
+                                {anfe.verification && anfe.verification.uptime !== undefined && anfe.verification.uptime !== null && (
+                                  <span className="text-gray-400">Uptime: {((anfe.verification.uptime ?? 0) * 100).toFixed(1)}%</span>
                                 )}
-                                {anfe.verification.reliability !== undefined && (
-                                  <span className="text-gray-400">Reliability: {(anfe.verification.reliability * 100).toFixed(1)}%</span>
+                                {anfe.verification && anfe.verification.reliability !== undefined && anfe.verification.reliability !== null && (
+                                  <span className="text-gray-400">Reliability: {((anfe.verification.reliability ?? 0) * 100).toFixed(1)}%</span>
                                 )}
                               </div>
                             )}
@@ -1783,7 +1839,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                     )}
                     
                     {/* Merkelizer Node Info */}
-                    {anfe.verification.nodeFactoryId && (
+                    {anfe.verification && anfe.verification.nodeFactoryId && (
                       <div className="mt-2 pt-2 border-t border-gray-700/50">
                         <div className="flex items-center justify-between text-xs">
                           <div className="flex items-center gap-3">
@@ -1794,24 +1850,24 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                               {anfe.verification.nodeFactoryId}
                             </span>
                           </div>
-                          {anfe.verification.tranche && (
+                          {anfe.verification && anfe.verification.tranche && (
                             <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">
                               Tranche {anfe.verification.tranche}
                             </span>
                           )}
                         </div>
                         <div className="flex items-center gap-4 mt-1 text-xs">
-                          {anfe.verification.uptime !== undefined && (
+                          {anfe.verification && anfe.verification.uptime !== undefined && anfe.verification.uptime !== null && (
                             <span className="text-gray-400">
-                              Uptime: <span className="text-green-400">{(anfe.verification.uptime * 100).toFixed(1)}%</span>
+                              Uptime: <span className="text-green-400">{((anfe.verification.uptime ?? 0) * 100).toFixed(1)}%</span>
                             </span>
                           )}
-                          {anfe.verification.reliability !== undefined && (
+                          {anfe.verification && anfe.verification.reliability !== undefined && anfe.verification.reliability !== null && (
                             <span className="text-gray-400">
-                              Reliability: <span className="text-cyan-400">{(anfe.verification.reliability * 100).toFixed(1)}%</span>
+                              Reliability: <span className="text-cyan-400">{((anfe.verification.reliability ?? 0) * 100).toFixed(1)}%</span>
                             </span>
                           )}
-                          {anfe.verification.status && (
+                          {anfe.verification && anfe.verification.status && (
                             <span className={`px-1.5 py-0.5 rounded ${
                               anfe.verification.status === 'online' ? 'bg-green-500/20 text-green-400' :
                               anfe.verification.status === 'busy' ? 'bg-yellow-500/20 text-yellow-400' :
@@ -1941,11 +1997,11 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
                                 <span className="font-mono text-sm text-white">#{nft.tokenId}</span>
-                                {nft.verification.valid && (
+                                {nft.verification && nft.verification.valid && (
                                   <span className="text-xs px-1.5 py-0.5 bg-green-500/20 rounded text-green-400">Verified</span>
                                 )}
                               </div>
-                              {nft.verification.status && (
+                              {nft.verification && nft.verification.status && (
                                 <span className={`text-xs px-1.5 py-0.5 rounded ${
                                   nft.verification.status === 'online' || nft.verification.status === ('alive' as any)
                                     ? 'bg-green-500/20 text-green-400'
@@ -1958,14 +2014,14 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                               )}
                             </div>
                             <div className="space-y-1 text-xs">
-                              {nft.verification.nodeFactoryId && (
+                              {nft.verification && nft.verification.nodeFactoryId && (
                                 <p className="text-gray-400">Node Factory: <span className="text-white">{nft.verification.nodeFactoryId}</span></p>
                               )}
-                              {nft.verification.tranche && (
+                              {nft.verification && nft.verification.tranche && (
                                 <p className="text-cyan-400">Tranche: {nft.verification.tranche}</p>
                               )}
-                              {nft.verification.uptime !== undefined && (
-                                <p className="text-gray-400">Uptime: <span className="text-green-400">{(nft.verification.uptime * 100).toFixed(1)}%</span></p>
+                              {nft.verification && nft.verification.uptime !== undefined && nft.verification.uptime !== null && (
+                                <p className="text-gray-400">Uptime: <span className="text-green-400">{((nft.verification.uptime ?? 0) * 100).toFixed(1)}%</span></p>
                               )}
                               {nft.metadata?.name && (
                                 <p className="text-gray-500">{nft.metadata.name}</p>
@@ -2032,11 +2088,11 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
                                 <span className="font-mono text-sm text-white">#{nft.tokenId}</span>
-                                {nft.verification.valid && (
+                                {nft.verification && nft.verification.valid && (
                                   <span className="text-xs px-1.5 py-0.5 bg-green-500/20 rounded text-green-400">Verified</span>
                                 )}
                               </div>
-                              {nft.verification.status && (
+                              {nft.verification && nft.verification.status && (
                                 <span className={`text-xs px-1.5 py-0.5 rounded ${
                                   nft.verification.status === 'online' || nft.verification.status === ('alive' as any)
                                     ? 'bg-green-500/20 text-green-400'
@@ -2049,17 +2105,17 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                               )}
                             </div>
                             <div className="space-y-1 text-xs">
-                              {nft.verification.nodeFactoryId && (
+                              {nft.verification && nft.verification.nodeFactoryId && (
                                 <p className="text-gray-400">Node Factory: <span className="text-white">{nft.verification.nodeFactoryId}</span></p>
                               )}
-                              {nft.verification.tranche && (
+                              {nft.verification && nft.verification.tranche && (
                                 <p className="text-cyan-400">Tranche: {nft.verification.tranche}</p>
                               )}
-                              {nft.verification.uptime !== undefined && (
-                                <p className="text-gray-400">Uptime: <span className="text-green-400">{(nft.verification.uptime * 100).toFixed(1)}%</span></p>
+                              {nft.verification && nft.verification.uptime !== undefined && nft.verification.uptime !== null && (
+                                <p className="text-gray-400">Uptime: <span className="text-green-400">{((nft.verification.uptime ?? 0) * 100).toFixed(1)}%</span></p>
                               )}
-                              {nft.verification.reliability !== undefined && (
-                                <p className="text-gray-400">Reliability: <span className="text-cyan-400">{(nft.verification.reliability * 100).toFixed(1)}%</span></p>
+                              {nft.verification && nft.verification.reliability !== undefined && nft.verification.reliability !== null && (
+                                <p className="text-gray-400">Reliability: <span className="text-cyan-400">{((nft.verification.reliability ?? 0) * 100).toFixed(1)}%</span></p>
                               )}
                               {nft.metadata?.name && (
                                 <p className="text-gray-500">{nft.metadata.name}</p>
@@ -2249,10 +2305,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                 <div className="flex gap-3 mt-2 text-sm text-gray-400">
                   <span className="flex items-center gap-1">
                     <Star size={14} className="text-yellow-500" />
-                    {listing.rating.toFixed(1)}
+                    {(listing.rating ?? 0).toFixed(1)}
                   </span>
-                  <span>{listing.successRate * 100}% success</span>
-                  <span className="capitalize">{listing.availability}</span>
+                  <span>{(listing.successRate ?? 0) * 100}% success</span>
+                  <span className="capitalize">{listing.availability ?? 'unknown'}</span>
                 </div>
               </div>
               <div className="text-right">
@@ -2494,7 +2550,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                 </div>
                 <div className="flex items-center gap-2 mt-2 text-sm text-gray-400">
                   <Star size={14} className="text-yellow-500" />
-                  <span>{listing.rating.toFixed(1)}</span>
+                  <span>{(listing.rating ?? 0).toFixed(1)}</span>
                 </div>
               </div>
               <div className="text-right">
@@ -3058,14 +3114,52 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     );
   };
 
+  // ── PROVIDER DEFINITIONS (Coming Soon — awaiting API keys) ──
+  const providerCatalog = [
+    {
+      id: 'compute-portal',
+      name: 'ComputePortal',
+      tagline: 'GPU & VPS instances on-demand',
+      categories: ['GPU Compute', 'VPS', 'Storage'],
+      status: 'coming_soon' as const,
+      websiteUrl: 'https://computeportal.io',
+      iconColor: 'text-orange-400',
+      borderColor: 'border-orange-500/20',
+      bgColor: 'bg-orange-500/10',
+    },
+    {
+      id: 'battery-coin',
+      name: 'BatteryCoin',
+      tagline: 'Decentralized compute marketplace',
+      categories: ['Peer-to-Peer', 'GPU', 'Storage'],
+      status: 'coming_soon' as const,
+      websiteUrl: '#',
+      iconColor: 'text-yellow-400',
+      borderColor: 'border-yellow-500/20',
+      bgColor: 'bg-yellow-500/10',
+    },
+    {
+      id: 'stargate-pool',
+      name: 'Stargate Pool',
+      tagline: 'Community compute — your appliances + pooled nodes',
+      categories: ['Community', 'HyperAIBox', 'ANFE'],
+      status: 'active' as const,
+      websiteUrl: '#',
+      iconColor: 'text-cyan-400',
+      borderColor: 'border-cyan-500/20',
+      bgColor: 'bg-cyan-500/10',
+    },
+  ];
+
   const renderCompute = () => (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-white">Compute Access</h3>
-          <p className="text-sm text-gray-400 mt-0.5">Allocate compute power for running your agents and AI models.</p>
+          <h3 className="text-lg font-semibold text-white">Compute Marketplace</h3>
+          <p className="text-sm text-gray-400 mt-0.5">Rent compute from providers or use your own appliances.</p>
         </div>
-        <button 
+        <button
           onClick={() => onNavigateToChat?.('I need compute resources for my agents')}
           className="px-3 py-1 text-sm bg-cyan-600 hover:bg-cyan-500 rounded-lg transition-colors"
         >
@@ -3073,37 +3167,8 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         </button>
       </div>
 
-      <div className="grid gap-3">
-        {computeTiers.map(tier => (
-          <div 
-            key={tier.id}
-            onClick={() => handleSelectCompute(tier.id)}
-            className={`p-4 rounded-lg border cursor-pointer transition-all ${
-              selectedComputeTier === tier.id
-                ? 'border-cyan-500 bg-cyan-900/20'
-                : 'border-gray-700 bg-gray-800/50 hover:border-cyan-500/50'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="font-medium text-white">{tier.label}</h4>
-                <p className="text-sm text-gray-400">{tier.specs}</p>
-              </div>
-              <div className="text-right">
-                <div className="text-lg font-bold text-cyan-400">{tier.price}</div>
-                {selectedComputeTier === tier.id && (
-                  <div className="flex items-center gap-1 text-xs text-green-400">
-                    <CheckCircle size={12} />
-                    Selected
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 mt-4">
+      {/* ── My Compute Stats (Real Data) ── */}
+      <div className="grid grid-cols-4 gap-3">
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
           <div className="text-2xl font-bold text-cyan-400">{nodes.length + hboxNodes.length + batteryOrgNodes.length}</div>
           <div className="text-sm text-gray-400">Total Nodes</div>
@@ -3126,6 +3191,88 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           </div>
           <div className="text-sm text-gray-400">Available Units</div>
         </div>
+      </div>
+
+      {/* ── Provider Catalog (Architecture UX — Coming Soon) ── */}
+      <div>
+        <h4 className="text-sm font-medium text-gray-300 mb-3 uppercase tracking-wider">Providers</h4>
+        <div className="grid gap-3">
+          {providerCatalog.map((provider) => (
+            <div
+              key={provider.id}
+              className={`relative rounded-xl border ${provider.borderColor} ${provider.bgColor} p-4 transition-all`}
+            >
+              {/* Coming Soon Overlay */}
+              {provider.status === 'coming_soon' && (
+                <div className="absolute inset-0 rounded-xl bg-gray-900/70 backdrop-blur-[1px] flex flex-col items-center justify-center z-10">
+                  <span className="text-xs font-semibold text-amber-400 bg-amber-500/20 border border-amber-500/30 px-3 py-1 rounded-full mb-2">
+                    Coming Soon
+                  </span>
+                  <p className="text-xs text-gray-400">Awaiting API integration</p>
+                </div>
+              )}
+
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg ${provider.bgColor} border ${provider.borderColor} flex items-center justify-center`}>
+                    <Server size={20} className={provider.iconColor} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-semibold text-white">{provider.name}</h4>
+                      {provider.status === 'active' && (
+                        <span className="text-[10px] font-medium text-green-400 bg-green-500/20 border border-green-500/30 px-1.5 py-0.5 rounded-full">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-400">{provider.tagline}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {provider.categories.map((cat) => (
+                        <span
+                          key={cat}
+                          className="text-[10px] px-2 py-0.5 rounded-full bg-gray-700/50 text-gray-400 border border-gray-600/30"
+                        >
+                          {cat}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  {provider.status === 'coming_soon' ? (
+                    <button
+                      disabled
+                      className="px-3 py-1.5 text-xs bg-gray-700/50 text-gray-500 rounded-lg cursor-not-allowed border border-gray-600/30"
+                    >
+                      Book
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => onNavigateToChat?.(`I want to use ${provider.name} compute`)}
+                      className="px-3 py-1.5 text-xs bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-colors"
+                    >
+                      Book
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Architecture Note ── */}
+      <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-start gap-2">
+        <Info size={14} className="text-blue-400 mt-0.5 shrink-0" />
+        <p className="text-xs text-blue-300">
+          <strong>Architecture:</strong> Providers will be plugged in via adapter pattern
+          (<code className="text-blue-200">ComputeProviderAdapter</code>). Each provider exposes
+          a unified interface: <code className="text-blue-200">listCatalog()</code>,{' '}
+          <code className="text-blue-200">getPricing()</code>, <code className="text-blue-200">provision()</code>.
+          Affiliate commissions are tracked per booking via referral codes.
+        </p>
       </div>
     </div>
   );
@@ -3239,7 +3386,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                     <div className="flex-1">
                       <div className="font-mono text-sm text-white">{node.address?.slice(0, 10)}...</div>
                       <div className="text-xs text-gray-500">
-                        Uptime: {(node.uptime * 100).toFixed(1)}% | Reliability: {(node.reliability * 100).toFixed(0)}%
+                        Uptime: {((node.uptime ?? 0) * 100).toFixed(1)}% | Reliability: {((node.reliability ?? 0) * 100).toFixed(0)}%
                       </div>
                     </div>
                     <div className="text-right">
@@ -3334,6 +3481,9 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
 
     return (
       <div className="space-y-6">
+      {/* ── Pool Hub (Selector + Detail) ── */}
+      <StargatePoolHub />
+
         {/* ── Wallet Header ── */}
         <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
           <div className="flex items-center justify-between">
@@ -4240,6 +4390,22 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       {/* QR Modal */}
       {showQRModal && <QRModal />}
       
+      {/* SAFE Rev Pool Knowledge Modal */}
+      <SafePoolKnowledgeModal 
+        isOpen={showSafeKnowledgeModal} 
+        onClose={() => setShowSafeKnowledgeModal(false)}
+        onStartSimulation={() => {
+          showNotification('info', 'Starting Simulated Mode: Creating 50 synthetic loads...');
+          // TODO: Launch simulation workflow
+          console.log('[SAFE] Simulated Mode triggered');
+        }}
+        onStartSoftLaunch={() => {
+          showNotification('info', 'Starting Soft Launch: Opening driver recruitment...');
+          // TODO: Launch soft launch workflow  
+          console.log('[SAFE] Soft Launch triggered');
+        }}
+      />
+      
       {/* Agent Select Modal */}
       {showAgentSelectModal && <AgentSelectModal />}
       
@@ -4319,6 +4485,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             {activeTab === 'compute' && <>{renderCompute()}{renderNodes()}</>}
             {activeTab === 'dashboard' && renderDashboard()}
             {activeTab === 'stargate' && renderStargatePool()}
+            {activeTab === 'midnight' && <MidnightCityCommandPanel />}
             {activeTab === 'asp' && renderAspGateway()}
           </>
         )}

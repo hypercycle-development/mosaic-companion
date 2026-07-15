@@ -216,11 +216,42 @@ function httpRequest(method, urlStr, body = null, timeoutMs = 15000) {
   });
 }
 
+// Cached backend health check (negative result expires after 30s)
+let _backendHealthy = true;
+let _backendCheckedAt = 0;
+const BACKEND_HEALTH_TTL = 30000;
+
+async function checkBackendHealth() {
+  const now = Date.now();
+  if (now - _backendCheckedAt < BACKEND_HEALTH_TTL) return _backendHealthy;
+  _backendCheckedAt = now;
+  try {
+    await httpRequest("GET", `${MARKETPLACE_API}/categories`, null, 3000);
+    _backendHealthy = true;
+    return true;
+  } catch {
+    _backendHealthy = false;
+    return false;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tool Dispatch
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function execTool(name, args) {
+  // Fast-fail: skip backend calls if marketplace is known to be unreachable
+  if (['search_skills','get_skill','get_categories','scan_skill','get_security_report',
+       'vote_skill','bookmark_skill','discover_skills'].includes(name)) {
+    const healthy = await checkBackendHealth();
+    if (!healthy) {
+      throw Object.assign(
+        new Error('Skills marketplace backend is not reachable (localhost:13000). Is the marketplace server running?'),
+        { code: -32001 }
+      );
+    }
+  }
+
   let result;
 
   switch (name) {

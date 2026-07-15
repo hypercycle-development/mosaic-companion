@@ -71,3 +71,58 @@ export type { HBoxComputeNode, HypercycleNode } from './HBoxPoolService';
 // Asset Discovery (Multi-chain scanner)
 export { assetDiscovery } from './HyperCycleAssetDiscovery';
 export type { HyperCycleAsset, AssetChain, AssetStandard, AssetCategory } from './HyperCycleAssetDiscovery';
+
+export type {
+  ValidatorNode,
+  ValidatorPoolStatus,
+} from './ANFETypes';
+
+// Core resilience utilities
+export {
+  calculateBackoffDelay,
+  executeWithFallback,
+  withRetry,
+  withCircuitBreaker,
+  getCircuitState,
+  resetAllCircuits,
+  checkRPCEndpoint,
+  hotRouteCache,
+} from './RPCResilience';
+
+export type { RPCResult, EndpointConfig } from './RPCResilience';
+
+// Alchemy key management
+export {
+  alchemyKeyManager,
+  getRPCEndpoints,
+  getRPCEndpointConfigs,
+  DEFAULT_RPC_ENDPOINTS,
+} from './AlchemyKeyManager';
+
+export type { AlchemyConfig, KeyValidationResult } from './AlchemyKeyManager';
+
+// Shared RPC limiter with new resilience features
+export {
+  rpcCall,
+  rpcCallWithRetry,
+  isEndpointTripped,
+  areAllEndpointsTripped,
+  areAllEndpointsTrippedForChain,
+  withGlobalRateLimit,
+  recordRpcFailure,
+  recordRpcSuccess,
+  acquireRPCToken,
+  releaseRPCToken,
+  throttleNextRequest,
+  debugCircuitState,
+  resetGlobalCircuit,
+  // Degraded mode
+  isDegradedMode,
+  enterDegradedMode,
+  exitDegradedMode,
+  getDegradedModeStatus,
+  // Doctor check
+  doctorCheck,
+} from './SharedRPCLimiter';
+
+export type { RPCCircuitState } from './SharedRPCLimiter';

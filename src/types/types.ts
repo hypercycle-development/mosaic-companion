@@ -39,6 +39,7 @@ export const INTERNAL_HYPERINSIGHT_URL = "browser://hyperinsight";
 export const INTERNAL_SANDBOX_URL = "browser://sandbox";
 export const INTERNAL_ONBOARDING_URL = "browser://onboarding";
 export const INTERNAL_IDE_URL = "browser://ide";
+export const INTERNAL_SKILL_VAULT_URL = "browser://skill-vault";
 /** Dynamic tool panel URL prefix: browser://tool-panel/{toolId} */
 export const INTERNAL_TOOL_PANEL_PREFIX = "browser://tool-panel/";
 
@@ -54,6 +55,9 @@ export const INTERNAL_ADAPORTAL_STARGATE_URL = "browser://adaportal/stargate";
 
 // Multi-Agent URL
 export const INTERNAL_MULTIAGENT_URL = "browser://multi-agent";
+
+// Mosaic Team URL
+export const INTERNAL_MOSAIC_TEAM_URL = "browser://mosaic-team";
 
 export interface AppSettings {
   homeUrl: string;

@@ -37,6 +37,12 @@ export interface AIAgentConfig {
    * Format: skill names as registered in ~/.hermes/skills/
    */
   skills?: string[];
+  /**
+   * Vault skill assignments by box ID. Maps box IDs to arrays of entry IDs (skill IDs).
+   * Used for Hermes Vault and other skill boxes to delegate specific skills to agents.
+   * Example: { "box-hermes-vault-123": ["entry-github-code-review", "entry-midnight-verify"] }
+   */
+  vaultSkills?: Record<string, string[]>;
   hypercycleBackend?: HypercycleBackend;
   /** @deprecated TODA always uses TDN in code; kept for legacy saved agents. */
   hypercycleCurrencyType?: string;
@@ -176,7 +182,7 @@ export const PROVIDER_INFO: Record<
   "ollama-cloud": {
     name: "Ollama Cloud",
     color: "#22D3EE",
-    baseUrl: "https://ollama.com",
+    baseUrl: "https://api.ollama.com",
   },
   custom: {
     name: "Custom Endpoint",

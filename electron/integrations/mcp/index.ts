@@ -98,12 +98,24 @@ function ensureDefaultPlugins(): void {
   // over MCP so every Mosaic agent can invoke them transparently.
   // The Python server file is BUNDLED inside this repo so it works on any PC
   // without a separate Hermes repository checkout.
-  const hasHermesTools = existing.some((p) => p.name === "hermes-tools");
-  if (!hasHermesTools) {
-    // Use environment variable for custom path, fallback to default path
-    const hermesToolsPath = process.env.HERMES_TOOLS_MCP_PATH 
-      || path.join(home, "mosaic-companion", "electron", "integrations", "mcp", "servers", "hermes-tools-mcp-server.py");
-    if (fs.existsSync(hermesToolsPath)) {
+  const hermesToolsPlugin = existing.find((p) => p.name === "hermes-tools");
+  const bundledHermesPath = process.env.HERMES_TOOLS_MCP_PATH
+    || path.join(home, "mosaic-companion", "electron", "integrations", "mcp", "servers", "hermes-tools-mcp-server.py");
+
+  // If a stale entry exists (pointing to old Hermes CLI which lacks 'serve-tools'),
+  // remove it so we can re-register with the bundled script.
+  if (hermesToolsPlugin) {
+    const isStale =
+      hermesToolsPlugin.args?.some((a) => a.includes("hermes_cli/main.py")) ||
+      !fs.existsSync(hermesToolsPlugin.args?.[0] || "");
+    if (isStale) {
+      console.log(`[MCP] Removing stale hermes-tools plugin (${hermesToolsPlugin.id})`);
+      pluginManager.remove(hermesToolsPlugin.id);
+    }
+  }
+
+  if (!pluginManager.list().some((p) => p.name === "hermes-tools")) {
+    if (fs.existsSync(bundledHermesPath)) {
       // Use the system Python3 — the script is self-contained and imports
       // model_tools at runtime via PYTHONPATH if Hermes is available.
       const pyCmd = require("node:child_process").execSync("which python3", { encoding: "utf-8" }).trim();
@@ -122,13 +134,13 @@ function ensureDefaultPlugins(): void {
         description: "Hermes Agent — ALL tools and skills (terminal, web, file, skills, kanban, cron, etc.)",
         transport: "stdio",
         command: pyCmd,
-        args: [hermesToolsPath],
+        args: [bundledHermesPath],
         env: hermesEnv,
         autoConnect: true,
       });
-      console.log(`[MCP] Registered default plugin: hermes-tools (bridge: ${hermesToolsPath})`);
+      console.log(`[MCP] Registered default plugin: hermes-tools (bridge: ${bundledHermesPath})`);
     } else {
-      console.warn(`[MCP] hermes-tools bridge not found at ${hermesToolsPath}; skipping`);
+      console.warn(`[MCP] hermes-tools bridge not found at ${bundledHermesPath}; skipping`);
     }
   }
 
@@ -220,12 +232,54 @@ function ensureDefaultPlugins(): void {
       command: devCmd,
       args: devArgs,
       env: {
-        // Silence ChromaDB tenant warnings; server falls back to in-memory vector store
+        // Port 8000 is owned by HyperCycle controller_serve (NOT ChromaDB) — pointing
+        // midnight-mcp at it causes "Method Not Allowed" JSON parse errors. Point at a
+        // closed port unless the user explicitly runs Chroma elsewhere: connection is
+        // refused instantly and the server falls back to its in-memory vector store.
+        CHROMA_URL: process.env.CHROMA_URL || "http://127.0.0.1:18790",
         CHROMA_SERVER_HOST: process.env.CHROMA_SERVER_HOST || "",
       },
       autoConnect: true,
     });
     console.log(`[MCP] Registered default plugin: midnight-mcp`);
+  }
+
+  // ── Midnight Expert MCP Server ──
+  // Bridges ALL 89 Midnight skills and 17 agent skills from the midnight-expert
+  // repository into Mosaic Companion. Provides unified access to Compact
+  // development, devnet operations, verification, wallet management, contract
+  // review, and error code lookup. Complements midnight-wallet (wallet ops)
+  // and midnight-mcp (language tools) with full Hermes skill registry access.
+  const hasMidnightExpert = existing.some((p) => p.name === "midnight-expert");
+  if (!hasMidnightExpert) {
+    const midnightExpertPath = path.join(
+      home,
+      "mosaic-companion",
+      "electron",
+      "integrations",
+      "mcp",
+      "servers",
+      "midnight-mcp-server.js"
+    );
+    if (fs.existsSync(midnightExpertPath)) {
+      pluginManager.add({
+        name: "midnight-expert",
+        description:
+          "Midnight Expert — ALL 89 Hermes skills + 17 agent skills for Compact development, verification, devnet ops, wallet management, and privacy blockchain (bridges ~/.hermes/skills/midnight/ to MCP)",
+        transport: "stdio",
+        command: "node",
+        args: [midnightExpertPath],
+        env: {
+          HERMES_HOME: process.env.HERMES_HOME || `${home}/.hermes`,
+          MIDNIGHT_EXPERT: process.env.MIDNIGHT_EXPERT || `${home}/midnight-expert`,
+          PATH: process.env.PATH || "",
+        },
+        autoConnect: true,
+      });
+      console.log(`[MCP] Registered default plugin: midnight-expert (bridge: ${midnightExpertPath})`);
+    } else {
+      console.warn(`[MCP] midnight-expert bridge not found at ${midnightExpertPath}; skipping`);
+    }
   }
 
   // ── Codebase Memory MCP Server ──
@@ -289,6 +343,23 @@ function ensureDefaultPlugins(): void {
       autoConnect: true,
     });
     console.log(`[MCP] Registered default plugin: atomicmail`);
+  }
+
+  // ── Base MCP Server ──
+  // Remote HTTP MCP server that connects to Base Account (Coinbase smart wallet).
+  // Enables on-chain operations: balances, sends, swaps, signing, contract calls,
+  // and x402 payments. Every write action requires user approval in Base Account.
+  const hasBaseMcp = existing.some((p) => p.name === "base-mcp");
+  if (!hasBaseMcp) {
+    pluginManager.add({
+      name: "base-mcp",
+      description: "Base MCP — Give your agent a wallet on Base L2. Check balances, send funds, swap tokens, sign messages, and pay with x402.",
+      transport: "http",
+      url: "https://mcp.base.org",
+      autoConnect: false,        // OAuth required — user must explicitly connect
+      oauthRequired: true,
+    });
+    console.log(`[MCP] Registered default plugin: base-mcp (url: https://mcp.base.org)`);
   }
 }
 
@@ -562,11 +633,144 @@ ipcMain.handle("mcp:disconnect-plugin", async (_event, id: string) => {
     await mcpClient.disconnect(plugin.name);
     // For auth-required plugins, disconnect means clearing the stored key from disk
     if (plugin.oauthRequired) {
-      pluginManager.update(id, { apiKey: undefined });
+      pluginManager.update(id, { apiKey: undefined, oauthState: undefined });
     }
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
+  }
+});
+
+// =============================================================================
+// OAuth Connect Handler — BrowserWindow flow for OAuth-gated MCP servers
+// =============================================================================
+
+ipcMain.handle("mcp:oauth-connect", async (_event, id: string) => {
+  const path = require("node:path");
+  const os = require("node:os");
+  const { spawn } = require("node:child_process");
+
+  const plugin = pluginManager.get(id);
+  if (!plugin) return { success: false, error: `Plugin "${id}" not found` };
+  if (!plugin.oauthRequired) {
+    return { success: false, error: `Plugin "${plugin.name}" does not require OAuth` };
+  }
+  if (!plugin.url) {
+    return { success: false, error: `Plugin "${plugin.name}" has no URL for OAuth` };
+  }
+
+  try {
+    // Find Hermes Python (the venv that has mcp_oauth.py and all dependencies)
+    let pythonCmd: string | undefined;
+    const pythonCandidates = [
+      path.join(os.homedir(), ".hermes", "hermes-agent", "venv", "bin", "python3"),
+      path.join(os.homedir(), ".hermes", "hermes-agent", "venv", "bin", "python"),
+      "/usr/bin/python3",
+      "/usr/local/bin/python3",
+    ];
+    for (const c of pythonCandidates) {
+      if (require("node:fs").existsSync(c)) { pythonCmd = c; break; }
+    }
+    if (!pythonCmd) {
+      return { success: false, error: "Hermes Python venv not found. Install Hermes Agent first." };
+    }
+
+    // Path to the OAuth bridge script inside Mosaic's source
+    const bridgeScript = path.join(__dirname, "oauth-bridge.py");
+    if (!require("node:fs").existsSync(bridgeScript)) {
+      return { success: false, error: `OAuth bridge script not found at ${bridgeScript}` };
+    }
+
+    // Run the bridge script: it delegates to Hermes' mcp_oauth.py
+    // which handles discovery → registration → PKCE → browser → callback → token
+    return new Promise<{ success: boolean; error?: string; serverInfo?: any; capabilities?: any }>((resolve) => {
+      let stdout = "";
+      let stderr = "";
+
+      const proc = spawn(
+        pythonCmd,
+        [bridgeScript, plugin.name, plugin.url],
+        {
+          env: {
+            ...process.env,
+            DISPLAY: process.env.DISPLAY || ":0",
+            HERMES_PROFILE: process.env.HERMES_PROFILE || "default",
+          },
+          timeout: 180000, // 3 minutes — OAuth includes user browser interaction
+        }
+      );
+
+      proc.stdout.on("data", (data: Buffer) => {
+        stdout += data.toString("utf-8");
+      });
+
+      proc.stderr.on("data", (data: Buffer) => {
+        stderr += data.toString("utf-8");
+        console.log(`[MCP OAuth] ${data.toString("utf-8").trim()}`);
+      });
+
+      proc.on("error", (err: Error) => {
+        resolve({ success: false, error: `Failed to start OAuth bridge: ${err.message}` });
+      });
+
+      proc.on("close", async (code: number | null) => {
+        if (code !== 0) {
+          console.error(`[MCP OAuth] bridge exited with code ${code}: ${stderr}`);
+          resolve({ success: false, error: `OAuth bridge failed (exit ${code}). ${stderr.slice(0, 200)}` });
+          return;
+        }
+
+        // Parse the last JSON line from stdout
+        const lines = stdout.trim().split("\n").filter(l => l.trim());
+        let result: any;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          try {
+            result = JSON.parse(lines[i]);
+            break;
+          } catch {
+            // not JSON, keep going
+          }
+        }
+
+        if (!result) {
+          resolve({ success: false, error: `No JSON output from OAuth bridge. Output: ${stdout.slice(0, 200)}` });
+          return;
+        }
+
+        if (!result.ok || !result.token?.access_token) {
+          resolve({ success: false, error: result.error || "OAuth did not return a token" });
+          return;
+        }
+
+        try {
+          // Store token in plugin config and persist
+          pluginManager.update(id, {
+            apiKey: result.token.access_token,
+            oauthState: JSON.stringify(result.token),
+          });
+
+          // Connect the HTTP MCP server with the acquired Bearer token
+          const connectResult = await mcpClient.connect({
+            name: plugin.name,
+            transport: "http",
+            url: plugin.url,
+            apiKey: result.token.access_token,
+          });
+
+          resolve({
+            success: true,
+            serverInfo: connectResult.serverInfo,
+            capabilities: connectResult.capabilities,
+          });
+        } catch (err: any) {
+          resolve({ success: false, error: `Token obtained but MCP connect failed: ${err.message}` });
+        }
+      });
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`[MCP] OAuth connect failed for "${plugin.name}":`, error);
+    return { success: false, error: msg };
   }
 });
 

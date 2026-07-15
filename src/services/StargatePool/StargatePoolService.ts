@@ -189,6 +189,31 @@ class StargatePoolService {
   private walletNFTsCache: Map<string, WalletNFTs> = new Map();
   private walletAddress: string | null = null;
   private initialized = false;
+  private isReadOnly = false;
+  private hasLoggedReadOnly = false;
+
+  /**
+   * Constructor - enforce renderer-only execution
+   * This service requires window.ethereum which only exists in the renderer process
+   */
+  constructor() {
+    // Electron environment: verify we're in the renderer process
+    if (typeof process !== 'undefined' && process.type && process.type !== 'renderer') {
+      throw new Error(
+        `[StargatePoolService] Cannot instantiate in ${process.type} process. ` +
+        `This service requires window.ethereum which only exists in the renderer process. ` +
+        `Use IPC handlers in electron/main.ts to proxy calls from main process.`
+      );
+    }
+
+    // Browser environment: verify window exists
+    if (typeof window === 'undefined') {
+      throw new Error(
+        `[StargatePoolService] Cannot instantiate outside browser environment. ` +
+        `window object is undefined.`
+      );
+    }
+  }
 
   /**
    * Initialize - load from localStorage
@@ -234,6 +259,13 @@ class StargatePoolService {
       } catch (e) {
         console.log('[StargatePool] Electron wallet not available');
       }
+    }
+
+    // Set read-only mode if no wallet detected — log only once per session
+    if (!this.walletAddress && !this.hasLoggedReadOnly) {
+      this.isReadOnly = true;
+      this.hasLoggedReadOnly = true;
+      console.log('[StargatePool] No browser wallet detected — using read-only mode');
     }
 
     try {
@@ -565,7 +597,7 @@ class StargatePoolService {
   async getANFEInfo(walletAddress: string): Promise<ANFEInfo> {
     try {
       if (!window.ethereum) {
-        console.warn('[StargatePool] No window.ethereum available');
+        // In Electron, wallet data comes from electronAPI.web3 — silently return empty
         return { balance: 0, contractAddress: ANFE_CONTRACT_ADDRESS, levels: [], tokenIds: [], totalPower: 0 };
       }
 
@@ -1071,6 +1103,13 @@ class StargatePoolService {
   }
 
   /**
+   * Check if service is in read-only mode (no wallet available)
+   */
+  getIsReadOnly(): boolean {
+    return this.isReadOnly;
+  }
+
+  /**
    * Connect to Cardano wallet (CIP-30) or Ethereum wallet
    */
   async connectWallet(): Promise<{ success: boolean; address?: string; error?: string }> {
@@ -1081,6 +1120,8 @@ class StargatePoolService {
         if (tokeo) {
           const address = await tokeo.enable();
           this.walletAddress = address;
+          this.isReadOnly = false;
+          this.hasLoggedReadOnly = false;
           console.log('[StargatePool] Connected to Tokeo wallet:', address);
           return { success: true, address };
         }
@@ -1093,6 +1134,8 @@ class StargatePoolService {
             const firstWallet = cardano[wallets[0]];
             const address = await firstWallet.enable();
             this.walletAddress = address;
+            this.isReadOnly = false;
+            this.hasLoggedReadOnly = false;
             console.log('[StargatePool] Connected to Cardano wallet:', address);
             return { success: true, address };
           }
@@ -1104,6 +1147,8 @@ class StargatePoolService {
           const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
           if (accounts.length > 0) {
             this.walletAddress = accounts[0];
+            this.isReadOnly = false;
+            this.hasLoggedReadOnly = false;
             console.log('[StargatePool] Connected to Ethereum wallet:', this.walletAddress);
             return { success: true, address: accounts[0] };
           }
@@ -1122,6 +1167,11 @@ class StargatePoolService {
    */
   disconnectWallet(): void {
     this.walletAddress = null;
+    this.isReadOnly = true;
+    if (!this.hasLoggedReadOnly) {
+      this.hasLoggedReadOnly = true;
+      console.log('[StargatePool] No browser wallet detected — using read-only mode');
+    }
     console.log('[StargatePool] Wallet disconnected');
   }
 

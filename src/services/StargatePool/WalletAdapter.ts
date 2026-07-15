@@ -45,6 +45,22 @@ class WalletAdapter {
   private listeners: Set<(state: WalletState) => void> = new Set();
 
   constructor() {
+    // Electron environment: verify we're in the renderer process
+    if (typeof process !== 'undefined' && process.type && process.type !== 'renderer') {
+      throw new Error(
+        `[WalletAdapter] Cannot instantiate in ${process.type} process. ` +
+        `This service requires window.ethereum/window.mosaic which only exists in the renderer process.`
+      );
+    }
+
+    // Browser environment: verify window exists
+    if (typeof window === 'undefined') {
+      throw new Error(
+        `[WalletAdapter] Cannot instantiate outside browser environment. ` +
+        `window object is undefined.`
+      );
+    }
+
     this.init();
   }
 

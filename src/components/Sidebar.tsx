@@ -33,6 +33,7 @@ import {
   Hash,
   Code2,
   Users,
+  BookOpen,
 } from "lucide-react";
 import {
   SidebarItem,
@@ -239,7 +240,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       url: INTERNAL_MULTI_CHAT_URL,
     },
     { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL },
-    { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL },
+    { id: "vault", label: "Vault", icon: "Database", url: INTERNAL_VAULT_URL },
     { id: "hyperinsight", label: "HyperInsight", icon: "Activity", url: INTERNAL_HYPERINSIGHT_URL },
     { id: "ide", label: "IDE", icon: "Code2", url: INTERNAL_IDE_URL },
     { id: "sandbox", label: "Tool Sandbox", icon: "Cpu", url: INTERNAL_SANDBOX_URL },
@@ -324,6 +325,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <Cpu className={className} />;
       case "Code2":
         return <Code2 className={className} />;
+      case "Users":
+        return <Users className={className} />;
+      case "BookOpen":
+        return <BookOpen className={className} />;
       case "Sparkles":
         return <Sparkles className={className} />;
       default:

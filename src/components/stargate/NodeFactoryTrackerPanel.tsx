@@ -8,8 +8,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Activity, AlertTriangle, CheckCircle2, Clock, Cpu, FileJson, Globe,
   HeartCrack, Loader, RefreshCw, Search, Server, Settings2, ShieldCheck,
-  TrendingUp, XCircle, Zap, ChevronDown, ChevronUp, ExternalLink,
-  FolderOpen, Network
+  TrendingUp, XCircle, Zap, ChevronDown, ChevronUp, ChevronRight, ExternalLink,
+  FolderOpen, Network, Pause, StopCircle
 } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -50,6 +50,10 @@ export interface LicenseStatus {
   raw_timestamp: number | null;
   delegate_data?: DelegateData;
   raw_error?: string;
+  // Stargate Pool integration
+  poolSessionId?: string;
+  poolStatus?: 'active' | 'paused' | 'stopped';
+  poolBoxName?: string;
 }
 
 interface LicensesJson {
@@ -334,14 +338,30 @@ export default function NodeFactoryTrackerPanel() {
         if (ac.signal.aborted) break;
         const result = await checkLicense(id, network);
         checked.push(result);
-        // Update incrementally
-        setResults(prev => {
-          const next = [...prev];
-          const idx = next.findIndex(r => r.license_id === id);
-          if (idx !== -1) next[idx] = result;
-          return next;
-        });
       }
+
+      // ── Also query Stargate Pool sessions ──────────────────────────────
+      try {
+        // @ts-ignore
+        const poolResult = await window.electronAPI?.stargate?.tilling?.getSessions?.();
+        const poolSessions = poolResult?.sessions || [];
+        for (const r of checked) {
+          const match = poolSessions.find((s: any) => s.licenseId === r.license_id);
+          if (match) {
+            r.poolSessionId = match.tenantId;
+            r.poolStatus = match.status;
+            r.poolBoxName = match.boxName;
+          }
+        }
+      } catch (e) {
+        // Pool query failed — don't block Merkelizer results
+      }
+
+      setResults(checked);
+
+      // Update incrementally with pool data merged
+      setResults(checked);
+
       setLastUpdated(new Date());
 
       // Persist to history
@@ -364,7 +384,7 @@ export default function NodeFactoryTrackerPanel() {
     await checkFleet(licensesMap);
   }, [licensesMap, checkFleet]);
 
-  // ── Restore on mount ─────────────────────────────────────────────────────
+  // ── Restore on mount + listen for refresh triggers ────────────────────────
   useEffect(() => {
     const savedPath = settings.licensesJsonPath;
     if (savedPath) {
@@ -373,6 +393,10 @@ export default function NodeFactoryTrackerPanel() {
         setSettings(prev => ({ ...prev, licensesJsonPath: null }));
       });
     }
+    // Listen for refresh triggers (e.g. after delegation)
+    const handler = () => { if (Object.keys(licensesMap).length > 0) checkFleet(licensesMap); };
+    window.addEventListener('refreshNodeFactoryFleet', handler);
+    return () => window.removeEventListener('refreshNodeFactoryFleet', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -732,6 +756,104 @@ function NodeCard({ data }: { data: LicenseStatus }) {
       <div className="flex items-center justify-between mb-3">
         <StatusBadgeTiny status={data.status} />
         <span className="text-[10px] text-gray-500">{data.status_since_utc === 'N/A' ? '—' : timeSince(data.raw_timestamp)}</span>
+      </div>
+
+      {/* ── Stargate Pool Action ─────────────────────────────────────────── */}
+      <div className="mb-3">
+        {/* Pool Status Indicator (always visible) */}
+        {data.poolSessionId ? (
+          <div className="mb-2 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs">
+              {data.poolStatus === 'active' ? (
+                <>
+                  <Server size={12} className="text-green-400" />
+                  <span className="text-green-400">Pool: Active on {data.poolBoxName}</span>
+                </>
+              ) : data.poolStatus === 'paused' ? (
+                <>
+                  <Pause size={12} className="text-amber-400" />
+                  <span className="text-amber-400">Pool: Paused</span>
+                </>
+              ) : (
+                <>
+                  <StopCircle size={12} className="text-gray-400" />
+                  <span className="text-gray-400">Pool: {data.poolStatus}</span>
+                </>
+              )}
+            </div>
+            {/* Card border color reflects pool status too */}
+            {data.poolStatus === 'active' && data.status !== 'alive' && (
+              <p className="text-[10px] text-green-300/70 leading-tight">
+                Compute allocated on HyperAIBox. Node Factory not yet active on-chain.
+              </p>
+            )}
+          </div>
+        ) : null}
+
+        {data.status === 'alive' ? (
+          <div className="flex items-center gap-1.5 text-xs text-green-400">
+            <Zap size={12} className="text-green-400" />
+            <span>Node Factory Active on-chain</span>
+            {data.poolSessionId && (
+              <span className="text-[10px] text-green-300/60 ml-1">+ Pool</span>
+            )}
+          </div>
+        ) : data.poolSessionId ? (
+          <div className="space-y-2">
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                // Navigate to pool dashboard
+                window.location.hash = 'stargate-pool';
+              }}
+              className="w-full py-2 rounded-lg bg-green-600/20 hover:bg-green-600/30 text-green-400 text-xs font-semibold flex items-center justify-center gap-2 transition-all border border-green-500/20"
+            >
+              <ChevronRight size={12} />
+              <span>Manage in Pool</span>
+            </a>
+            <p className="text-[10px] text-gray-500 text-center leading-tight">
+              Compute allocated. Node Factory still needs on-chain activation via Merkelizer.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <button
+              onClick={async () => {
+                try {
+                  // @ts-ignore
+                  const result = await window.electronAPI?.stargate?.tilling?.provision?.({
+                    licenseId: data.license_id,
+                    ownerWallet: data.delegate_data?.owner?.address || '',
+                    network: data.expected_chain,
+                    pricingModel: 'shared',
+                    durationDays: 30,
+                  });
+                  if (result?.success) {
+                    // Trigger fleet refresh to pick up pool data
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('refreshNodeFactoryFleet'));
+                    }, 500);
+                    alert(`✅ License delegated to Stargate Pool!\n\nSession: ${result.session?.tenantId}\nBox: ${result.session?.boxName}\n\nNote: Compute is now allocated on this HyperAIBox. Node Factory activation still requires on-chain delegation via Merkelizer.`);
+                  } else {
+                    alert(`❌ Failed: ${result?.error || 'Unknown error'}`);
+                  }
+                } catch (e: any) {
+                  alert(`❌ Error: ${e.message}`);
+                }
+              }}
+              className="w-full py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/20"
+              title="Add this Node Factory license to the Stargate Pool for community compute (Beta — no charges)"
+            >
+              <span>🌌</span>
+              <span>Delegate to Pool</span>
+              <span className="px-1.5 py-0.5 rounded bg-white/20 text-[9px] font-normal">Beta</span>
+            </button>
+            <p className="text-[10px] text-gray-500 text-center leading-tight">
+              Adds license to Stargate Pool. Does NOT activate Node Factory on-chain.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Quick stats row */}

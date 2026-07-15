@@ -362,14 +362,20 @@ export function getCapabilitiesByCategory(
  * Build system prompt additions for enabled capabilities
  */
 export function buildCapabilitySystemPrompt(capabilityIds: string[]): string {
+  // Defensive: handle undefined/non-array inputs to prevent renderer crashes
+  if (!Array.isArray(capabilityIds)) {
+    console.warn("[HermesCapabilityRegistry] buildCapabilitySystemPrompt received non-array:", capabilityIds);
+    return "";
+  }
+
   const capabilities = getCapabilities(capabilityIds);
-  
+
   if (capabilities.length === 0) {
     return "";
   }
 
   const sections = capabilities.map(cap => cap.systemPromptAddition).filter(Boolean);
-  
+
   return `\n## Available Tools\n\n${sections.join("\n\n---\n\n")}\n`;
 }
 

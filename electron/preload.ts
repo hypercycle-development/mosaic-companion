@@ -192,6 +192,26 @@ contextBridge.exposeInMainWorld("electronAPI", {
       readFile: (filePath: string) =>
         ipcRenderer.invoke("aimify:read-file", filePath),
     },
+    // Stargate Tilling — Community Node Factory Compute Service
+    tilling: {
+      provision: (payload: { licenseId: string; ownerWallet: string; network: string; pricingModel: string; durationDays: number }) =>
+        ipcRenderer.invoke("stargate:tilling:provision", payload),
+      stop: (tenantId: string) =>
+        ipcRenderer.invoke("stargate:tilling:stop", tenantId),
+      getSessions: (wallet?: string) =>
+        ipcRenderer.invoke("stargate:tilling:getSessions", wallet),
+      resume: (tenantId: string) =>
+        ipcRenderer.invoke("stargate:tilling:resume", tenantId),
+      lock: (tenantId: string, locked: boolean) =>
+        ipcRenderer.invoke("stargate:tilling:lock", tenantId, locked),
+      // ── Tiller management (non-custodial signing flow) ──
+      create: (tenantId: string) =>
+        ipcRenderer.invoke("stargate:tilling:create", tenantId),
+      getMessage: (tenantId: string, number: number, license: string, chypc: string) =>
+        ipcRenderer.invoke("stargate:tilling:getMessage", tenantId, number, license, chypc),
+      update: (tenantId: string, payload: any) =>
+        ipcRenderer.invoke("stargate:tilling:update", tenantId, payload),
+    },
   },
   // Chronicle (tool activity log)
   chronicle: {
@@ -477,6 +497,39 @@ contextBridge.exposeInMainWorld("electronAPI", {
     stopDashboard: () => ipcRenderer.invoke("hermes:stop-dashboard"),
     dashboardStatus: () => ipcRenderer.invoke("hermes:dashboard-status"),
   },
+  midnightCity: {
+    connect: (params: { agentId: string }) =>
+      ipcRenderer.invoke("midnight:connect", params),
+    disconnect: (params?: { force?: boolean }) =>
+      ipcRenderer.invoke("midnight:disconnect", params),
+    getStatus: () =>
+      ipcRenderer.invoke("midnight:getStatus"),
+    getLogs: () =>
+      ipcRenderer.invoke("midnight:getLogs"),
+    setLock: (locked: boolean) =>
+      ipcRenderer.invoke("midnight:setLock", locked),
+    call: (params: { endpoint: string; method: "GET" | "POST"; body?: any }) =>
+      ipcRenderer.invoke("midnight:apiCall", params),
+    readScript: (filePath: string) =>
+      ipcRenderer.invoke("midnight:readScript", filePath),
+    writeScript: (params: { path: string; content: string }) =>
+      ipcRenderer.invoke("midnight:writeScript", params),
+    restartMiner: () =>
+      ipcRenderer.invoke("midnight:restartMiner"),
+    deployAgent: (params: { name: string; profession: string; baseImage: string }) =>
+      ipcRenderer.invoke("midnight:deployAgent", params),
+  },
+
+  // ── AXI Tool Forge API ──
+  axiCatalog: () => ipcRenderer.invoke("axi:catalog"),
+  axiStatus: (args?: { node?: string; full?: boolean }) => ipcRenderer.invoke("axi:status", args),
+  axiSpoStatus: () => ipcRenderer.invoke("axi:spo-status"),
+  axiDeploy: (args: { module: string; node?: string }) => ipcRenderer.invoke("axi:deploy", args),
+  axiAimify: (args: { tool: string }) => ipcRenderer.invoke("axi:aimify", args),
+  axiForgeHistory: (args?: { limit?: number }) => ipcRenderer.invoke("axi:forge-history", args),
+  axiFleetSnapshot: (args?: { fresh?: boolean }) => ipcRenderer.invoke("axi:fleet-snapshot", args),
+  axiAllowlist: () => ipcRenderer.invoke("axi:allowlist"),
+  axiAllowlistSet: (args: { action: string; enabled: boolean }) => ipcRenderer.invoke("axi:allowlist-set", args),
 });
 
 contextBridge.exposeInMainWorld("chatAPI", chatAPI);

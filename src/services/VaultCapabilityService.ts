@@ -55,11 +55,15 @@ export interface AgentSystemPromptParts {
  * Injects vault box contents that the agent has access to.
  */
 export function buildVaultKnowledgePrompt(vaultAccess: VaultBoxAccess[]): string {
-  if (vaultAccess.length === 0) {
+  if (!Array.isArray(vaultAccess) || vaultAccess.length === 0) {
     return "";
   }
 
   const boxes = vaultAccess.map(box => {
+    // Defensive: skip malformed entries
+    if (!box || !Array.isArray(box.entries)) {
+      return `### ${box?.boxName || "Unknown"} (ID: ${box?.boxId || "unknown"})\n(no entries)`;
+    }
     const entries = box.entries
       .map(entry => {
         const label = entry.label ? `[${entry.label}] ` : "";
@@ -134,7 +138,9 @@ export function buildCapabilityPrompt(
   enabledCapabilities: string[],
   vaultBoxAccess: string[]
 ): string {
-  const basePrompt = buildCapabilitySystemPrompt(enabledCapabilities);
+  // Defensive: ensure array before passing down
+  const safeCaps = Array.isArray(enabledCapabilities) ? enabledCapabilities : [];
+  const basePrompt = buildCapabilitySystemPrompt(safeCaps);
   
   // Add vault tools if agent has vault access
   const vaultPrompt = vaultBoxAccess.length > 0

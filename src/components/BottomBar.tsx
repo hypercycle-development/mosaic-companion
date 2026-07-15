@@ -6,16 +6,20 @@ import {
   Sparkles,
   StopCircle,
   Bot,
+  Users,
 } from "lucide-react";
+import { INTERNAL_MOSAICBOT_URL } from "../types/types";
 
 interface BottomBarProps {
   onSubmit: (text: string) => void;
   hasAgents: boolean;
+  currentUrl?: string; // NEW: active tab URL for context-aware routing
 }
 
 export const BottomBar: React.FC<BottomBarProps> = ({
   onSubmit,
   hasAgents,
+  currentUrl,
 }) => {
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -40,6 +44,20 @@ export const BottomBar: React.FC<BottomBarProps> = ({
       await window.electronAPI.logInput(input.trim());
     } catch (error) {
       console.error("Failed to log input:", error);
+    }
+
+    // CONTEXT-AWARE DISPATCH:
+    // If user is on Mosaic Bot tab → fire CustomEvent for team orchestrator
+    // Otherwise → fall back to AI Chat routing (handled by App.tsx)
+    const isMosaicBotTab = currentUrl?.startsWith(INTERNAL_MOSAICBOT_URL);
+    if (isMosaicBotTab) {
+      window.dispatchEvent(
+        new CustomEvent("team-message", {
+          detail: { text: input.trim(), timestamp: Date.now() },
+        })
+      );
+      setInput("");
+      return;
     }
 
     onSubmit(input);

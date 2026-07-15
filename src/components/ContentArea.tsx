@@ -451,7 +451,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
 
     return (
       <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
-        <MosaicBotPanel />
+        <MosaicBotPanel onNavigate={onNavigate} />
       </div>
     );
   }

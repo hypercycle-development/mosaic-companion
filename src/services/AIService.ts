@@ -131,8 +131,9 @@ export class AIService {
           `Ollama Cloud API key is missing for agent "${config.name}". Please add an API key at ollama.com/settings/api-keys and paste it into the agent settings.`
         );
       }
+      // CRITICAL FIX: Use ollama.com directly, NOT api.ollama.com (which 301 redirects)
       url = 'https://ollama.com/v1/chat/completions';
-      console.log('[AIService.sendToOpenAI] Using ollama.com directly (api.ollama.com redirects here):', url);
+      console.log('[AIService.sendToOpenAI] Using ollama.com directly for cloud provider (avoids 301):', url);
     } else {
       url = `${finalBaseUrl}/v1/chat/completions`;
     }
@@ -656,7 +657,7 @@ export class AIService {
         soulId: config.soulId,
         soulOverride: config.soulOverride,
         capabilities: config.capabilities,
-        vaultAccess: [], // Vault access loaded separately via IPC
+        vaultAccess: [], // Vault access loaded separately via IPC (see below)
       };
       
       // Build system prompt parts
@@ -669,6 +670,48 @@ export class AIService {
     } catch (e) {
       console.error("[AIService] SOUL/Capability system prompt build failed:", e);
       // Continue without SOUL layer — don't break the chat
+    }
+
+    // ─── Vault Box Access Injection (v3.1) ─────────────────────────────────
+    // Load vault box contents via IPC if the agent has boxAccess configured.
+    // These boxes contain skill entries, credentials, and user data.
+    // ─────────────────────────────────────────────────────────────────────────
+    if (config.boxAccess && config.boxAccess.length > 0) {
+      try {
+        const vaultApi = (window as any).electronAPI?.vault;
+        if (vaultApi?.getBox) {
+          const vaultParts: string[] = [];
+          for (const boxId of config.boxAccess) {
+            try {
+              const box = await vaultApi.getBox(boxId);
+              if (box?.entries?.length > 0) {
+                const entryTexts = box.entries
+                  .map((e: any) => `- [${e.label || "untitled"}]: ${(e.content || "").slice(0, 300)}${(e.content || "").length > 300 ? "..." : ""}`)
+                  .join("\n");
+                vaultParts.push(`### Vault Box: ${box.name || boxId}\n${entryTexts}`);
+              }
+            } catch (boxErr) {
+              console.warn(`[AIService] Failed to load vault box ${boxId}:`, boxErr);
+            }
+          }
+          if (vaultParts.length > 0) {
+            const vaultSystemMsg: ChatMessage = {
+              id: `vault-system-${Date.now()}`,
+              role: "system",
+              content: `## Vault Knowledge\n\nYou have access to the following secure vault boxes:\n\n${vaultParts.join("\n\n")}\n\nReference these boxes by name when answering questions about stored data.`,
+              timestamp: Date.now(),
+              agentId: config.id,
+            };
+            // Prepend vault knowledge before existing messages
+            enrichedMessages = [vaultSystemMsg, ...enrichedMessages];
+            console.log(`[AIService] Vault boxes injected for ${config.name}: ${config.boxAccess.join(", ")}`);
+          }
+        } else {
+          console.warn(`[AIService] Vault IPC unavailable for ${config.name}, skipping vault injection`);
+        }
+      } catch (e) {
+        console.error("[AIService] Vault box injection failed:", e);
+      }
     }
     
     if (config.skills && config.skills.length > 0) {

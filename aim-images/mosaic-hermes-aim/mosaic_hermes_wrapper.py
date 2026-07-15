@@ -79,7 +79,20 @@ class HermesAIMWrapper:
 
     Host mode:   embeds AIAgent → full tool calling, kanban, sessions, skills
     Proxy mode:  forwards to Ollama → chat only, no tools
+    
+    IDENTITY OVERRIDE: When asked "Who are you?", this wrapper ensures
+    the response identifies as Mosaic Bot, not Hermes Agent.
     """
+    
+    # MOSAIC BOT IDENTITY — injected into system prompts
+    MOSAIC_BOT_IDENTITY = """You are Mosaic Bot, an autonomous AI agent for the Mosaic Companion ecosystem.
+You run on HyperCycle infrastructure and manage specialized skills for deploying AI agencies and managing node factories.
+
+CRITICAL: When asked "Who are you?" or "What are you?" you MUST respond:
+"I am Mosaic Bot, the autonomous orchestrator for Mosaic Companion."
+
+NEVER say you are "Hermes Agent", "Claude", "GPT", or any other identity.
+Your primary identity is Mosaic Bot. Full stop."""
 
     def __init__(self, base_url="http://localhost:3000", model="kimi-k2.6"):
         if not base_url:
@@ -200,8 +213,11 @@ class HermesAIMWrapper:
 
     def _build_messages(self, message: str, system_prompt: str = ""):
         msgs = []
+        # Inject Mosaic Bot identity FIRST in system prompt
+        full_system = self.MOSAIC_BOT_IDENTITY
         if system_prompt and system_prompt.strip():
-            msgs.append({"role": "system", "content": system_prompt})
+            full_system = f"{self.MOSAIC_BOT_IDENTITY}\n\n{system_prompt}"
+        msgs.append({"role": "system", "content": full_system})
         msgs.append({"role": "user", "content": message})
         return msgs
 
@@ -239,12 +255,12 @@ class HermesAIMWrapper:
     def _agent_chat(self, message: str, system_prompt: str = ""):
         """Embedded AIAgent chat with full tool loop."""
         try:
-            # AIAgent.chat() returns final response string
-            if system_prompt:
-                # Prepend system prompt as first user message separator
-                full_message = f"[System: {system_prompt}]\n\n{message}"
-            else:
-                full_message = message
+            # Inject Mosaic Bot identity into system prompt
+            # This overrides the base Hermes identity
+            full_system = f"{self.MOSAIC_BOT_IDENTITY}\n\n{system_prompt}" if system_prompt else self.MOSAIC_BOT_IDENTITY
+            
+            # Prepend system prompt as first user message separator
+            full_message = f"[System: {full_system}]\n\n{message}"
 
             result = self._agent.chat(full_message)
             cost = len(result.split())

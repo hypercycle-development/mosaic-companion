@@ -2,32 +2,29 @@
 // ENHANCED LOCAL NODE BRIDGE — Extended Telemetry for Stargate
 // =============================================================================
 // Extends LocalNodeBridge with real-time compute gauges, AIM slot tracking,
-// Ollama model discovery, and merklizer health checks.
+// Ollama model discovery, merklizer health checks, and validator fleet telemetry.
 //
 // Drop-in replacement: import { enhancedLocalNodeBridge } from this file
 // and call enhancedLocalNodeBridge.startPolling().
 // =============================================================================
 
 import { localNodeBridge, BridgeAIM, BridgeComputeNode } from './LocalNodeBridge';
+import type { ValidatorPoolStatus, ValidatorNode } from '../StargatePool/ANFETypes';
 
 export interface ExtendedBridgeTelemetry {
-  // Compute
   cpuPercent: number;
   memoryUsedGB: number;
   memoryFreeGB: number;
   diskUsedGB: number;
   diskFreeGB: number;
-  // AIMs
   runningAims: BridgeAIM[];
   availableAimSlots: number;
   totalAimSlots: number;
-  // Node health
   merklizerReachable: boolean;
   merklizerHost?: string;
-  // Ollama integration
   ollamaModels: OllamaModelInfo[];
-  // Hermes (Electron only)
   hermesInstances: HermesInstanceInfo[];
+  validatorPool: ValidatorPoolStatus | null;
 }
 
 export interface OllamaModelInfo {
@@ -44,15 +41,36 @@ export interface HermesInstanceInfo {
   status: 'active' | 'idle' | 'error';
 }
 
+export interface ValidatorEndpoint {
+  nodeId: string;
+  moniker: string;
+  host: string;
+  cometBftPort: number;
+  network: string;
+}
+
+const DEFAULT_VALIDATOR_ENDPOINTS: ValidatorEndpoint[] = [
+  { nodeId: 'r2d2', moniker: 'batteryagi-validator-2', host: '192.168.0.38', cometBftPort: 26657, network: 'batterycoin-1' },
+  { nodeId: 'c3po', moniker: 'batteryagi-validator-1', host: '192.168.0.150', cometBftPort: 26657, network: 'batterycoin-1' },
+];
+
 class EnhancedLocalNodeBridge {
   private telemetry: ExtendedBridgeTelemetry | null = null;
   private listeners: Set<(t: ExtendedBridgeTelemetry | null) => void> = new Set();
   private interval: ReturnType<typeof setInterval> | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Validator telemetry cache + polling
+  // ---------------------------------------------------------------------------
+  private _telemetryCache: Map<string, ValidatorNode> = new Map();
+  private _validatorEndpoints: ValidatorEndpoint[] = [...DEFAULT_VALIDATOR_ENDPOINTS];
+  private _validatorInterval: ReturnType<typeof setInterval> | null = null;
+
   startPolling(): void {
     if (this.interval) return;
     this.refresh();
     this.interval = setInterval(() => this.refresh(), 30000);
+    this._startValidatorPolling();
   }
 
   stopPolling(): void {
@@ -60,8 +78,43 @@ class EnhancedLocalNodeBridge {
       clearInterval(this.interval);
       this.interval = null;
     }
+    if (this._validatorInterval) {
+      clearInterval(this._validatorInterval);
+      this._validatorInterval = null;
+    }
   }
 
+  // ---------------------------------------------------------------------------
+  // Validator endpoint management
+  // ---------------------------------------------------------------------------
+  setValidatorEndpoints(endpoints: ValidatorEndpoint[]): void {
+    this._validatorEndpoints = endpoints;
+    // Restart validator polling with new endpoints
+    if (this._validatorInterval) {
+      clearInterval(this._validatorInterval);
+      this._validatorInterval = null;
+      this._startValidatorPolling();
+    }
+  }
+
+  getValidatorEndpoints(): ValidatorEndpoint[] {
+    return [...this._validatorEndpoints];
+  }
+
+  addValidatorEndpoint(ep: ValidatorEndpoint): void {
+    if (!this._validatorEndpoints.find(e => e.nodeId === ep.nodeId)) {
+      this._validatorEndpoints.push(ep);
+    }
+  }
+
+  removeValidatorEndpoint(nodeId: string): void {
+    this._validatorEndpoints = this._validatorEndpoints.filter(e => e.nodeId !== nodeId);
+    this._telemetryCache.delete(nodeId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Main telemetry refresh (30s)
+  // ---------------------------------------------------------------------------
   async refresh(): Promise<ExtendedBridgeTelemetry | null> {
     const info = localNodeBridge.getRawInfo();
     const config = localNodeBridge.getRawConfig();
@@ -86,6 +139,8 @@ class EnhancedLocalNodeBridge {
       this._detectHermesInstances(),
     ]);
 
+    const validatorPool = this.getValidatorPoolStatus();
+
     this.telemetry = {
       cpuPercent: this._estimateCpu(info),
       memoryUsedGB: +(memGB * 0.3).toFixed(1),
@@ -99,6 +154,7 @@ class EnhancedLocalNodeBridge {
       merklizerHost,
       ollamaModels,
       hermesInstances,
+      validatorPool,
     };
 
     this._notify();
@@ -112,6 +168,23 @@ class EnhancedLocalNodeBridge {
   onUpdate(fn: (t: ExtendedBridgeTelemetry | null) => void): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Validator pool status — assembled from the 5s cache
+  // ---------------------------------------------------------------------------
+  getValidatorPoolStatus(): ValidatorPoolStatus | null {
+    const nodes = Array.from(this._telemetryCache.values());
+    if (nodes.length === 0) return null;
+    const highest = nodes.reduce((m, n) => Math.max(m, n.blockHeight), 0);
+    return {
+      validators: nodes,
+      totalValidators: nodes.length,
+      onlineValidators: nodes.filter(n => n.isOnline).length,
+      syncedValidators: nodes.filter(n => n.syncStatus === 'synced').length,
+      highestBlock: highest,
+      lastUpdated: Date.now(),
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -184,10 +257,124 @@ class EnhancedLocalNodeBridge {
   }
 
   private _estimateCpu(info: any): number {
-    // Heuristic: more loaded AIMs = higher CPU
     const aimCount = info.aim?.aims?.length || 0;
     const cores = info.hardware?.cpu_count || 1;
     return Math.min(aimCount * 8 + 5, 95 * (aimCount / Math.max(cores, 4)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Validator polling — every 5s via http.request (Node main-process path)
+  // ---------------------------------------------------------------------------
+  private _startValidatorPolling(): void {
+    if (this._validatorInterval) return;
+    this._pollAllValidators();
+    this._validatorInterval = setInterval(() => this._pollAllValidators(), 5000);
+  }
+
+  private async _pollAllValidators(): Promise<void> {
+    await Promise.all(this._validatorEndpoints.map(ep => this._pollValidatorStatus(ep)));
+  }
+
+  private async _pollValidatorStatus(ep: ValidatorEndpoint): Promise<void> {
+    const url = `http://${ep.host}:${ep.cometBftPort}/status`;
+    try {
+      const data = await this._httpGetJson(url, 3000);
+      const si = data?.result?.node_info;
+      const sync = data?.result?.sync_info;
+      if (si && sync) {
+        const catchingUp = sync.catching_up === true;
+        const now = Date.now();
+        const node: ValidatorNode = {
+          moniker: si.moniker || ep.moniker,
+          nodeId: si.id || ep.nodeId,
+          address: `${ep.host}:${ep.cometBftPort}`,
+          blockHeight: parseInt(sync.latest_block_height || '0', 10),
+          maxBlockHeight: parseInt(sync.latest_block_height || '0', 10),
+          peerCount: data?.result?.peers ?? 0, // not in /status; placeholder
+          syncStatus: catchingUp ? 'catching_up' : 'synced',
+          lastSeen: now,
+          isOnline: true,
+          cometBftVersion: si.version,
+          network: si.network || ep.network,
+          earliestBlockHeight: parseInt(sync.earliest_block_height || '0', 10),
+        };
+        this._telemetryCache.set(ep.nodeId, node);
+      }
+    } catch {
+      // Mark offline on any failure
+      const cached = this._telemetryCache.get(ep.nodeId);
+      const now = Date.now();
+      if (cached) {
+        this._telemetryCache.set(ep.nodeId, {
+          ...cached,
+          isOnline: false,
+          syncStatus: 'offline',
+          lastSeen: now,
+        });
+      } else {
+        this._telemetryCache.set(ep.nodeId, {
+          moniker: ep.moniker,
+          nodeId: ep.nodeId,
+          address: `${ep.host}:${ep.cometBftPort}`,
+          blockHeight: 0,
+          maxBlockHeight: 0,
+          peerCount: 0,
+          syncStatus: 'offline',
+          lastSeen: now,
+          isOnline: false,
+          network: ep.network,
+        });
+      }
+    }
+  }
+
+  /** Lightweight http.request wrapper that works in both Electron main and renderer */
+  private _httpGetJson(url: string, timeoutMs: number): Promise<any> {
+    return new Promise((resolve, reject) => {
+      // Renderer path: fetch is always available
+      if (typeof fetch !== 'undefined') {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), timeoutMs);
+        fetch(url, { signal: ctrl.signal })
+          .then(async (res) => {
+            clearTimeout(t);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            resolve(await res.json());
+          })
+          .catch(reject);
+        return;
+      }
+
+      // Main-process / Node path: http.request
+      try {
+        const http = require('http');
+        const parsed = new URL(url);
+        const options = {
+          hostname: parsed.hostname,
+          port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+          path: parsed.pathname + parsed.search,
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          timeout: timeoutMs,
+        };
+        const req = http.request(options, (res: any) => {
+          let body = '';
+          res.on('data', (chunk: any) => (body += chunk));
+          res.on('end', () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
+            } else {
+              reject(new Error(`HTTP ${res.statusCode}`));
+            }
+          });
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+        req.end();
+      } catch (e) {
+        reject(e);
+      }
+    });
   }
 
   private _notify() {

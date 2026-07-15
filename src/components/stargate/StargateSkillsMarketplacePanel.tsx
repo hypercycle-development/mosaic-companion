@@ -69,10 +69,13 @@ interface ApiResponse<T> {
 
 const FALLBACK_API_BASE = (import.meta.env.VITE_SKILLS_API_URL as string) || 'http://127.0.0.1:13000/api';
 
+// Session-level MCP health cache — avoids repeated Connection closed / Request timed out
+let mcpHealthy: boolean | null = null;
+
 /** Call marketplace via MCP if bridge is connected, else direct HTTP */
 async function marketplaceCall<T>(tool: string, args: Record<string, unknown>): Promise<T> {
-  // Try MCP first
-  if (typeof window !== 'undefined' && (window as any).electronAPI?.mcpAPI) {
+  // Try MCP first (skip if already known down this session)
+  if (mcpHealthy !== false && typeof window !== 'undefined' && (window as any).electronAPI?.mcpAPI) {
     try {
       const mcp = (window as any).electronAPI.mcpAPI;
       const { success, result, error } = await mcp.callTool('stargate-marketplace', tool, args);
@@ -81,6 +84,7 @@ async function marketplaceCall<T>(tool: string, args: Record<string, unknown>): 
         // Strip markdown code fences if present
         const json = raw.replace(/^```json\n/, '').replace(/\n```$/, '').trim();
         try {
+          mcpHealthy = true;
           return JSON.parse(json) as T;
         } catch (parseErr) {
           console.warn(`[Marketplace] MCP response for ${tool} is not valid JSON, falling back to HTTP`);
@@ -89,8 +93,16 @@ async function marketplaceCall<T>(tool: string, args: Record<string, unknown>): 
       }
       if (error) throw new Error(`MCP error: ${error}`);
     } catch (e: any) {
-      // MCP unavailable or failed — fall through to HTTP
-      console.warn(`[Marketplace] MCP call failed for ${tool}, falling back to HTTP:`, e.message);
+      // MCP unavailable or failed — mark down for this session and fall through to HTTP
+      const msg = e?.message || String(e);
+      if (msg.includes('Connection closed') || msg.includes('timed out') || msg.includes('not reachable') || msg.includes('not connected')) {
+        if (mcpHealthy == null || mcpHealthy === true) {
+          console.warn(`[Marketplace] MCP bridge unhealthy — suppressing further MCP attempts this session`);
+        }
+        mcpHealthy = false;
+      } else {
+        console.warn(`[Marketplace] MCP call failed for ${tool}, falling back to HTTP:`, msg);
+      }
     }
   }
 
