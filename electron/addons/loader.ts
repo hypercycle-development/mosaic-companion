@@ -33,6 +33,7 @@ import {
   setUpdateCheckMode,
   recordUpgrade,
   removeAddonEntry,
+  refreshManifestMeta,
   type AddonStateEntry,
 } from "./state";
 
@@ -310,6 +311,7 @@ export async function activateAddon(id: string): Promise<{ success: boolean; err
 
     setActivated(id, true);
     setLastError(id, undefined);
+    refreshManifestMeta(id, manifest.name, manifest.description);
     return { success: true };
   } catch (error) {
     const message = getErrorMessage(error);
@@ -438,10 +440,17 @@ export function listAddons(): AddonSummary[] {
   const entries = listAddonEntries();
   return Object.entries(entries).map(([id, entry]) => {
     const live = liveAddons.get(id);
+    // Prefer the persisted name/description (entry.name/description,
+    // refreshed on every activation — see refreshManifestMeta) over the live
+    // manifest cache, which is only populated while the addon is actually
+    // active. Falling back to `live?.manifest...` covers state entries
+    // written before this field existed; falls back to the bare id only if
+    // neither is available (never activated even once, shouldn't normally
+    // happen since install always activates immediately).
     return {
       id,
-      name: live?.manifest.name ?? id,
-      description: live?.manifest.description,
+      name: entry.name ?? live?.manifest.name ?? id,
+      description: entry.description ?? live?.manifest.description,
       version: entry.version,
       activated: liveAddons.has(id),
       lastError: entry.lastError,

@@ -342,7 +342,7 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
                         onClick={() => handleSetEnabled(addon, !combinedOn)}
                         disabled={isBusy}
                         title={combinedOn ? "Turn off (deactivates + hides)" : "Turn on (activates + shows)"}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 shrink-0 ${combinedOn ? "bg-indigo-600" : "bg-gray-700"}`}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 shrink-0 ${combinedOn ? "bg-indigo-600 border-indigo-500" : "bg-gray-600 border-gray-500"}`}
                       >
                         <span
                           className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${combinedOn ? "translate-x-6" : "translate-x-1"}`}
@@ -666,7 +666,7 @@ const DecoupledVisibilityRow: React.FC<{
           onToggle(next);
         }}
         disabled={!activated}
-        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-40 ${visible ? "bg-indigo-600" : "bg-gray-700"}`}
+        className={`relative inline-flex h-5 w-9 items-center rounded-full border transition-colors disabled:opacity-40 ${visible ? "bg-indigo-600 border-indigo-500" : "bg-gray-600 border-gray-500"}`}
       >
         <span
           className={`inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 ease-in-out ${visible ? "translate-x-5" : "translate-x-1"}`}

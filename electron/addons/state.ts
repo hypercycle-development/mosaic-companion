@@ -52,6 +52,17 @@ export interface AddonStateEntry {
   updateCheckMode: UpdateCheckMode;
   source: AddonSource;
   lastError?: string;
+  /** Display name/description, persisted here (not read live off the
+   * manifest cache) so a deactivated addon still shows its real name in
+   * Settings — `listAddons()` used to fall back to the bare id and drop the
+   * description entirely for anything not currently in the live registry,
+   * which read as "the addon is broken/gone" right when a user deactivates
+   * it. Kept in sync on every successful activate() (loader.ts), seeded at
+   * install time below. Optional only for entries written before this field
+   * existed — `listAddons()` still falls back to the live manifest / id for
+   * those until their next activation refreshes it. */
+  name?: string;
+  description?: string;
 }
 
 interface AddonStateFile {
@@ -132,6 +143,8 @@ export function recordInstall(
     linkVisibilityToActivation: manifest.linkVisibilityToActivation,
     updateCheckMode: manifest.updates.checkMode,
     source,
+    name: manifest.name,
+    description: manifest.description,
   };
   state.addons[manifest.id] = entry;
   const result = saveAddonState();
@@ -154,6 +167,24 @@ export function setLastError(id: string, error: string | undefined): void {
   } else {
     delete entry.lastError;
   }
+  entry.updatedAt = new Date().toISOString();
+  saveAddonState();
+}
+
+/** Refreshes the persisted display name/description from a freshly-loaded
+ * manifest — called on every successful `activateAddon()` (loader.ts), which
+ * already re-reads manifest.json from disk. Keeps Settings → Addons showing
+ * the real name for a deactivated addon (not the bare id) and picks up a
+ * dev addon's edited name/description on its next "Reload" without a
+ * separate migration step. Deliberately does not bump `updatedAt` or write
+ * to disk when nothing changed, so a routine activation isn't a guaranteed
+ * disk write. */
+export function refreshManifestMeta(id: string, name: string, description: string | undefined): void {
+  const entry = state.addons[id];
+  if (!entry) return;
+  if (entry.name === name && entry.description === description) return;
+  entry.name = name;
+  entry.description = description;
   entry.updatedAt = new Date().toISOString();
   saveAddonState();
 }

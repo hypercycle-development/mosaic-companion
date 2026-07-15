@@ -409,8 +409,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     <button
                       onClick={() => handleTabVisibilityToggle(tab.id, !visible)}
                       className={`
-                        relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 shrink-0
-                        ${visible ? "bg-indigo-600" : "bg-gray-700"}
+                        relative inline-flex h-6 w-11 items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 shrink-0
+                        ${visible ? "bg-indigo-600 border-indigo-500" : "bg-gray-600 border-gray-500"}
                       `}
                       title={visible ? "Hide from sidebar" : "Show in sidebar"}
                     >
@@ -446,8 +446,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                             : handleTabVisibilityToggle(tabId, !visible)
                         }
                         className={`
-                          relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 shrink-0
-                          ${combinedOn ? "bg-indigo-600" : "bg-gray-700"}
+                          relative inline-flex h-6 w-11 items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 shrink-0
+                          ${combinedOn ? "bg-indigo-600 border-indigo-500" : "bg-gray-600 border-gray-500"}
                         `}
                         title={combinedOn ? "Hide from sidebar" : "Show in sidebar"}
                       >
