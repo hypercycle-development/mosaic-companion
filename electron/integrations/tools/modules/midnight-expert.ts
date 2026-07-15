@@ -1,0 +1,173 @@
+/**
+ * Midnight Expert ToolModule
+ *
+ * Bridges the Midnight Expert MCP server (midnight-expert) into Mosaic's
+ * native ToolRegistry. Surfaces 7 tools for Compact contract development,
+ * devnet operations, wallet management, verification, and error code lookup.
+ *
+ * Complements the existing MidnightModule (midnight-mcp, language tools)
+ * by providing the full Hermes skill registry and devnet operations.
+ */
+
+import type { ToolModule, ToolDefinition } from "../types";
+
+const SERVER_NAME = "midnight-expert";
+
+// Map of native tool names → underlying MCP tool names
+const TOOL_MAPPINGS: Array<{
+  name: string;
+  mcpName: string;
+  description: string;
+  args: Record<string, unknown>;
+}> = [
+  {
+    name: "midnight_expert_status",
+    mcpName: "midnight_status",
+    description: "Check overall Midnight ecosystem health: devnet, proof server, indexer, wallet, and Compact CLI status.",
+    args: { verbose: "boolean (default false)" },
+  },
+  {
+    name: "midnight_expert_devnet",
+    mcpName: "midnight_devnet",
+    description: "Start, stop, restart, or check status of the local Midnight devnet (node + indexer + proof server via Docker Compose).",
+    args: { action: "'start'|'stop'|'status'|'restart'|'logs'" },
+  },
+  {
+    name: "midnight_expert_compile",
+    mcpName: "midnight_compile",
+    description: "Compile a Compact smart contract and return compilation diagnostics.",
+    args: { file: "string", verbose: "boolean (default false)" },
+  },
+  {
+    name: "midnight_expert_wallet",
+    mcpName: "midnight_wallet",
+    description: "Create, fund, list, or check balance of Midnight test wallets. Manage NIGHT and DUST tokens.",
+    args: { action: "'create'|'fund'|'list'|'balance'|'register-dust'", name: "string (optional)" },
+  },
+  {
+    name: "midnight_expert_skill",
+    mcpName: "midnight_skill",
+    description: "Load and query a specific Midnight skill from the Hermes skill registry (e.g. midnight-compact-core-basic-start, midnight-verify-verify-compact, midnight-tooling-devnet).",
+    args: { skill: "string", query: "string (optional)" },
+  },
+  {
+    name: "midnight_expert_status_codes",
+    mcpName: "midnight_status_codes",
+    description: "Look up a Midnight error code, status code, or tagged error across the node, ledger, indexer, wallet, SDK, compiler, proof server, and DApp connector.",
+    args: { code: "string" },
+  },
+  {
+    name: "midnight_expert_contract_review",
+    mcpName: "midnight_contract_review",
+    description: "Run a multi-axis review on a Compact contract: security, privacy, architecture, performance, testing, documentation, compilation.",
+    args: { file: "string", axes: "string[] (default ['security','privacy','compilation'])" },
+  },
+];
+
+/**
+ * Invoke a tool via the main-process MCP client.
+ * Uses the IPC channel mcp:call-tool registered in electron/integrations/mcp/index.ts.
+ */
+async function callMcpTool(
+  toolName: string,
+  args: Record<string, unknown>,
+): Promise<{ success: boolean; data?: unknown; error?: string }> {
+  try {
+    const { mcpClient } = require("../../mcp");
+    if (!mcpClient) {
+      return { success: false, error: "MCP client is not initialized" };
+    }
+    if (!mcpClient.isConnected(SERVER_NAME)) {
+      return {
+        success: false,
+        error: `Midnight Expert MCP server "${SERVER_NAME}" is not connected. It should auto-connect at startup; check the MCP panel.`,
+      };
+    }
+    const result = await mcpClient.callTool(SERVER_NAME, toolName, args);
+    return { success: true, data: result };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+function toolDefinition(mapping: (typeof TOOL_MAPPINGS)[number]): ToolDefinition {
+  return {
+    name: mapping.name,
+    description: mapping.description,
+    inputSchema: {
+      type: "object",
+      properties: mapping.args,
+    },
+    handler: async (args) => {
+      const cleaned: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(args)) {
+        if (v !== undefined && v !== null && v !== "") cleaned[k] = v;
+      }
+      const result = await callMcpTool(mapping.mcpName, cleaned);
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+      return { success: true, data: result.data };
+    },
+  };
+}
+
+export class MidnightExpertModule implements ToolModule {
+  name = "midnight-expert";
+  displayName = "Midnight Expert";
+  actionPatterns = [];
+
+  tools: ToolDefinition[] = TOOL_MAPPINGS.map(toolDefinition);
+
+  getSystemPrompt(): string {
+    return `
+# Midnight Expert Tools
+
+You have access to the full Midnight Expert toolkit via the "midnight-expert" module. This provides 89 Hermes skills + 17 agent skills for privacy-preserving blockchain development on the Midnight Network.
+
+## Core Concepts
+- **NIGHT**: native token.
+- **DUST**: gas token, generated by delegating/spending NIGHT.
+- **Compact**: Midnight's smart-contract language for ZK circuits.
+- **Ledger**: dual-state — public ledger + private local state.
+- **Circuits**: ZK programs that prove facts without revealing inputs.
+- **Witnesses**: functions that fetch private inputs from local state.
+
+## Available Tools (module: midnight-expert)
+
+Devnet Operations:
+- midnight_expert_status — ecosystem health check (devnet, proof server, indexer, CLI)
+- midnight_expert_devnet — start/stop/restart/logs for local Docker devnet
+
+Contract Development:
+- midnight_expert_compile — compile a .compact file
+- midnight_expert_contract_review — multi-axis audit (security, privacy, compilation)
+
+Knowledge & Skills:
+- midnight_expert_skill — load ANY of the 89 Hermes skills (e.g. midnight-compact-core-basic-start)
+- midnight_expert_status_codes — lookup any Midnight error code
+
+Wallet:
+- midnight_expert_wallet — create, fund, list, or check test wallet balances
+
+## Usage Rules
+1. ALWAYS call midnight_expert_status before any devnet operation to verify services are running.
+2. ALWAYS compile generated Compact with midnight_expert_compile before claiming it works.
+3. Use midnight_expert_skill for deep knowledge queries — it loads the full SKILL.md content.
+4. Prefer midnight_expert_contract_review before deploying any contract to devnet.
+5. Keep responses concise and based only on tool output.
+`;
+  }
+
+  async isAvailable(): Promise<boolean> {
+    try {
+      const { mcpClient } = require("../../mcp");
+      return mcpClient?.isConnected(SERVER_NAME) ?? false;
+    } catch {
+      return false;
+    }
+  }
+}

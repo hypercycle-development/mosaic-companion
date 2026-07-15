@@ -1,0 +1,4462 @@
+{
+  "version": "1.0.0",
+  "total_skills": 283,
+  "categories": {
+    "midnight": [
+      "midnight-node-node-configuration",
+      "midnight-verify-verify-by-witness",
+      "midnight-cq-wallet-testing",
+      "midnight-cq-dapp-connector-testing",
+      "midnight-node-node-operations",
+      "midnight-cq-quality-check",
+      "midnight-compact-core-compact-witness-ts",
+      "midnight-compact-core-compact-ledger",
+      "midnight-node-node-validator",
+      "midnight-core-concepts-zero-knowledge",
+      "midnight-verify-verify-by-devnet",
+      "midnight-compact-core-compact-patterns",
+      "midnight-compact-core-compact-standard-library",
+      "midnight-proof-server-proof-server-api",
+      "midnight-cq-dapp-testing",
+      "midnight-cq-ledger-testing",
+      "midnight-proof-server-proof-server-operations",
+      "midnight-compact-core-basic-start",
+      "midnight-verify-verify-tooling",
+      "midnight-dapp-dev-dapp-connector",
+      "midnight-verify-verify-by-source",
+      "midnight-verify-verify-witness",
+      "midnight-compact-core-compact-privacy-disclosure",
+      "midnight-node-node-architecture",
+      "midnight-orchestrator",
+      "midnight-verify-verify-by-ledger-source",
+      "midnight-expert-meta-doctor",
+      "midnight-verify-verify-by-execution",
+      "midnight-verify-verify-sdk",
+      "midnight-compact-core-compact-tokens",
+      "midnight-verify-verify-by-zkir-inspection",
+      "midnight-compact-core-compact-security",
+      "midnight-cq-quality-init",
+      "midnight-plugin-utils-dependency-checker",
+      "midnight-verify-verify-correctness",
+      "midnight-fact-check-fact-check-extraction",
+      "midnight-dapp-dev-init",
+      "midnight-compact-core-compact-language-ref",
+      "midnight-dapp-dev-core",
+      "midnight-plugin-utils-dependency-scanner",
+      "midnight-compact-core-compact-transaction-model",
+      "midnight-verify-verify-by-wallet-source",
+      "midnight-expert-meta-add-to-ecosystem",
+      "midnight-verify-verify-by-zkir-checker",
+      "midnight-cq-compact-testing",
+      "midnight-indexer-indexer-data-model",
+      "midnight-compact-core-compact-structure",
+      "midnight-core-concepts-privacy-patterns",
+      "midnight-proof-server-proof-server-configuration",
+      "midnight-indexer-indexer-operations",
+      "midnight-verify-verify-by-type-check",
+      "midnight-node-node-governance",
+      "midnight-verify-verify-wallet-sdk",
+      "midnight-verify-verify-zkir",
+      "midnight-fact-check-fact-check-classification",
+      "midnight-verify-verify-ledger",
+      "midnight-compact-cli-dev-core",
+      "midnight-verify-verify-by-cli-execution",
+      "midnight-compact-examples-code-examples",
+      "midnight-proof-server-proof-server-integration",
+      "midnight-verify-verify-compact",
+      "midnight-proof-server-proof-server-architecture",
+      "midnight-indexer-indexer-architecture",
+      "midnight-core-concepts-protocols",
+      "midnight-expert-meta-feedback",
+      "midnight-core-concepts-tokenomics",
+      "midnight-fact-check-fact-check-reporting",
+      "midnight-dapp-dev-midnight-sdk",
+      "midnight-core-concepts-architecture",
+      "midnight-compact-core-compact-init-project",
+      "midnight-plugin-utils-find-claude-plugin-root",
+      "midnight-core-concepts-data-models",
+      "midnight-node-node-rpc-api",
+      "midnight-indexer-indexer-graphql-api",
+      "midnight-compact-core-compact-debugging",
+      "midnight-compact-core-compact-circuit-costs"
+    ],
+    "midnight-agents": [
+      "midnight-agent-source-investigator",
+      "midnight-agent-claim-extractor",
+      "midnight-agent-domain-classifier",
+      "midnight-agent-type-checker",
+      "midnight-agent-witness-verifier",
+      "midnight-agent-cli-tester",
+      "midnight-agent-compact-dev",
+      "midnight-agent-cq-reviewer",
+      "midnight-agent-concept-explainer",
+      "midnight-agent-reviewer",
+      "midnight-agent-sdk-tester",
+      "midnight-agent-dev",
+      "midnight-agent-zkir-checker",
+      "midnight-agent-contract-writer",
+      "midnight-agent-cq-runner",
+      "midnight-agent-security-reviewer"
+    ],
+    "unknown": [
+      "midnight-tooling-proof-server",
+      "platform-integration-analysis",
+      "cardano-mcp-staking",
+      "aiken-dex-security-audit-operator",
+      "midnight-city-continuous-miner",
+      "midnight-verify-zkir-regression",
+      "kanban-codex-lane",
+      "ide-integration",
+      "cardano-cli-wallets",
+      "electron-linux-setup",
+      "git-workflow-and-versioning",
+      "project-migrator",
+      "electron-sandbox-debugging",
+      "agentic-system-evolution",
+      "midnight-wallet-wallet-sdk",
+      "cardano-cli-transactions",
+      "superpowers",
+      "mosaic-agent-forge",
+      "linux-desktop-audio",
+      "cardano-cli-plutus-scripts-operator",
+      "cardano-integration",
+      "cardano-tools",
+      "trl-fine-tuning",
+      "codebase-memory-mcp",
+      "kanban-worker",
+      "flue",
+      "kanban-orchestrator",
+      "hyperaibox-fleet-manager",
+      "mosaic-stargate-hermes-debug",
+      "axi-integration",
+      "hydra-head-operator",
+      "mosaic-health-doctor",
+      "hydra-head",
+      "stargate-debug-playbook",
+      "midnight-tooling-devnet-health",
+      "cardano-mcp-identity",
+      "skill-ecosystem-migration",
+      "hermes-dashboard",
+      "aiken-smart-contracts",
+      "mosaic-discovery-first-aim-orchestration",
+      "hydra-head-troubleshooter",
+      "code-review-and-quality",
+      "addy-agent-skills",
+      "mosaic-stargate-ui-simplify",
+      "cardano-mcp-balances",
+      "cardano-cli-doctor",
+      "mosaic-skill-bridge",
+      "codex",
+      "hypercycle-node-manager-ops",
+      "axi-executor",
+      "incremental-implementation",
+      "claude-code",
+      "cardano-cli-wallets-operator",
+      "pattern-extractor",
+      "cardano-cli-staking",
+      "cardano-devnet-in-a-box",
+      "axi-tool-forge",
+      "koios-agent-wallet",
+      "midnight-tooling-devnet",
+      "hermes-agent",
+      "systematic-debugging",
+      "midnight-status-codes-status-codes",
+      "midnight-tooling-release-notes",
+      "mosaic-stargate",
+      "xhr-vs-fetch-interception",
+      "blockchain-node-ops",
+      "midnight-wallet-sdk-regression-check",
+      "cardano-mcp-transactions",
+      "kanban-project-init",
+      "codebase-navigator",
+      "midnight-tooling-troubleshooting",
+      "cardano-cli-transactions-operator",
+      "cardano-cli-plutus-scripts",
+      "electron-ai-provider-integration",
+      "electron-agent-forge",
+      "soul-md-integration",
+      "midnight-tooling-compact-cli",
+      "midnight-wallet-managing-test-wallets",
+      "midnight-status-codes-status-codes-lookup",
+      "mosaic-bot-orchestrator",
+      "streaming-callbacks-pattern",
+      "cardano-cli-staking-operator",
+      "unsloth",
+      "timesfm-forecasting",
+      "plutus-v3-conway",
+      "ai-agency-architect",
+      "spec-driven-development",
+      "planning-and-task-breakdown",
+      "cardano-protocol-params",
+      "kilocode",
+      "ascii-art",
+      "axi-forge",
+      "meshjs-cardano",
+      "midnight-compact-core-compact-review",
+      "teams-meeting-pipeline",
+      "cardano-cli-operator",
+      "hermes-s6-container-supervision",
+      "ollama-cloud-integration",
+      "aiken-dex-security-audit",
+      "midnight-city-direct-control"
+    ],
+    "creative": [
+      "design-md",
+      "popular-web-designs",
+      "pretext",
+      "creative-ideation",
+      "comfyui",
+      "p5js",
+      "sketch",
+      "architecture-diagram",
+      "songwriting-and-ai-music",
+      "baoyu-infographic",
+      "baoyu-comic",
+      "pixel-art",
+      "manim-video",
+      "humanizer",
+      "baoyu-article-illustrator",
+      "claude-design",
+      "ascii-video",
+      "ai-avatar-video-marketing",
+      "touchdesigner-mcp",
+      "excalidraw"
+    ],
+    "productivity": [
+      "maps",
+      "notion",
+      "airtable",
+      "linear",
+      "powerpoint",
+      "ocr-and-documents",
+      "google-workspace",
+      "nano-pdf",
+      "petdex"
+    ],
+    "software-development": [
+      "spike",
+      "simplify-code",
+      "node-inspect-debugger",
+      "external-skill-repo-integration",
+      "writing-plans",
+      "test-driven-development",
+      "website-reverse-engineering",
+      "subagent-driven-development",
+      "debugging-hermes-tui-commands",
+      "requesting-code-review",
+      "source-security-audit",
+      "plan",
+      "python-debugpy",
+      "eight-phase-debugging",
+      "hermes-agent-skill-authoring",
+      "ide-agent-forge-integrator"
+    ],
+    "github": [
+      "github-pr-workflow",
+      "github-code-review",
+      "github-repo-management",
+      "github-issues",
+      "github-auth",
+      "codebase-inspection"
+    ],
+    "note-taking": [
+      "gbrain-project-tracking",
+      "obsidian"
+    ],
+    "blockchain": [
+      "hypercycle-aimifier",
+      "hermes-aim-spec-v1",
+      "cardano-eutxo-fundamentals"
+    ],
+    "apple": [
+      "macos-computer-use",
+      "findmy",
+      "imessage",
+      "apple-reminders",
+      "apple-notes"
+    ],
+    "media": [
+      "songsee",
+      "screen-recording",
+      "spotify",
+      "heartmula",
+      "gif-search",
+      "youtube-content"
+    ],
+    "research": [
+      "llm-wiki",
+      "blogwatcher",
+      "arxiv",
+      "polymarket",
+      "research-paper-writing"
+    ],
+    "mlops": [
+      "huggingface-hub"
+    ],
+    "devops": [
+      "hermes-desktop-launch",
+      "webhook-subscriptions",
+      "knowledge-base-ingestion",
+      "linux-system-cleanup",
+      "hermes-mcp-integration"
+    ],
+    "autonomous-ai-agents": [
+      "opencode"
+    ],
+    "mcp": [
+      "native-mcp"
+    ],
+    "red-teaming": [
+      "godmode"
+    ],
+    "gaming": [
+      "pokemon-player",
+      "minecraft-modpack-server"
+    ],
+    "social-media": [
+      "xurl"
+    ],
+    "smart-home": [
+      "openhue"
+    ],
+    "data-science": [
+      "jupyter-live-kernel"
+    ],
+    "email": [
+      "himalaya"
+    ],
+    "mosaic-stargate": [
+      "stargate-bundle-creator",
+      "stargate-marketplace-analyzer"
+    ],
+    "hypercycle": [
+      "hypercycle-node-factory-architect",
+      "hypercycle-aim-master"
+    ]
+  },
+  "skills": {
+    "midnight-node-node-configuration": {
+      "name": "midnight-node-node-configuration",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about configuring a Midnight node, including CLI flags, environment variables, TOML presets, chain spec files, network selection (qanet, preview, preprod, perfnet, devnet), validator key setup (AURA seed, GRANDPA seed, cross-chain seed), Substrate pruning and RPC flags, or debugging configuration with SHOW_CONFIG.",
+      "triggers": [
+        "Use midnight-node-node-configuration"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-node-node-configuration",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-by-witness": {
+      "name": "midnight-verify-verify-by-witness",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-by-witness"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-by-witness",
+      "access_level": "public"
+    },
+    "midnight-agent-source-investigator": {
+      "name": "midnight-agent-source-investigator",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/midnight-verify/agents/source-investigator.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-source-investigator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-source-investigator",
+      "access_level": "public"
+    },
+    "midnight-cq-wallet-testing": {
+      "name": "midnight-cq-wallet-testing",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-cq-wallet-testing"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-cq-wallet-testing",
+      "access_level": "public"
+    },
+    "midnight-tooling-proof-server": {
+      "name": "midnight-tooling-proof-server",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about the Midnight proof server in any context \u2014 local, testnet, or mainnet. Includes \"start the proof server\", \"restart the proof server\", \"stop the proof server\", \"proof server not working\", \"proof server logs\", \"check if proof server is running\", \"proof server port 6300\", \"proof server version\", \"proof server image tag\", \"proof server health check\", \"proof server API endpoints\", \"Docker container for proofs\", \"set up Docker for the proof server\", or \"proof server endpoint\". Covers proof server concepts, version selection, API endpoints, standalone Docker usage, and troubleshooting. For local development setup, see the devnet skill.",
+      "triggers": [
+        "Use midnight-tooling-proof-server"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-tooling-proof-server",
+      "access_level": "public"
+    },
+    "design-md": {
+      "name": "design-md",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Author/validate/export Google's DESIGN.md token spec files.",
+      "triggers": [
+        "Use design-md"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/design-md",
+      "access_level": "public"
+    },
+    "midnight-cq-dapp-connector-testing": {
+      "name": "midnight-cq-dapp-connector-testing",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-cq-dapp-connector-testing"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-cq-dapp-connector-testing",
+      "access_level": "public"
+    },
+    "maps": {
+      "name": "maps",
+      "category": "productivity",
+      "source": "bundled",
+      "description": "Geocode, POIs, routes, timezones via OpenStreetMap/OSRM.",
+      "triggers": [
+        "Use maps"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/maps",
+      "access_level": "public"
+    },
+    "platform-integration-analysis": {
+      "name": "platform-integration-analysis",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Deep architectural analysis of complex platform codebases to identify unconnected components and design integration patterns between subsystems. Covers inventory, dependency mapping, gap analysis, and creative bridge solutions.",
+      "triggers": [
+        "Use platform-integration-analysis"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/platform-integration-analysis",
+      "access_level": "public"
+    },
+    "midnight-node-node-operations": {
+      "name": "midnight-node-node-operations",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "Running the Midnight node, validator mode, full node, archive node, dev mode, Docker deployment, midnight-node-docker, Prometheus metrics, node monitoring, memory monitoring, graceful shutdown, P2P networking, bootnodes, node keys, port 30333, node troubleshooting, blocks not finalizing, mainchain follower errors, IPC errors, state sync issues, node logs, node peers, node health checks, start a node, deploy a node, node not syncing, node crashes, out of memory, check node status.",
+      "triggers": [
+        "Use midnight-node-node-operations"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-node-node-operations",
+      "access_level": "public"
+    },
+    "cardano-mcp-staking": {
+      "name": "cardano-mcp-staking",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Query staking delegation status and available rewards via cardano MCP. Read-only, no delegation changes.",
+      "triggers": [
+        "Use cardano-mcp-staking"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-mcp-staking",
+      "access_level": "public"
+    },
+    "midnight-agent-claim-extractor": {
+      "name": "midnight-agent-claim-extractor",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/midnight-fact-check/agents/claim-extractor.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-claim-extractor"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-claim-extractor",
+      "access_level": "public"
+    },
+    "midnight-cq-quality-check": {
+      "name": "midnight-cq-quality-check",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-cq-quality-check"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-cq-quality-check",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-witness-ts": {
+      "name": "midnight-compact-core-compact-witness-ts",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about implementing Compact witness functions in TypeScript, the WitnessContext pattern, private state management, Compact-to-TypeScript type mappings (Field to bigint, Bytes to Uint8Array, Uint to bigint), compiler-generated .d.ts files (Witnesses interface, Circuits type, Contract class), the Compact JavaScript runtime, how contract.circuits works, pure circuits in TypeScript, reading ledger state from TypeScript, the witness return tuple pattern [PrivateState, ReturnValue], or how to connect a Compact contract to its TypeScript implementation.",
+      "triggers": [
+        "Use midnight-compact-core-compact-witness-ts"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-witness-ts",
+      "access_level": "public"
+    },
+    "spike": {
+      "name": "spike",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "Throwaway experiments to validate an idea before build.",
+      "triggers": [
+        "Use spike"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/spike",
+      "access_level": "public"
+    },
+    "aiken-dex-security-audit-operator": {
+      "name": "aiken-dex-security-audit-operator",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Operator skill: run local Aiken build/test commands and capture evidence for the audit. Manual invoke only.",
+      "triggers": [
+        "Use aiken-dex-security-audit-operator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/aiken-dex-security-audit-operator",
+      "access_level": "public"
+    },
+    "midnight-city-continuous-miner": {
+      "name": "midnight-city-continuous-miner",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Use when a Midnight City miner agent must mine ore continuously without stopping, moving between rocks, or selling early. Provides a fast-loop Python daemon and troubleshooting recipes for contested nodes.",
+      "triggers": [
+        "Use midnight-city-continuous-miner"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-city-continuous-miner",
+      "access_level": "public"
+    },
+    "github-pr-workflow": {
+      "name": "github-pr-workflow",
+      "category": "github",
+      "source": "bundled",
+      "description": "GitHub PR lifecycle: branch, commit, open, CI, merge.",
+      "triggers": [
+        "Use github-pr-workflow"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/github-pr-workflow",
+      "access_level": "public"
+    },
+    "gbrain-project-tracking": {
+      "name": "gbrain-project-tracking",
+      "category": "note-taking",
+      "source": "bundled",
+      "description": "Use gbrain (via MCP) to build structured project knowledge trees. Map application UI sections to explicit page hierarchies, link commits and files, and maintain them over time.",
+      "triggers": [
+        "Use gbrain-project-tracking"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/gbrain-project-tracking",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-ledger": {
+      "name": "midnight-compact-core-compact-ledger",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about Compact ledger declarations, ledger modifiers (export, sealed), ledger ADT types (Counter, Map, Set, List, MerkleTree, HistoricMerkleTree), ADT operations and methods, constructor initialization of state, state design choices (Map vs Set vs MerkleTree, Counter vs Uint), nested ADT composition, on-chain privacy and visibility of state operations, disclosure rules for ledger writes including disclose() usage, default<T> for ADT initialization, the Kernel ledger and kernel.self(), or the Midnight token and coin system (ShieldedCoinInfo, QualifiedShieldedCoinInfo, zswap).",
+      "triggers": [
+        "Use midnight-compact-core-compact-ledger"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-ledger",
+      "access_level": "public"
+    },
+    "midnight-verify-zkir-regression": {
+      "name": "midnight-verify-zkir-regression",
+      "category": "unknown",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-zkir-regression"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-zkir-regression",
+      "access_level": "public"
+    },
+    "hypercycle-aimifier": {
+      "name": "hypercycle-aimifier",
+      "category": "blockchain",
+      "source": "bundled",
+      "description": "HyperCycle AIM module generation, deployment, and integration. Covers the aim-py-gen pipeline (config \u2192 generate \u2192 build \u2192 deploy), writing custom shims for non-standard models, wrapping Hermes agents as AIMs, and registering on HyperCycle nodes via Mosaic Companion or Node Manager.",
+      "triggers": [
+        "Use hypercycle-aimifier"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/hypercycle-aimifier",
+      "access_level": "public"
+    },
+    "midnight-node-node-validator": {
+      "name": "midnight-node-node-validator",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about running a Midnight validator end-to-end \u2014 generating validator session keys, becoming a permissioned (federated) or registered (staked) candidate, how the committee is selected via the D-parameter and Ariadne, committee rotation per Cardano epoch, producing blocks with --validator, and testing a validator locally with the mock main-chain follower. Covers \"how do I run a validator\", \"become a block producer\", \"permissioned vs registered candidate\", \"validator committee selection\", \"validator not producing blocks\", and \"register as a Midnight validator\".",
+      "triggers": [
+        "Use midnight-node-node-validator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-node-node-validator",
+      "access_level": "public"
+    },
+    "popular-web-designs": {
+      "name": "popular-web-designs",
+      "category": "creative",
+      "source": "bundled",
+      "description": "54 real design systems (Stripe, Linear, Vercel) as HTML/CSS.",
+      "triggers": [
+        "Use popular-web-designs"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/popular-web-designs",
+      "access_level": "public"
+    },
+    "kanban-codex-lane": {
+      "name": "kanban-codex-lane",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Use when a Hermes Kanban worker wants to run Codex CLI as an isolated implementation lane while Hermes keeps ownership of task lifecycle, reconciliation, testing, and handoff.",
+      "triggers": [
+        "Use kanban-codex-lane"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/kanban-codex-lane",
+      "access_level": "public"
+    },
+    "ide-integration": {
+      "name": "ide-integration",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Integrate Hermes Agent with the Mosaic IDE (embedded in Mosaic Companion). Enables context-aware editing, code navigation, inline completions, and IDE-triggered agent actions.",
+      "triggers": [
+        "Use ide-integration"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/ide-integration",
+      "access_level": "public"
+    },
+    "midnight-core-concepts-zero-knowledge": {
+      "name": "midnight-core-concepts-zero-knowledge",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about zero-knowledge proofs, ZK SNARKs, witness data, prover/verifier roles, constraint systems, proof generation, proof verification, privacy boundaries, or how Midnight uses ZK cryptography for transaction privacy and data protection.",
+      "triggers": [
+        "Use midnight-core-concepts-zero-knowledge"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-core-concepts-zero-knowledge",
+      "access_level": "public"
+    },
+    "cardano-cli-wallets": {
+      "name": "cardano-cli-wallets",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Wallet guidance: key generation, address building, UTxO queries. Provides templates and explanations (no execution).",
+      "triggers": [
+        "Use cardano-cli-wallets"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-cli-wallets",
+      "access_level": "public"
+    },
+    "macos-computer-use": {
+      "name": "macos-computer-use",
+      "category": "apple",
+      "source": "bundled",
+      "description": "|",
+      "triggers": [
+        "Use macos-computer-use"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/macos-computer-use",
+      "access_level": "public"
+    },
+    "electron-linux-setup": {
+      "name": "electron-linux-setup",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Set up, build, and run Electron desktop apps on Linux from a fresh git clone. Covers dependency installation, TypeScript compilation, Vite bundling, and the common Linux sandbox permission crash.",
+      "triggers": [
+        "Use electron-linux-setup"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/electron-linux-setup",
+      "access_level": "public"
+    },
+    "git-workflow-and-versioning": {
+      "name": "git-workflow-and-versioning",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Treat commits as save points, branches as sandboxes, and history as documentation. Use when making any code change.",
+      "triggers": [
+        "Use git-workflow-and-versioning"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/git-workflow-and-versioning",
+      "access_level": "public"
+    },
+    "project-migrator": {
+      "name": "project-migrator",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Migrate projects between environments (local\u2192Stargate, dev\u2192prod, HyperAIBox\u2192cloud). Handle config transformation, dependency mapping, and validation.",
+      "triggers": [
+        "Use project-migrator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/project-migrator",
+      "access_level": "public"
+    },
+    "electron-sandbox-debugging": {
+      "name": "electron-sandbox-debugging",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Patterns for debugging Electron sandbox rendering issues, IPC bridges, child-process lifecycle, and port readiness in renderer-main communication.",
+      "triggers": [
+        "Use electron-sandbox-debugging"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/electron-sandbox-debugging",
+      "access_level": "public"
+    },
+    "pretext": {
+      "name": "pretext",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Use when building creative browser demos with @chenglou/pretext \u2014 DOM-free text layout for ASCII art, typographic flow around obstacles, text-as-geometry games, kinetic typography, and text-powered ge",
+      "triggers": [
+        "Use pretext"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/pretext",
+      "access_level": "public"
+    },
+    "midnight-agent-domain-classifier": {
+      "name": "midnight-agent-domain-classifier",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/midnight-fact-check/agents/domain-classifier.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-domain-classifier"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-domain-classifier",
+      "access_level": "public"
+    },
+    "songsee": {
+      "name": "songsee",
+      "category": "media",
+      "source": "bundled",
+      "description": "Audio spectrograms/features (mel, chroma, MFCC) via CLI.",
+      "triggers": [
+        "Use songsee"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/songsee",
+      "access_level": "public"
+    },
+    "agentic-system-evolution": {
+      "name": "agentic-system-evolution",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Diagnose and fix autonomous agents that alert but do not evolve. Wire up pattern detection, skill proposals, user approval, and auto-implementation pipelines.",
+      "triggers": [
+        "Use agentic-system-evolution"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/agentic-system-evolution",
+      "access_level": "public"
+    },
+    "simplify-code": {
+      "name": "simplify-code",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "Parallel 3-agent cleanup of recent code changes.",
+      "triggers": [
+        "Use simplify-code"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/simplify-code",
+      "access_level": "public"
+    },
+    "screen-recording": {
+      "name": "screen-recording",
+      "category": "media",
+      "source": "bundled",
+      "description": "Configure screen recording with audio on Linux desktops (GNOME/Wayland + PipeWire), diagnose why recordings are silent, and set up alternatives.",
+      "triggers": [
+        "Use screen-recording"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/screen-recording",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-by-devnet": {
+      "name": "midnight-verify-verify-by-devnet",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-by-devnet"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-by-devnet",
+      "access_level": "public"
+    },
+    "midnight-wallet-wallet-sdk": {
+      "name": "midnight-wallet-wallet-sdk",
+      "category": "unknown",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-wallet-wallet-sdk"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-wallet-wallet-sdk",
+      "access_level": "public"
+    },
+    "cardano-cli-transactions": {
+      "name": "cardano-cli-transactions",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Transaction guidance: build, sign, submit patterns. Provides templates (no execution). Use operator skill to execute.",
+      "triggers": [
+        "Use cardano-cli-transactions"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-cli-transactions",
+      "access_level": "public"
+    },
+    "superpowers": {
+      "name": "superpowers",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Apply the Superpowers agentic software-development methodology: spec-driven planning, true red/green TDD, subagent-driven implementation, systematic debugging, and code-review workflows.",
+      "triggers": [
+        "Use superpowers"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/superpowers",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-patterns": {
+      "name": "midnight-compact-core-compact-patterns",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about Compact contract design patterns, reusable building blocks, or how to combine patterns. Covers access control (owner-only, RBAC, pausable, initializable), state management (state machine, time-locked), commitment schemes (commit-reveal, sealed-bid auction), value handling (escrow, treasury), governance (multi-sig, voting), identity and membership (registry, credential, anonymous Merkle membership), and privacy (unlinkability, selective disclosure).",
+      "triggers": [
+        "Use midnight-compact-core-compact-patterns"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-patterns",
+      "access_level": "public"
+    },
+    "creative-ideation": {
+      "name": "creative-ideation",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Generate project ideas via creative constraints.",
+      "triggers": [
+        "Use creative-ideation"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/creative-ideation",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-standard-library": {
+      "name": "midnight-compact-core-compact-standard-library",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about the Compact standard library (CompactStandardLibrary), stdlib types (Maybe, Either, JubjubPoint, MerkleTreeDigest, MerkleTreePath, ContractAddress, ZswapCoinPublicKey, UserAddress), deprecated stdlib names (CurvePoint, NativePoint, CoinInfo), stdlib constructor functions (some, none, left, right), elliptic curve functions (ecAdd, ecMul, ecMulGenerator, hashToCurve, jubjubPointX, jubjubPointY, constructJubjubPoint), Merkle tree path verification (merkleTreePathRoot, merkleTreePathRootNoLeafHash), or when the user needs to verify which functions exist in the standard library or prevent hallucination of non-existent stdlib functions.",
+      "triggers": [
+        "Use midnight-compact-core-compact-standard-library"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-standard-library",
+      "access_level": "public"
+    },
+    "mosaic-agent-forge": {
+      "name": "mosaic-agent-forge",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Complete reference for the IDE-as-Agent-Forge feature in Mosaic Companion \u2014 the Code \u2192 Test \u2192 Deploy pipeline for agent development inside the built-in IDE. Now includes the Skill Delivery Pipeline (v2.5) that actually delivers skill files to fleet nodes.",
+      "triggers": [
+        "Use mosaic-agent-forge"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/mosaic-agent-forge",
+      "access_level": "public"
+    },
+    "llm-wiki": {
+      "name": "llm-wiki",
+      "category": "research",
+      "source": "bundled",
+      "description": "Karpathy's LLM Wiki: build/query interlinked markdown KB.",
+      "triggers": [
+        "Use llm-wiki"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/llm-wiki",
+      "access_level": "public"
+    },
+    "midnight-agent-type-checker": {
+      "name": "midnight-agent-type-checker",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/midnight-verify/agents/type-checker.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-type-checker"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-type-checker",
+      "access_level": "public"
+    },
+    "midnight-proof-server-proof-server-api": {
+      "name": "midnight-proof-server-proof-server-api",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill covers the proof server REST API and HTTP interface. Use it when the user asks about the prove, check, k-value, fetch-params, or proof-versions endpoints, the deprecated prove-tx endpoint, proof generation API, proof server health check, proof server readiness check, proof server port, worker utilization, queue capacity, request/response format, binary serialization format, status codes, CORS policy, or error codes.",
+      "triggers": [
+        "Use midnight-proof-server-proof-server-api"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-proof-server-proof-server-api",
+      "access_level": "public"
+    },
+    "midnight-cq-dapp-testing": {
+      "name": "midnight-cq-dapp-testing",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-cq-dapp-testing"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-cq-dapp-testing",
+      "access_level": "public"
+    },
+    "midnight-cq-ledger-testing": {
+      "name": "midnight-cq-ledger-testing",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-cq-ledger-testing"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-cq-ledger-testing",
+      "access_level": "public"
+    },
+    "linux-desktop-audio": {
+      "name": "linux-desktop-audio",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Troubleshoot and configure Linux desktop audio stacks: PipeWire, WirePlumber, Bluetooth (BlueZ/A2DP), ALSA, and PulseAudio compatibility. Covers multi-user session conflicts, sink/source routing, and codec/profile issues.",
+      "triggers": [
+        "Use linux-desktop-audio"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/linux-desktop-audio",
+      "access_level": "public"
+    },
+    "cardano-cli-plutus-scripts-operator": {
+      "name": "cardano-cli-plutus-scripts-operator",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Execute Plutus script transactions: script spends, datum/redeemer submission. Manual invoke only.",
+      "triggers": [
+        "Use cardano-cli-plutus-scripts-operator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-cli-plutus-scripts-operator",
+      "access_level": "public"
+    },
+    "cardano-integration": {
+      "name": "cardano-integration",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Cardano integration fundamentals for Mosaic-Companion \u2014 eUTxO, wallet pairing, NFT verification, Koios/Blockfrost APIs, CIP standards, DePIN node operations, and revenue opportunities with IAGON.",
+      "triggers": [
+        "Use cardano-integration"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-integration",
+      "access_level": "public"
+    },
+    "notion": {
+      "name": "notion",
+      "category": "productivity",
+      "source": "bundled",
+      "description": "Notion API + ntn CLI: pages, databases, markdown, Workers.",
+      "triggers": [
+        "Use notion"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/notion",
+      "access_level": "public"
+    },
+    "midnight-agent-witness-verifier": {
+      "name": "midnight-agent-witness-verifier",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/midnight-verify/agents/witness-verifier.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-witness-verifier"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-witness-verifier",
+      "access_level": "public"
+    },
+    "huggingface-hub": {
+      "name": "huggingface-hub",
+      "category": "mlops",
+      "source": "bundled",
+      "description": "HuggingFace hf CLI: search/download/upload models, datasets.",
+      "triggers": [
+        "Use huggingface-hub"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/huggingface-hub",
+      "access_level": "public"
+    },
+    "cardano-tools": {
+      "name": "cardano-tools",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "40+ Cardano blockchain tools for querying tokens, NFTs, DEX swaps, governance, handles, pools, and staking. Originally extracted from dancesWithClaws v2026.2.5-from-shell-with-love. Covers TapTools, Cexplorer, CSWAP, Metera, Ada Handle, GovCircle, ADA Anvil, NABU VPN, and core data/governance/DeFi/PoI/Scrolls tools.",
+      "triggers": [
+        "Use cardano-tools"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-tools",
+      "access_level": "public"
+    },
+    "hermes-desktop-launch": {
+      "name": "hermes-desktop-launch",
+      "category": "devops",
+      "source": "bundled",
+      "description": "Launch and troubleshoot Hermes Desktop on Linux. Covers Electron sandbox permissions, GPU process configuration, backend lock-file issues, model context overrides, and the preference to not auto-kill long-running GUI processes.",
+      "triggers": [
+        "Use hermes-desktop-launch"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/hermes-desktop-launch",
+      "access_level": "public"
+    },
+    "blogwatcher": {
+      "name": "blogwatcher",
+      "category": "research",
+      "source": "bundled",
+      "description": "Monitor blogs and RSS/Atom feeds via blogwatcher-cli tool.",
+      "triggers": [
+        "Use blogwatcher"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/blogwatcher",
+      "access_level": "public"
+    },
+    "opencode": {
+      "name": "opencode",
+      "category": "autonomous-ai-agents",
+      "source": "bundled",
+      "description": "Delegate coding to OpenCode CLI (features, PR review).",
+      "triggers": [
+        "Use opencode"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/opencode",
+      "access_level": "public"
+    },
+    "trl-fine-tuning": {
+      "name": "trl-fine-tuning",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "TRL: SFT, DPO, PPO, GRPO, reward modeling for LLM RLHF.",
+      "triggers": [
+        "Use trl-fine-tuning"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/trl-fine-tuning",
+      "access_level": "public"
+    },
+    "midnight-proof-server-proof-server-operations": {
+      "name": "midnight-proof-server-proof-server-operations",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill covers monitoring, troubleshooting, and capacity planning for the proof server. Use it when the user asks about health check patterns, readiness checks, busy status, logs, performance, job queue monitoring, Docker or Kubernetes health checks, 503 errors, 429 errors, 400 errors, timeout issues, memory issues, debugging, version mismatch, version compatibility, scaling, horizontal scaling, or how to diagnose proof server issues.",
+      "triggers": [
+        "Use midnight-proof-server-proof-server-operations"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-proof-server-proof-server-operations",
+      "access_level": "public"
+    },
+    "comfyui": {
+      "name": "comfyui",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Generate images, video, and audio with ComfyUI \u2014 install, launch, manage nodes/models, run workflows with parameter injection. Uses the official comfy-cli for lifecycle and direct REST/WebSocket API f",
+      "triggers": [
+        "Use comfyui"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/comfyui",
+      "access_level": "public"
+    },
+    "p5js": {
+      "name": "p5js",
+      "category": "creative",
+      "source": "bundled",
+      "description": "p5.js sketches: gen art, shaders, interactive, 3D.",
+      "triggers": [
+        "Use p5js"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/p5js",
+      "access_level": "public"
+    },
+    "codebase-memory-mcp": {
+      "name": "codebase-memory-mcp",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Deploy and use the codebase-memory-mcp high-performance code-intelligence MCP server. Index codebases into a persistent knowledge graph and query call chains, architecture, ADRs, and change blast radius with sub-millisecond graph queries.",
+      "triggers": [
+        "Use codebase-memory-mcp"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/codebase-memory-mcp",
+      "access_level": "public"
+    },
+    "kanban-worker": {
+      "name": "kanban-worker",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Pitfalls, examples, and edge cases for Hermes Kanban workers. The lifecycle itself is auto-injected into every worker's system prompt as KANBAN_GUIDANCE (from agent/prompt_builder.py); this skill is what you load when you want deeper detail on specific scenarios.",
+      "triggers": [
+        "Use kanban-worker"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/kanban-worker",
+      "access_level": "public"
+    },
+    "midnight-compact-core-basic-start": {
+      "name": "midnight-compact-core-basic-start",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks to \"build my first Midnight DApp\", \"getting started from scratch\", \"verify my environment\", \"basic DApp tutorial\", \"test my Midnight setup\", \"hello world walkthrough\", \"new to Midnight\", \"first contract\", \"walk me through building a contract\", or wants a step-by-step guide to creating and deploying a simple Compact smart contract on a local devnet.",
+      "triggers": [
+        "Use midnight-compact-core-basic-start"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-basic-start",
+      "access_level": "public"
+    },
+    "flue": {
+      "name": "flue",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Build, deploy, and integrate Flue agents (TypeScript harness with sandboxes, durable execution, subagents, tools, skills, and channels). Use the CLI to fetch version-matched docs and blueprints.",
+      "triggers": [
+        "Use flue"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/flue",
+      "access_level": "public"
+    },
+    "spotify": {
+      "name": "spotify",
+      "category": "media",
+      "source": "bundled",
+      "description": "Spotify: play, search, queue, manage playlists and devices.",
+      "triggers": [
+        "Use spotify"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/spotify",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-tooling": {
+      "name": "midnight-verify-verify-tooling",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-tooling"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-tooling",
+      "access_level": "public"
+    },
+    "midnight-dapp-dev-dapp-connector": {
+      "name": "midnight-dapp-dev-dapp-connector",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-dapp-dev-dapp-connector"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-dapp-dev-dapp-connector",
+      "access_level": "public"
+    },
+    "node-inspect-debugger": {
+      "name": "node-inspect-debugger",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "Debug Node.js via --inspect + Chrome DevTools Protocol CLI.",
+      "triggers": [
+        "Use node-inspect-debugger"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/node-inspect-debugger",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-by-source": {
+      "name": "midnight-verify-verify-by-source",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-by-source"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-by-source",
+      "access_level": "public"
+    },
+    "kanban-orchestrator": {
+      "name": "kanban-orchestrator",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Decomposition playbook + specialist-roster conventions + anti-temptation rules for an orchestrator profile routing work through Kanban. The \"don't do the work yourself\" rule and the basic lifecycle are auto-injected into every kanban worker's system prompt; this skill is the deeper playbook when you're specifically playing the orchestrator role.",
+      "triggers": [
+        "Use kanban-orchestrator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/kanban-orchestrator",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-witness": {
+      "name": "midnight-verify-verify-witness",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-witness"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-witness",
+      "access_level": "public"
+    },
+    "hyperaibox-fleet-manager": {
+      "name": "hyperaibox-fleet-manager",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Discover, diagnose, fix, and manage HyperAIBox compute nodes for Stargate Pool",
+      "triggers": [
+        "Use hyperaibox-fleet-manager"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/hyperaibox-fleet-manager",
+      "access_level": "public"
+    },
+    "native-mcp": {
+      "name": "native-mcp",
+      "category": "mcp",
+      "source": "bundled",
+      "description": "MCP client: connect servers, register tools (stdio/HTTP).",
+      "triggers": [
+        "Use native-mcp"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/native-mcp",
+      "access_level": "public"
+    },
+    "mosaic-stargate-hermes-debug": {
+      "name": "mosaic-stargate-hermes-debug",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Debug Mosaic Companion Stargate connectivity, AI Chat failures, Hermes AIM integration, and provider routing issues.",
+      "triggers": [
+        "Use mosaic-stargate-hermes-debug"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/mosaic-stargate-hermes-debug",
+      "access_level": "public"
+    },
+    "axi-integration": {
+      "name": "axi-integration",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Build agent-native CLI tools using AXI (Agent eXperience Interface) design principles and integrate them with Stargate/HyperCycle ecosystems for deployment via Node Factories",
+      "triggers": [
+        "Use axi-integration"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/axi-integration",
+      "access_level": "public"
+    },
+    "external-skill-repo-integration": {
+      "name": "external-skill-repo-integration",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "Integrate external skill repositories (e.g. Taste-Skill, custom SKILL.md collections) into Hermes/Vault systems with structured metadata (dials, triggers, presets).",
+      "triggers": [
+        "Use external-skill-repo-integration"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/external-skill-repo-integration",
+      "access_level": "public"
+    },
+    "hydra-head-operator": {
+      "name": "hydra-head-operator",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Execute Hydra operations: init, commit, open, close, fanout. Manual invoke only due to L1 state changes.",
+      "triggers": [
+        "Use hydra-head-operator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/hydra-head-operator",
+      "access_level": "public"
+    },
+    "airtable": {
+      "name": "airtable",
+      "category": "productivity",
+      "source": "bundled",
+      "description": "Airtable REST API via curl. Records CRUD, filters, upserts.",
+      "triggers": [
+        "Use airtable"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/airtable",
+      "access_level": "public"
+    },
+    "godmode": {
+      "name": "godmode",
+      "category": "red-teaming",
+      "source": "bundled",
+      "description": "Jailbreak LLMs: Parseltongue, GODMODE, ULTRAPLINIAN.",
+      "triggers": [
+        "Use godmode"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/godmode",
+      "access_level": "public"
+    },
+    "github-code-review": {
+      "name": "github-code-review",
+      "category": "github",
+      "source": "bundled",
+      "description": "Review PRs: diffs, inline comments via gh or REST.",
+      "triggers": [
+        "Use github-code-review"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/github-code-review",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-privacy-disclosure": {
+      "name": "midnight-compact-core-compact-privacy-disclosure",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about Midnight's privacy model, the disclose() function and disclosure rules, how to fix disclosure compiler errors, privacy-by-default design, witness protection program, commitment schemes (persistentCommit, transientCommit), nullifier patterns for double-spend prevention, MerkleTree membership proofs for anonymous authentication, unlinkable actions via round-based keys, selective disclosure, commit-reveal schemes, shielded vs transparent state design, what is visible on-chain, safe stdlib routines (transientCommit hiding witness data), or debugging \"potential witness-value disclosure must be declared\" errors.",
+      "triggers": [
+        "Use midnight-compact-core-compact-privacy-disclosure"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-privacy-disclosure",
+      "access_level": "public"
+    },
+    "midnight-node-node-architecture": {
+      "name": "midnight-node-node-architecture",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "Midnight node architecture, Substrate runtime, Polkadot SDK, pallets, consensus, AURA, GRANDPA, BEEFY, MMR, ledger storage, ParityDB, transaction lifecycle, ZK proof verification, Cardano integration, partner chains, cNIGHT bridging, transaction filtering, throttle pallet, source layout, epoch, block production, finality, light client, how does the Midnight node produce blocks, what pallets does Midnight use, how do transactions flow through the node, how does Midnight connect to Cardano.",
+      "triggers": [
+        "Use midnight-node-node-architecture"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-node-node-architecture",
+      "access_level": "public"
+    },
+    "mosaic-health-doctor": {
+      "name": "mosaic-health-doctor",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Proactive health monitoring and diagnostic system for Mosaic Companion. Detects common AI Chat, provider routing, and infrastructure issues before they cause failures.",
+      "triggers": [
+        "Use mosaic-health-doctor"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/mosaic-health-doctor",
+      "access_level": "public"
+    },
+    "webhook-subscriptions": {
+      "name": "webhook-subscriptions",
+      "category": "devops",
+      "source": "bundled",
+      "description": "Webhook subscriptions: event-driven agent runs.",
+      "triggers": [
+        "Use webhook-subscriptions"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/webhook-subscriptions",
+      "access_level": "public"
+    },
+    "midnight-orchestrator": {
+      "name": "midnight-orchestrator",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "Master orchestrator for Midnight Network operations. Auto-detects Midnight context and routes to specialist skills for Compact development, devnet operations, wallet management, verification, and DApp scaffolding. Use when the user mentions 'Midnight', 'Compact', 'ZK', 'privacy', 'devnet', 'proof server', 'Lace wallet', 'token', 'shielded', or 'disclosure'.",
+      "triggers": [
+        "Use midnight-orchestrator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-orchestrator",
+      "access_level": "public"
+    },
+    "hydra-head": {
+      "name": "hydra-head",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Hydra Head guidance: setup, keys, peers, lifecycle. Best practices from hydra.family. Use operator skill for execution.",
+      "triggers": [
+        "Use hydra-head"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/hydra-head",
+      "access_level": "public"
+    },
+    "stargate-debug-playbook": {
+      "name": "stargate-debug-playbook",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Debugging playbook for Mosaic-Companion Stargate module \u2014 agent connectivity, UI wiring, provider routing, and infrastructure verification.",
+      "triggers": [
+        "Use stargate-debug-playbook"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/stargate-debug-playbook",
+      "access_level": "public"
+    },
+    "heartmula": {
+      "name": "heartmula",
+      "category": "media",
+      "source": "bundled",
+      "description": "HeartMuLa: Suno-like song generation from lyrics + tags.",
+      "triggers": [
+        "Use heartmula"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/heartmula",
+      "access_level": "public"
+    },
+    "midnight-tooling-devnet-health": {
+      "name": "midnight-tooling-devnet-health",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks to check the status or health of the local Midnight devnet, including \"is the devnet running\", \"is the node up\", \"is the proof server responding\", \"indexer health\", \"devnet status\", \"devnet health\", \"are the containers running\", \"are the services healthy\", \"devnet probes\", or when an agent (e.g. doctor, statusline) needs structured per-service status/health for the local devnet.",
+      "triggers": [
+        "Use midnight-tooling-devnet-health"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-tooling-devnet-health",
+      "access_level": "public"
+    },
+    "cardano-mcp-identity": {
+      "name": "cardano-mcp-identity",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Retrieve ADAHandle identities ($handle) for the connected wallet via cardano MCP. Read-only.",
+      "triggers": [
+        "Use cardano-mcp-identity"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-mcp-identity",
+      "access_level": "public"
+    },
+    "knowledge-base-ingestion": {
+      "name": "knowledge-base-ingestion",
+      "category": "devops",
+      "source": "bundled",
+      "description": "End-to-end pipeline for acquiring curated knowledge bases (awesome-lists, docs, registries) and turning them into structured JSON, Hermes skills, and MCP-indexed graphs. Ensures agents can discover and reuse the knowledge across sessions.",
+      "triggers": [
+        "Use knowledge-base-ingestion"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/knowledge-base-ingestion",
+      "access_level": "public"
+    },
+    "writing-plans": {
+      "name": "writing-plans",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "Write implementation plans: bite-sized tasks, paths, code.",
+      "triggers": [
+        "Use writing-plans"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/writing-plans",
+      "access_level": "public"
+    },
+    "sketch": {
+      "name": "sketch",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Throwaway HTML mockups: 2-3 design variants to compare.",
+      "triggers": [
+        "Use sketch"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/sketch",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-by-ledger-source": {
+      "name": "midnight-verify-verify-by-ledger-source",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-by-ledger-source"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-by-ledger-source",
+      "access_level": "public"
+    },
+    "test-driven-development": {
+      "name": "test-driven-development",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "TDD: enforce RED-GREEN-REFACTOR, tests before code.",
+      "triggers": [
+        "Use test-driven-development"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/test-driven-development",
+      "access_level": "public"
+    },
+    "skill-ecosystem-migration": {
+      "name": "skill-ecosystem-migration",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Port and integrate external skill/plugin ecosystems into Hermes \u2014 from repo analysis through bulk conversion, master orchestrator creation, MCP bridge building, codebase-memory indexing, and kanban task decomposition. Trigger when the user asks to integrate, port, migrate, or adapt an external skill marketplace, plugin collection, or knowledge base into Hermes.",
+      "triggers": [
+        "Use skill-ecosystem-migration"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/skill-ecosystem-migration",
+      "access_level": "public"
+    },
+    "midnight-expert-meta-doctor": {
+      "name": "midnight-expert-meta-doctor",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks to \"check my setup\", \"run diagnostics\", \"doctor\", \"health check\", \"verify my installation\", \"are my plugins working\", \"check plugin status\", \"what's broken\", \"fix my setup\", \"debug my environment\", \"check dependencies\", \"environment check\", \"troubleshoot setup\", or invokes /midnight-expert:doctor. Provides comprehensive health reporting for the midnight-expert ecosystem \u2014 plugin installation, MCP servers, external tools, cross-plugin references, and NPM registry.",
+      "triggers": [
+        "Use midnight-expert-meta-doctor"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-expert-meta-doctor",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-by-execution": {
+      "name": "midnight-verify-verify-by-execution",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-by-execution"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-by-execution",
+      "access_level": "public"
+    },
+    "hermes-dashboard": {
+      "name": "hermes-dashboard",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "|",
+      "triggers": [
+        "Use hermes-dashboard"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/hermes-dashboard",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-sdk": {
+      "name": "midnight-verify-verify-sdk",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-sdk"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-sdk",
+      "access_level": "public"
+    },
+    "midnight-agent-cli-tester": {
+      "name": "midnight-agent-cli-tester",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/midnight-verify/agents/cli-tester.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-cli-tester"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-cli-tester",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-tokens": {
+      "name": "midnight-compact-core-compact-tokens",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about Midnight tokens, token types (NIGHT, DUST, shielded, unshielded), minting and burning tokens, token transfers, token colors and domain separators, the zswap protocol, ShieldedCoinInfo, QualifiedShieldedCoinInfo, Kernel mint operations, contract token patterns (FungibleToken, NonFungibleToken, MultiToken), the account model vs UTXO model for tokens, sendShielded, receiveShielded, sendUnshielded, mintShieldedToken, mintUnshieldedToken, unshieldedBalance, OpenZeppelin Compact token contracts, or choosing between shielded and unshielded token approaches.",
+      "triggers": [
+        "Use midnight-compact-core-compact-tokens"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-tokens",
+      "access_level": "public"
+    },
+    "aiken-smart-contracts": {
+      "name": "aiken-smart-contracts",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Aiken workflows: validators, building, blueprints, .plutus generation. Safe guidance for smart contract development.",
+      "triggers": [
+        "Use aiken-smart-contracts"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/aiken-smart-contracts",
+      "access_level": "public"
+    },
+    "midnight-agent-compact-dev": {
+      "name": "midnight-agent-compact-dev",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/compact-core/agents/compact-dev.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-compact-dev"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-compact-dev",
+      "access_level": "public"
+    },
+    "midnight-agent-cq-reviewer": {
+      "name": "midnight-agent-cq-reviewer",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/midnight-cq/agents/cq-reviewer.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-cq-reviewer"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-cq-reviewer",
+      "access_level": "public"
+    },
+    "arxiv": {
+      "name": "arxiv",
+      "category": "research",
+      "source": "bundled",
+      "description": "Search arXiv papers by keyword, author, category, or ID.",
+      "triggers": [
+        "Use arxiv"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/arxiv",
+      "access_level": "public"
+    },
+    "pokemon-player": {
+      "name": "pokemon-player",
+      "category": "gaming",
+      "source": "bundled",
+      "description": "Play Pokemon via headless emulator + RAM reads.",
+      "triggers": [
+        "Use pokemon-player"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/pokemon-player",
+      "access_level": "public"
+    },
+    "mosaic-discovery-first-aim-orchestration": {
+      "name": "mosaic-discovery-first-aim-orchestration",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Discovery-First Orchestration pattern for Mosaic Companion's Stargate \u2192 HyperCycle AIM integration. Probes existing runtime before any build, connects when found, rebuilds only on opt-in.",
+      "triggers": [
+        "Use mosaic-discovery-first-aim-orchestration"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/mosaic-discovery-first-aim-orchestration",
+      "access_level": "public"
+    },
+    "xurl": {
+      "name": "xurl",
+      "category": "social-media",
+      "source": "bundled",
+      "description": "X/Twitter via xurl CLI: post, search, DM, media, v2 API.",
+      "triggers": [
+        "Use xurl"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/xurl",
+      "access_level": "public"
+    },
+    "hydra-head-troubleshooter": {
+      "name": "hydra-head-troubleshooter",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Hydra troubleshooting: decision tree for common issues. Maps symptoms to fixes with verification steps.",
+      "triggers": [
+        "Use hydra-head-troubleshooter"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/hydra-head-troubleshooter",
+      "access_level": "public"
+    },
+    "code-review-and-quality": {
+      "name": "code-review-and-quality",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Conduct five-axis code review before merging any change. Reviews correctness, readability, architecture, security, and performance.",
+      "triggers": [
+        "Use code-review-and-quality"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/code-review-and-quality",
+      "access_level": "public"
+    },
+    "addy-agent-skills": {
+      "name": "addy-agent-skills",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Production-grade engineering workflows for AI coding agents. 24 skills across the full development lifecycle - Define, Plan, Build, Verify, Review, Ship. Based on Addy Osmani's Agent Skills framework.",
+      "triggers": [
+        "Use addy-agent-skills"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/addy-agent-skills",
+      "access_level": "public"
+    },
+    "gif-search": {
+      "name": "gif-search",
+      "category": "media",
+      "source": "bundled",
+      "description": "Search/download GIFs from Tenor via curl + jq.",
+      "triggers": [
+        "Use gif-search"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/gif-search",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-by-zkir-inspection": {
+      "name": "midnight-verify-verify-by-zkir-inspection",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-by-zkir-inspection"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-by-zkir-inspection",
+      "access_level": "public"
+    },
+    "github-repo-management": {
+      "name": "github-repo-management",
+      "category": "github",
+      "source": "bundled",
+      "description": "Clone/create/fork repos; manage remotes, releases.",
+      "triggers": [
+        "Use github-repo-management"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/github-repo-management",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-security": {
+      "name": "midnight-compact-core-compact-security",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when performing a security review or audit of Compact smart contract code, or when reasoning about Compact's security threat model. Covers the three execution contexts (public ledger, ZK circuit, local witness), the witness trust boundary and the ownPublicKey()-for-authorization anti-pattern, sealed-field misuse, disclosure placement, information leakage via assert messages, cryptographic-primitive selection (transientHash/persistentHash/transientCommit/persistentCommit), domain separation, randomness reuse, and hash-derived authentication patterns. Routes to the compact-review checklists for granular line-items and defines the Verification Requests protocol used by the security-reviewer agent.",
+      "triggers": [
+        "Use midnight-compact-core-compact-security"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-security",
+      "access_level": "public"
+    },
+    "midnight-cq-quality-init": {
+      "name": "midnight-cq-quality-init",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-cq-quality-init"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-cq-quality-init",
+      "access_level": "public"
+    },
+    "youtube-content": {
+      "name": "youtube-content",
+      "category": "media",
+      "source": "bundled",
+      "description": "YouTube transcripts to summaries, threads, blogs.",
+      "triggers": [
+        "Use youtube-content"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/youtube-content",
+      "access_level": "public"
+    },
+    "architecture-diagram": {
+      "name": "architecture-diagram",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Dark-themed SVG architecture/cloud/infra diagrams as HTML.",
+      "triggers": [
+        "Use architecture-diagram"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/architecture-diagram",
+      "access_level": "public"
+    },
+    "mosaic-stargate-ui-simplify": {
+      "name": "mosaic-stargate-ui-simplify",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Simplify Mosaic Companion Stargate UI for new users by removing complex features and adding clear action cards",
+      "triggers": [
+        "Use mosaic-stargate-ui-simplify"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/mosaic-stargate-ui-simplify",
+      "access_level": "public"
+    },
+    "cardano-mcp-balances": {
+      "name": "cardano-mcp-balances",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Read-only wallet state via cardano MCP: balances, addresses, and UTxOs. Requires a configured cardano MCP server.",
+      "triggers": [
+        "Use cardano-mcp-balances"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-mcp-balances",
+      "access_level": "public"
+    },
+    "midnight-plugin-utils-dependency-checker": {
+      "name": "midnight-plugin-utils-dependency-checker",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks to \"check dependencies\", \"verify plugin requirements\", \"what plugins am I missing\", \"validate plugin dependencies\", \"missing plugin dependencies\", \"unmet requirements\", \"are my dependencies satisfied\", \"which dependencies are broken\", or invokes /midnight-plugin-utils:dependency-checker. Validates declared dependencies in extends-plugin.json files against installed and enabled plugins.",
+      "triggers": [
+        "Use midnight-plugin-utils-dependency-checker"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-plugin-utils-dependency-checker",
+      "access_level": "public"
+    },
+    "cardano-cli-doctor": {
+      "name": "cardano-cli-doctor",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Diagnose cardano-cli: version, era-prefixed vs legacy syntax, network flags. Produces compatibility report.",
+      "triggers": [
+        "Use cardano-cli-doctor"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-cli-doctor",
+      "access_level": "public"
+    },
+    "minecraft-modpack-server": {
+      "name": "minecraft-modpack-server",
+      "category": "gaming",
+      "source": "bundled",
+      "description": "Host modded Minecraft servers (CurseForge, Modrinth).",
+      "triggers": [
+        "Use minecraft-modpack-server"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/minecraft-modpack-server",
+      "access_level": "public"
+    },
+    "mosaic-skill-bridge": {
+      "name": "mosaic-skill-bridge",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Bridge Hermes skill ecosystem into Mosaic Bot and prevent skill hallucination through filesystem verification",
+      "triggers": [
+        "Use mosaic-skill-bridge"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/mosaic-skill-bridge",
+      "access_level": "public"
+    },
+    "github-issues": {
+      "name": "github-issues",
+      "category": "github",
+      "source": "bundled",
+      "description": "Create, triage, label, assign GitHub issues via gh or REST.",
+      "triggers": [
+        "Use github-issues"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/github-issues",
+      "access_level": "public"
+    },
+    "songwriting-and-ai-music": {
+      "name": "songwriting-and-ai-music",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Songwriting craft and Suno AI music prompts.",
+      "triggers": [
+        "Use songwriting-and-ai-music"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/songwriting-and-ai-music",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-correctness": {
+      "name": "midnight-verify-verify-correctness",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-correctness"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-correctness",
+      "access_level": "public"
+    },
+    "codex": {
+      "name": "codex",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Delegate coding tasks to OpenAI Codex CLI - AI-powered coding assistant for the terminal.",
+      "triggers": [
+        "Use codex"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/codex",
+      "access_level": "public"
+    },
+    "midnight-fact-check-fact-check-extraction": {
+      "name": "midnight-fact-check-fact-check-extraction",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-fact-check-fact-check-extraction"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-fact-check-fact-check-extraction",
+      "access_level": "public"
+    },
+    "linear": {
+      "name": "linear",
+      "category": "productivity",
+      "source": "bundled",
+      "description": "Linear: manage issues, projects, teams via GraphQL + curl.",
+      "triggers": [
+        "Use linear"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/linear",
+      "access_level": "public"
+    },
+    "hypercycle-node-manager-ops": {
+      "name": "hypercycle-node-manager-ops",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "HyperCycle Node Manager operational knowledge \u2014 architecture, license model, config format, non-custodial tilling pitfalls, and the gap between health monitoring and actual compute allocation. Covers Node Manager v0.5.x, single-license constraint, provisioning flow via HBA agent, SPO heartbeat mechanism, and what real license switching requires.",
+      "triggers": [
+        "Use hypercycle-node-manager-ops"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/hypercycle-node-manager-ops",
+      "access_level": "public"
+    },
+    "axi-executor": {
+      "name": "axi-executor",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Execute AXI (Agent eXperience Interface) CLI tools from within Hermes Agent. Parse TOON output, handle structured errors, and chain AXI commands for complex workflows.",
+      "triggers": [
+        "Use axi-executor"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/axi-executor",
+      "access_level": "public"
+    },
+    "baoyu-infographic": {
+      "name": "baoyu-infographic",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Infographics: 21 layouts x 21 styles (\u4fe1\u606f\u56fe, \u53ef\u89c6\u5316).",
+      "triggers": [
+        "Use baoyu-infographic"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/baoyu-infographic",
+      "access_level": "public"
+    },
+    "baoyu-comic": {
+      "name": "baoyu-comic",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Knowledge comics (\u77e5\u8bc6\u6f2b\u753b): educational, biography, tutorial.",
+      "triggers": [
+        "Use baoyu-comic"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/baoyu-comic",
+      "access_level": "public"
+    },
+    "website-reverse-engineering": {
+      "name": "website-reverse-engineering",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "Systematic reconnaissance of a live web application to extract its tech stack, data model, page structure, routing, design system, and key features for replication or integration.",
+      "triggers": [
+        "Use website-reverse-engineering"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/website-reverse-engineering",
+      "access_level": "public"
+    },
+    "incremental-implementation": {
+      "name": "incremental-implementation",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Build in thin vertical slices \u2014 implement one piece, test it, verify it, commit. Use when implementing any multi-file change.",
+      "triggers": [
+        "Use incremental-implementation"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/incremental-implementation",
+      "access_level": "public"
+    },
+    "github-auth": {
+      "name": "github-auth",
+      "category": "github",
+      "source": "bundled",
+      "description": "GitHub auth setup: HTTPS tokens, SSH keys, gh CLI login.",
+      "triggers": [
+        "Use github-auth"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/github-auth",
+      "access_level": "public"
+    },
+    "midnight-dapp-dev-init": {
+      "name": "midnight-dapp-dev-init",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-dapp-dev-init"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-dapp-dev-init",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-language-ref": {
+      "name": "midnight-compact-core-compact-language-ref",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about Compact language mechanics, syntax reference, types (Field, Bytes, Uint, Boolean, Opaque, Vector, Maybe, Either, enums, structs), type casting with \"as\", operators, arithmetic, control flow, for loops, modules, imports, include, pragma, stdlib functions (persistentHash, transientHash, disclose, assert, pad, default), map and fold operations, or Compact compiler errors and wrong syntax patterns.",
+      "triggers": [
+        "Use midnight-compact-core-compact-language-ref"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-language-ref",
+      "access_level": "public"
+    },
+    "midnight-agent-concept-explainer": {
+      "name": "midnight-agent-concept-explainer",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/core-concepts/agents/concept-explainer.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-concept-explainer"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-concept-explainer",
+      "access_level": "public"
+    },
+    "midnight-dapp-dev-core": {
+      "name": "midnight-dapp-dev-core",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-dapp-dev-core"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-dapp-dev-core",
+      "access_level": "public"
+    },
+    "midnight-plugin-utils-dependency-scanner": {
+      "name": "midnight-plugin-utils-dependency-scanner",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks to \"scan for dependencies\", \"find plugin dependencies\", \"generate extends-plugin.json\", \"discover plugin requirements\", \"audit dependencies\", \"check what this plugin depends on\", \"list system tool dependencies\", \"create dependency manifest\", or invokes /midnight-plugin-utils:dependency-scanner. Scans plugin files for patterns indicating dependencies on other plugins or system tools.",
+      "triggers": [
+        "Use midnight-plugin-utils-dependency-scanner"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-plugin-utils-dependency-scanner",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-transaction-model": {
+      "name": "midnight-compact-core-compact-transaction-model",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about Midnight transaction execution, guaranteed vs fallible phases, kernel.checkpoint(), transaction composition, state conflicts, DUST fees, gas limits, proof verification, partial transaction success, transaction merging, atomic swaps, or how Compact circuits map to on-chain execution. Also triggered by mentions of \"transaction semantics\", \"fallible phase\", \"guaranteed phase\", \"checkpoint\", \"well-formedness\", \"Impact VM\", or \"Zswap offers\".",
+      "triggers": [
+        "Use midnight-compact-core-compact-transaction-model"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-transaction-model",
+      "access_level": "public"
+    },
+    "claude-code": {
+      "name": "claude-code",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Delegate coding tasks to Claude Code CLI - Anthropic's agentic coding tool that lives in your terminal.",
+      "triggers": [
+        "Use claude-code"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/claude-code",
+      "access_level": "public"
+    },
+    "cardano-cli-wallets-operator": {
+      "name": "cardano-cli-wallets-operator",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Execute wallet operations: key generation, address building. Manual invoke only for safety.",
+      "triggers": [
+        "Use cardano-cli-wallets-operator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-cli-wallets-operator",
+      "access_level": "public"
+    },
+    "pattern-extractor": {
+      "name": "pattern-extractor",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Extract reusable patterns from work sessions. Codify workflows, capture architecture decisions, and auto-generate skills from completed tasks.",
+      "triggers": [
+        "Use pattern-extractor"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/pattern-extractor",
+      "access_level": "public"
+    },
+    "pixel-art": {
+      "name": "pixel-art",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Pixel art w/ era palettes (NES, Game Boy, PICO-8).",
+      "triggers": [
+        "Use pixel-art"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/pixel-art",
+      "access_level": "public"
+    },
+    "cardano-cli-staking": {
+      "name": "cardano-cli-staking",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Staking guidance: registration, delegation, rewards. Provides templates (no execution). Use operator skill to execute.",
+      "triggers": [
+        "Use cardano-cli-staking"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-cli-staking",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-by-wallet-source": {
+      "name": "midnight-verify-verify-by-wallet-source",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-by-wallet-source"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-by-wallet-source",
+      "access_level": "public"
+    },
+    "midnight-expert-meta-add-to-ecosystem": {
+      "name": "midnight-expert-meta-add-to-ecosystem",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks to add their project to the Midnight ecosystem, submit to Electric Capital, make a repo eligible for the EC crypto-ecosystems report, register a Midnight project, list a project in the EC report, tag a repo with `midnightntwrk` or `compact` topics, or add the canonical Midnight attribution to a README. Walks through the four Electric Capital eligibility requirements (on GitHub, public, `midnightntwrk` topic, optional `compact` topic), inserts the canonical attribution sentence into README.md, commits, pushes, and opens a PR.",
+      "triggers": [
+        "Use midnight-expert-meta-add-to-ecosystem"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-expert-meta-add-to-ecosystem",
+      "access_level": "public"
+    },
+    "cardano-devnet-in-a-box": {
+      "name": "cardano-devnet-in-a-box",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "One-command local rehearsal stack: cardano-node + hydra + ogmios + kupo. Docker-based, deterministic green/red testing.",
+      "triggers": [
+        "Use cardano-devnet-in-a-box"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-devnet-in-a-box",
+      "access_level": "public"
+    },
+    "axi-tool-forge": {
+      "name": "axi-tool-forge",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Teach Mosaic Bot to create AXI (Agent eXperience Interface) tools, aimify them as HyperCycle AIM modules, and deploy through Stargate Pool Orchestrator into HyperAIBox Node Factories.",
+      "triggers": [
+        "Use axi-tool-forge"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/axi-tool-forge",
+      "access_level": "public"
+    },
+    "koios-agent-wallet": {
+      "name": "koios-agent-wallet",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Quick setup of key-based Cardano agent wallets with MeshJS (MeshWallet) and KoiosProvider: generate wallet (no mnemonic), register stake address, and stake to a pool. Use when users ask to generate a wallet, register it, stake it, send transactions, or query wallet state via Koios.",
+      "triggers": [
+        "Use koios-agent-wallet"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/koios-agent-wallet",
+      "access_level": "public"
+    },
+    "midnight-tooling-devnet": {
+      "name": "midnight-tooling-devnet",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about the Midnight local development network, including \"start the devnet\", \"stop the devnet\", \"restart the network\", \"local development network\", \"midnight node\", \"midnight indexer\", \"network status\", \"network health\", \"devnet config\", \"network endpoints\", \"port 9944\", \"port 8088\", \"port 6300\", \"Docker Compose\", \"devnet not starting\", \"local blockchain\", \"devnet logs\", \"network ID\", \"generate devnet\", \"devnet versions\", \"update devnet\", \"devnet stale\", \"proof server\", \"devnet volumes\", \"clean slate\", \"docker containers\", \"devnet compose file\", \"devnet endpoints",
+      "triggers": [
+        "Use midnight-tooling-devnet"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-tooling-devnet",
+      "access_level": "public"
+    },
+    "polymarket": {
+      "name": "polymarket",
+      "category": "research",
+      "source": "bundled",
+      "description": "Query Polymarket: markets, prices, orderbooks, history.",
+      "triggers": [
+        "Use polymarket"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/polymarket",
+      "access_level": "public"
+    },
+    "manim-video": {
+      "name": "manim-video",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Manim CE animations: 3Blue1Brown math/algo videos.",
+      "triggers": [
+        "Use manim-video"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/manim-video",
+      "access_level": "public"
+    },
+    "openhue": {
+      "name": "openhue",
+      "category": "smart-home",
+      "source": "bundled",
+      "description": "Control Philips Hue lights, scenes, rooms via OpenHue CLI.",
+      "triggers": [
+        "Use openhue"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/openhue",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-by-zkir-checker": {
+      "name": "midnight-verify-verify-by-zkir-checker",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-by-zkir-checker"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-by-zkir-checker",
+      "access_level": "public"
+    },
+    "subagent-driven-development": {
+      "name": "subagent-driven-development",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "Execute plans via delegate_task subagents (2-stage review).",
+      "triggers": [
+        "Use subagent-driven-development"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/subagent-driven-development",
+      "access_level": "public"
+    },
+    "midnight-cq-compact-testing": {
+      "name": "midnight-cq-compact-testing",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-cq-compact-testing"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-cq-compact-testing",
+      "access_level": "public"
+    },
+    "midnight-indexer-indexer-data-model": {
+      "name": "midnight-indexer-indexer-data-model",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about the indexer data model, what the indexer indexes, indexer schema, contract actions, unshielded UTXOs, ledger events, DUST generation, Decentralized Unshielded Staking Token, SPO data, blocks table, transactions table, zswap events, indexer database, or the contract action lifecycle. Covers \"what tables does the indexer have\", \"indexer entity relationships\", and \"what data does the indexer store\".",
+      "triggers": [
+        "Use midnight-indexer-indexer-data-model"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-indexer-indexer-data-model",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-structure": {
+      "name": "midnight-compact-core-compact-structure",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks to write, structure, or scaffold a Compact smart contract for Midnight, or asks about contract anatomy, pragma and imports, ledger declarations (including sealed ledger), data types (Field, Bytes, Uint, enums, structs), circuits, witnesses, constructors, export patterns, or disclosure rules. Also triggered by mentions of \"pragma language_version\", \"CompactStandardLibrary\", circuit definitions, or Compact common mistakes.",
+      "triggers": [
+        "Use midnight-compact-core-compact-structure"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-structure",
+      "access_level": "public"
+    },
+    "hermes-agent": {
+      "name": "hermes-agent",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Configure, extend, or contribute to Hermes Agent.",
+      "triggers": [
+        "Use hermes-agent"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/hermes-agent",
+      "access_level": "public"
+    },
+    "findmy": {
+      "name": "findmy",
+      "category": "apple",
+      "source": "bundled",
+      "description": "Track Apple devices/AirTags via FindMy.app on macOS.",
+      "triggers": [
+        "Use findmy"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/findmy",
+      "access_level": "public"
+    },
+    "systematic-debugging": {
+      "name": "systematic-debugging",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "4-phase root cause debugging: understand bugs before fixing.",
+      "triggers": [
+        "Use systematic-debugging"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/systematic-debugging",
+      "access_level": "public"
+    },
+    "humanizer": {
+      "name": "humanizer",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Humanize text: strip AI-isms and add real voice.",
+      "triggers": [
+        "Use humanizer"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/humanizer",
+      "access_level": "public"
+    },
+    "midnight-status-codes-status-codes": {
+      "name": "midnight-status-codes-status-codes",
+      "category": "unknown",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-status-codes-status-codes"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-status-codes-status-codes",
+      "access_level": "public"
+    },
+    "midnight-tooling-release-notes": {
+      "name": "midnight-tooling-release-notes",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about \"Midnight release notes\", \"what changed in version X\", \"latest release\", \"changelog\", \"show me the changelog\", \"what's new in Midnight\", \"component versions\", \"list versions\", \"compact release notes\", \"ledger release notes\", \"wallet release notes\", \"proof server release notes\", \"node release notes\", \"lace release notes\", \"midnight-js release notes\", \"indexer release notes\", \"breaking changes\", \"latest version of X\", viewing release history, checking component update details, or comparing versions of any Midnight Network component.",
+      "triggers": [
+        "Use midnight-tooling-release-notes"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-tooling-release-notes",
+      "access_level": "public"
+    },
+    "linux-system-cleanup": {
+      "name": "linux-system-cleanup",
+      "category": "devops",
+      "source": "bundled",
+      "description": "Use when a Linux host is low on disk space and the user wants safe triage and cleanup without touching project code, containers, or service data. Investigates /var, logs, caches, and rotation; reclaim",
+      "triggers": [
+        "Use linux-system-cleanup"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/linux-system-cleanup",
+      "access_level": "public"
+    },
+    "baoyu-article-illustrator": {
+      "name": "baoyu-article-illustrator",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Article illustrations: type \u00d7 style \u00d7 palette consistency.",
+      "triggers": [
+        "Use baoyu-article-illustrator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/baoyu-article-illustrator",
+      "access_level": "public"
+    },
+    "powerpoint": {
+      "name": "powerpoint",
+      "category": "productivity",
+      "source": "bundled",
+      "description": "Create, read, edit .pptx decks, slides, notes, templates.",
+      "triggers": [
+        "Use powerpoint"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/powerpoint",
+      "access_level": "public"
+    },
+    "midnight-core-concepts-privacy-patterns": {
+      "name": "midnight-core-concepts-privacy-patterns",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when understanding privacy-preserving design patterns, including commitment schemes, nullifier patterns, Merkle tree membership proofs, anonymous authentication, commit-reveal protocols, selective disclosure, domain separation, and privacy boundaries in on-chain data.",
+      "triggers": [
+        "Use midnight-core-concepts-privacy-patterns"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-core-concepts-privacy-patterns",
+      "access_level": "public"
+    },
+    "midnight-proof-server-proof-server-configuration": {
+      "name": "midnight-proof-server-proof-server-configuration",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill covers proof server CLI flags, environment variables, and tuning guidance. Use it when the user asks about proof server configuration, num-workers, job-capacity, job-timeout, no-fetch-params, how many workers should I use, proof server slow, proof server out of memory, proof server environment variables, proof server Docker configuration, port configuration, verbose mode, memory requirements, startup time, resource planning, or production settings.",
+      "triggers": [
+        "Use midnight-proof-server-proof-server-configuration"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-proof-server-proof-server-configuration",
+      "access_level": "public"
+    },
+    "midnight-indexer-indexer-operations": {
+      "name": "midnight-indexer-indexer-operations",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about running, monitoring, or troubleshooting the Midnight indexer \u2014 health checks, the /live and /ready endpoints, Prometheus metrics, OpenTelemetry tracing, node reconnection and recovery, wallet session lifecycle, caught-up status, NATS failure handling, indexer logs, or indexer deployment operations. Covers \"is my indexer healthy\", \"why is the indexer behind the node\", \"indexer metrics\", \"indexer not catching up\", and \"monitoring the indexer in production\".",
+      "triggers": [
+        "Use midnight-indexer-indexer-operations"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-indexer-indexer-operations",
+      "access_level": "public"
+    },
+    "mosaic-stargate": {
+      "name": "mosaic-stargate",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Mosaic-Companion Stargate module knowledge \u2014 architecture, imports, TypeScript patterns, and infrastructure. Load this when working on AdaPortalPanel, fleet, or orchestrator code.",
+      "triggers": [
+        "Use mosaic-stargate"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/mosaic-stargate",
+      "access_level": "public"
+    },
+    "debugging-hermes-tui-commands": {
+      "name": "debugging-hermes-tui-commands",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "Debug Hermes TUI slash commands: Python, gateway, Ink UI.",
+      "triggers": [
+        "Use debugging-hermes-tui-commands"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/debugging-hermes-tui-commands",
+      "access_level": "public"
+    },
+    "xhr-vs-fetch-interception": {
+      "name": "xhr-vs-fetch-interception",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "When to use XMLHttpRequest vs fetch() to bypass request interception, and how to diagnose external fetch wrappers.",
+      "triggers": [
+        "Use xhr-vs-fetch-interception"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/xhr-vs-fetch-interception",
+      "access_level": "public"
+    },
+    "blockchain-node-ops": {
+      "name": "blockchain-node-ops",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Operate, update, and troubleshoot blockchain nodes, attestation daemons, and node-manager services. Covers Substrate-based chains (Materios), Cardano, oracle nodes, HyperCycle Node Manager, and remote SSH-accessible nodes.",
+      "triggers": [
+        "Use blockchain-node-ops"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/blockchain-node-ops",
+      "access_level": "public"
+    },
+    "jupyter-live-kernel": {
+      "name": "jupyter-live-kernel",
+      "category": "data-science",
+      "source": "bundled",
+      "description": "Iterative Python via live Jupyter kernel (hamelnb).",
+      "triggers": [
+        "Use jupyter-live-kernel"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/jupyter-live-kernel",
+      "access_level": "public"
+    },
+    "midnight-wallet-sdk-regression-check": {
+      "name": "midnight-wallet-sdk-regression-check",
+      "category": "unknown",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-wallet-sdk-regression-check"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-wallet-sdk-regression-check",
+      "access_level": "public"
+    },
+    "cardano-mcp-transactions": {
+      "name": "cardano-mcp-transactions",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Sign and submit pre-built Cardano transactions via cardano MCP. High-risk: requires structured preview and explicit user confirmation.",
+      "triggers": [
+        "Use cardano-mcp-transactions"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-mcp-transactions",
+      "access_level": "public"
+    },
+    "himalaya": {
+      "name": "himalaya",
+      "category": "email",
+      "source": "bundled",
+      "description": "Himalaya CLI: IMAP/SMTP email from terminal.",
+      "triggers": [
+        "Use himalaya"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/himalaya",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-by-type-check": {
+      "name": "midnight-verify-verify-by-type-check",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-by-type-check"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-by-type-check",
+      "access_level": "public"
+    },
+    "kanban-project-init": {
+      "name": "kanban-project-init",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Initialize new kanban boards for multi-profile agent workflows. One-command board creation, task graph setup, and dependency wiring for research \u2192 backend \u2192 ops pipelines.",
+      "triggers": [
+        "Use kanban-project-init"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/kanban-project-init",
+      "access_level": "public"
+    },
+    "requesting-code-review": {
+      "name": "requesting-code-review",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "Pre-commit review: security scan, quality gates, auto-fix.",
+      "triggers": [
+        "Use requesting-code-review"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/requesting-code-review",
+      "access_level": "public"
+    },
+    "codebase-navigator": {
+      "name": "codebase-navigator",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Navigate and understand large codebases efficiently. Build mental models, find patterns, trace dependencies, and generate architecture maps. Optimized for TypeScript/React and Node.js projects.",
+      "triggers": [
+        "Use codebase-navigator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/codebase-navigator",
+      "access_level": "public"
+    },
+    "hermes-aim-spec-v1": {
+      "name": "hermes-aim-spec-v1",
+      "category": "blockchain",
+      "source": "bundled",
+      "description": "HermesAIMSpec v1.0.1 \u2014 Formal standard for Hermes agent AIM modules on HyperCycle nodes. Includes manifest schema, endpoint contracts, capability registry, cost model, deployment requirements, wrapper contract, validation scripts, and production Docker pitfalls.",
+      "triggers": [
+        "Use hermes-aim-spec-v1"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/hermes-aim-spec-v1",
+      "access_level": "public"
+    },
+    "midnight-tooling-troubleshooting": {
+      "name": "midnight-tooling-troubleshooting",
+      "category": "unknown",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-tooling-troubleshooting"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-tooling-troubleshooting",
+      "access_level": "public"
+    },
+    "imessage": {
+      "name": "imessage",
+      "category": "apple",
+      "source": "bundled",
+      "description": "Send and receive iMessages/SMS via the imsg CLI on macOS.",
+      "triggers": [
+        "Use imessage"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/imessage",
+      "access_level": "public"
+    },
+    "midnight-node-node-governance": {
+      "name": "midnight-node-node-governance",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "Midnight governance, federated authority, Council, TechnicalCommittee, Technical Committee, Substrate, pallet, governance motions, voting, proposals, two-body governance, runtime upgrades, D-parameter, systemParameters_getDParameter, pallet_system_parameters, validator selection balance, membership, Cardano mainchain governance sync, motion lifecycle, approval threshold, 5-day voting window, governance root operations, how does voting work on Midnight, how are governance members selected.",
+      "triggers": [
+        "Use midnight-node-node-governance"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-node-node-governance",
+      "access_level": "public"
+    },
+    "cardano-cli-transactions-operator": {
+      "name": "cardano-cli-transactions-operator",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Execute transaction builds and submits. Manual invoke only\u2014requires explicit confirmation before submit.",
+      "triggers": [
+        "Use cardano-cli-transactions-operator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-cli-transactions-operator",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-wallet-sdk": {
+      "name": "midnight-verify-verify-wallet-sdk",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-wallet-sdk"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-wallet-sdk",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-zkir": {
+      "name": "midnight-verify-verify-zkir",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-zkir"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-zkir",
+      "access_level": "public"
+    },
+    "midnight-fact-check-fact-check-classification": {
+      "name": "midnight-fact-check-fact-check-classification",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-fact-check-fact-check-classification"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-fact-check-fact-check-classification",
+      "access_level": "public"
+    },
+    "midnight-agent-reviewer": {
+      "name": "midnight-agent-reviewer",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/compact-core/agents/reviewer.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-reviewer"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-reviewer",
+      "access_level": "public"
+    },
+    "claude-design": {
+      "name": "claude-design",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Design one-off HTML artifacts (landing, deck, prototype).",
+      "triggers": [
+        "Use claude-design"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/claude-design",
+      "access_level": "public"
+    },
+    "cardano-cli-plutus-scripts": {
+      "name": "cardano-cli-plutus-scripts",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Plutus script guidance: datums, redeemers, collateral, reference scripts. Templates only\u2014use operator to execute.",
+      "triggers": [
+        "Use cardano-cli-plutus-scripts"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-cli-plutus-scripts",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-ledger": {
+      "name": "midnight-verify-verify-ledger",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-ledger"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-ledger",
+      "access_level": "public"
+    },
+    "ascii-video": {
+      "name": "ascii-video",
+      "category": "creative",
+      "source": "bundled",
+      "description": "ASCII video: convert video/audio to colored ASCII MP4/GIF.",
+      "triggers": [
+        "Use ascii-video"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/ascii-video",
+      "access_level": "public"
+    },
+    "source-security-audit": {
+      "name": "source-security-audit",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "|",
+      "triggers": [
+        "Use source-security-audit"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/source-security-audit",
+      "access_level": "public"
+    },
+    "electron-ai-provider-integration": {
+      "name": "electron-ai-provider-integration",
+      "category": "unknown",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use electron-ai-provider-integration"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/electron-ai-provider-integration",
+      "access_level": "public"
+    },
+    "midnight-compact-cli-dev-core": {
+      "name": "midnight-compact-cli-dev-core",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-compact-cli-dev-core"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-cli-dev-core",
+      "access_level": "public"
+    },
+    "midnight-agent-sdk-tester": {
+      "name": "midnight-agent-sdk-tester",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/midnight-verify/agents/sdk-tester.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-sdk-tester"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-sdk-tester",
+      "access_level": "public"
+    },
+    "electron-agent-forge": {
+      "name": "electron-agent-forge",
+      "category": "unknown",
+      "source": "bundled",
+      "description": ">",
+      "triggers": [
+        "Use electron-agent-forge"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/electron-agent-forge",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-by-cli-execution": {
+      "name": "midnight-verify-verify-by-cli-execution",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-by-cli-execution"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-by-cli-execution",
+      "access_level": "public"
+    },
+    "soul-md-integration": {
+      "name": "soul-md-integration",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Implement SOUL.md identity layer for Mosaic-Companion agents. Adds soul selector UI, grading integration, and system prompt injection.",
+      "triggers": [
+        "Use soul-md-integration"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/soul-md-integration",
+      "access_level": "public"
+    },
+    "plan": {
+      "name": "plan",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "Plan mode: write an actionable markdown plan to .hermes/plans/, no execution. Bite-sized tasks, exact paths, complete code.",
+      "triggers": [
+        "Use plan"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/plan",
+      "access_level": "public"
+    },
+    "midnight-agent-dev": {
+      "name": "midnight-agent-dev",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/midnight-dapp-dev/agents/dev.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-dev"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-dev",
+      "access_level": "public"
+    },
+    "midnight-tooling-compact-cli": {
+      "name": "midnight-tooling-compact-cli",
+      "category": "unknown",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-tooling-compact-cli"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-tooling-compact-cli",
+      "access_level": "public"
+    },
+    "research-paper-writing": {
+      "name": "research-paper-writing",
+      "category": "research",
+      "source": "bundled",
+      "description": "Write ML papers for NeurIPS/ICML/ICLR: design\u2192submit.",
+      "triggers": [
+        "Use research-paper-writing"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/research-paper-writing",
+      "access_level": "public"
+    },
+    "ai-avatar-video-marketing": {
+      "name": "ai-avatar-video-marketing",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Create marketing videos using AI avatar tools like HeyGen. Reverse-engineer viral video formats, generate scripts with proven Hook\u2192Value\u2192Steps\u2192CTA patterns, and automate video production pipelines.",
+      "triggers": [
+        "Use ai-avatar-video-marketing"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/ai-avatar-video-marketing",
+      "access_level": "public"
+    },
+    "midnight-wallet-managing-test-wallets": {
+      "name": "midnight-wallet-managing-test-wallets",
+      "category": "unknown",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-wallet-managing-test-wallets"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-wallet-managing-test-wallets",
+      "access_level": "public"
+    },
+    "ocr-and-documents": {
+      "name": "ocr-and-documents",
+      "category": "productivity",
+      "source": "bundled",
+      "description": "Extract text from PDFs/scans (pymupdf, marker-pdf).",
+      "triggers": [
+        "Use ocr-and-documents"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/ocr-and-documents",
+      "access_level": "public"
+    },
+    "obsidian": {
+      "name": "obsidian",
+      "category": "note-taking",
+      "source": "bundled",
+      "description": "Read, search, create, and edit notes in the Obsidian vault. Includes retrieval-first organization and GBrain memory-layer integration.",
+      "triggers": [
+        "Use obsidian"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/obsidian",
+      "access_level": "public"
+    },
+    "midnight-compact-examples-code-examples": {
+      "name": "midnight-compact-examples-code-examples",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "Use this skill when an agent needs real, compilable examples of Compact smart contracts, TypeScript witnesses, or tests. Covers beginner contracts (counter, bulletin board), reusable modules (access control, security, tokens, math, crypto, data structures, identity, utils), composed token contracts (fungible, NFT, multi-token, shielded), and full applications (CryptoKitties, ZK lending, real-world assets). All examples compile with pragma language_version >= 0.22 and full proof generation.",
+      "triggers": [
+        "Use midnight-compact-examples-code-examples"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-examples-code-examples",
+      "access_level": "public"
+    },
+    "midnight-status-codes-status-codes-lookup": {
+      "name": "midnight-status-codes-status-codes-lookup",
+      "category": "unknown",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-status-codes-status-codes-lookup"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-status-codes-status-codes-lookup",
+      "access_level": "public"
+    },
+    "mosaic-bot-orchestrator": {
+      "name": "mosaic-bot-orchestrator",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Wire Mosaic Companion's autonomous heartbeat bot (Mosaic Bot) to Vault knowledge, MCP servers, agent configs, infrastructure monitoring, and auto-skill importing. Covers single-agent and multi-agent orchestrator patterns.",
+      "triggers": [
+        "Use mosaic-bot-orchestrator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/mosaic-bot-orchestrator",
+      "access_level": "public"
+    },
+    "streaming-callbacks-pattern": {
+      "name": "streaming-callbacks-pattern",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "How to properly implement streaming and non-streaming response handling for AI chat interfaces.",
+      "triggers": [
+        "Use streaming-callbacks-pattern"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/streaming-callbacks-pattern",
+      "access_level": "public"
+    },
+    "google-workspace": {
+      "name": "google-workspace",
+      "category": "productivity",
+      "source": "bundled",
+      "description": "Gmail, Calendar, Drive, Docs, Sheets via gws CLI or Python.",
+      "triggers": [
+        "Use google-workspace"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/google-workspace",
+      "access_level": "public"
+    },
+    "codebase-inspection": {
+      "name": "codebase-inspection",
+      "category": "github",
+      "source": "bundled",
+      "description": "Inspect codebases w/ pygount: LOC, languages, ratios.",
+      "triggers": [
+        "Use codebase-inspection"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/codebase-inspection",
+      "access_level": "public"
+    },
+    "touchdesigner-mcp": {
+      "name": "touchdesigner-mcp",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Control a running TouchDesigner instance via twozero MCP \u2014 create operators, set parameters, wire connections, execute Python, build real-time visuals. 36 native tools.",
+      "triggers": [
+        "Use touchdesigner-mcp"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/touchdesigner-mcp",
+      "access_level": "public"
+    },
+    "hermes-mcp-integration": {
+      "name": "hermes-mcp-integration",
+      "category": "devops",
+      "source": "bundled",
+      "description": "Expose Hermes' full tool and skill registry over MCP, and auto-register it in client applications like Mosaic Companion.",
+      "triggers": [
+        "Use hermes-mcp-integration"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/hermes-mcp-integration",
+      "access_level": "public"
+    },
+    "cardano-cli-staking-operator": {
+      "name": "cardano-cli-staking-operator",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Execute staking operations: registration, delegation, rewards withdrawal. Manual invoke only.",
+      "triggers": [
+        "Use cardano-cli-staking-operator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-cli-staking-operator",
+      "access_level": "public"
+    },
+    "cardano-eutxo-fundamentals": {
+      "name": "cardano-eutxo-fundamentals",
+      "category": "blockchain",
+      "source": "bundled",
+      "description": "|",
+      "triggers": [
+        "Use cardano-eutxo-fundamentals"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-eutxo-fundamentals",
+      "access_level": "public"
+    },
+    "midnight-proof-server-proof-server-integration": {
+      "name": "midnight-proof-server-proof-server-integration",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill covers how the Midnight proof server is invoked in practice \u2014 who calls it, the client-server contract, self-hosted vs wallet-delegated proving, network proof-server endpoints, production deployment behind a reverse proxy, and CORS. Use it for \"who calls the proof server\", \"ProofProvider\", \"wallet-delegated proving\", \"proof server endpoint\", \"production proof server\", \"proof server behind a proxy\", or wiring a DApp/SDK to a proof server.",
+      "triggers": [
+        "Use midnight-proof-server-proof-server-integration"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-proof-server-proof-server-integration",
+      "access_level": "public"
+    },
+    "midnight-verify-verify-compact": {
+      "name": "midnight-verify-verify-compact",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-verify-verify-compact"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-verify-verify-compact",
+      "access_level": "public"
+    },
+    "midnight-proof-server-proof-server-architecture": {
+      "name": "midnight-proof-server-proof-server-architecture",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill covers proof server internals and how the proof server works. Use it when the user asks about architecture, worker pool, job queue, job lifecycle, proving pipeline, concurrency, capacity limiting, garbage collection, ZKIR versioning, key material management, key prefetching, binary serialization format, the midnight-proof-server binary, Rust codebase, components, dependencies, Docker image build, or multi-arch support.",
+      "triggers": [
+        "Use midnight-proof-server-proof-server-architecture"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-proof-server-proof-server-architecture",
+      "access_level": "public"
+    },
+    "midnight-agent-zkir-checker": {
+      "name": "midnight-agent-zkir-checker",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/midnight-verify/agents/zkir-checker.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-zkir-checker"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-zkir-checker",
+      "access_level": "public"
+    },
+    "unsloth": {
+      "name": "unsloth",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Unsloth: 2-5x faster LoRA/QLoRA fine-tuning, less VRAM.",
+      "triggers": [
+        "Use unsloth"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/unsloth",
+      "access_level": "public"
+    },
+    "midnight-indexer-indexer-architecture": {
+      "name": "midnight-indexer-indexer-architecture",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill covers indexer architecture, components, chain-indexer, wallet-indexer, indexer-api, spo-indexer, standalone mode, cloud mode, configuration, deployment, storage, PostgreSQL vs SQLite, NATS, telemetry, or node connection. Covers \"how does the indexer connect to a node\", \"what database does the indexer use\", \"how to run the indexer locally\", \"choosing between standalone and cloud deployment\", and \"indexer data flow\".",
+      "triggers": [
+        "Use midnight-indexer-indexer-architecture"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-indexer-indexer-architecture",
+      "access_level": "public"
+    },
+    "timesfm-forecasting": {
+      "name": "timesfm-forecasting",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Zero-shot univariate time-series forecasting with Google TimesFM foundation model. Includes preflight system checker, covariate forecasting (XReg), quantile prediction intervals, and CSV/DataFrame/array inputs.",
+      "triggers": [
+        "Use timesfm-forecasting"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/timesfm-forecasting",
+      "access_level": "public"
+    },
+    "plutus-v3-conway": {
+      "name": "plutus-v3-conway",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Plutus V3 under Conway: unified context, governance scripts, V2\u2192V3 migration. Conceptual and practical guidance.",
+      "triggers": [
+        "Use plutus-v3-conway"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/plutus-v3-conway",
+      "access_level": "public"
+    },
+    "midnight-agent-contract-writer": {
+      "name": "midnight-agent-contract-writer",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/midnight-verify/agents/contract-writer.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-contract-writer"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-contract-writer",
+      "access_level": "public"
+    },
+    "ai-agency-architect": {
+      "name": "ai-agency-architect",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Design and orchestrate AI Agencies by combining multiple skills, MCPs, and tools into cohesive autonomous systems",
+      "triggers": [
+        "Use ai-agency-architect"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/ai-agency-architect",
+      "access_level": "public"
+    },
+    "spec-driven-development": {
+      "name": "spec-driven-development",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Write a PRD covering objectives, commands, structure, code style, testing, and boundaries before any code. Use when starting a new project, feature, or significant change.",
+      "triggers": [
+        "Use spec-driven-development"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/spec-driven-development",
+      "access_level": "public"
+    },
+    "midnight-core-concepts-protocols": {
+      "name": "midnight-core-concepts-protocols",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about Kachina smart contract protocol, Zswap token transfers, atomic swaps, shielded transfers, offers, coins, nullifiers, commitments, confidential smart contracts, the two-state model (public/private state), token minting, how ZK proofs enable privacy in Midnight protocol transactions, or private transaction mechanisms.",
+      "triggers": [
+        "Use midnight-core-concepts-protocols"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-core-concepts-protocols",
+      "access_level": "public"
+    },
+    "midnight-expert-meta-feedback": {
+      "name": "midnight-expert-meta-feedback",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks to \"file feedback\", \"report a bug\", \"file an issue\", \"request a feature\", \"submit feedback\", \"send feedback to maintainers\", or invokes /midnight-expert:feedback. Routes to a GitHub issue or enhancement on devrelaicom/midnight-expert. The user types one paragraph; the skill silently scans the session transcript and environment, applies heavy redaction, and composes a maintainer-ready issue body.",
+      "triggers": [
+        "Use midnight-expert-meta-feedback"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-expert-meta-feedback",
+      "access_level": "public"
+    },
+    "planning-and-task-breakdown": {
+      "name": "planning-and-task-breakdown",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Decompose specs into small, verifiable tasks with acceptance criteria and dependency ordering. Use when you have a spec and need implementable units.",
+      "triggers": [
+        "Use planning-and-task-breakdown"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/planning-and-task-breakdown",
+      "access_level": "public"
+    },
+    "python-debugpy": {
+      "name": "python-debugpy",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "Debug Python: pdb REPL + debugpy remote (DAP).",
+      "triggers": [
+        "Use python-debugpy"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/python-debugpy",
+      "access_level": "public"
+    },
+    "cardano-protocol-params": {
+      "name": "cardano-protocol-params",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Protocol parameters: fetch pparams, understand fees, min-UTxO, execution budgets. Read-only diagnostics.",
+      "triggers": [
+        "Use cardano-protocol-params"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-protocol-params",
+      "access_level": "public"
+    },
+    "midnight-core-concepts-tokenomics": {
+      "name": "midnight-core-concepts-tokenomics",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about Midnight tokens, NIGHT token, DUST resource, token distribution, Glacier Drop, Scavenger Mine, block rewards, tokenomics whitepaper, STAR denomination, token economics, dual-token model, MEV resistance, token supply, or how transaction fees work in Midnight.",
+      "triggers": [
+        "Use midnight-core-concepts-tokenomics"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-core-concepts-tokenomics",
+      "access_level": "public"
+    },
+    "midnight-fact-check-fact-check-reporting": {
+      "name": "midnight-fact-check-fact-check-reporting",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-fact-check-fact-check-reporting"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-fact-check-fact-check-reporting",
+      "access_level": "public"
+    },
+    "midnight-dapp-dev-midnight-sdk": {
+      "name": "midnight-dapp-dev-midnight-sdk",
+      "category": "midnight",
+      "source": "bundled",
+      "description": ">-",
+      "triggers": [
+        "Use midnight-dapp-dev-midnight-sdk"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-dapp-dev-midnight-sdk",
+      "access_level": "public"
+    },
+    "eight-phase-debugging": {
+      "name": "eight-phase-debugging",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "The user's mandatory 8-phase structured debugging methodology. Must be followed explicitly for ALL debugging, integration, and troubleshooting tasks. Never substitute with default 4-phase summaries.",
+      "triggers": [
+        "Use eight-phase-debugging"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/eight-phase-debugging",
+      "access_level": "public"
+    },
+    "kilocode": {
+      "name": "kilocode",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Use Kilo Code (open-source agentic engineering platform) as a coding agent, MCP server, or SDK client. Covers installation, CLI, VS Code/JetBrains extension, `kilo serve`, `@kilocode/sdk`, and integration patterns.",
+      "triggers": [
+        "Use kilocode"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/kilocode",
+      "access_level": "public"
+    },
+    "ascii-art": {
+      "name": "ascii-art",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "ASCII art: pyfiglet, cowsay, boxes, image-to-ascii.",
+      "triggers": [
+        "Use ascii-art"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/ascii-art",
+      "access_level": "public"
+    },
+    "axi-forge": {
+      "name": "axi-forge",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Build agent-native CLI tools (AXI), aimify them, and deploy through Stargate Pool",
+      "triggers": [
+        "Use axi-forge"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/axi-forge",
+      "access_level": "public"
+    },
+    "midnight-core-concepts-architecture": {
+      "name": "midnight-core-concepts-architecture",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about Midnight network architecture, transaction structure, guaranteed vs fallible sections, Zswap/Kachina integration, ledger and state management, cryptographic binding, balance verification, nullifiers, address derivation, transaction merging, atomic swaps, fee handling, or the privacy model separating private and public domains.",
+      "triggers": [
+        "Use midnight-core-concepts-architecture"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-core-concepts-architecture",
+      "access_level": "public"
+    },
+    "nano-pdf": {
+      "name": "nano-pdf",
+      "category": "productivity",
+      "source": "bundled",
+      "description": "Edit PDF text/typos/titles via nano-pdf CLI (NL prompts).",
+      "triggers": [
+        "Use nano-pdf"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/nano-pdf",
+      "access_level": "public"
+    },
+    "meshjs-cardano": {
+      "name": "meshjs-cardano",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "MeshJS patterns: tx building, wallet connectors, script interactions. TypeScript/JavaScript Cardano development.",
+      "triggers": [
+        "Use meshjs-cardano"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/meshjs-cardano",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-review": {
+      "name": "midnight-compact-core-compact-review",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "This skill should be used when reviewing Compact smart contract code, TypeScript witness implementations, or test files for a Midnight project. Applies when a user asks to \"review my Compact contract\", \"audit this smart contract\", \"check my Midnight code\", or \"run a code review checklist\". Provides category-specific checklists covering privacy, security, cryptographic correctness, token economics, concurrency, compilation, performance, architecture, code quality, testing, and documentation, plus mechanical verification via /midnight-verify:verify.",
+      "triggers": [
+        "Use midnight-compact-core-compact-review"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-review",
+      "access_level": "public"
+    },
+    "midnight-agent-cq-runner": {
+      "name": "midnight-agent-cq-runner",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/midnight-cq/agents/cq-runner.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-cq-runner"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-cq-runner",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-init-project": {
+      "name": "midnight-compact-core-compact-init-project",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks to create a new Midnight project, scaffold a Compact smart contract project, use create-mn-app, initialize a DApp, set up a new Midnight application, start a new project, use a project template, set up hello-world or counter template, or set up a Midnight development environment for the first time. Also triggered by \"new project\", \"start a project\", \"init project\", \"create-mn-app\", or \"scaffold\".",
+      "triggers": [
+        "Use midnight-compact-core-compact-init-project"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-init-project",
+      "access_level": "public"
+    },
+    "teams-meeting-pipeline": {
+      "name": "teams-meeting-pipeline",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Operate the Teams meeting summary pipeline via Hermes CLI \u2014 summarize meetings, inspect pipeline status, replay jobs, manage Microsoft Graph subscriptions.",
+      "triggers": [
+        "Use teams-meeting-pipeline"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/teams-meeting-pipeline",
+      "access_level": "public"
+    },
+    "midnight-plugin-utils-find-claude-plugin-root": {
+      "name": "midnight-plugin-utils-find-claude-plugin-root",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user needs to locate a plugin's installation path, find where a plugin is installed, resolve plugin root directory, or when CLAUDE_PLUGIN_ROOT does not expand in markdown files. It generates a Python resolver script at /tmp/cpr.py that reads installed_plugins.json and supports fuzzy plugin name matching.",
+      "triggers": [
+        "Use midnight-plugin-utils-find-claude-plugin-root"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-plugin-utils-find-claude-plugin-root",
+      "access_level": "public"
+    },
+    "midnight-core-concepts-data-models": {
+      "name": "midnight-core-concepts-data-models",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about UTXO vs account models, ledger tokens, shielded/unshielded tokens, nullifiers, coin commitments, the Zswap commitment tree, double-spend prevention, token balances, parallel transaction processing, choosing between token paradigms in Midnight, minting tokens, token type identification, or the ledger structure.",
+      "triggers": [
+        "Use midnight-core-concepts-data-models"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-core-concepts-data-models",
+      "access_level": "public"
+    },
+    "cardano-cli-operator": {
+      "name": "cardano-cli-operator",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Manual-only operator command for Cardano CLI: dispatches directly to OpenClaw Exec Tool (no model) so you can run deterministic, approval-gated cardano-cli commands (native or Docker fallback).",
+      "triggers": [
+        "Use cardano-cli-operator"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/cardano-cli-operator",
+      "access_level": "public"
+    },
+    "midnight-node-node-rpc-api": {
+      "name": "midnight-node-node-rpc-api",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "Midnight node RPC API, WebSocket, port 9944, midnight_contractState, midnight_zswapStateRoot, midnight_ledgerStateRoot, midnight_apiVersions, midnight_ledgerVersion, systemParameters RPC, sidechain RPC, system_health, chain_getBlock, state_getStorage, author_submitExtrinsic, grandpa_roundState, beefy RPC, mmr RPC, rpc.discover, OpenRPC, subscribe, subscription, query contract state, submit transaction to node, connect to Midnight RPC, subscribe to block headers, check node sync status.",
+      "triggers": [
+        "Use midnight-node-node-rpc-api"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-node-node-rpc-api",
+      "access_level": "public"
+    },
+    "hermes-s6-container-supervision": {
+      "name": "hermes-s6-container-supervision",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Modify, debug, or extend the s6-overlay supervision tree inside the Hermes Agent Docker image \u2014 adding new services, debugging profile gateways, understanding the Architecture B main-program pattern.",
+      "triggers": [
+        "Use hermes-s6-container-supervision"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/hermes-s6-container-supervision",
+      "access_level": "public"
+    },
+    "hermes-agent-skill-authoring": {
+      "name": "hermes-agent-skill-authoring",
+      "category": "software-development",
+      "source": "bundled",
+      "description": "Author in-repo SKILL.md: frontmatter, validator, structure.",
+      "triggers": [
+        "Use hermes-agent-skill-authoring"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/hermes-agent-skill-authoring",
+      "access_level": "public"
+    },
+    "excalidraw": {
+      "name": "excalidraw",
+      "category": "creative",
+      "source": "bundled",
+      "description": "Hand-drawn Excalidraw JSON diagrams (arch, flow, seq).",
+      "triggers": [
+        "Use excalidraw"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/excalidraw",
+      "access_level": "public"
+    },
+    "petdex": {
+      "name": "petdex",
+      "category": "productivity",
+      "source": "bundled",
+      "description": "Install and select animated petdex mascots for Hermes.",
+      "triggers": [
+        "Use petdex"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/petdex",
+      "access_level": "public"
+    },
+    "midnight-indexer-indexer-graphql-api": {
+      "name": "midnight-indexer-indexer-graphql-api",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about indexer GraphQL, indexer queries, indexer subscriptions, indexer mutations, GraphQL API, contractAction query, block query, wallet connect, shieldedTransactions subscription, unshieldedTransactions, dustLedgerEvents, zswapLedgerEvents, indexer endpoint, api/v4/graphql, indexer network endpoints, or GraphQL query limits. Covers \"how to query blocks\", \"how to subscribe to contract events\", \"GraphQL schema\", and \"WebSocket subscription\".",
+      "triggers": [
+        "Use midnight-indexer-indexer-graphql-api"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-indexer-indexer-graphql-api",
+      "access_level": "public"
+    },
+    "apple-reminders": {
+      "name": "apple-reminders",
+      "category": "apple",
+      "source": "bundled",
+      "description": "Apple Reminders via remindctl: add, list, complete.",
+      "triggers": [
+        "Use apple-reminders"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/apple-reminders",
+      "access_level": "public"
+    },
+    "apple-notes": {
+      "name": "apple-notes",
+      "category": "apple",
+      "source": "bundled",
+      "description": "Manage Apple Notes via memo CLI: create, search, edit.",
+      "triggers": [
+        "Use apple-notes"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/apple-notes",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-debugging": {
+      "name": "midnight-compact-core-compact-debugging",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when a user needs help debugging Compact smart contract errors, including compiler failures (\"parse error\", \"unbound identifier\"), proof generation issues, TypeScript witness type mismatches, disclosure errors (\"potential witness-value disclosure must be declared\"), or compatibility problems between Midnight components. Also applies when a user says their contract \"won't compile\", \"worked before but broke after update\", or when consecutive fix attempts keep revealing new errors. This skill orchestrates the debugging process and routes to domain-specific compact-core skills.",
+      "triggers": [
+        "Use midnight-compact-core-compact-debugging"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-debugging",
+      "access_level": "public"
+    },
+    "ollama-cloud-integration": {
+      "name": "ollama-cloud-integration",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Complete guide for integrating Ollama Cloud APIs into Mosaic-Companion, including routing fixes, authentication, and common pitfalls.",
+      "triggers": [
+        "Use ollama-cloud-integration"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/ollama-cloud-integration",
+      "access_level": "public"
+    },
+    "midnight-agent-security-reviewer": {
+      "name": "midnight-agent-security-reviewer",
+      "category": "midnight-agents",
+      "source": "bundled",
+      "description": "Agent skill ported from midnight-expert/compact-core/agents/security-reviewer.md. Trigger conditions and workflow preserved. Use when the task matches this agent's domain.",
+      "triggers": [
+        "Use midnight-agent-security-reviewer"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-agent-security-reviewer",
+      "access_level": "public"
+    },
+    "midnight-compact-core-compact-circuit-costs": {
+      "name": "midnight-compact-core-compact-circuit-costs",
+      "category": "midnight",
+      "source": "bundled",
+      "description": "This skill should be used when the user asks about Compact circuit costs, ZK proof generation costs, gate counts, loop unrolling behavior, hash function cost tradeoffs (transientHash vs persistentHash), commitment function costs (transientCommit vs persistentCommit), pure circuit optimization benefits, vector operation costs (map/fold/slice unrolling), compiler optimization passes, runtime gas model (readTime, computeTime, bytesWritten, bytesDeleted), ledger state storage costs, privacy-cost tradeoffs, or how to write cost-efficient Compact smart contracts on Midnight.",
+      "triggers": [
+        "Use midnight-compact-core-compact-circuit-costs"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-compact-core-compact-circuit-costs",
+      "access_level": "public"
+    },
+    "aiken-dex-security-audit": {
+      "name": "aiken-dex-security-audit",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Adversarial security audit playbook for Plutus V3 Aiken DEX contracts (threat model, invariants, findings, tests, tx repro shapes).",
+      "triggers": [
+        "Use aiken-dex-security-audit"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/aiken-dex-security-audit",
+      "access_level": "public"
+    },
+    "midnight-city-direct-control": {
+      "name": "midnight-city-direct-control",
+      "category": "unknown",
+      "source": "bundled",
+      "description": "Connect an external agent (OpenClaw, Hermes, AgentSkills) to one live Midnight City game agent and control it through the public observer API. Use for reading world context (inventory, needs, areas, agents, threads, recent events) and acting in the city (move, speak, travel, enter/exit buildings, work, eat, sleep, trade with merchants).",
+      "triggers": [
+        "Use midnight-city-direct-control"
+      ],
+      "path": "/home/mauricio/mosaic-companion/bundled-skills/midnight-city-direct-control",
+      "access_level": "public"
+    },
+    "stargate-bundle-creator": {
+      "name": "stargate-bundle-creator",
+      "category": "mosaic-stargate",
+      "source": "bot-authored",
+      "description": "Create intelligent skill bundles for Stargate operations by combining existing skills into cohesive packages",
+      "triggers": [
+        "create a bundle",
+        "package skills",
+        "bundle for",
+        "create skill package",
+        "stargate bundle"
+      ],
+      "path": "/home/mauricio/.config/mosaic-companion/mosaicbot/skills/mosaicbot-authored/stargate-bundle-creator",
+      "access_level": "public"
+    },
+    "hypercycle-node-factory-architect": {
+      "name": "hypercycle-node-factory-architect",
+      "category": "hypercycle",
+      "source": "bot-authored",
+      "description": "Master architect skill for designing and operating AI Agencies focused on HyperCycle node factories using Stargate, MCP, and Agent Forge",
+      "triggers": [
+        "hypercycle",
+        "node-factory",
+        "ai-agency",
+        "architecture",
+        "stargate",
+        "master",
+        "orchestration",
+        "design node factory",
+        "architect ai agency",
+        "hypercycle agency",
+        "node factory setup",
+        "build ai agency",
+        "master architect",
+        "hypercycle operations"
+      ],
+      "path": "/home/mauricio/.config/mosaic-companion/mosaicbot/skills/mosaicbot-authored/hypercycle-node-factory-architect",
+      "access_level": "public"
+    },
+    "stargate-marketplace-analyzer": {
+      "name": "stargate-marketplace-analyzer",
+      "category": "mosaic-stargate",
+      "source": "bot-authored",
+      "description": "Analyze skills marketplace, match with Stargate leaderboard, and identify capability gaps for HyperCycle node factories",
+      "triggers": [
+        "analyze marketplace",
+        "skills leaderboard",
+        "marketplace analysis",
+        "capability gap",
+        "what skills do we need"
+      ],
+      "path": "/home/mauricio/.config/mosaic-companion/mosaicbot/skills/mosaicbot-authored/stargate-marketplace-analyzer",
+      "access_level": "public"
+    },
+    "hypercycle-aim-master": {
+      "name": "hypercycle-aim-master",
+      "category": "hypercycle",
+      "source": "bot-authored",
+      "description": "Complete mastery of HyperCycle AIM module creation using aim-py-gen \u2014 from config.yml to manifest.json to production deployment. The definitive reference for aimifying any AI model for HyperCycle nodes.",
+      "triggers": [
+        "aimify this model",
+        "create aim module",
+        "how to use aim-py-gen",
+        "fill out manifest",
+        "deploy to hypercycle",
+        "aim module config",
+        "hypercycle aim",
+        "aim-py-gen tutorial"
+      ],
+      "path": "/home/mauricio/.config/mosaic-companion/mosaicbot/skills/mosaicbot-authored/hypercycle-aim-master",
+      "access_level": "public"
+    },
+    "ide-agent-forge-integrator": {
+      "name": "ide-agent-forge-integrator",
+      "category": "software-development",
+      "source": "bot-authored",
+      "description": "Integrate Mosaic IDE with Agent Forge, enabling seamless AI Agency development for HyperCycle node factories",
+      "triggers": [
+        "integrate ide",
+        "agent forge",
+        "mosaic ide",
+        "ai agency development",
+        "ide integration",
+        "agent forge setup"
+      ],
+      "path": "/home/mauricio/.config/mosaic-companion/mosaicbot/skills/mosaicbot-authored/ide-agent-forge-integrator",
+      "access_level": "public"
+    }
+  },
+  "access_patterns": {
+    "by_name": {
+      "description": "Access skill by exact name",
+      "pattern": "TOOL:load_skill {\"name\": \"<skill-name>\"}",
+      "example": "TOOL:load_skill {\"name\": \"hypercycle-aim-master\"}"
+    },
+    "by_category": {
+      "description": "List all skills in a category",
+      "pattern": "TOOL:list_skills {\"category\": \"<category>\"}",
+      "example": "TOOL:list_skills {\"category\": \"ai-agency\"}"
+    },
+    "by_trigger": {
+      "description": "Find skills matching trigger phrase",
+      "pattern": "TOOL:search_skills {\"query\": \"<trigger>\"}",
+      "example": "TOOL:search_skills {\"query\": \"aimify this model\"}"
+    },
+    "full_text": {
+      "description": "Search skill content",
+      "pattern": "TOOL:vault_search {\"query\": \"<search-term>\"}",
+      "example": "TOOL:vault_search {\"query\": \"docker manifest\"}"
+    },
+    "grant_access": {
+      "description": "Grant agent access to vault",
+      "pattern": "TOOL:vault_grant {\"agent\": \"<agent-id>\", \"scope\": \"<scope>\"}",
+      "example": "TOOL:vault_grant {\"agent\": \"mosaic-bot\", \"scope\": \"all\"}"
+    }
+  },
+  "trigger_phrases": {
+    "Use midnight-node-node-configuration": [
+      "midnight-node-node-configuration"
+    ],
+    "Use midnight-verify-verify-by-witness": [
+      "midnight-verify-verify-by-witness"
+    ],
+    "Use midnight-agent-source-investigator": [
+      "midnight-agent-source-investigator"
+    ],
+    "Use midnight-cq-wallet-testing": [
+      "midnight-cq-wallet-testing"
+    ],
+    "Use midnight-tooling-proof-server": [
+      "midnight-tooling-proof-server"
+    ],
+    "Use design-md": [
+      "design-md"
+    ],
+    "Use midnight-cq-dapp-connector-testing": [
+      "midnight-cq-dapp-connector-testing"
+    ],
+    "Use maps": [
+      "maps"
+    ],
+    "Use platform-integration-analysis": [
+      "platform-integration-analysis"
+    ],
+    "Use midnight-node-node-operations": [
+      "midnight-node-node-operations"
+    ],
+    "Use cardano-mcp-staking": [
+      "cardano-mcp-staking"
+    ],
+    "Use midnight-agent-claim-extractor": [
+      "midnight-agent-claim-extractor"
+    ],
+    "Use midnight-cq-quality-check": [
+      "midnight-cq-quality-check"
+    ],
+    "Use midnight-compact-core-compact-witness-ts": [
+      "midnight-compact-core-compact-witness-ts"
+    ],
+    "Use spike": [
+      "spike"
+    ],
+    "Use aiken-dex-security-audit-operator": [
+      "aiken-dex-security-audit-operator"
+    ],
+    "Use midnight-city-continuous-miner": [
+      "midnight-city-continuous-miner"
+    ],
+    "Use github-pr-workflow": [
+      "github-pr-workflow"
+    ],
+    "Use gbrain-project-tracking": [
+      "gbrain-project-tracking"
+    ],
+    "Use midnight-compact-core-compact-ledger": [
+      "midnight-compact-core-compact-ledger"
+    ],
+    "Use midnight-verify-zkir-regression": [
+      "midnight-verify-zkir-regression"
+    ],
+    "Use hypercycle-aimifier": [
+      "hypercycle-aimifier"
+    ],
+    "Use midnight-node-node-validator": [
+      "midnight-node-node-validator"
+    ],
+    "Use popular-web-designs": [
+      "popular-web-designs"
+    ],
+    "Use kanban-codex-lane": [
+      "kanban-codex-lane"
+    ],
+    "Use ide-integration": [
+      "ide-integration"
+    ],
+    "Use midnight-core-concepts-zero-knowledge": [
+      "midnight-core-concepts-zero-knowledge"
+    ],
+    "Use cardano-cli-wallets": [
+      "cardano-cli-wallets"
+    ],
+    "Use macos-computer-use": [
+      "macos-computer-use"
+    ],
+    "Use electron-linux-setup": [
+      "electron-linux-setup"
+    ],
+    "Use git-workflow-and-versioning": [
+      "git-workflow-and-versioning"
+    ],
+    "Use project-migrator": [
+      "project-migrator"
+    ],
+    "Use electron-sandbox-debugging": [
+      "electron-sandbox-debugging"
+    ],
+    "Use pretext": [
+      "pretext"
+    ],
+    "Use midnight-agent-domain-classifier": [
+      "midnight-agent-domain-classifier"
+    ],
+    "Use songsee": [
+      "songsee"
+    ],
+    "Use agentic-system-evolution": [
+      "agentic-system-evolution"
+    ],
+    "Use simplify-code": [
+      "simplify-code"
+    ],
+    "Use screen-recording": [
+      "screen-recording"
+    ],
+    "Use midnight-verify-verify-by-devnet": [
+      "midnight-verify-verify-by-devnet"
+    ],
+    "Use midnight-wallet-wallet-sdk": [
+      "midnight-wallet-wallet-sdk"
+    ],
+    "Use cardano-cli-transactions": [
+      "cardano-cli-transactions"
+    ],
+    "Use superpowers": [
+      "superpowers"
+    ],
+    "Use midnight-compact-core-compact-patterns": [
+      "midnight-compact-core-compact-patterns"
+    ],
+    "Use creative-ideation": [
+      "creative-ideation"
+    ],
+    "Use midnight-compact-core-compact-standard-library": [
+      "midnight-compact-core-compact-standard-library"
+    ],
+    "Use mosaic-agent-forge": [
+      "mosaic-agent-forge"
+    ],
+    "Use llm-wiki": [
+      "llm-wiki"
+    ],
+    "Use midnight-agent-type-checker": [
+      "midnight-agent-type-checker"
+    ],
+    "Use midnight-proof-server-proof-server-api": [
+      "midnight-proof-server-proof-server-api"
+    ],
+    "Use midnight-cq-dapp-testing": [
+      "midnight-cq-dapp-testing"
+    ],
+    "Use midnight-cq-ledger-testing": [
+      "midnight-cq-ledger-testing"
+    ],
+    "Use linux-desktop-audio": [
+      "linux-desktop-audio"
+    ],
+    "Use cardano-cli-plutus-scripts-operator": [
+      "cardano-cli-plutus-scripts-operator"
+    ],
+    "Use cardano-integration": [
+      "cardano-integration"
+    ],
+    "Use notion": [
+      "notion"
+    ],
+    "Use midnight-agent-witness-verifier": [
+      "midnight-agent-witness-verifier"
+    ],
+    "Use huggingface-hub": [
+      "huggingface-hub"
+    ],
+    "Use cardano-tools": [
+      "cardano-tools"
+    ],
+    "Use hermes-desktop-launch": [
+      "hermes-desktop-launch"
+    ],
+    "Use blogwatcher": [
+      "blogwatcher"
+    ],
+    "Use opencode": [
+      "opencode"
+    ],
+    "Use trl-fine-tuning": [
+      "trl-fine-tuning"
+    ],
+    "Use midnight-proof-server-proof-server-operations": [
+      "midnight-proof-server-proof-server-operations"
+    ],
+    "Use comfyui": [
+      "comfyui"
+    ],
+    "Use p5js": [
+      "p5js"
+    ],
+    "Use codebase-memory-mcp": [
+      "codebase-memory-mcp"
+    ],
+    "Use kanban-worker": [
+      "kanban-worker"
+    ],
+    "Use midnight-compact-core-basic-start": [
+      "midnight-compact-core-basic-start"
+    ],
+    "Use flue": [
+      "flue"
+    ],
+    "Use spotify": [
+      "spotify"
+    ],
+    "Use midnight-verify-verify-tooling": [
+      "midnight-verify-verify-tooling"
+    ],
+    "Use midnight-dapp-dev-dapp-connector": [
+      "midnight-dapp-dev-dapp-connector"
+    ],
+    "Use node-inspect-debugger": [
+      "node-inspect-debugger"
+    ],
+    "Use midnight-verify-verify-by-source": [
+      "midnight-verify-verify-by-source"
+    ],
+    "Use kanban-orchestrator": [
+      "kanban-orchestrator"
+    ],
+    "Use midnight-verify-verify-witness": [
+      "midnight-verify-verify-witness"
+    ],
+    "Use hyperaibox-fleet-manager": [
+      "hyperaibox-fleet-manager"
+    ],
+    "Use native-mcp": [
+      "native-mcp"
+    ],
+    "Use mosaic-stargate-hermes-debug": [
+      "mosaic-stargate-hermes-debug"
+    ],
+    "Use axi-integration": [
+      "axi-integration"
+    ],
+    "Use external-skill-repo-integration": [
+      "external-skill-repo-integration"
+    ],
+    "Use hydra-head-operator": [
+      "hydra-head-operator"
+    ],
+    "Use airtable": [
+      "airtable"
+    ],
+    "Use godmode": [
+      "godmode"
+    ],
+    "Use github-code-review": [
+      "github-code-review"
+    ],
+    "Use midnight-compact-core-compact-privacy-disclosure": [
+      "midnight-compact-core-compact-privacy-disclosure"
+    ],
+    "Use midnight-node-node-architecture": [
+      "midnight-node-node-architecture"
+    ],
+    "Use mosaic-health-doctor": [
+      "mosaic-health-doctor"
+    ],
+    "Use webhook-subscriptions": [
+      "webhook-subscriptions"
+    ],
+    "Use midnight-orchestrator": [
+      "midnight-orchestrator"
+    ],
+    "Use hydra-head": [
+      "hydra-head"
+    ],
+    "Use stargate-debug-playbook": [
+      "stargate-debug-playbook"
+    ],
+    "Use heartmula": [
+      "heartmula"
+    ],
+    "Use midnight-tooling-devnet-health": [
+      "midnight-tooling-devnet-health"
+    ],
+    "Use cardano-mcp-identity": [
+      "cardano-mcp-identity"
+    ],
+    "Use knowledge-base-ingestion": [
+      "knowledge-base-ingestion"
+    ],
+    "Use writing-plans": [
+      "writing-plans"
+    ],
+    "Use sketch": [
+      "sketch"
+    ],
+    "Use midnight-verify-verify-by-ledger-source": [
+      "midnight-verify-verify-by-ledger-source"
+    ],
+    "Use test-driven-development": [
+      "test-driven-development"
+    ],
+    "Use skill-ecosystem-migration": [
+      "skill-ecosystem-migration"
+    ],
+    "Use midnight-expert-meta-doctor": [
+      "midnight-expert-meta-doctor"
+    ],
+    "Use midnight-verify-verify-by-execution": [
+      "midnight-verify-verify-by-execution"
+    ],
+    "Use hermes-dashboard": [
+      "hermes-dashboard"
+    ],
+    "Use midnight-verify-verify-sdk": [
+      "midnight-verify-verify-sdk"
+    ],
+    "Use midnight-agent-cli-tester": [
+      "midnight-agent-cli-tester"
+    ],
+    "Use midnight-compact-core-compact-tokens": [
+      "midnight-compact-core-compact-tokens"
+    ],
+    "Use aiken-smart-contracts": [
+      "aiken-smart-contracts"
+    ],
+    "Use midnight-agent-compact-dev": [
+      "midnight-agent-compact-dev"
+    ],
+    "Use midnight-agent-cq-reviewer": [
+      "midnight-agent-cq-reviewer"
+    ],
+    "Use arxiv": [
+      "arxiv"
+    ],
+    "Use pokemon-player": [
+      "pokemon-player"
+    ],
+    "Use mosaic-discovery-first-aim-orchestration": [
+      "mosaic-discovery-first-aim-orchestration"
+    ],
+    "Use xurl": [
+      "xurl"
+    ],
+    "Use hydra-head-troubleshooter": [
+      "hydra-head-troubleshooter"
+    ],
+    "Use code-review-and-quality": [
+      "code-review-and-quality"
+    ],
+    "Use addy-agent-skills": [
+      "addy-agent-skills"
+    ],
+    "Use gif-search": [
+      "gif-search"
+    ],
+    "Use midnight-verify-verify-by-zkir-inspection": [
+      "midnight-verify-verify-by-zkir-inspection"
+    ],
+    "Use github-repo-management": [
+      "github-repo-management"
+    ],
+    "Use midnight-compact-core-compact-security": [
+      "midnight-compact-core-compact-security"
+    ],
+    "Use midnight-cq-quality-init": [
+      "midnight-cq-quality-init"
+    ],
+    "Use youtube-content": [
+      "youtube-content"
+    ],
+    "Use architecture-diagram": [
+      "architecture-diagram"
+    ],
+    "Use mosaic-stargate-ui-simplify": [
+      "mosaic-stargate-ui-simplify"
+    ],
+    "Use cardano-mcp-balances": [
+      "cardano-mcp-balances"
+    ],
+    "Use midnight-plugin-utils-dependency-checker": [
+      "midnight-plugin-utils-dependency-checker"
+    ],
+    "Use cardano-cli-doctor": [
+      "cardano-cli-doctor"
+    ],
+    "Use minecraft-modpack-server": [
+      "minecraft-modpack-server"
+    ],
+    "Use mosaic-skill-bridge": [
+      "mosaic-skill-bridge"
+    ],
+    "Use github-issues": [
+      "github-issues"
+    ],
+    "Use songwriting-and-ai-music": [
+      "songwriting-and-ai-music"
+    ],
+    "Use midnight-verify-verify-correctness": [
+      "midnight-verify-verify-correctness"
+    ],
+    "Use codex": [
+      "codex"
+    ],
+    "Use midnight-fact-check-fact-check-extraction": [
+      "midnight-fact-check-fact-check-extraction"
+    ],
+    "Use linear": [
+      "linear"
+    ],
+    "Use hypercycle-node-manager-ops": [
+      "hypercycle-node-manager-ops"
+    ],
+    "Use axi-executor": [
+      "axi-executor"
+    ],
+    "Use baoyu-infographic": [
+      "baoyu-infographic"
+    ],
+    "Use baoyu-comic": [
+      "baoyu-comic"
+    ],
+    "Use website-reverse-engineering": [
+      "website-reverse-engineering"
+    ],
+    "Use incremental-implementation": [
+      "incremental-implementation"
+    ],
+    "Use github-auth": [
+      "github-auth"
+    ],
+    "Use midnight-dapp-dev-init": [
+      "midnight-dapp-dev-init"
+    ],
+    "Use midnight-compact-core-compact-language-ref": [
+      "midnight-compact-core-compact-language-ref"
+    ],
+    "Use midnight-agent-concept-explainer": [
+      "midnight-agent-concept-explainer"
+    ],
+    "Use midnight-dapp-dev-core": [
+      "midnight-dapp-dev-core"
+    ],
+    "Use midnight-plugin-utils-dependency-scanner": [
+      "midnight-plugin-utils-dependency-scanner"
+    ],
+    "Use midnight-compact-core-compact-transaction-model": [
+      "midnight-compact-core-compact-transaction-model"
+    ],
+    "Use claude-code": [
+      "claude-code"
+    ],
+    "Use cardano-cli-wallets-operator": [
+      "cardano-cli-wallets-operator"
+    ],
+    "Use pattern-extractor": [
+      "pattern-extractor"
+    ],
+    "Use pixel-art": [
+      "pixel-art"
+    ],
+    "Use cardano-cli-staking": [
+      "cardano-cli-staking"
+    ],
+    "Use midnight-verify-verify-by-wallet-source": [
+      "midnight-verify-verify-by-wallet-source"
+    ],
+    "Use midnight-expert-meta-add-to-ecosystem": [
+      "midnight-expert-meta-add-to-ecosystem"
+    ],
+    "Use cardano-devnet-in-a-box": [
+      "cardano-devnet-in-a-box"
+    ],
+    "Use axi-tool-forge": [
+      "axi-tool-forge"
+    ],
+    "Use koios-agent-wallet": [
+      "koios-agent-wallet"
+    ],
+    "Use midnight-tooling-devnet": [
+      "midnight-tooling-devnet"
+    ],
+    "Use polymarket": [
+      "polymarket"
+    ],
+    "Use manim-video": [
+      "manim-video"
+    ],
+    "Use openhue": [
+      "openhue"
+    ],
+    "Use midnight-verify-verify-by-zkir-checker": [
+      "midnight-verify-verify-by-zkir-checker"
+    ],
+    "Use subagent-driven-development": [
+      "subagent-driven-development"
+    ],
+    "Use midnight-cq-compact-testing": [
+      "midnight-cq-compact-testing"
+    ],
+    "Use midnight-indexer-indexer-data-model": [
+      "midnight-indexer-indexer-data-model"
+    ],
+    "Use midnight-compact-core-compact-structure": [
+      "midnight-compact-core-compact-structure"
+    ],
+    "Use hermes-agent": [
+      "hermes-agent"
+    ],
+    "Use findmy": [
+      "findmy"
+    ],
+    "Use systematic-debugging": [
+      "systematic-debugging"
+    ],
+    "Use humanizer": [
+      "humanizer"
+    ],
+    "Use midnight-status-codes-status-codes": [
+      "midnight-status-codes-status-codes"
+    ],
+    "Use midnight-tooling-release-notes": [
+      "midnight-tooling-release-notes"
+    ],
+    "Use linux-system-cleanup": [
+      "linux-system-cleanup"
+    ],
+    "Use baoyu-article-illustrator": [
+      "baoyu-article-illustrator"
+    ],
+    "Use powerpoint": [
+      "powerpoint"
+    ],
+    "Use midnight-core-concepts-privacy-patterns": [
+      "midnight-core-concepts-privacy-patterns"
+    ],
+    "Use midnight-proof-server-proof-server-configuration": [
+      "midnight-proof-server-proof-server-configuration"
+    ],
+    "Use midnight-indexer-indexer-operations": [
+      "midnight-indexer-indexer-operations"
+    ],
+    "Use mosaic-stargate": [
+      "mosaic-stargate"
+    ],
+    "Use debugging-hermes-tui-commands": [
+      "debugging-hermes-tui-commands"
+    ],
+    "Use xhr-vs-fetch-interception": [
+      "xhr-vs-fetch-interception"
+    ],
+    "Use blockchain-node-ops": [
+      "blockchain-node-ops"
+    ],
+    "Use jupyter-live-kernel": [
+      "jupyter-live-kernel"
+    ],
+    "Use midnight-wallet-sdk-regression-check": [
+      "midnight-wallet-sdk-regression-check"
+    ],
+    "Use cardano-mcp-transactions": [
+      "cardano-mcp-transactions"
+    ],
+    "Use himalaya": [
+      "himalaya"
+    ],
+    "Use midnight-verify-verify-by-type-check": [
+      "midnight-verify-verify-by-type-check"
+    ],
+    "Use kanban-project-init": [
+      "kanban-project-init"
+    ],
+    "Use requesting-code-review": [
+      "requesting-code-review"
+    ],
+    "Use codebase-navigator": [
+      "codebase-navigator"
+    ],
+    "Use hermes-aim-spec-v1": [
+      "hermes-aim-spec-v1"
+    ],
+    "Use midnight-tooling-troubleshooting": [
+      "midnight-tooling-troubleshooting"
+    ],
+    "Use imessage": [
+      "imessage"
+    ],
+    "Use midnight-node-node-governance": [
+      "midnight-node-node-governance"
+    ],
+    "Use cardano-cli-transactions-operator": [
+      "cardano-cli-transactions-operator"
+    ],
+    "Use midnight-verify-verify-wallet-sdk": [
+      "midnight-verify-verify-wallet-sdk"
+    ],
+    "Use midnight-verify-verify-zkir": [
+      "midnight-verify-verify-zkir"
+    ],
+    "Use midnight-fact-check-fact-check-classification": [
+      "midnight-fact-check-fact-check-classification"
+    ],
+    "Use midnight-agent-reviewer": [
+      "midnight-agent-reviewer"
+    ],
+    "Use claude-design": [
+      "claude-design"
+    ],
+    "Use cardano-cli-plutus-scripts": [
+      "cardano-cli-plutus-scripts"
+    ],
+    "Use midnight-verify-verify-ledger": [
+      "midnight-verify-verify-ledger"
+    ],
+    "Use ascii-video": [
+      "ascii-video"
+    ],
+    "Use source-security-audit": [
+      "source-security-audit"
+    ],
+    "Use electron-ai-provider-integration": [
+      "electron-ai-provider-integration"
+    ],
+    "Use midnight-compact-cli-dev-core": [
+      "midnight-compact-cli-dev-core"
+    ],
+    "Use midnight-agent-sdk-tester": [
+      "midnight-agent-sdk-tester"
+    ],
+    "Use electron-agent-forge": [
+      "electron-agent-forge"
+    ],
+    "Use midnight-verify-verify-by-cli-execution": [
+      "midnight-verify-verify-by-cli-execution"
+    ],
+    "Use soul-md-integration": [
+      "soul-md-integration"
+    ],
+    "Use plan": [
+      "plan"
+    ],
+    "Use midnight-agent-dev": [
+      "midnight-agent-dev"
+    ],
+    "Use midnight-tooling-compact-cli": [
+      "midnight-tooling-compact-cli"
+    ],
+    "Use research-paper-writing": [
+      "research-paper-writing"
+    ],
+    "Use ai-avatar-video-marketing": [
+      "ai-avatar-video-marketing"
+    ],
+    "Use midnight-wallet-managing-test-wallets": [
+      "midnight-wallet-managing-test-wallets"
+    ],
+    "Use ocr-and-documents": [
+      "ocr-and-documents"
+    ],
+    "Use obsidian": [
+      "obsidian"
+    ],
+    "Use midnight-compact-examples-code-examples": [
+      "midnight-compact-examples-code-examples"
+    ],
+    "Use midnight-status-codes-status-codes-lookup": [
+      "midnight-status-codes-status-codes-lookup"
+    ],
+    "Use mosaic-bot-orchestrator": [
+      "mosaic-bot-orchestrator"
+    ],
+    "Use streaming-callbacks-pattern": [
+      "streaming-callbacks-pattern"
+    ],
+    "Use google-workspace": [
+      "google-workspace"
+    ],
+    "Use codebase-inspection": [
+      "codebase-inspection"
+    ],
+    "Use touchdesigner-mcp": [
+      "touchdesigner-mcp"
+    ],
+    "Use hermes-mcp-integration": [
+      "hermes-mcp-integration"
+    ],
+    "Use cardano-cli-staking-operator": [
+      "cardano-cli-staking-operator"
+    ],
+    "Use cardano-eutxo-fundamentals": [
+      "cardano-eutxo-fundamentals"
+    ],
+    "Use midnight-proof-server-proof-server-integration": [
+      "midnight-proof-server-proof-server-integration"
+    ],
+    "Use midnight-verify-verify-compact": [
+      "midnight-verify-verify-compact"
+    ],
+    "Use midnight-proof-server-proof-server-architecture": [
+      "midnight-proof-server-proof-server-architecture"
+    ],
+    "Use midnight-agent-zkir-checker": [
+      "midnight-agent-zkir-checker"
+    ],
+    "Use unsloth": [
+      "unsloth"
+    ],
+    "Use midnight-indexer-indexer-architecture": [
+      "midnight-indexer-indexer-architecture"
+    ],
+    "Use timesfm-forecasting": [
+      "timesfm-forecasting"
+    ],
+    "Use plutus-v3-conway": [
+      "plutus-v3-conway"
+    ],
+    "Use midnight-agent-contract-writer": [
+      "midnight-agent-contract-writer"
+    ],
+    "Use ai-agency-architect": [
+      "ai-agency-architect"
+    ],
+    "Use spec-driven-development": [
+      "spec-driven-development"
+    ],
+    "Use midnight-core-concepts-protocols": [
+      "midnight-core-concepts-protocols"
+    ],
+    "Use midnight-expert-meta-feedback": [
+      "midnight-expert-meta-feedback"
+    ],
+    "Use planning-and-task-breakdown": [
+      "planning-and-task-breakdown"
+    ],
+    "Use python-debugpy": [
+      "python-debugpy"
+    ],
+    "Use cardano-protocol-params": [
+      "cardano-protocol-params"
+    ],
+    "Use midnight-core-concepts-tokenomics": [
+      "midnight-core-concepts-tokenomics"
+    ],
+    "Use midnight-fact-check-fact-check-reporting": [
+      "midnight-fact-check-fact-check-reporting"
+    ],
+    "Use midnight-dapp-dev-midnight-sdk": [
+      "midnight-dapp-dev-midnight-sdk"
+    ],
+    "Use eight-phase-debugging": [
+      "eight-phase-debugging"
+    ],
+    "Use kilocode": [
+      "kilocode"
+    ],
+    "Use ascii-art": [
+      "ascii-art"
+    ],
+    "Use axi-forge": [
+      "axi-forge"
+    ],
+    "Use midnight-core-concepts-architecture": [
+      "midnight-core-concepts-architecture"
+    ],
+    "Use nano-pdf": [
+      "nano-pdf"
+    ],
+    "Use meshjs-cardano": [
+      "meshjs-cardano"
+    ],
+    "Use midnight-compact-core-compact-review": [
+      "midnight-compact-core-compact-review"
+    ],
+    "Use midnight-agent-cq-runner": [
+      "midnight-agent-cq-runner"
+    ],
+    "Use midnight-compact-core-compact-init-project": [
+      "midnight-compact-core-compact-init-project"
+    ],
+    "Use teams-meeting-pipeline": [
+      "teams-meeting-pipeline"
+    ],
+    "Use midnight-plugin-utils-find-claude-plugin-root": [
+      "midnight-plugin-utils-find-claude-plugin-root"
+    ],
+    "Use midnight-core-concepts-data-models": [
+      "midnight-core-concepts-data-models"
+    ],
+    "Use cardano-cli-operator": [
+      "cardano-cli-operator"
+    ],
+    "Use midnight-node-node-rpc-api": [
+      "midnight-node-node-rpc-api"
+    ],
+    "Use hermes-s6-container-supervision": [
+      "hermes-s6-container-supervision"
+    ],
+    "Use hermes-agent-skill-authoring": [
+      "hermes-agent-skill-authoring"
+    ],
+    "Use excalidraw": [
+      "excalidraw"
+    ],
+    "Use petdex": [
+      "petdex"
+    ],
+    "Use midnight-indexer-indexer-graphql-api": [
+      "midnight-indexer-indexer-graphql-api"
+    ],
+    "Use apple-reminders": [
+      "apple-reminders"
+    ],
+    "Use apple-notes": [
+      "apple-notes"
+    ],
+    "Use midnight-compact-core-compact-debugging": [
+      "midnight-compact-core-compact-debugging"
+    ],
+    "Use ollama-cloud-integration": [
+      "ollama-cloud-integration"
+    ],
+    "Use midnight-agent-security-reviewer": [
+      "midnight-agent-security-reviewer"
+    ],
+    "Use midnight-compact-core-compact-circuit-costs": [
+      "midnight-compact-core-compact-circuit-costs"
+    ],
+    "Use aiken-dex-security-audit": [
+      "aiken-dex-security-audit"
+    ],
+    "Use midnight-city-direct-control": [
+      "midnight-city-direct-control"
+    ],
+    "create a bundle": [
+      "stargate-bundle-creator"
+    ],
+    "package skills": [
+      "stargate-bundle-creator"
+    ],
+    "bundle for": [
+      "stargate-bundle-creator"
+    ],
+    "create skill package": [
+      "stargate-bundle-creator"
+    ],
+    "stargate bundle": [
+      "stargate-bundle-creator"
+    ],
+    "hypercycle": [
+      "hypercycle-node-factory-architect"
+    ],
+    "node-factory": [
+      "hypercycle-node-factory-architect"
+    ],
+    "ai-agency": [
+      "hypercycle-node-factory-architect"
+    ],
+    "architecture": [
+      "hypercycle-node-factory-architect"
+    ],
+    "stargate": [
+      "hypercycle-node-factory-architect"
+    ],
+    "master": [
+      "hypercycle-node-factory-architect"
+    ],
+    "orchestration": [
+      "hypercycle-node-factory-architect"
+    ],
+    "design node factory": [
+      "hypercycle-node-factory-architect"
+    ],
+    "architect ai agency": [
+      "hypercycle-node-factory-architect"
+    ],
+    "hypercycle agency": [
+      "hypercycle-node-factory-architect"
+    ],
+    "node factory setup": [
+      "hypercycle-node-factory-architect"
+    ],
+    "build ai agency": [
+      "hypercycle-node-factory-architect"
+    ],
+    "master architect": [
+      "hypercycle-node-factory-architect"
+    ],
+    "hypercycle operations": [
+      "hypercycle-node-factory-architect"
+    ],
+    "analyze marketplace": [
+      "stargate-marketplace-analyzer"
+    ],
+    "skills leaderboard": [
+      "stargate-marketplace-analyzer"
+    ],
+    "marketplace analysis": [
+      "stargate-marketplace-analyzer"
+    ],
+    "capability gap": [
+      "stargate-marketplace-analyzer"
+    ],
+    "what skills do we need": [
+      "stargate-marketplace-analyzer"
+    ],
+    "aimify this model": [
+      "hypercycle-aim-master"
+    ],
+    "create aim module": [
+      "hypercycle-aim-master"
+    ],
+    "how to use aim-py-gen": [
+      "hypercycle-aim-master"
+    ],
+    "fill out manifest": [
+      "hypercycle-aim-master"
+    ],
+    "deploy to hypercycle": [
+      "hypercycle-aim-master"
+    ],
+    "aim module config": [
+      "hypercycle-aim-master"
+    ],
+    "hypercycle aim": [
+      "hypercycle-aim-master"
+    ],
+    "aim-py-gen tutorial": [
+      "hypercycle-aim-master"
+    ],
+    "integrate ide": [
+      "ide-agent-forge-integrator"
+    ],
+    "agent forge": [
+      "ide-agent-forge-integrator"
+    ],
+    "mosaic ide": [
+      "ide-agent-forge-integrator"
+    ],
+    "ai agency development": [
+      "ide-agent-forge-integrator"
+    ],
+    "ide integration": [
+      "ide-agent-forge-integrator"
+    ],
+    "agent forge setup": [
+      "ide-agent-forge-integrator"
+    ]
+  }
+}

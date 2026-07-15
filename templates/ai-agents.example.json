@@ -1,0 +1,45 @@
+{
+  "$schema": "./ai-agents.schema.json",
+  "_comment": "Mosaic Companion AI Agent Configuration. Edit this file to control which agent the Mosaic Bot uses and what Vault boxes it can access.",
+  "agents": [
+    {
+      "id": "mosaic-main",
+      "name": "Mosaic Orchestrator",
+      "description": "Autonomous heartbeat agent that monitors the entire Mosaic ecosystem and alerts on important events.",
+      "provider": "ollama",
+      "apiKey": "",
+      "baseUrl": "http://localhost:11434",
+      "model": "llama3.1",
+      "maxTokens": 4096,
+      "temperature": 0.3,
+      "isActive": true,
+      "boxAccess": [
+        "skills",
+        "taste-skills",
+        "training-logs",
+        "midnight-quest"
+      ],
+      "skills": [
+        "mosaic-orchestrator"
+      ]
+    },
+    {
+      "id": "code-reviewer",
+      "name": "Code Review Assistant",
+      "description": "Specialized agent for reviewing pull requests and code quality.",
+      "provider": "claude",
+      "apiKey": "YOUR_CLAUDE_API_KEY_HERE",
+      "model": "claude-sonnet-4-20250514",
+      "maxTokens": 8192,
+      "temperature": 0.2,
+      "isActive": false,
+      "boxAccess": [
+        "skills"
+      ],
+      "skills": [
+        "github-code-review",
+        "security-audit"
+      ]
+    }
+  ]
+}

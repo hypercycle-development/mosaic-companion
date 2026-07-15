@@ -1,0 +1,26 @@
+{
+  "name": "spo-axi",
+  "version": "0.9.0",
+  "description": "Agent-native CLI for Stargate Pool Orchestrator. Token-efficient TOON output.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "spo-axi": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["axi", "agent-cli", "stargate", "hypercycle", "orchestrator"],
+  "author": "Mosaic Bot AXI Forge"
+}

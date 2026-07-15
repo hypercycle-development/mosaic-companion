@@ -1,0 +1,21 @@
+{
+  "version": "1.0.0",
+  "agents": {
+    "mosaic-bot": {
+      "granted_at": "2026-07-03T10:00:00Z",
+      "scope": "all",
+      "permissions": [
+        "read",
+        "execute"
+      ],
+      "token": "stg_vault_mosaic_bot_abc123",
+      "expires": "2026-07-04T10:00:00Z"
+    }
+  },
+  "blacklist": [
+    "godmode",
+    "superuser",
+    "admin-shell"
+  ],
+  "audit": []
+}

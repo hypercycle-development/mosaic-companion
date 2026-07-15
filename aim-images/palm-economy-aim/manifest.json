@@ -1,0 +1,17 @@
+{
+    "name": "palm-economy-aim",
+    "version": "1.0.0",
+    "description": "Palm Economy Lead Generator — AI-powered prospecting, campaign creation, and email dispatch",
+    "license": "MIT",
+    "endpoints": [
+        {"uri": "/", "methods": ["GET"], "documentation": "Service info"},
+        {"uri": "/health", "methods": ["GET"], "documentation": "Health status"},
+        {"uri": "/discover", "methods": ["POST"], "documentation": "Discover prospects"},
+        {"uri": "/enrich", "methods": ["POST"], "documentation": "Enrich prospect data"},
+        {"uri": "/create", "methods": ["POST"], "documentation": "Create campaign assets"},
+        {"uri": "/dispatch", "methods": ["POST"], "documentation": "Dispatch emails"},
+        {"uri": "/track", "methods": ["POST"], "documentation": "Track campaign results"},
+        {"uri": "/pipeline", "methods": ["POST"], "documentation": "Run full lead gen pipeline"},
+        {"uri": "/capabilities", "methods": ["GET"], "documentation": "Capability list"}
+    ]
+}

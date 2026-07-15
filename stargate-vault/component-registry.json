@@ -1,0 +1,173 @@
+{
+  "name": "stargate-vault",
+  "type": "skill-registry",
+  "version": "1.0.0",
+  "description": "Central skill repository for Mosaic Companion ecosystem with 283 skills, access control, and trigger matching",
+  "maintainer": "Stargate Registry Team",
+  
+  "capabilities": [
+    "skill-discovery",
+    "access-control",
+    "trigger-matching",
+    "full-text-search",
+    "category-browse",
+    "agent-grants",
+    "audit-logging"
+  ],
+  
+  "stats": {
+    "total_skills": 283,
+    "categories": 24,
+    "trigger_phrases": 316,
+    "ai_agency_skills": 5
+  },
+  
+  "storage": {
+    "index_path": "~/mosaic-companion/stargate-vault/vault-index.json",
+    "access_control": "~/mosaic-companion/stargate-vault/access-control.json",
+    "audit_log": "~/mosaic-companion/stargate-vault/audit-log.json"
+  },
+  
+  "api": {
+    "base_url": "/stargate/vault",
+    "version": "v1",
+    
+    "endpoints": [
+      {
+        "path": "/browse",
+        "method": "GET",
+        "description": "Browse skills by category",
+        "parameters": ["category", "limit", "offset"],
+        "auth_required": true
+      },
+      {
+        "path": "/match",
+        "method": "POST",
+        "description": "Match trigger phrases to skills",
+        "parameters": ["query", "context", "max_results"],
+        "auth_required": true
+      },
+      {
+        "path": "/search",
+        "method": "GET",
+        "description": "Full-text search across skill content",
+        "parameters": ["q", "limit", "category"],
+        "auth_required": true
+      },
+      {
+        "path": "/grant",
+        "method": "POST",
+        "description": "Grant agent access to skills",
+        "parameters": ["agent", "scope", "permissions", "duration"],
+        "auth_required": true,
+        "admin_only": false
+      },
+      {
+        "path": "/revoke",
+        "method": "POST",
+        "description": "Revoke agent access",
+        "parameters": ["token", "reason"],
+        "auth_required": true
+      },
+      {
+        "path": "/check",
+        "method": "GET",
+        "description": "Check agent access status",
+        "parameters": ["agent", "skill"],
+        "auth_required": true
+      },
+      {
+        "path": "/load",
+        "method": "GET",
+        "description": "Load full skill content",
+        "parameters": ["name", "format"],
+        "auth_required": true
+      }
+    ]
+  },
+  
+  "categories": [
+    {"name": "ai-agency", "count": 5, "priority": "high"},
+    {"name": "midnight", "count": 107, "priority": "high"},
+    {"name": "blockchain", "count": 21, "priority": "high"},
+    {"name": "software-development", "count": 36, "priority": "medium"},
+    {"name": "devops", "count": 14, "priority": "medium"},
+    {"name": "mosaic-stargate", "count": 13, "priority": "high"},
+    {"name": "hypercycle", "count": 2, "priority": "high"},
+    {"name": "mcp", "count": 8, "priority": "medium"},
+    {"name": "github", "count": 6, "priority": "low"},
+    {"name": "creative", "count": 21, "priority": "low"},
+    {"name": "mlops", "count": 11, "priority": "medium"},
+    {"name": "debugging", "count": 8, "priority": "medium"},
+    {"name": "data-science", "count": 5, "priority": "low"},
+    {"name": "autonomous-ai-agents", "count": 9, "priority": "high"}
+  ],
+  
+  "ai_agency_skills": [
+    {
+      "name": "hypercycle-node-factory-architect",
+      "description": "Master orchestrator for AI Agency design",
+      "version": "1.0.0",
+      "triggers": ["design node factory", "architect ai agency", "build ai agency"]
+    },
+    {
+      "name": "stargate-bundle-creator",
+      "description": "Package skills into deployable bundles",
+      "version": "1.0.0",
+      "triggers": ["create a bundle", "package skills", "bundle for"]
+    },
+    {
+      "name": "stargate-marketplace-analyzer",
+      "description": "Analyze marketplace and identify capability gaps",
+      "version": "1.0.0",
+      "triggers": ["analyze marketplace", "skills leaderboard", "capability gap"]
+    },
+    {
+      "name": "ide-agent-forge-integrator",
+      "description": "Integrate Mosaic IDE with Agent Forge",
+      "version": "1.0.0",
+      "triggers": ["integrate ide", "agent forge", "mosaic ide"]
+    },
+    {
+      "name": "hypercycle-aim-master",
+      "description": "Complete aim-py-gen mastery for HyperCycle AIM modules",
+      "version": "1.0.0",
+      "triggers": ["aimify this model", "create aim module", "how to use aim-py-gen"]
+    }
+  ],
+  
+  "security": {
+    "blacklist": ["godmode", "superuser", "admin-shell"],
+    "max_token_duration": "24h",
+    "audit_retention_days": 90,
+    "rate_limits": {
+      "browse": 1000,
+      "match": 500,
+      "search": 200,
+      "grant": 50
+    }
+  },
+  
+  "integration": {
+    "stargate_pool": "anfe-pool-1",
+    "leaderboard_category": "AI Agency",
+    "required_mcp_servers": ["codebase-memory"],
+    "discovery_endpoint": "/.well-known/stargate-vault"
+  },
+  
+  "deployment": {
+    "container_image": "stargate/vault:1.0.0",
+    "port": 9100,
+    "replicas": 2,
+    "health_check": "/health",
+    "metrics_endpoint": "/metrics"
+  },
+  
+  "documentation": {
+    "readme": "~/mosaic-companion/stargate-vault/README.md",
+    "access_guide": "~/mosaic-companion/stargate-vault/ACCESS-GUIDE.md",
+    "trigger_phrases": "~/mosaic-companion/stargate-vault/TRIGGER-PHRASES.md",
+    "categories": "~/mosaic-companion/stargate-vault/CATEGORIES.md",
+    "api_reference": "~/mosaic-companion/stargate-vault/API-REFERENCE.md"
+  }
+}

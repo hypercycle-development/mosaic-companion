@@ -1,0 +1,27 @@
+{
+  "name": "hbox-axi",
+  "version": "1.0.0",
+  "description": "Agent-native CLI for HyperAIBox fleet management. Token-efficient TOON output.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "hbox-axi": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "test": "node --test dist/**/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["axi", "agent-cli", "hyperaibox", "stargate", "hypercycle"],
+  "author": "Mosaic Bot AXI Forge"
+}

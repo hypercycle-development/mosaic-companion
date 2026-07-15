@@ -1,0 +1,208 @@
+{
+  "timestamp": "2026-07-02T21:03:36.309397",
+  "converted": 78,
+  "failed": 10,
+  "total_now": 277,
+  "skills": [
+    {
+      "name": "jupyter-live-kernel",
+      "category": "data-science"
+    },
+    {
+      "name": "pokemon-player",
+      "category": "gaming"
+    },
+    {
+      "name": "minecraft-modpack-server",
+      "category": "gaming"
+    },
+    {
+      "name": "huggingface-hub",
+      "category": "mlops"
+    },
+    {
+      "name": "spike",
+      "category": "software-development"
+    },
+    {
+      "name": "simplify-code",
+      "category": "software-development"
+    },
+    {
+      "name": "node-inspect-debugger",
+      "category": "software-development"
+    },
+    {
+      "name": "external-skill-repo-integration",
+      "category": "software-development"
+    },
+    {
+      "name": "writing-plans",
+      "category": "software-development"
+    },
+    {
+      "name": "test-driven-development",
+      "category": "software-development"
+    },
+    {
+      "name": "subagent-driven-development",
+      "category": "software-development"
+    },
+    {
+      "name": "debugging-hermes-tui-commands",
+      "category": "software-development"
+    },
+    {
+      "name": "requesting-code-review",
+      "category": "software-development"
+    },
+    {
+      "name": "plan",
+      "category": "software-development"
+    },
+    {
+      "name": "python-debugpy",
+      "category": "software-development"
+    },
+    {
+      "name": "eight-phase-debugging",
+      "category": "software-development"
+    },
+    {
+      "name": "hermes-agent-skill-authoring",
+      "category": "software-development"
+    },
+    {
+      "name": "xurl",
+      "category": "social-media"
+    },
+    {
+      "name": "design-md",
+      "category": "creative"
+    },
+    {
+      "name": "popular-web-designs",
+      "category": "creative"
+    },
+    {
+      "name": "pretext",
+      "category": "creative"
+    },
+    {
+      "name": "creative-ideation",
+      "category": "creative"
+    },
+    {
+      "name": "comfyui",
+      "category": "creative"
+    },
+    {
+      "name": "p5js",
+      "category": "creative"
+    },
+    {
+      "name": "sketch",
+      "category": "creative"
+    },
+    {
+      "name": "architecture-diagram",
+      "category": "creative"
+    },
+    {
+      "name": "songwriting-and-ai-music",
+      "category": "creative"
+    },
+    {
+      "name": "baoyu-infographic",
+      "category": "creative"
+    },
+    {
+      "name": "baoyu-comic",
+      "category": "creative"
+    },
+    {
+      "name": "pixel-art",
+      "category": "creative"
+    },
+    {
+      "name": "manim-video",
+      "category": "creative"
+    },
+    {
+      "name": "humanizer",
+      "category": "creative"
+    },
+    {
+      "name": "baoyu-article-illustrator",
+      "category": "creative"
+    },
+    {
+      "name": "claude-design",
+      "category": "creative"
+    },
+    {
+      "name": "ascii-video",
+      "category": "creative"
+    },
+    {
+      "name": "touchdesigner-mcp",
+      "category": "creative"
+    },
+    {
+      "name": "excalidraw",
+      "category": "creative"
+    },
+    {
+      "name": "macos-computer-use",
+      "category": "apple"
+    },
+    {
+      "name": "findmy",
+      "category": "apple"
+    },
+    {
+      "name": "imessage",
+      "category": "apple"
+    },
+    {
+      "name": "apple-reminders",
+      "category": "apple"
+    },
+    {
+      "name": "apple-notes",
+      "category": "apple"
+    },
+    {
+      "name": "native-mcp",
+      "category": "mcp"
+    },
+    {
+      "name": "webhook-subscriptions",
+      "category": "devops"
+    },
+    {
+      "name": "linux-system-cleanup",
+      "category": "devops"
+    },
+    {
+      "name": "hermes-mcp-integration",
+      "category": "devops"
+    },
+    {
+      "name": "gbrain-project-tracking",
+      "category": "note-taking"
+    },
+    {
+      "name": "obsidian",
+      "category": "note-taking"
+    },
+    {
+      "name": "opencode",
+      "category": "autonomous-ai-agents"
+    },
+    {
+      "name": "llm-wiki",
+      "category": "research"
+    }
+  ]
+}

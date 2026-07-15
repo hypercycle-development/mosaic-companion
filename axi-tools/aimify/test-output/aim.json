@@ -1,0 +1,35 @@
+{
+  "name": "hbox-axi",
+  "version": "1.0.0",
+  "entrypoint": "./dist/index.js",
+  "protocol": "axi-v1",
+  "endpoints": [
+    {
+      "path": "/api/v1/status",
+      "method": "POST",
+      "description": "status operation"
+    },
+    {
+      "path": "/api/v1/logs",
+      "method": "POST",
+      "description": "logs operation"
+    },
+    {
+      "path": "/api/v1/restart",
+      "method": "POST",
+      "description": "restart operation"
+    }
+  ],
+  "resources": {
+    "cpu": "100m",
+    "memory": "128Mi"
+  },
+  "telemetry": {
+    "heartbeat_interval": 30,
+    "metrics": [
+      "requests",
+      "errors",
+      "latency"
+    ]
+  }
+}
