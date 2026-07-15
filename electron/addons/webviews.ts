@@ -12,6 +12,7 @@
 import path from "path";
 import type { BrowserWindow, WebContents } from "electron";
 import { isAddonActivated } from "./loader";
+import { registerAddonProtocolForSession } from "./protocol";
 
 const ADDON_PROTOCOL_PREFIX = "mosaic-addon://";
 
@@ -103,6 +104,12 @@ export function installWebviewAttachGuards(win: BrowserWindow): void {
   win.webContents.on("did-attach-webview", (_event, wc) => {
     const id = pendingAttach.shift();
     if (!id) return;
+    // The addon webview's `persist:addon:<id>` partition is its own Session
+    // object — protocol.handle() on the module-level `protocol` import only
+    // ever reaches session.defaultSession, so without this the guest can
+    // never actually load `mosaic-addon://` content (§4.1's protocol is
+    // otherwise a no-op from inside the webview).
+    registerAddonProtocolForSession(wc.session);
     registerAddonWebContents(wc, id);
     wc.on("will-navigate", (navEvent, url) => {
       if (!url.startsWith(`${ADDON_PROTOCOL_PREFIX}${id}/`)) navEvent.preventDefault();
