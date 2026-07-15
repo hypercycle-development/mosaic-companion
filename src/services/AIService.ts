@@ -679,11 +679,11 @@ export class AIService {
     if (config.boxAccess && config.boxAccess.length > 0) {
       try {
         const vaultApi = (window as any).electronAPI?.vault;
-        if (vaultApi?.getBox) {
+        if (vaultApi?.getBoxContent) {
           const vaultParts: string[] = [];
           for (const boxId of config.boxAccess) {
             try {
-              const box = await vaultApi.getBox(boxId);
+              const box = await vaultApi.getBoxContent(boxId);
               if (box?.entries?.length > 0) {
                 const entryTexts = box.entries
                   .map((e: any) => `- [${e.label || "untitled"}]: ${(e.content || "").slice(0, 300)}${(e.content || "").length > 300 ? "..." : ""}`)
