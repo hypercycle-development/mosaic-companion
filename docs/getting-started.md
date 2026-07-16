@@ -93,6 +93,9 @@ In the wizard's agent screen (or **Configuration → AI Agents → Add Agent**):
 Then: switch **Active** ON (green) → **Test Connection** → look for
 *"Connection established successfully!"* → **Save** (or **Continue**).
 
+Your key is stored on this device only, encrypted with your computer's
+built-in keychain.
+
 **Test failed?**
 
 - *"Quota exceeded"* — free keys have small daily limits and occasionally
