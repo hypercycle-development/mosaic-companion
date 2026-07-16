@@ -19,6 +19,7 @@ const QUOTA_PATTERNS = [
 
 const AUTH_PATTERNS = [
   "invalid api key",
+  "incorrect api key",
   "invalid x-api-key",
   "authentication",
   "unauthorized",

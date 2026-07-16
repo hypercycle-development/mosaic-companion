@@ -300,12 +300,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
   const activeSession = sessions.find((s) => s.id === activeSessionId);
 
-  // Ollama and Hypercycle agents work without an API key; every other
-  // provider silently fails without one — warn the user up front instead.
+  // Ollama, Hypercycle and custom endpoints (e.g. keyless local OpenAI-compatible
+  // servers) can work without an API key; the cloud providers fail without one —
+  // warn the user up front instead.
   const agentMissingKey =
     !!selectedAgent &&
     selectedAgent.provider !== "ollama" &&
     selectedAgent.provider !== "hypercycle" &&
+    selectedAgent.provider !== "custom" &&
     !selectedAgent.apiKey?.trim();
 
   // Load agents on mount
@@ -602,7 +604,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       };
       const errorSession = {
         ...currentSession,
-        messages: [...currentMessages, errorMsg],
+        messages: [...stripSystemContext(currentMessages), errorMsg],
         updatedAt: Date.now(),
       };
       setSessions((prev) =>
