@@ -1,44 +1,54 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Mosaic Companion
 
-# Run and deploy your AI Studio app
+Mosaic Companion is an open-source AI companion browser by [HyperCycle](https://www.hypercycle.ai/). It lets you chat with AI agents from multiple providers — Claude, OpenAI, Gemini, Ollama, and HyperCycle — inside a familiar browser-style, tabbed desktop app.
 
-This contains everything you need to run your app locally.
+Beyond chat, Mosaic includes an encrypted Vault for secrets, support for MCP tool servers, a sandboxed WASM tool runtime, Web3 wallet features, and a built-in IDE.
 
-View your app in AI Studio: <https://ai.studio/apps/drive/1G6opS0oqO9Ygn97nFvJGFQJakcx1piny>
+## Download & Install
 
-## Run Locally
+The easiest way to get Mosaic Companion is the new download home:
 
-**Prerequisites:** Node.js v20+
+- **<https://releases.hyperpg.site/mosaic/>** — pick the installer for your platform
+- Alternatively, grab installers from the [GitHub releases page](https://github.com/hypercycle-development/mosaic-companion/releases)
 
-### Quick Start
+Installers are available for:
 
-Run the setup script to install dependencies:
+- **Linux** — `.deb` and AppImage
+- **macOS** — `.dmg`
+- **Windows** — `Setup.exe`
+
+For a full non-technical walkthrough (install, first launch, connecting your first AI provider), see the [Getting Started guide](./docs/getting-started.md).
+
+## Run from Source
+
+For contributors and anyone who wants to build the app themselves.
+
+**Prerequisites:** Node.js 20+ and npm 9+
 
 ```bash
-./setup.sh
+npm install
+
+# Renderer-only dev server (Vite, hot reload)
+npm run dev
+
+# Full Electron app (via Electron Forge)
+npm start
 ```
 
-Or manually:
+Or run `./setup.sh` for an automated setup, or `./start.sh` to install dependencies (if needed) and launch the app.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+There is no API-key file to set up: AI provider keys are configured inside the app, either through the onboarding wizard on first launch or later under **Configuration → AI Agents**.
 
 ### Available Scripts
 
-- `npm run dev` - Start development server with hot reload
+- `npm run dev` - Start the Vite renderer dev server with hot reload
 - `npm run build` - Build the application for production
-- `npm run start` - Start the Electron app via Forge
+- `npm start` - Start the Electron app via Forge
 - `npm run preview` - Preview the production build
 - `npm run typecheck` - Run TypeScript type checking without building
 - `npm run clean` - Remove build artifacts
-- `npm run clean:all` - Remove build artifacts, node_modules, and lockfile
 
-#### Build Scripts (Electron Forge)
+#### Build & Package Scripts (Electron Forge)
 
 | Script | Description |
 | -------- | ------------- |
@@ -52,11 +62,10 @@ Or manually:
 | `npm run make:win` | Build Windows (native arch) |
 | `npm run make:win:x64` | Build Windows x64 |
 | `npm run make:win:arm64` | Build Windows arm64 |
-| `npm run deploy` | Build and publish to S3 (native arch) |
-| `npm run deploy:x64` | Build x64 and publish to S3 |
-| `npm run deploy:arm64` | Build arm64 and publish to S3 |
+| `npm run deploy` | Publish a release (maintainers: see [docs/release-process.md](./docs/release-process.md)) |
+| `npm run deploy:x64` | Publish x64 (maintainers: see [docs/release-process.md](./docs/release-process.md)) |
+| `npm run deploy:arm64` | Publish arm64 (maintainers: see [docs/release-process.md](./docs/release-process.md)) |
 
-### Helper Scripts
+## License
 
-- `./setup.sh` - Automated setup (installs dependencies, creates .env.local)
-- `./start.sh` - Quick start script (installs dependencies if needed, then starts the app)
+Mosaic Companion is open source — see [LICENSE](./LICENSE) and [NOTICE](./NOTICE) for details.
