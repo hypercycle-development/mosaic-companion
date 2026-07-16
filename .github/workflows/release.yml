@@ -36,7 +36,7 @@ jobs:
   # Dry run: validate credentials without building or publishing anything.
   # ---------------------------------------------------------------------------
   smoke-test:
-    if: ${{ inputs.dry_run }}
+    if: ${{ inputs.dry_run && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check GitHub release permissions
@@ -74,7 +74,10 @@ jobs:
   # build matrix never races to create it.
   # ---------------------------------------------------------------------------
   resolve-version:
-    if: ${{ !inputs.dry_run }}
+    # workflow_dispatch can be run from any branch by anyone with write access
+    # — restrict actual releasing to main, so a feature branch with a bumped
+    # version can never accidentally get published as latest.
+    if: ${{ !inputs.dry_run && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -172,21 +175,12 @@ jobs:
         run: npm run deploy -- --arch ${{ matrix.arch }} --target @electron-forge/publisher-github
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure AWS credentials (legacy S3)
-        if: ${{ inputs.also_publish_s3 }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2
-
-      - name: Publish to legacy S3 (${{ matrix.platform }}/${{ matrix.arch }})
-        if: ${{ inputs.also_publish_s3 }}
-        run: npm run deploy -- --arch ${{ matrix.arch }} --target @electron-forge/publisher-s3
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      # Legacy S3 publishing (also_publish_s3) intentionally does NOT happen
+      # here. Publishing straight to the live S3 feed per-leg, before the
+      # release is verified complete, would let pre-0.1.8 clients pick up an
+      # update whose overall release could still fail and never go live on
+      # GitHub. It happens once, in `finalize`, only after verification —
+      # see that job for why and what it uploads.
 
   # ---------------------------------------------------------------------------
   # Fan-in: verify the complete asset set, publish the release, then update the
@@ -284,6 +278,25 @@ jobs:
           aws s3 cp out_static/mosaic/index.html s3://mosaic-release/index.html --content-type "text/html"
           aws s3 cp out_static/mosaic/style.css s3://mosaic-release/style.css --content-type "text/css"
           aws s3 cp out_static/mosaic/latest.json s3://mosaic-release/releases/latest.json --content-type "application/json"
+
+      # Legacy Windows (Squirrel) migration path — pre-0.1.8 Windows installs
+      # poll this exact S3 location directly (not latest.json) for updates.
+      # This is the ONLY also_publish_s3 step that touches live update
+      # binaries, and it deliberately runs here, not in `build`: by this
+      # point the release has already passed asset verification and been
+      # published, so what gets pushed to S3 is guaranteed to be the same,
+      # complete, matched set of files real GitHub Release users get — never
+      # a partial or mismatched RELEASES/nupkg pair from a failed run.
+      - name: Migrate pre-0.1.8 Windows installs (legacy S3)
+        if: ${{ inputs.also_publish_s3 }}
+        run: |
+          mkdir -p legacy-win
+          gh release download "v$VERSION" -D legacy-win \
+            --pattern "RELEASES" --pattern "*.nupkg" --pattern "*-Setup.exe"
+          for f in legacy-win/*; do
+            name=$(basename "$f")
+            aws s3 cp "$f" "s3://mosaic-release/releases/win32/x64/${name}"
+          done
 
       - name: Summary
         run: |
