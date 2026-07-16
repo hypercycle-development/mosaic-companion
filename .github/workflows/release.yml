@@ -215,7 +215,9 @@ jobs:
             "mosaic-companion-${VERSION}-Setup.exe"
             "RELEASES"
           )
-          ASSETS=$(gh release view "v$VERSION" --json assets --jq '.assets[].name')
+          # Only count fully-uploaded assets: a build job that died mid-upload can
+          # leave a truncated asset under its final name, which a re-run would skip.
+          ASSETS=$(gh release view "v$VERSION" --json assets --jq '.assets[] | select(.state == "uploaded") | .name')
           echo "Assets on draft release:"
           echo "$ASSETS"
           MISSING=0
