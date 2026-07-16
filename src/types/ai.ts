@@ -17,6 +17,11 @@ export interface AIAgentConfig {
   name: string;
   provider: AIProvider;
   apiKey: string;
+  /**
+   * Transient, set by the main process when the stored (encrypted) API key
+   * can't be decrypted on this machine. Never persisted.
+   */
+  apiKeyUnavailable?: boolean;
   baseUrl?: string; // Custom/Ollama endpoint, or Hypercycle node base (see hypercycleBackend)
   model: string;
   maxTokens?: number;

@@ -713,6 +713,12 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                             )}
                           </button>
                         </div>
+                        {agent.apiKeyUnavailable && !agent.apiKey?.trim() && (
+                          <span className="text-xs text-amber-500 mt-1 block">
+                            Stored key can't be decrypted on this machine —
+                            re-enter it.
+                          </span>
+                        )}
                       </label>
                     )}
 
