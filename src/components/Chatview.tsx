@@ -27,6 +27,7 @@ import {
   PROVIDER_INFO,
 } from "../types/ai";
 import { AIService } from "../services/AIService";
+import { explainAIError } from "../services/aiErrorHelp";
 import {
   parseAction,
   executeToolCall,
@@ -298,6 +299,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const activeAgents = agents.filter((a) => a.isActive);
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
   const activeSession = sessions.find((s) => s.id === activeSessionId);
+
+  // Ollama and Hypercycle agents work without an API key; every other
+  // provider silently fails without one — warn the user up front instead.
+  const agentMissingKey =
+    !!selectedAgent &&
+    selectedAgent.provider !== "ollama" &&
+    selectedAgent.provider !== "hypercycle" &&
+    !selectedAgent.apiKey?.trim();
 
   // Load agents on mount
   useEffect(() => {
@@ -577,6 +586,33 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
     let fullResponse = "";
 
+    // Guard against double-append: onError may fire AND handleStream may
+    // rethrow, landing us in the outer catch for the same failure.
+    let errorAppended = false;
+
+    const appendError = async (error: Error) => {
+      if (errorAppended) return;
+      errorAppended = true;
+      const errorMsg: ChatMessage = {
+        id: `msg-${Date.now()}`,
+        role: "assistant",
+        content: `⚠️ ${explainAIError(selectedAgent!.provider, error.message, selectedAgent!.baseUrl)}\n\nYou can update this agent under Configuration → AI Agents.`,
+        timestamp: Date.now(),
+        agentId: selectedAgent!.id,
+      };
+      const errorSession = {
+        ...currentSession,
+        messages: [...currentMessages, errorMsg],
+        updatedAt: Date.now(),
+      };
+      setSessions((prev) =>
+        prev.map((s) => (s.id === currentSession.id ? errorSession : s)),
+      );
+      await saveSession(errorSession);
+      setStreamingContent("");
+      setIsGenerating(false);
+    };
+
     try {
       await AIService.sendMessage(selectedAgent!, currentMessages, {
         onToken: (token) => {
@@ -745,29 +781,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
         },
         onError: async (error) => {
             console.error("Stream error:", error);
-            const errorMsg: ChatMessage = {
-                id: `msg-${Date.now()}`,
-                role: "assistant",
-                content: `⚠️ Error: ${error.message}`,
-                timestamp: Date.now(),
-                agentId: selectedAgent!.id
-            };
-            const errorSession = { ...currentSession, messages: [...currentMessages, errorMsg], updatedAt: Date.now() };
-            setSessions(prev => prev.map(s => s.id === currentSession.id ? errorSession : s));
-            await saveSession(errorSession);
-            setStreamingContent("");
-            setIsGenerating(false);
+            await appendError(error);
         }
       });
     } catch (error) {
-       // Handle sync errors in sendMessage
+       // Pre-stream errors (e.g. 401/429 thrown before streaming starts) land
+       // here — surface them in the chat instead of only console.error-ing.
        console.error("Sync error in sendMessage:", error);
-       setIsGenerating(false);
+       await appendError(error instanceof Error ? error : new Error(String(error)));
     }
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || !selectedAgent || isGenerating) return;
+    if (!input.trim() || !selectedAgent || isGenerating || agentMissingKey)
+      return;
 
     const messageContent = input.trim();
     setInput("");
@@ -948,7 +975,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           chatting.
         </p>
         <button
-          onClick={() => onNavigate?.(INTERNAL_SETTINGS_URL)}
+          onClick={() => onNavigate?.(INTERNAL_SETTINGS_URL + "#agents")}
           className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all hover:scale-[1.02] font-medium"
         >
           <Zap size={18} />
@@ -1104,21 +1131,44 @@ export const ChatView: React.FC<ChatViewProps> = ({
           <div className="max-w-4xl mx-auto py-8 px-6">
             {(!activeSession || activeSession.messages.length === 0) &&
             !streamingContent ? (
-              <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center mb-6">
-                  <Sparkles className="size-8 text-indigo-400" />
+              agentMissingKey ? (
+                <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-6">
+                    <AlertCircle className="size-8 text-amber-400" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-white mb-2">
+                    This agent isn't ready yet
+                  </h2>
+                  <p className="text-gray-500 max-w-md mb-6">
+                    {selectedAgent?.name} has no API key, so it can't respond.
+                    Add one in Configuration → AI Agents — it takes about a
+                    minute.
+                  </p>
+                  <button
+                    onClick={() => onNavigate?.(INTERNAL_SETTINGS_URL + "#agents")}
+                    className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all hover:scale-[1.02] font-medium"
+                  >
+                    <Zap size={18} />
+                    Add API key
+                  </button>
                 </div>
-                <h2 className="text-xl font-semibold text-white mb-2">
-                  Chat with {selectedAgent?.name || "AI"}
-                </h2>
-                <p className="text-gray-500 max-w-md">
-                  Start a conversation by typing a message below. Your chat will
-                  be powered by{" "}
-                  <span className="text-indigo-400 font-mono">
-                    {selectedAgent?.model}
-                  </span>
-                </p>
-              </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center mb-6">
+                    <Sparkles className="size-8 text-indigo-400" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-white mb-2">
+                    Chat with {selectedAgent?.name || "AI"}
+                  </h2>
+                  <p className="text-gray-500 max-w-md">
+                    Start a conversation by typing a message below. Your chat
+                    will be powered by{" "}
+                    <span className="text-indigo-400 font-mono">
+                      {selectedAgent?.model}
+                    </span>
+                  </p>
+                </div>
+              )
             ) : (
               <div className="space-y-6">
                 {activeSession?.messages.map((message) => {
@@ -1274,6 +1324,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
         {/* Input Area */}
         <div className="shrink-0 border-t border-gray-800 bg-gray-950/80 backdrop-blur-md p-4">
           <div className="max-w-4xl mx-auto">
+            {agentMissingKey &&
+              activeSession &&
+              activeSession.messages.length > 0 && (
+                <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-300">
+                  <AlertCircle size={14} className="shrink-0 text-amber-400" />
+                  <span className="flex-1">
+                    {selectedAgent?.name} has no API key, so it can't respond.
+                    Add one in Configuration → AI Agents — it takes about a
+                    minute.
+                  </span>
+                  <button
+                    onClick={() => onNavigate?.(INTERNAL_SETTINGS_URL + "#agents")}
+                    className="shrink-0 font-medium text-amber-200 hover:text-white underline underline-offset-2 transition-colors"
+                  >
+                    Add API key
+                  </button>
+                </div>
+              )}
             <div className="flex items-end gap-3">
               <div className="flex-1 bg-gray-900 border border-gray-800 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50 transition-all">
                 <textarea
@@ -1290,11 +1358,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
               <button
                 onClick={sendMessage}
                 data-auto-send
-                disabled={!input.trim() || isGenerating}
+                disabled={!input.trim() || isGenerating || agentMissingKey}
                 className={`
                   p-4 rounded-xl transition-all flex items-center justify-center
                   ${
-                    input.trim() && !isGenerating
+                    input.trim() && !isGenerating && !agentMissingKey
                       ? "bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-105 shadow-lg shadow-indigo-500/25"
                       : "bg-gray-800 text-gray-500 cursor-not-allowed"
                   }
