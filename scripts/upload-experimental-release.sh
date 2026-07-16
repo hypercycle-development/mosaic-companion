@@ -1,4 +1,6 @@
 #!/bin/bash
+# DEPRECATED: manual S3 uploads are the legacy release path. Use the
+# "Release" GitHub Actions workflow instead (see docs/release-process.md).
 # Upload EXPERIMENTAL release artifacts to S3
 # Each experimental release lives in its own folder: /releases/experimental/{EXPERIMENT_NAME}/
 # 

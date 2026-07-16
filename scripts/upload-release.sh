@@ -1,4 +1,6 @@
 #!/bin/bash
+# DEPRECATED: manual S3 uploads are the legacy release path. Use the
+# "Release" GitHub Actions workflow instead (see docs/release-process.md).
 # Upload release artifacts to S3 with Docker support for Windows builds
 # Usage: ./scripts/upload-release.sh [patch|minor|major] [platform] [arch]
 # Examples:
