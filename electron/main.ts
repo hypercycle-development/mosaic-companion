@@ -62,7 +62,7 @@ import {
   type NetworkConfig,
   clearTodaTwinInfoAddress,
 } from "./integrations/web3/config";
-import { getWalletKey, saveWalletKey } from "./integrations/web3/index";
+import { saveWalletKey } from "./integrations/web3/index";
 import { signHypercycleNonceWithWallet } from "./integrations/web3/hypercycleSign";
 import {
   saveTodaApiKey,
@@ -83,7 +83,14 @@ import {
   deleteEntry,
 } from "./integrations/vault";
 import type { VaultBox } from "./integrations/vault/types";
-import { mergeBuiltinAgents } from "./defaultAiAgents";
+import {
+  readAgents,
+  readAgentsStored,
+  writeAgents,
+  validateActiveHypercycleAgent,
+  validateAgentsListForActivation,
+  type AIAgent,
+} from "./agents";
 
 // =============================================================================
 // ESM Path Setup
@@ -113,11 +120,6 @@ interface Node {
   licenseKey?: string;
 }
 
-interface AIAgent {
-  id: string | number;
-  name: string;
-  [key: string]: unknown;
-}
 
 interface ChatSession {
   id: string;
@@ -552,58 +554,8 @@ ipcMain.handle("nodes:delete", async (_event: IpcMainInvokeEvent, id: string) =>
 // Sandbox State
 ipcMain.handle("sandbox:get-state", async () => sandboxState);
 
-// AI Agents Storage
-const aiAgentsPath = path.join(app.getPath("userData"), "ai-agents.json");
+// AI Agents Storage (persistence + key encryption live in ./agents)
 const themesPath = path.join(app.getPath("userData"), "themes.json");
-
-function validateActiveHypercycleAgent(agent: AIAgent): string | null {
-  if (agent.provider !== "hypercycle") return null;
-  if (agent.isActive !== true) return null;
-  const basechain = agent.hypercycleBackend === "basechain";
-  if (basechain) {
-    if (!getWalletKey()) {
-      return "Import an EVM wallet in Web3 settings (Base) before activating this Basechain Hypercycle agent.";
-    }
-  } else if (!hasTodaConfig()) {
-    return "Configure TODA Twin (hostname + API key) in Web3 settings before activating this TODA Hypercycle agent.";
-  }
-  return null;
-}
-
-function validateAgentsListForActivation(agents: AIAgent[]): string | null {
-  for (const a of agents) {
-    const err = validateActiveHypercycleAgent(a);
-    if (err) return err;
-  }
-  return null;
-}
-
-function readAgents(): AIAgent[] {
-  let raw: AIAgent[] = [];
-  try {
-    if (fs.existsSync(aiAgentsPath)) {
-      const data = fs.readFileSync(aiAgentsPath, "utf8");
-      raw = JSON.parse(data);
-    }
-  } catch (error) {
-    console.error("Failed to read AI agents:", error);
-  }
-  const { agents, changed } = mergeBuiltinAgents(raw);
-  if (changed) {
-    writeAgents(agents);
-  }
-  return agents;
-}
-
-function writeAgents(agents: AIAgent[]): boolean {
-  try {
-    fs.writeFileSync(aiAgentsPath, JSON.stringify(agents, null, 2), "utf8");
-    return true;
-  } catch (error) {
-    console.error("Failed to write AI agents:", error);
-    return false;
-  }
-}
 
 function readThemeSettings(): ThemeSettings {
   try {
@@ -631,6 +583,9 @@ ipcMain.handle("ai-agents:get", async () => {
   return readAgents();
 });
 
+// Note: writeAgents encrypts keys. A renderer-supplied full list would persist
+// "" for keys it couldn't decrypt (apiKeyUnavailable) — acceptable since no
+// renderer calls ai-agents:set today.
 ipcMain.handle("ai-agents:set", async (_event: IpcMainInvokeEvent, agents: AIAgent[]) => {
   try {
     const err = validateAgentsListForActivation(agents);
@@ -644,7 +599,8 @@ ipcMain.handle("ai-agents:set", async (_event: IpcMainInvokeEvent, agents: AIAge
 
 ipcMain.handle("ai-agents:add", async (_event: IpcMainInvokeEvent, agent: AIAgent) => {
   try {
-    const agents = readAgents();
+    // Stored (encrypted) form: keeps existing key blobs verbatim on rewrite.
+    const agents = readAgentsStored();
     agents.push(agent);
     writeAgents(agents);
     const agentPath = path.join(agentsHistoryPath, agent.id.toString());
@@ -657,7 +613,10 @@ ipcMain.handle("ai-agents:add", async (_event: IpcMainInvokeEvent, agent: AIAgen
 
 ipcMain.handle("ai-agents:update", async (_event: IpcMainInvokeEvent, id: string, updates: Partial<Omit<AIAgent, "id">>) => {
   try {
-    const agents = readAgents();
+    // Merge partial updates into the stored (encrypted) agents so blobs that
+    // can't be decrypted here survive; a new plaintext updates.apiKey gets
+    // encrypted by writeAgents.
+    const agents = readAgentsStored();
     const index = agents.findIndex((a) => a.id === id);
     if (index === -1) {
       return { success: false, error: "Agent not found" };
@@ -675,7 +634,7 @@ ipcMain.handle("ai-agents:update", async (_event: IpcMainInvokeEvent, id: string
 
 ipcMain.handle("ai-agents:delete", async (_event: IpcMainInvokeEvent, id: string) => {
   try {
-    const agents = readAgents();
+    const agents = readAgentsStored();
     const filtered = agents.filter((a) => a.id !== id);
     writeAgents(filtered);
     return { success: true };
