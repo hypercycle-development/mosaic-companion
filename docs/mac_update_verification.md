@@ -1,5 +1,7 @@
 # macOS Auto-Update Verification Guide
 
+> **DEPRECATED / LEGACY:** this describes the retired S3 release channel. Main releases now ship via GitHub Releases + GitHub Pages — see [release-process.md](./release-process.md).
+
 This guide outlines the steps to verify the native auto-update functionality on macOS. We have migrated from `electron-updater` to Electron's native `autoUpdater` to align with our Windows strategy.
 
 ## Prerequisites
