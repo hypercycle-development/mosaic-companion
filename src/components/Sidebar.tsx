@@ -219,39 +219,111 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Navigation Items
   const navItems: SidebarItem[] = [
-    { id: "home", label: "Home", icon: "Home", url: INTERNAL_HOME_URL },
-    { id: "chat", label: "AI Chat", icon: "Bot", url: INTERNAL_CHAT_URL },
+    {
+      id: "home",
+      label: "Home",
+      icon: "Home",
+      url: INTERNAL_HOME_URL,
+      description: "Your start page with quick access to everything",
+    },
+    {
+      id: "chat",
+      label: "AI Chat",
+      icon: "Bot",
+      url: INTERNAL_CHAT_URL,
+      description: "Chat one-on-one with your AI agents",
+    },
     {
       id: "mosaicbot",
       label: "Mosaic Bot",
       icon: "BrainCircuit",
       url: INTERNAL_MOSAICBOT_URL,
+      description: "Built-in background assistant with memory and skills",
     },
-    { id: "mcp", label: "MCP Servers", icon: "Plug", url: INTERNAL_MCP_URL },
+    {
+      id: "mcp",
+      label: "MCP Servers",
+      icon: "Plug",
+      url: INTERNAL_MCP_URL,
+      description:
+        "Connect external tool servers (Model Context Protocol) for your agents",
+    },
     {
       id: "multi-chat",
       label: "Chat Rooms",
       icon: "MessageSquare",
       url: INTERNAL_MULTI_CHAT_URL,
+      description: "Multi-user rooms — invite agents with @mentions",
     },
-    { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL },
-    { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL },
-    { id: "hyperinsight", label: "HyperInsight", icon: "Activity", url: INTERNAL_HYPERINSIGHT_URL },
-    { id: "ide", label: "IDE", icon: "Code2", url: INTERNAL_IDE_URL },
-    { id: "sandbox", label: "Tool Sandbox", icon: "Cpu", url: INTERNAL_SANDBOX_URL },
+    {
+      id: "web3",
+      label: "Web3",
+      icon: "Eth",
+      url: INTERNAL_WEB3_URL,
+      description: "Built-in Web3 wallet for on-chain interactions",
+    },
+    {
+      id: "vault",
+      label: "Vault",
+      icon: "Lock",
+      url: INTERNAL_VAULT_URL,
+      description:
+        "Encrypted boxes for secrets — you choose which agents can read them",
+    },
+    {
+      id: "hyperinsight",
+      label: "HyperInsight",
+      icon: "Activity",
+      url: INTERNAL_HYPERINSIGHT_URL,
+      description: "Monitor Hypercycle nodes and network activity",
+    },
+    {
+      id: "ide",
+      label: "IDE",
+      icon: "Code2",
+      url: INTERNAL_IDE_URL,
+      description: "Built-in code editor with an integrated terminal",
+    },
+    {
+      id: "sandbox",
+      label: "Tool Sandbox",
+      icon: "Cpu",
+      url: INTERNAL_SANDBOX_URL,
+      description: "Install and run sandboxed WASM tools",
+    },
     {
       id: "settings",
       label: "Configuration",
       icon: "Settings",
       url: INTERNAL_SETTINGS_URL,
+      description: "App settings — AI agents, nodes, appearance, and more",
     },
   ];
 
   // --- UI State for New Sections ---
   const [aiContexts, setAiContexts] = useState([
-    { id: "rag", label: "Local Neural Index", icon: Database, active: true },
-    { id: "files", label: "File System Bridge", icon: FileText, active: false },
-    { id: "screen", label: "Visual Cortex", icon: Monitor, active: false },
+    {
+      id: "rag",
+      label: "Local Neural Index",
+      icon: Database,
+      active: true,
+      description:
+        "Local Neural Index — local document memory for agents (preview)",
+    },
+    {
+      id: "files",
+      label: "File System Bridge",
+      icon: FileText,
+      active: false,
+      description: "File System Bridge — let agents read local files (preview)",
+    },
+    {
+      id: "screen",
+      label: "Visual Cortex",
+      icon: Monitor,
+      active: false,
+      description: "Visual Cortex — let agents see your screen (preview)",
+    },
   ]);
 
   const toggleContext = (id: string) => {
@@ -354,6 +426,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.url)}
+                title={item.description ?? item.label}
                 className={`
                   w-full flex items-center px-3 py-3 rounded-lg transition-all relative group
                   ${
@@ -479,7 +552,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* 3. AI Context / Neural Bridges */}
         <div className="space-y-2 px-3">
           <div className="px-3 mb-2 flex items-center justify-between text-[10px] font-bold text-gray-600 uppercase tracking-widest">
-            <span>Neural Bridges</span>
+            <span>
+              Neural Bridges{" "}
+              <span className="normal-case font-medium text-gray-700">
+                (preview)
+              </span>
+            </span>
             <Cpu size={12} />
           </div>
 
@@ -488,6 +566,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={ctx.id}
               className="w-full flex items-center px-3 py-2.5 rounded-lg relative group cursor-pointer hover-surface-accent transition-colors"
               onClick={() => toggleContext(ctx.id)}
+              title={ctx.description}
             >
               <ctx.icon
                 className={`size-4 transition-colors mr-3 ${
@@ -581,7 +660,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   >
                     {/* Header row: status dot + name + toggle */}
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
+                      <div
+                        className="flex items-center gap-2"
+                        title={
+                          node.isActive && !isLive
+                            ? "This Hypercycle node is configured but not reachable right now — it doesn't affect regular AI agents"
+                            : undefined
+                        }
+                      >
                         <div
                           className="w-2 h-2 rounded-full"
                           style={{

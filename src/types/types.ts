@@ -11,6 +11,8 @@ export interface SidebarItem {
   label: string;
   icon: string;
   url: string;
+  /** One-line tooltip explaining what this page is for (shown on hover). */
+  description?: string;
 }
 
 export enum BrowserTheme {
