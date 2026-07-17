@@ -19,6 +19,7 @@
   <body>
     <div class="bg-glow" aria-hidden="true"></div>
 
+    <div id="view-download">
     <header class="hero">
       <div class="container">
         <a
@@ -562,7 +563,9 @@
       <div class="container">
         <p>
           New to Mosaic? Read the
-          <a href="./getting-started.html">getting-started guide</a>.
+          <a href="#getting-started" data-view-link="getting-started"
+            >getting-started guide</a
+          >.
         </p>
         <p class="footer-meta">
           © 2026 Mosaic Directory ·
@@ -572,6 +575,293 @@
         </p>
       </div>
     </footer>
+    </div>
+    <!-- /#view-download -->
+
+    <div id="view-getting-started" hidden>
+      <header class="gs-header">
+        <div class="container">
+          <div class="badge">
+            <span aria-hidden="true">✦</span> Getting Started Guide
+          </div>
+          <h1 class="headline" style="font-size: clamp(2rem, 5vw, 3rem)">
+            Get Started with Mos<span class="gradient-text">AI</span>c
+          </h1>
+          <p class="subtitle" style="font-size: 1.05rem">
+            Install Mosaic, connect a free AI model, and find your way
+            around — no technical background needed. About 15 minutes,
+            start to finish.
+          </p>
+        </div>
+      </header>
+
+      <main class="container gs-main">
+        <!-- PHASE 1 -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">⬇</div>
+            <h2>Phase 1 — Install Mosaic</h2>
+          </div>
+          <div class="glass">
+            <p>
+              Grab the installer for your system from the
+              <a href="#" data-view-link="download">download page</a> — it
+              has step-by-step instructions for Windows, macOS, and Linux,
+              including how to get past the "unsigned app" warnings you'll
+              see on first launch (normal for open-source software that
+              isn't code-signed yet).
+            </p>
+            <a class="btn" href="#" data-view-link="download"
+              >Go to the download page →</a
+            >
+          </div>
+        </section>
+
+        <!-- PHASE 2 -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">✨</div>
+            <h2>Phase 2 — The Setup Wizard</h2>
+          </div>
+          <div class="cards c2">
+            <div class="glass">
+              <span class="stepnum">What you'll see</span>
+              <h3>A short welcome tour</h3>
+              <p>The first time Mosaic opens, a wizard walks you through:</p>
+              <ol>
+                <li><span class="hl">Welcome</span> — click <span class="hl">Get Started</span></li>
+                <li><span class="hl">Features</span> — a quick overview of what Mosaic can do</li>
+                <li>
+                  <span class="hl">Add your first AI agent</span> — this is
+                  where your AI model gets connected. Keep this screen open
+                  and get your free key in Phase 3 →
+                </li>
+              </ol>
+            </div>
+            <div class="glass">
+              <span class="stepnum">Good to know</span>
+              <h3>You can't get this wrong</h3>
+              <ul>
+                <li>
+                  Clicked <span class="hl">Skip for now</span>? No problem —
+                  you can add an agent anytime under
+                  <span class="hl">Configuration → AI Agents → Add Agent</span>
+                  (same fields as the wizard).
+                </li>
+                <li>
+                  Want to see the wizard again?
+                  <span class="hl">Configuration → Replay Onboarding</span>.
+                </li>
+                <li>
+                  An "agent" is just an AI model plus your key for it. You
+                  can add several and switch between them.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- PHASE 3 -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">🔑</div>
+            <h2>Phase 3 — Get a Free Gemini API Key</h2>
+          </div>
+          <p style="color: var(--muted); margin-bottom: 24px">
+            Google's AI Studio gives you a free key for the Gemini models —
+            no credit card needed.
+          </p>
+          <div class="cards c4">
+            <div class="glass">
+              <span class="stepnum">Step 01</span>
+              <h3>Sign in</h3>
+              <p>Go to AI Studio and log in with your Google account.</p>
+              <a class="btn ghost" href="https://aistudio.google.com" target="_blank" rel="noopener">Open AI Studio ↗</a>
+            </div>
+            <div class="glass">
+              <span class="stepnum">Step 02</span>
+              <h3>Find the API menu</h3>
+              <p>
+                Look for <span class="hl">"Get API key"</span> in the
+                bottom-left sidebar, then the
+                <span class="hl">"Create API key"</span> button in the top
+                right.
+              </p>
+            </div>
+            <div class="glass">
+              <span class="stepnum">Step 03</span>
+              <h3>Create a project</h3>
+              <p>
+                In the popup, choose <span class="hl">"Create Project"</span>,
+                name it something like <span class="hl">Mosaic</span>, click
+                Create, then the final <span class="hl">"Create Key"</span>
+                button.
+              </p>
+            </div>
+            <div class="glass">
+              <span class="stepnum">Step 04</span>
+              <h3>Copy the key</h3>
+              <p>
+                Click the partial key text (e.g.
+                <code>...kJsY</code>) to reveal the full key, and copy it.
+              </p>
+              <p style="margin-top: 8px">
+                <span class="hl">Treat it like a password</span> — don't
+                share or post it.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- PHASE 4 -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">🔌</div>
+            <h2>Phase 4 — Connect Gemini to Mosaic</h2>
+          </div>
+          <div class="cards c2">
+            <div class="glass">
+              <span class="stepnum">Enter these details</span>
+              <h3>In the wizard's agent screen</h3>
+              <p>
+                (or Configuration → AI Agents →
+                <span class="hl">Add Agent</span> if you skipped the wizard)
+              </p>
+              <table>
+                <tr><td>Provider</td><td>Select <span class="hl">Custom Endpoint</span></td></tr>
+                <tr><td>Name</td><td>Anything you like — e.g. <span class="hl">Gemini</span></td></tr>
+                <tr><td>Model</td><td><span class="copy" onclick="cp(this)">gemini-3-flash-preview</span></td></tr>
+                <tr><td>Base URL</td><td><span class="copy" onclick="cp(this)">https://generativelanguage.googleapis.com/v1beta/openai</span></td></tr>
+                <tr><td>API Key</td><td>Paste the key from Phase 3</td></tr>
+              </table>
+            </div>
+            <div class="glass">
+              <span class="stepnum">Verify &amp; save</span>
+              <h3>Test the connection</h3>
+              <ol>
+                <li>Switch the <span class="hl">Active</span> toggle ON (green)</li>
+                <li>Click <span class="hl">Test Connection</span></li>
+                <li>Look for <span style="color: var(--good); font-weight: 600">"Connection established successfully!"</span></li>
+                <li>Click <span class="hl">Save</span> (or <span class="hl">Continue</span> in the wizard)</li>
+              </ol>
+              <p style="margin-top: 10px">
+                Your key is stored on this device only, encrypted with your
+                computer's built-in keychain.
+              </p>
+              <div class="note warn">
+                <div>
+                  <span class="hl">Test failed?</span><br />
+                  • <span class="hl">"Quota exceeded"</span> — free keys have
+                  small daily limits and occasionally start rate-limited.
+                  Your key is fine; wait a few minutes (or up to a day) and
+                  test again.<br />
+                  • <span class="hl">"Invalid key / unauthorized"</span> —
+                  re-paste the entire key with no extra spaces or line
+                  breaks.<br />
+                  • <span class="hl">"Model not found"</span> — Google
+                  renames models over time; check the current model list at
+                  <a style="color: var(--cyan)" href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noopener">ai.google.dev</a>
+                  and use the newest "flash" model name.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PHASE 5 -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">🧭</div>
+            <h2>Phase 5 — Say Hello &amp; Find Your Way Around</h2>
+          </div>
+          <div class="note good" style="margin-bottom: 20px">
+            <div>
+              <span class="hl">First stop: AI Chat.</span> After finishing the
+              wizard Mosaic drops you straight into
+              <span class="hl">AI Chat</span> — say hello to your new agent.
+              You can always get back to it from the left sidebar (open it
+              with the ☰ button, top-left).
+            </div>
+          </div>
+          <div class="glass">
+            <span class="stepnum">The sidebar, decoded</span>
+            <h3>What each section is for</h3>
+            <table>
+              <tr><td>AI Chat</td><td>One-on-one chat with your AI agents — <span class="hl">this is the main chat</span>, where you'll spend most of your time.</td></tr>
+              <tr><td>Mosaic Bot</td><td>A built-in background assistant with long-term memory. Different from AI Chat — think of it as Mosaic's own helper.</td></tr>
+              <tr><td>Chat Rooms</td><td>Shared rooms where several people and agents can talk together. Needs a chat server — safe to ignore at first.</td></tr>
+              <tr><td>MCP Servers</td><td>Optional plug-ins that give your agents extra tools. Ignore until you need them.</td></tr>
+              <tr><td>Web 3</td><td>Connect a crypto wallet, set transfer limits, and control what agents may spend. Only relevant if you use crypto.</td></tr>
+              <tr><td>Vault</td><td>Encrypted boxes for your own notes and secrets — you choose which agents can read each box. Try it: create a box, put something in, and ask your agent what's in your vault.</td></tr>
+              <tr><td>Addons</td><td>Optional installable tabs (Settings → Addons) that add functionality beyond the core app — analytics, marketplaces, and more, added as they become available.</td></tr>
+              <tr><td>IDE</td><td>A built-in code editor. For programmers — everyone else can skip it.</td></tr>
+              <tr><td>Tool Sandbox</td><td>Install small, safely-sandboxed tools that agents can run. Optional.</td></tr>
+              <tr><td>Configuration</td><td>Settings — including <span class="hl">AI Agents</span>, where keys and models live.</td></tr>
+            </table>
+            <div class="note" style="margin-top: 16px">
+              <div>
+                💡 <span class="hl">Mosaic works like a browser:</span> the
+                <span class="kbd">+</span> button at the top opens everything
+                in tabs, exactly like the browser you already know.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PHASE 6 -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">🔄</div>
+            <h2>Phase 6 — Staying Up to Date</h2>
+          </div>
+          <div class="cards c2">
+            <div class="glass">
+              <span class="stepnum">Automatic</span>
+              <h3>Mosaic tells you</h3>
+              <p>
+                When a new version is out, Mosaic shows an
+                <span class="hl">"Update Available"</span> message when it
+                starts, pointing you to the download page. Grab the new
+                file and install it the same way you did in Phase 1. Your
+                settings, agents, and vault stay put.
+              </p>
+            </div>
+            <div class="glass">
+              <span class="stepnum">Manual</span>
+              <h3>Check anytime</h3>
+              <p>
+                Open <span class="hl">Configuration</span> and click
+                <span class="hl">Check for Updates</span>.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- TROUBLESHOOTING -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">🛟</div>
+            <h2>Troubleshooting</h2>
+          </div>
+          <div class="glass">
+            <table>
+              <tr><td>Agent doesn't answer</td><td>Mosaic shows the reason right in the chat (e.g. missing key, quota) with a pointer to fix it. Check <span class="hl">Configuration → AI Agents</span>: is your agent's <span class="hl">Active</span> toggle green, and does <span class="hl">Test Connection</span> pass?</td></tr>
+              <tr><td>"Quota exceeded"</td><td>Free Gemini keys have small daily limits. Wait and retry — the key itself is fine. If you hit this often, create a second key in a new AI Studio project, or enable billing with Google.</td></tr>
+              <tr><td>"Connection failed"</td><td>Re-copy the Model and Base URL from Phase 4 exactly (no extra spaces), and re-paste the full API key.</td></tr>
+              <tr><td>Mac: "app is damaged"</td><td>Run <code>xattr -cr /Applications/mosaic-companion.app</code> in Terminal, or System Settings → Privacy &amp; Security → <span class="hl">Open Anyway</span>. Full steps on the download page.</td></tr>
+              <tr><td>AppImage won't start</td><td>Make it executable (<code>chmod +x</code> or right-click → Properties), and on newer Ubuntu install FUSE: <code>sudo apt install libfuse2</code>.</td></tr>
+              <tr><td>Something else</td><td>Open an issue at <a style="color: var(--cyan)" href="https://github.com/hypercycle-development/mosaic-companion/issues" target="_blank" rel="noopener">github.com/hypercycle-development/mosaic-companion</a>.</td></tr>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <a href="https://github.com/hypercycle-development/mosaic-companion" target="_blank" rel="noopener">Mosaic on GitHub</a>
+        · <a href="#" data-view-link="download">Back to downloads</a>
+      </footer>
+    </div>
+    <!-- /#view-getting-started -->
 
     <script>
       // ---- OS detection ------------------------------------------------
@@ -713,6 +1003,67 @@
           },
         );
       }
+
+      // ---- Getting-started guide: click-to-copy on inline .copy spans ----
+      function cp(el) {
+        var t = el.textContent.trim();
+        (navigator.clipboard
+          ? navigator.clipboard.writeText(t)
+          : Promise.reject()
+        )
+          .then(function () {
+            el.classList.add("copied");
+            setTimeout(function () {
+              el.classList.remove("copied");
+            }, 1600);
+          })
+          .catch(function () {
+            var r = document.createRange();
+            r.selectNodeContents(el);
+            var s = getSelection();
+            s.removeAllRanges();
+            s.addRange(r);
+            document.execCommand("copy");
+            s.removeAllRanges();
+            el.classList.add("copied");
+            setTimeout(function () {
+              el.classList.remove("copied");
+            }, 1600);
+          });
+      }
+
+      // ---- Same-page view toggle (download ⇄ getting-started) -----------
+      // Two views live in one file so there's only ever one page to deploy;
+      // switching between them is a same-page show/hide, not a navigation.
+      (function () {
+        var downloadView = document.getElementById("view-download");
+        var gsView = document.getElementById("view-getting-started");
+
+        function showView(name) {
+          var toGs = name === "getting-started";
+          downloadView.hidden = toGs;
+          gsView.hidden = !toGs;
+          window.scrollTo(0, 0);
+        }
+
+        function applyHash() {
+          showView(
+            location.hash === "#getting-started" ? "getting-started" : "download",
+          );
+        }
+
+        document.querySelectorAll("[data-view-link]").forEach(function (link) {
+          link.addEventListener("click", function (e) {
+            e.preventDefault();
+            var target = link.dataset.viewLink;
+            location.hash = target === "getting-started" ? "getting-started" : "";
+            showView(target);
+          });
+        });
+
+        window.addEventListener("hashchange", applyHash);
+        applyHash();
+      })();
     </script>
   </body>
 </html>
