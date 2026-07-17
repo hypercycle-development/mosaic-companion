@@ -1,5 +1,24 @@
 {
-  "version": "0.1.7",
-  "releaseDate": "2026-04-01",
-  "downloadUrl": "https://releases.hyperpg.site/mosaic/"
+  "version": "0.1.8",
+  "releaseDate": "2026-07-17",
+  "downloadUrl": "https://releases.hyperpg.site/mosaic/",
+  "downloads": {
+    "windows": {
+      "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.8/mosaic-companion-0.1.8-Setup.exe"
+    },
+    "macos": {
+      "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.8/mosaic-companion-0.1.8-x64.dmg",
+      "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.8/mosaic-companion-0.1.8-arm64.dmg"
+    },
+    "linux": {
+      "deb": {
+        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.8/mosaic-companion_0.1.8_amd64.deb",
+        "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.8/mosaic-companion_0.1.8_arm64.deb"
+      },
+      "appimage": {
+        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.8/mosaic-companion-0.1.8-x64.AppImage",
+        "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.8/mosaic-companion-0.1.8-arm64.AppImage"
+      }
+    }
+  }
 }
