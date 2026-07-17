@@ -15,6 +15,7 @@
   --text: #f8fafc;
   --muted: #9ca3af;
   --warning: #f59e0b;
+  --good: #34d399;
   --glass-bg: rgba(31, 40, 51, 0.6);
   --glass-border: rgba(255, 255, 255, 0.1);
   --radius: 14px;
@@ -745,4 +746,264 @@ footer a:hover {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* =========================================================
+   Getting-started view (#view-getting-started) — reuses the
+   tokens above; adds the component vocabulary that view needs
+   and the download view doesn't (phase headers, glass cards,
+   inline copy chips, tables, note callouts).
+   ========================================================= */
+
+.gs-header {
+  text-align: center;
+  padding: 80px 0 0;
+}
+
+.gs-main {
+  padding-bottom: 72px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--cyan-10);
+  color: var(--cyan);
+  border: 1px solid var(--cyan-20);
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  margin-bottom: 24px;
+}
+
+.phase {
+  margin: 72px 0 0;
+}
+
+.phase-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: 16px;
+  margin-bottom: 32px;
+}
+
+.phase-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  background: var(--cyan-10);
+  border: 1px solid var(--cyan-20);
+}
+
+.phase-head h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.cards {
+  display: grid;
+  gap: 20px;
+}
+
+@media (min-width: 720px) {
+  .cards.c2 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cards.c3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .cards.c4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 24px;
+  transition: var(--transition);
+}
+
+.stepnum {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.glass h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 10px 0 10px;
+}
+
+.glass p,
+.glass li {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.glass a:not(.btn),
+.note a:not(.btn) {
+  color: var(--cyan);
+}
+
+.glass ol,
+.glass ul {
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.hl {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.btn {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  background: var(--cyan);
+  color: var(--dark-900);
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-decoration: none;
+  margin-top: 12px;
+  transition: var(--transition);
+}
+
+.btn:hover {
+  box-shadow: 0 6px 24px rgba(102, 252, 241, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--cyan);
+  border: 1px solid var(--cyan-20);
+}
+
+.btn.ghost:hover {
+  background: var(--cyan-10);
+  box-shadow: none;
+}
+
+/* Inline click-to-copy chip (distinct from .code-block/.copy-btn above,
+   used for short one-line values like a model name or base URL). */
+.copy {
+  display: block;
+  font-family: var(--font-mono);
+  background: var(--dark-900);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 92px 10px 12px;
+  font-size: 0.85rem;
+  color: var(--cyan);
+  cursor: pointer;
+  margin-top: 8px;
+  word-break: break-all;
+  position: relative;
+  transition: var(--transition);
+}
+
+.copy:hover {
+  border-color: var(--cyan);
+}
+
+.copy::after {
+  content: "click to copy";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.65rem;
+  color: var(--muted);
+  font-family: var(--font-sans);
+}
+
+.copy.copied::after {
+  content: "copied ✓";
+  color: var(--good);
+}
+
+.note {
+  display: flex;
+  gap: 12px;
+  border-left: 3px solid var(--cyan);
+  background: var(--cyan-10);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 14px 16px;
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin-top: 16px;
+}
+
+.note.warn {
+  border-color: var(--warning);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.note.good {
+  border-color: var(--good);
+  background: rgba(52, 211, 153, 0.06);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--glass-border);
+  font-size: 0.9rem;
+  vertical-align: top;
+}
+
+td:first-child {
+  color: var(--text);
+  font-weight: 600;
+  white-space: nowrap;
+  width: 150px;
+}
+
+td:last-child {
+  color: var(--muted);
+}
+
+.kbd {
+  background: rgba(44, 62, 80, 0.6);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  color: var(--text);
 }
