@@ -144,7 +144,13 @@ jobs:
           - os: macos-latest
             platform: darwin
             arch: arm64
-          - os: windows-latest
+          # Pinned (not windows-latest): GitHub's windows-latest image ships a
+          # Visual Studio version @electron/node-gyp's Find-VisualStudio.cs
+          # doesn't recognize ("unsupported version: 18"), which breaks the
+          # native rebuild of node-pty. windows-2022 is a known-good image
+          # for this toolchain; revisit if/when @electron/node-gyp adds
+          # support for the newer VS version and windows-2022 is deprecated.
+          - os: windows-2022
             platform: win32
             arch: x64
     runs-on: ${{ matrix.os }}
