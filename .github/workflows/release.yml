@@ -240,7 +240,6 @@ jobs:
           mkdir -p out_static/mosaic
           sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > out_static/mosaic/index.html
           cp static/install-page/style.css out_static/mosaic/style.css
-          cp static/install-page/getting-started.html out_static/mosaic/getting-started.html
           sed -e "s/{{VERSION}}/${VERSION}/g" -e "s/{{RELEASE_DATE}}/${RELEASE_DATE}/g" \
             static/install-page/latest.template.json > out_static/mosaic/latest.json
 
@@ -261,7 +260,6 @@ jobs:
           mkdir -p pages/mosaic
           cp out_static/mosaic/index.html pages/mosaic/index.html
           cp out_static/mosaic/style.css pages/mosaic/style.css
-          cp out_static/mosaic/getting-started.html pages/mosaic/getting-started.html
           cp out_static/mosaic/latest.json pages/mosaic/latest.json
           cd pages
           git add mosaic/
@@ -285,7 +283,6 @@ jobs:
         run: |
           aws s3 cp out_static/mosaic/index.html s3://mosaic-release/index.html --content-type "text/html"
           aws s3 cp out_static/mosaic/style.css s3://mosaic-release/style.css --content-type "text/css"
-          aws s3 cp out_static/mosaic/getting-started.html s3://mosaic-release/getting-started.html --content-type "text/html"
           aws s3 cp out_static/mosaic/latest.json s3://mosaic-release/releases/latest.json --content-type "application/json"
 
       # Legacy Windows (Squirrel) migration path — pre-0.1.8 Windows installs
