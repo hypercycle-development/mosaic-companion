@@ -36,7 +36,6 @@ import {
   BookOpen,
 } from "lucide-react";
 import {
-  SidebarItem,
   INTERNAL_HOME_URL,
   INTERNAL_MCP_URL,
   INTERNAL_MOSAICBOT_URL,
@@ -51,6 +50,7 @@ import {
   INTERNAL_TOOL_PANEL_PREFIX,
   INTERNAL_ADAPORTAL_START_URL,
   INTERNAL_MULTIAGENT_URL,
+  INTERNAL_PRIVACY_DEMO_URL,
 } from "../types/types";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
 import { NodeDetailPanel } from "../../plugins/hyperinsight/renderer/components/NodeDetailPanel";
@@ -251,6 +251,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       url: INTERNAL_ADAPORTAL_START_URL,
     },
     {
+      id: "privacy-demo",
+      label: "Privacy Demo",
+      icon: "Shield",
+      url: INTERNAL_PRIVACY_DEMO_URL,
+    },
+    {
       id: "settings",
       label: "Configuration",
       icon: "Settings",
@@ -331,6 +337,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <BookOpen className={className} />;
       case "Sparkles":
         return <Sparkles className={className} />;
+      case "Shield":
+        return <Shield className={className} />;
       default:
         return <LayoutGrid className={className} />;
     }

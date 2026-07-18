@@ -59,6 +59,9 @@ export const INTERNAL_MULTIAGENT_URL = "browser://multi-agent";
 // Mosaic Team URL
 export const INTERNAL_MOSAIC_TEAM_URL = "browser://mosaic-team";
 
+// Privacy Vault Demo URL (Arduino TinyML Hackathon PoC)
+export const INTERNAL_PRIVACY_DEMO_URL = "browser://privacy-demo";
+
 export interface AppSettings {
   homeUrl: string;
   customGreeting: string;

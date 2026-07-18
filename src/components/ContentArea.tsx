@@ -23,6 +23,7 @@ import {
   INTERNAL_ADAPORTAL_RANKINGS_URL,
   INTERNAL_ADAPORTAL_STARGATE_URL,
   INTERNAL_MULTIAGENT_URL,
+  INTERNAL_PRIVACY_DEMO_URL,
   Tab,
 } from "../types/types";
 import { LandingPage } from "./LandingPage";
@@ -41,6 +42,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { ChatView } from "./Chatview";
 import { AdaPortalPanel } from "./AdaPortalPanel";
 import { MultiAgentPanel } from "./MultiAgentPanel";
+import { PrivacyVaultDemo } from "./PrivacyVaultDemo";
 
 interface ContentAreaProps {
   url: string;
@@ -617,6 +619,23 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     return (
       <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
         <MultiAgentPanel onCollapse={() => onNavigate(INTERNAL_HOME_URL)} />
+      </div>
+    );
+  }
+
+  // Privacy Vault Demo URL
+  if (url === INTERNAL_PRIVACY_DEMO_URL) {
+    useEffect(() => {
+      onUpdateTab({
+        title: "Privacy Demo",
+        isLoading: false,
+        favicon: undefined,
+      });
+    }, [url]);
+
+    return (
+      <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
+        <PrivacyVaultDemo />
       </div>
     );
   }
