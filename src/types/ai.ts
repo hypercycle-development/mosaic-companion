@@ -6,8 +6,13 @@ export type AIProvider =
   | "openai"
   | "gemini"
   | "ollama"
+  | "ollama-cloud"
   | "custom"
-  | "hypercycle";
+  | "hypercycle"
+  | "hermes"
+  | "hermes-aim"
+  | "hermes-api"
+  | "generic";
 
 /** Hypercycle routing: TODA micropay vs Basechain (EVM) — same direct `host:port` URL shape. */
 export type HypercycleBackend = "toda" | "basechain";
@@ -64,6 +69,10 @@ export interface AIAgentConfig {
    * If omitted, uses the same TODA address as nonce/AIM steps.
    */
   hypercycleStreamTxSender?: string;
+  soulId?: string;
+  soulOverride?: string;
+  soulGrade?: import("./soul").SoulGrade;
+  capabilities?: import("./soul").AgentCapabilityConfig;
 }
 
 export interface ChatMessage {
@@ -116,6 +125,11 @@ export const DEFAULT_MODELS: Record<AIProvider, string[]> = {
   ollama: ["llama3.2", "mistral", "codellama", "deepseek-coder"],
   custom: [],
   hypercycle: ["claude-sonnet-4-5-20250929"],
+  "ollama-cloud": ["kimi-k2.6", "kimi-k2.5", "minimax-m2.5", "deepseek-v4-flash", "qwen3-coder:480b"],
+  hermes: ["kimi-k2.6", "minimax", "custom"],
+  "hermes-aim": ["kimi-k2.6", "minimax", "custom"],
+  "hermes-api": ["hermes-agent"],
+  generic: ["custom"],
 };
 
 export const PROVIDER_INFO: Record<
@@ -142,6 +156,11 @@ export const PROVIDER_INFO: Record<
     color: "#8B5CF6",
     baseUrl: "http://localhost:11434",
   },
+  "ollama-cloud": {
+    name: "Ollama Cloud",
+    color: "#8B5CF6",
+    baseUrl: "https://ollama.com",
+  },
   custom: {
     name: "Custom Endpoint",
     color: "#6B7280",
@@ -151,5 +170,25 @@ export const PROVIDER_INFO: Record<
     name: "Hypercycle Node",
     color: "#22D3EE",
     baseUrl: "http://207.53.252.108",
+  },
+  hermes: {
+    name: "Hermes Agent",
+    color: "#F59E0B",
+    baseUrl: "http://localhost:8000",
+  },
+  "hermes-aim": {
+    name: "Hermes AIM",
+    color: "#F59E0B",
+    baseUrl: "http://localhost:8006",
+  },
+  "hermes-api": {
+    name: "Hermes API",
+    color: "#F59E0B",
+    baseUrl: "http://localhost:8000",
+  },
+  generic: {
+    name: "Generic Provider",
+    color: "#6B7280",
+    baseUrl: "",
   },
 };

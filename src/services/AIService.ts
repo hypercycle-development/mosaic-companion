@@ -390,8 +390,24 @@ export class AIService {
         return this.sendToGemini(config, messages, callbacks);
       case "ollama":
         return this.sendToOllama(config, messages, callbacks);
+      case "ollama-cloud":
+        // Ollama Cloud is OpenAI-compatible at api.ollama.com/v1/chat/completions
+        const ollamaCloudBaseUrl =
+          config.baseUrl?.includes("ollama.com") && !config.baseUrl?.includes("api.ollama.com")
+            ? "https://api.ollama.com"
+            : (config.baseUrl || "https://api.ollama.com");
+        return this.sendToOpenAI(
+          { ...config, baseUrl: ollamaCloudBaseUrl },
+          messages,
+          callbacks,
+        );
       case "custom":
         // Custom endpoints assume OpenAI-compatible API
+        return this.sendToOpenAI(config, messages, callbacks);
+      case "hermes":
+      case "hermes-aim":
+      case "hermes-api":
+        // Hermes providers use OpenAI-compatible API
         return this.sendToOpenAI(config, messages, callbacks);
       case "hypercycle":
         return this.sendToHypercycle(config, messages, callbacks);

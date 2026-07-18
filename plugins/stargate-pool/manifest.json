@@ -1,0 +1,8 @@
+{
+  "id": "stargate-pool",
+  "version": "1.0.0",
+  "name": "Stargate Pool",
+  "description": "NFT-gated Node Factory marketplace with HyperInsight verification",
+  "ipcNamespace": "stargate-pool",
+  "route": "mosaic://stargate-pool"
+}

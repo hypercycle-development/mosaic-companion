@@ -352,6 +352,140 @@ contextBridge.exposeInMainWorld("electronAPI", {
     deleteEntry: (boxId: string, entryId: string) =>
       ipcRenderer.invoke("vault:delete-entry", boxId, entryId),
   },
+  // ─── Stargate Platform APIs ───
+  stargate: {
+    registerAgentTool: (manifest: any) =>
+      ipcRenderer.invoke("stargate:registerAgentTool", manifest),
+    unregisterAgentTool: (toolId: string) =>
+      ipcRenderer.invoke("stargate:unregisterAgentTool", toolId),
+    listAgentTools: () =>
+      ipcRenderer.invoke("stargate:listAgentTools"),
+    registerAIM: (config: any) =>
+      ipcRenderer.invoke("stargate:registerAIM", config),
+    unregisterAIM: (serverName: string) =>
+      ipcRenderer.invoke("stargate:unregisterAIM", serverName),
+    dispatchPrompt: (nodeId: string, prompt: string) =>
+      ipcRenderer.invoke("stargate:dispatchPrompt", nodeId, prompt),
+    runJob: (jobType: string, params: any) =>
+      ipcRenderer.invoke("stargate:runJob", jobType, params),
+    testAgentCode: (code: string, templateId: string) =>
+      ipcRenderer.invoke("stargate:testAgentCode", code, templateId),
+    deployAgentCode: (code: string, config: any) =>
+      ipcRenderer.invoke("stargate:deployAgentCode", code, config),
+    listDeployed: () =>
+      ipcRenderer.invoke("stargate:forge:listDeployed"),
+    listRunning: () =>
+      ipcRenderer.invoke("stargate:forge:listRunning"),
+    stopAgent: (agentId: string) =>
+      ipcRenderer.invoke("stargate:forge:stopAgent", agentId),
+    enableHealthCheck: (agentId: string, intervalMs: number, maxRestarts: number) =>
+      ipcRenderer.invoke("stargate:forge:enableHealthCheck", agentId, intervalMs, maxRestarts),
+    disableHealthCheck: (agentId: string) =>
+      ipcRenderer.invoke("stargate:forge:disableHealthCheck", agentId),
+    isHealthy: (agentId: string) =>
+      ipcRenderer.invoke("stargate:forge:isHealthy", agentId),
+    deployAgentToNode: (code: string, config: any) =>
+      ipcRenderer.invoke("stargate:deployAgentToNode", code, config),
+    tillingProvision: (payload: any) =>
+      ipcRenderer.invoke("stargate:tilling:provision", payload),
+    tillingStop: (tenantId: string) =>
+      ipcRenderer.invoke("stargate:tilling:stop", tenantId),
+    tillingGetSessions: (wallet: string) =>
+      ipcRenderer.invoke("stargate:tilling:getSessions", wallet),
+    tillingResume: (tenantId: string) =>
+      ipcRenderer.invoke("stargate:tilling:resume", tenantId),
+    tillingLock: (tenantId: string, locked: boolean) =>
+      ipcRenderer.invoke("stargate:tilling:lock", tenantId, locked),
+    tillingCreate: (tenantId: string) =>
+      ipcRenderer.invoke("stargate:tilling:create", tenantId),
+    tillingGetMessage: (tenantId: string, number: number, license: string, chypc: string) =>
+      ipcRenderer.invoke("stargate:tilling:getMessage", tenantId, number, license, chypc),
+    tillingUpdate: (tenantId: string, payload: any) =>
+      ipcRenderer.invoke("stargate:tilling:update", tenantId, payload),
+    skillSyncToNode: (payload: any) =>
+      ipcRenderer.invoke("stargate:skill:syncToNode", payload),
+  },
+  // Krea AI Image Generation
+  krea: {
+    generate: (payload: any) =>
+      ipcRenderer.invoke("krea:generate", payload),
+    checkStatus: (generationId: string) =>
+      ipcRenderer.invoke("krea:checkStatus", generationId),
+    downloadImage: (imageUrl: string, destPath: string) =>
+      ipcRenderer.invoke("krea:downloadImage", imageUrl, destPath),
+  },
+  // ─── Cardano / Tokeo Wallet Bridge ───
+  cardano: {
+    tokeoDetect: () =>
+      ipcRenderer.invoke("cardano:tokeoDetect"),
+    tokeoConnect: () =>
+      ipcRenderer.invoke("cardano:tokeoConnect"),
+    tokeoQRPairing: (policyIds?: string[]) =>
+      ipcRenderer.invoke("cardano:tokeoQRPairing", policyIds),
+    tokeoCheckQR: (sessionId?: string) =>
+      ipcRenderer.invoke("cardano:tokeoCheckQR", sessionId),
+    tokeoVerifyCollection: (policyIds: string[], strict?: boolean) =>
+      ipcRenderer.invoke("cardano:tokeoVerifyCollection", policyIds, strict),
+    tokeoCancelQR: (sessionId?: string) =>
+      ipcRenderer.invoke("cardano:tokeoCancelQR", sessionId),
+    tokeoStatus: () =>
+      ipcRenderer.invoke("cardano:tokeoStatus"),
+    tokeoDisconnect: () =>
+      ipcRenderer.invoke("cardano:tokeoDisconnect"),
+    detectWallets: () =>
+      ipcRenderer.invoke("cardano:detectWallets"),
+    connectWallet: (walletKey: string) =>
+      ipcRenderer.invoke("cardano:connectWallet", walletKey),
+    getWalletAssets: () =>
+      ipcRenderer.invoke("cardano:getWalletAssets"),
+    signTx: (walletKey: string, txHex: string, partialSign?: boolean) =>
+      ipcRenderer.invoke("cardano:signTx", walletKey, txHex, partialSign),
+    getBridgeStatus: () =>
+      ipcRenderer.invoke("cardano:getBridgeStatus"),
+    disconnectWallet: () =>
+      ipcRenderer.invoke("cardano:disconnectWallet"),
+  },
+  // ─── Hermes Dashboard ───
+  hermes: {
+    startDashboard: (port?: number) =>
+      ipcRenderer.invoke("hermes:start-dashboard", port),
+    stopDashboard: () => ipcRenderer.invoke("hermes:stop-dashboard"),
+    dashboardStatus: () => ipcRenderer.invoke("hermes:dashboard-status"),
+  },
+  // ─── Midnight City ───
+  midnightCity: {
+    connect: (params: { agentId: string }) =>
+      ipcRenderer.invoke("midnight:connect", params),
+    disconnect: (params?: { force?: boolean }) =>
+      ipcRenderer.invoke("midnight:disconnect", params),
+    getStatus: () =>
+      ipcRenderer.invoke("midnight:getStatus"),
+    getLogs: () =>
+      ipcRenderer.invoke("midnight:getLogs"),
+    setLock: (locked: boolean) =>
+      ipcRenderer.invoke("midnight:setLock", locked),
+    call: (params: { endpoint: string; method: "GET" | "POST"; body?: any }) =>
+      ipcRenderer.invoke("midnight:apiCall", params),
+    readScript: (filePath: string) =>
+      ipcRenderer.invoke("midnight:readScript", filePath),
+    writeScript: (params: { path: string; content: string }) =>
+      ipcRenderer.invoke("midnight:writeScript", params),
+    restartMiner: () =>
+      ipcRenderer.invoke("midnight:restartMiner"),
+    deployAgent: (params: { name: string; profession: string; baseImage: string }) =>
+      ipcRenderer.invoke("midnight:deployAgent", params),
+    getConfig: () => ipcRenderer.invoke("midnight:getConfig"),
+    setConfig: (creds: { agentId: string; apiKey: string; profession: string; apiBase: string }) =>
+      ipcRenderer.invoke("midnight:setConfig", creds),
+    clearConfig: () => ipcRenderer.invoke("midnight:clearConfig"),
+  },
+  // ─── Node Factory ───
+  nodeFactory: {
+    loadJsonFile: (filePath: string) =>
+      ipcRenderer.invoke("nodeFactory:loadJsonFile", filePath),
+    checkLicense: (licenseId: string, apiBase: string) =>
+      ipcRenderer.invoke("nodeFactory:checkLicense", licenseId, apiBase),
+  },
 });
 
 contextBridge.exposeInMainWorld("chatAPI", chatAPI);

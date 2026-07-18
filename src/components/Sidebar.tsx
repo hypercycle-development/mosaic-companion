@@ -31,6 +31,7 @@ import {
   Shield,
   Hash,
   Code2,
+  Rocket,
 } from "lucide-react";
 import {
   SidebarItem,
@@ -45,6 +46,7 @@ import {
   INTERNAL_HYPERINSIGHT_URL,
   INTERNAL_SANDBOX_URL,
   INTERNAL_IDE_URL,
+  INTERNAL_ADAPORTAL_START_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
 } from "../types/types";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
@@ -292,6 +294,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       description: "Install and run sandboxed WASM tools",
     },
     {
+      id: "stargate",
+      label: "Stargate",
+      icon: "Rocket",
+      url: INTERNAL_ADAPORTAL_START_URL,
+      description: "AI Workforce + Compute + Intelligence Platform for Cardano",
+    },
+    {
       id: "settings",
       label: "Configuration",
       icon: "Settings",
@@ -517,7 +526,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             {activeAgents.map((agent) => {
-              const providerColor = PROVIDER_INFO[agent.provider].color;
+              const providerColor = PROVIDER_INFO[agent.provider]?.color ?? "#6B7280";
               return (
                 <button
                   key={agent.id}

@@ -27,6 +27,8 @@ declare global {
     id: string;
     label?: string;
     content: string;
+    description?: string;
+    metadata?: Record<string, any>;
     createdAt: number;
     updatedAt: number;
   }
@@ -315,12 +317,12 @@ declare global {
         getAgentBoxes: (agentId: string) => Promise<VaultBox[]>;
         // Content
         getBoxContent: (boxId: string) => Promise<VaultEntry[]>;
-        addEntry: (boxId: string, input: { content: string; label?: string }) => Promise<{
+        addEntry: (boxId: string, input: { content: string; label?: string; metadata?: Record<string, any> }) => Promise<{
           success: boolean;
           entry?: VaultEntry;
           error?: string;
         }>;
-        updateEntry: (boxId: string, entryId: string, updates: { content?: string; label?: string }) => Promise<{
+        updateEntry: (boxId: string, entryId: string, updates: { content?: string; label?: string; metadata?: Record<string, any> }) => Promise<{
           success: boolean;
           entry?: VaultEntry;
           error?: string;
@@ -433,6 +435,57 @@ declare global {
       // File dialog
       dialog: {
         openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string | null>;
+        openDirectory: () => Promise<string | null>;
+      };
+
+      // Skills
+      skills: {
+        syncToNode: (opts: any) => Promise<any>;
+        [key: string]: any;
+      };
+
+      // ─── Stargate APIs ───
+      stargate: {
+        getPoolState: () => Promise<any>;
+        getPoolMetrics: () => Promise<any>;
+        getFleetStatus: () => Promise<any>;
+        getTelemetry: () => Promise<any>;
+        [key: string]: any;
+      };
+      cardano: {
+        tokeoDetect: () => Promise<any>;
+        tokeoConnect: () => Promise<any>;
+        tokeoGetAddress: () => Promise<any>;
+        tokeoGetBalance: () => Promise<any>;
+        tokeoSignTx: (tx: any) => Promise<any>;
+        getNetworkInfo: () => Promise<any>;
+        getPoolDistribution: () => Promise<any>;
+        [key: string]: any;
+      };
+      midnightCity: {
+        getCityState: () => Promise<any>;
+        getDistricts: () => Promise<any>;
+        getCitizens: () => Promise<any>;
+        getEconomy: () => Promise<any>;
+        [key: string]: any;
+      };
+      nodeFactory: {
+        getNodes: () => Promise<any>;
+        getNodeStatus: (id: string) => Promise<any>;
+        createNode: (config: any) => Promise<any>;
+        deleteNode: (id: string) => Promise<any>;
+        [key: string]: any;
+      };
+      krea: {
+        generate: (payload: { prompt: string; aspectRatio?: string; creativity?: number; negativePrompt?: string }) => Promise<any>;
+        getModels: () => Promise<any>;
+        [key: string]: any;
+      };
+      hermes: {
+        getStatus: () => Promise<any>;
+        sendMessage: (msg: string) => Promise<any>;
+        getCapabilities: () => Promise<any>;
+        [key: string]: any;
       };
     };
 
@@ -468,6 +521,11 @@ declare global {
       send: (text: string) => Promise<{ type: string; skill?: string; args?: string; text?: string }>;
       triggerHeartbeat: (agentId?: string) => Promise<{ ok: boolean }>;
       listSkills: () => Promise<Array<{ name: string; description: string }>>;
+      skills: {
+        list: () => Promise<any[]>;
+        load: (name: string) => Promise<any>;
+        [key: string]: any;
+      };
       onMessage: (cb: (msg: { to: string; text: string; channel: string; messageId: string }) => void) => void;
     };
 

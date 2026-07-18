@@ -530,7 +530,7 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
             ...prev,
             [agent.id]: getBaseModelList(agent.provider),
           }));
-          const providerName = PROVIDER_INFO[agent.provider].name;
+          const providerName = PROVIDER_INFO[agent.provider]?.name ?? "Provider";
           const warningMessage = `Could not fetch ${providerName} models with the current key. Using default model list.`;
           console.warn(`[AIAgentsSettings] ${warningMessage}`, error);
           toast.warn(warningMessage);
@@ -579,7 +579,7 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
           {aiAgents.map((agent) => {
             const isExpanded = expandedAgent === agent.id;
             const testResult = testResults[agent.id] || { status: "idle" };
-            const providerColor = PROVIDER_INFO[agent.provider].color;
+            const providerColor = PROVIDER_INFO[agent.provider]?.color ?? "#6B7280";
 
             return (
               <div
@@ -614,7 +614,7 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                         {agent.name}
                       </h3>
                       <p className="text-xs text-gray-500 font-mono">
-                        {PROVIDER_INFO[agent.provider].name} • {agent.model}
+                        {PROVIDER_INFO[agent.provider]?.name ?? "Unknown"} • {agent.model}
                       </p>
                     </div>
                   </div>

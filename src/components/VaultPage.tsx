@@ -392,7 +392,10 @@ const BoxCard: React.FC<{
   const [activeTab, setActiveTab] = useState<"content" | "access">("content");
   const [entryCount, setEntryCount] = useState(0);
 
-  const sourceInfo = SOURCE_LABELS[box.sourceType];
+  const sourceInfo = SOURCE_LABELS[box.sourceType] ?? {
+    label: "Unknown",
+    color: "text-gray-500",
+  };
   const accessCount = agents.filter(
     (a) => a.boxAccess?.includes(box.id),
   ).length;

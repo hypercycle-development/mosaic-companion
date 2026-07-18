@@ -56,7 +56,7 @@ export function explainAIError(
   if (provider === "hypercycle") return raw;
 
   const msg = raw.toLowerCase();
-  const name = PROVIDER_INFO[provider].name;
+  const name = PROVIDER_INFO[provider]?.name ?? "Provider";
   const isNetworkError = matchesAny(msg, NETWORK_PATTERNS);
 
   // Ollama connection problems get local-server help, not generic network copy.

@@ -71,6 +71,13 @@ import {
   syncTodaTwinInfoAddressFromTwin,
 } from "./integrations/web3/toda";
 import {
+  getCredentials,
+  setCredentials,
+  clearCredentials,
+  midnightCityService,
+} from "./integrations/midnight-city";
+import type { MidnightCredentials } from "./integrations/midnight-city";
+import {
   getBoxes,
   getBox,
   addBox,
@@ -1037,7 +1044,126 @@ ipcMain.handle("media:get-auto-display", () => {
   return { enabled: getAutoDisplayMedia() };
 });
 
+// Move imports to top of file — they don't belong here
 ipcMain.handle("media:set-auto-display", (_event, enabled: boolean) => {
   const result = setAutoDisplayMedia(enabled);
   return { ...result, enabled: getAutoDisplayMedia() };
 });
+
+// ═══ Midnight City IPC Handlers ════════════════════════════════════════
+
+ipcMain.handle("midnight:connect", async (_event, params: { agentId: string }) => {
+  return midnightCityService.connect(params.agentId);
+});
+
+ipcMain.handle("midnight:disconnect", async (_event, params?: { force?: boolean }) => {
+  return midnightCityService.disconnect(params?.force);
+});
+
+ipcMain.handle("midnight:getStatus", async () => {
+  return midnightCityService.getStatus();
+});
+
+ipcMain.handle("midnight:getLogs", async () => {
+  return midnightCityService.getLogs();
+});
+
+ipcMain.handle("midnight:setLock", async (_event, locked: boolean) => {
+  midnightCityService.setLock(locked);
+  return { locked };
+});
+
+ipcMain.handle("midnight:apiCall", async (_event, params: { endpoint: string; method: "GET" | "POST"; body?: any }) => {
+  return midnightCityService.apiCall(params);
+});
+
+ipcMain.handle("midnight:readScript", async (_event, filePath: string) => {
+  try {
+    if (!fs.existsSync(filePath)) return { success: false, error: "File not found" };
+    const content = fs.readFileSync(filePath, "utf8");
+    return { success: true, content };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("midnight:writeScript", async (_event, params: { path: string; content: string }) => {
+  try {
+    fs.writeFileSync(params.path, params.content, "utf8");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("midnight:restartMiner", async () => {
+  return { success: false, error: "restartMiner not yet implemented" };
+});
+
+ipcMain.handle("midnight:deployAgent", async (_event, params: { name: string; profession: string; baseImage: string }) => {
+  return { success: false, error: "deployAgent not yet implemented" };
+});
+
+ipcMain.handle("midnight:getConfig", async () => {
+  const creds = getCredentials();
+  if (!creds) return { configured: false };
+  return {
+    configured: true,
+    agentId: creds.agentId,
+    profession: creds.profession,
+    apiBase: creds.apiBase,
+  };
+});
+
+ipcMain.handle("midnight:setConfig", async (_event, creds: MidnightCredentials) => {
+  try {
+    setCredentials(creds);
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("midnight:clearConfig", async () => {
+  clearCredentials();
+  return { success: true };
+});
+// ═══ End Midnight City ════════════════════════════════════════════════
+// ═══ End Midnight City ════════════════════════════════════════════════
+
+// ═══ Node Factory IPC Handlers ════════════════════════════════════════
+ipcMain.handle("nodeFactory:loadJsonFile", async (_event, filePath: string) => {
+  try {
+    const data = fs.readFileSync(filePath, "utf8");
+    const parsed = JSON.parse(data);
+    return { success: true, data: parsed };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("nodeFactory:checkLicense", async (_event, licenseId: string, apiBase: string) => {
+  try {
+    const r = await fetch(`${apiBase}/nodes/${licenseId}`, {
+      headers: { Accept: "application/json" },
+    });
+    if (r.ok) {
+      const data = await r.json();
+      return { data };
+    }
+    const r2 = await fetch(`${apiBase}/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ anfeId: licenseId }),
+    });
+    if (r2.ok) {
+      const data = await r2.json();
+      return { data };
+    }
+    return { error: `HTTP ${r2.status}` };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+});
+// ═══ End Node Factory ═════════════════════════════════════════════════
+

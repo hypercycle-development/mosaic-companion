@@ -59,6 +59,8 @@ export interface VaultEntry {
   label?: string;
   /** The actual text content */
   content: string;
+  /** Optional metadata for the entry */
+  metadata?: Record<string, any>;
   /** Unix timestamp — when the entry was created */
   createdAt: number;
   /** Unix timestamp — last modification */

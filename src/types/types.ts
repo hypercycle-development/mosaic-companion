@@ -41,6 +41,16 @@ export const INTERNAL_HYPERINSIGHT_URL = "browser://hyperinsight";
 export const INTERNAL_SANDBOX_URL = "browser://sandbox";
 export const INTERNAL_ONBOARDING_URL = "browser://onboarding";
 export const INTERNAL_IDE_URL = "browser://ide";
+export const INTERNAL_ADAPORTAL_URL = "browser://adaportal";
+export const INTERNAL_ADAPORTAL_START_URL = "browser://adaportal/start";
+export const INTERNAL_ADAPORTAL_SKILLS_URL = "browser://adaportal/skills";
+export const INTERNAL_ADAPORTAL_TRAIN_URL = "browser://adaportal/train";
+export const INTERNAL_ADAPORTAL_COMPUTE_URL = "browser://adaportal/compute";
+export const INTERNAL_ADAPORTAL_BUNDLES_URL = "browser://adaportal/bundles";
+export const INTERNAL_ADAPORTAL_RANKINGS_URL = "browser://adaportal/rankings";
+export const INTERNAL_ADAPORTAL_STARGATE_URL = "browser://adaportal/stargate";
+export const INTERNAL_MULTIAGENT_URL = "browser://multi-agent";
+export const INTERNAL_PRIVACY_DEMO_URL = "browser://privacy-demo";
 /** Dynamic tool panel URL prefix: browser://tool-panel/{toolId} */
 export const INTERNAL_TOOL_PANEL_PREFIX = "browser://tool-panel/";
 
