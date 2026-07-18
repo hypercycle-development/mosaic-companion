@@ -6,10 +6,10 @@
 import React from 'react';
 
 export type PoolStatus = 'active' | 'inactive' | 'error' | 'loading';
-export type PoolCategory = 'validator' | 'compute' | 'freight' | 'liquidity' | 'storage' | 'ai';
+export type PoolCategory = 'validator' | 'compute' | 'liquidity' | 'storage' | 'ai';
 
 export interface PoolDefinition {
-  id: string;                    // unique slug: 'battery', 'compute', 'safe-rev'
+  id: string;                    // unique slug: 'battery', 'compute', 'materios'
   name: string;                  // display name
   shortName: string;             // compact name for tabs
   description: string;           // one-liner

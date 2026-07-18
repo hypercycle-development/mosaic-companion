@@ -75,8 +75,6 @@ import StargatePoolHub from './stargate/StargatePoolHub';
 import StargateTelemetryCard from './stargate/StargateTelemetryCard';
 import StargateCommunityAIMPanel from './stargate/StargateCommunityAIMPanel';
 import MidnightCityCommandPanel from './stargate/MidnightCityCommandPanel';
-import SafePoolVaultPanel from './stargate/SafePoolVaultPanel';
-import SafePoolKnowledgeModal from './stargate/SafePoolKnowledgeModal';
 import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus, Pickaxe, Info } from 'lucide-react';
 
 // ---- Module-level helper: ensure wallet is on Base chain ----
@@ -318,7 +316,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     symbol: string; name: string; chain: string; standard: string; nfts: ANFE[]
   }[]>([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
-  const [showSafeKnowledgeModal, setShowSafeKnowledgeModal] = useState(false);
 
   // Local Node Bridge (R2D2 directly — no wallet / blockchain needed)
   const [localNodeAvailable, setLocalNodeAvailable] = useState(false);
@@ -4389,22 +4386,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     <div className="h-full flex flex-col bg-gray-900 relative">
       {/* QR Modal */}
       {showQRModal && <QRModal />}
-      
-      {/* SAFE Rev Pool Knowledge Modal */}
-      <SafePoolKnowledgeModal 
-        isOpen={showSafeKnowledgeModal} 
-        onClose={() => setShowSafeKnowledgeModal(false)}
-        onStartSimulation={() => {
-          showNotification('info', 'Starting Simulated Mode: Creating 50 synthetic loads...');
-          // TODO: Launch simulation workflow
-          console.log('[SAFE] Simulated Mode triggered');
-        }}
-        onStartSoftLaunch={() => {
-          showNotification('info', 'Starting Soft Launch: Opening driver recruitment...');
-          // TODO: Launch soft launch workflow  
-          console.log('[SAFE] Soft Launch triggered');
-        }}
-      />
       
       {/* Agent Select Modal */}
       {showAgentSelectModal && <AgentSelectModal />}

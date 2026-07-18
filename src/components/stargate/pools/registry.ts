@@ -6,7 +6,6 @@
 import type { PoolDefinition } from './types';
 import BatteryValidatorPool from './BatteryValidatorPool';
 import ComputePool from './ComputePool';
-import SafeFreightPool from './SafeFreightPool';
 import MateriosValidatorPool from './MateriosValidatorPool';
 import BatteryLiveBadge from './BatteryLiveBadge';
 import ComputeLiveBadge from './ComputeLiveBadge';
@@ -38,18 +37,6 @@ export const STARGATE_POOLS: PoolDefinition[] = [
     isConfigurable: true,
     liveBadge: ComputeLiveBadge,
     component: ComputePool,
-  },
-  {
-    id: 'safe-rev',
-    name: 'SAFE Rev Pool',
-    shortName: 'SAFE',
-    description: 'Sovereign Autonomous Freight Exchange — AI-powered freight marketplace',
-    category: 'freight',
-    icon: 'Truck',
-    color: 'green',
-    status: 'active',
-    isConfigurable: false,
-    component: SafeFreightPool,
   },
   {
     id: 'materios',

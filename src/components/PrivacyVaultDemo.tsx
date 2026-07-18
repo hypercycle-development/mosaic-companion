@@ -115,7 +115,6 @@ const DEMO_BOXES: DemoVaultBox[] = [
       "midnight-compact-core-basic-start",
       "midnight-verify-verify-compact",
       "midnight-tooling-devnet",
-      "SAFE Rev Pool Operations",
     ],
     sensitivity: "public",
   },

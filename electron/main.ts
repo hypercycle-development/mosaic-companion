@@ -416,19 +416,6 @@ app.whenReady().then(async () => {
     console.warn("[VaultSkillCache] Failed to start watcher:", e);
   }
 
-  // Initialize SAFE Rev Pool vault for agent learning
-  try {
-    const { initializeSafePoolVault } = await import("./integrations/vault");
-    const result = initializeSafePoolVault();
-    if (result.success) {
-      console.log("[Vault]", result.message);
-    } else {
-      console.warn("[Vault] SAFE Rev Pool vault init failed:", result.message);
-    }
-  } catch (e) {
-    console.warn("[Vault] Failed to initialize SAFE Rev Pool vault:", e);
-  }
-
   initMosaicBot().then((bot) => {
     mosaicBotStop = bot.stop.bind(bot);
   }).catch((e) => {
