@@ -161,6 +161,7 @@ const MidnightCityCommandPanelInner: React.FC = () => {
   const [lastError, setLastError] = useState<string | null>(null);
   const [isMining, setIsMining] = useState(false);
   const [autoMine, setAutoMine] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const autoMineRef = useRef<NodeJS.Timeout | null>(null);
   const autoMiningInFlightRef = useRef(false);  // prevents overlapping engage calls
   const logEndRef = useRef<HTMLDivElement | null>(null);
@@ -432,10 +433,15 @@ const MidnightCityCommandPanelInner: React.FC = () => {
       try {
         const payload = { ...action, agentId };
         addLog("info", `Submitting: ${action.kind}`, JSON.stringify(payload));
-        await apiCall("/api/actions", "POST", payload);
+        const result = await apiCall("/api/skill/actions", "POST", payload);
+        if (result && result.error) {
+          throw new Error(result.error);
+        }
+        setActionError(null);
         addLog("success", `${action.kind} submitted`);
         setTimeout(() => refreshState(), 1500);
       } catch (err: any) {
+        setActionError(`${action.kind}: ${err.message}`);
         addLog("error", `${action.kind} failed`, err.message);
       } finally {
         setIsMining(false);
@@ -915,6 +921,13 @@ const MidnightCityCommandPanelInner: React.FC = () => {
             {/* Quick actions */}
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
               <h3 className="font-bold text-cyan-400 mb-3 flex items-center gap-2"><Zap size={16} /> Quick Actions</h3>
+              {actionError && (
+                <div className="mb-3 px-3 py-2 bg-red-900/20 border border-red-800 rounded text-xs text-red-300 flex items-center gap-2">
+                  <AlertTriangle size={14} />
+                  {actionError}
+                  <button onClick={() => setActionError(null)} className="ml-auto text-red-400 hover:text-red-200"><XCircle size={14} /></button>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={restartMiner}

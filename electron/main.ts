@@ -1102,7 +1102,37 @@ ipcMain.handle("midnight:writeScript", async (_event, params: { path: string; co
 });
 
 ipcMain.handle("midnight:restartMiner", async () => {
-  return { success: false, error: "restartMiner not yet implemented" };
+  try {
+    const scriptPath = "/home/mauricio/.hermes/scripts/sonofanton_miner.py";
+    const { spawn } = require("child_process");
+    const fs = require("fs");
+    const path = require("path");
+    const pidFile = path.join(path.dirname(scriptPath), ".sonofanton.pid");
+
+    // Kill existing process if PID file exists
+    if (fs.existsSync(pidFile)) {
+      try {
+        const oldPid = parseInt(fs.readFileSync(pidFile, "utf8"), 10);
+        process.kill(oldPid, "SIGTERM");
+      } catch (e) { /* best-effort */ }
+      fs.unlinkSync(pidFile);
+    }
+
+    // Start new process
+    const child = spawn("python3", [scriptPath], {
+      detached: true,
+      stdio: "ignore",
+      cwd: path.dirname(scriptPath),
+    });
+    child.unref();
+
+    // Write PID
+    fs.writeFileSync(pidFile, child.pid.toString());
+
+    return { success: true, pid: child.pid };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle("midnight:deployAgent", async (_event, params: { name: string; profession: string; baseImage: string }) => {
