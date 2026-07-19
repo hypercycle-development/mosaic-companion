@@ -447,14 +447,25 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       if (listings.length === 0 && registryAgents.length > 0) {
         setListings(registryAgents.map(a => ({
           listingId: a.id,
+          agentId: a.id,
           agentName: a.name,
-          roles: [a.role.replace('_', ' ')],
-          price: a.hourlyRate || 0.5,
-          skills: a.skills,
-          rating: a.rating,
-          status: a.status,
-          computeNode: a.computeNode,
-        })) as any);
+          roles: [a.role.replace('_', ' ') as any],
+          primarySkills: a.skills?.slice(0, 3) || ['ai-chat'],
+          pricing: {
+            model: 'per_task' as any,
+            perTaskMin: a.hourlyRate || 0.5,
+            perTaskMax: (a.hourlyRate || 0.5) * 5,
+            perMinuteMin: 0.1,
+            perMinuteMax: 1.0,
+          },
+          rating: a.rating || 0,
+          successRate: a.tasksCompleted > 0 ? 0.95 : 0,
+          availability: a.status === 'idle' ? 'available' : a.status === 'busy' ? 'busy' : 'offline',
+          nodeSource: a.computeNode || 'local',
+          chain: 'multi' as any,
+          attachedSkills: a.skills || [],
+          skillCount: a.skills?.length || 0,
+        })));
       }
 
       // Populate training jobs
