@@ -76,9 +76,21 @@ export class AIService {
     messages: ChatMessage[],
     callbacks?: StreamCallbacks
   ): Promise<string> {
-    const response = await fetch(
-      `${config.baseUrl || "https://api.openai.com"}/v1/chat/completions`,
-      {
+    // Ollama Cloud: hardcode the correct endpoint to avoid 301 redirect
+    // (api.ollama.com redirects to ollama.com, which turns POST into GET → 405)
+    let url: string;
+    if (config.provider === "ollama-cloud") {
+      if (!config.apiKey?.trim()) {
+        throw new Error(
+          `Ollama Cloud API key is missing for agent "${config.name}". Please add an API key at ollama.com/settings/api-keys and paste it into the agent settings.`
+        );
+      }
+      url = "https://ollama.com/v1/chat/completions";
+    } else {
+      url = `${config.baseUrl || "https://api.openai.com"}/v1/chat/completions`;
+    }
+
+    const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -391,16 +403,8 @@ export class AIService {
       case "ollama":
         return this.sendToOllama(config, messages, callbacks);
       case "ollama-cloud":
-        // Ollama Cloud is OpenAI-compatible at api.ollama.com/v1/chat/completions
-        const ollamaCloudBaseUrl =
-          config.baseUrl?.includes("ollama.com") && !config.baseUrl?.includes("api.ollama.com")
-            ? "https://api.ollama.com"
-            : (config.baseUrl || "https://api.ollama.com");
-        return this.sendToOpenAI(
-          { ...config, baseUrl: ollamaCloudBaseUrl },
-          messages,
-          callbacks,
-        );
+        // Ollama Cloud uses OpenAI-compatible API; sendToOpenAI hardcodes the correct URL
+        return this.sendToOpenAI(config, messages, callbacks);
       case "custom":
         // Custom endpoints assume OpenAI-compatible API
         return this.sendToOpenAI(config, messages, callbacks);
