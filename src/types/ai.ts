@@ -34,6 +34,8 @@ export interface AIAgentConfig {
   isActive: boolean;
   createdAt: number;
   boxAccess?: string[]; // IDs of vault boxes this agent can access
+  /** Hermes skills attached to this agent (loaded from ~/.hermes/skills/) */
+  skills?: string[];
   richUI?: boolean; // Allow agent to render charts, tables, cards inline via <mosaic_ui>
   /**
    * Hypercycle: `toda` (default) or `basechain` — node base is scheme + host; ports are configured separately.

@@ -413,6 +413,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
         ipcRenderer.invoke("stargate:aimify:writeFile", filePath, content),
     },
   },
+  skills: {
+    buildSystemPrompt: (payload: {
+      baseSystemPrompt?: string;
+      skillNames: string[];
+      includeReferences?: boolean;
+      maxTokens?: number;
+      dialOverrides?: {
+        designVariance?: number;
+        motionIntensity?: number;
+        visualDensity?: number;
+      };
+    }) => ipcRenderer.invoke("skill:buildSystemPrompt", payload),
+  },
   // Krea AI Image Generation
   krea: {
     generate: (payload: any) =>

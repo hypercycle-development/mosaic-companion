@@ -78,6 +78,7 @@ import {
   midnightCityService,
 } from "./integrations/midnight-city";
 import type { MidnightCredentials } from "./integrations/midnight-city";
+import { skillInjector } from "../src/services/skillInjector";
 import {
   getBoxes,
   getBox,
@@ -1223,6 +1224,39 @@ ipcMain.handle("stargate:aimify:writeFile", async (_event, filePath: string, con
     return { success: false, error: err.message };
   }
 });
+
+// ═══ Skill System Prompt Builder ══════════════════════════════════════════
+ipcMain.handle(
+  "skill:buildSystemPrompt",
+  async (
+    _event: IpcMainInvokeEvent,
+    payload: {
+      baseSystemPrompt?: string;
+      skillNames: string[];
+      includeReferences?: boolean;
+      maxTokens?: number;
+      dialOverrides?: {
+        designVariance?: number;
+        motionIntensity?: number;
+        visualDensity?: number;
+      };
+    }
+  ) => {
+    const result = skillInjector.buildSystemPrompt(
+      payload.baseSystemPrompt ?? "",
+      payload.skillNames,
+      {
+        includeReferences: payload.includeReferences ?? true,
+        maxTokens: payload.maxTokens,
+        dialOverrides: payload.dialOverrides,
+      }
+    );
+
+    return result;
+  }
+);
+
+// ═══ End Skill System Prompt Builder ══════════════════════════════════════
 
 // ═══ End Aimify ════════════════════════════════════════════════════════
 

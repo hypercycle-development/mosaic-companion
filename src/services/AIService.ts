@@ -21,6 +21,12 @@ import {
   txSenderForHypercycleStream,
   type HypercycleStreamCallbacks,
 } from "./hypercycleAgent";
+import {
+  buildAgentSystemPrompt,
+  assembleSystemPrompt,
+  getRecommendedCapabilities,
+  ensureSoulGrade,
+} from "./VaultCapabilityService";
 
 interface StreamCallbacks {
   onToken: (token: string) => void;
@@ -393,28 +399,161 @@ export class AIService {
     messages: ChatMessage[],
     callbacks?: StreamCallbacks
   ): Promise<string> {
+    // ─── SOUL + Capability Injection ───────────────────────────────────────────
+    // Build comprehensive system prompt from SOUL.md, capabilities, and skills.
+    // Creates a complete agent identity layer.
+    // ─────────────────────────────────────────────────────────────────────────
+    let soulCapabilitySystemPrompt = "";
+    try {
+      if (!config.capabilities) {
+        config.capabilities = {
+          enabledCapabilities: getRecommendedCapabilities(config.soulId),
+          vaultBoxAccess: config.boxAccess || [],
+        };
+      }
+
+      if (config.soulId || config.soulOverride) {
+        config.soulGrade = await ensureSoulGrade(
+          config.soulId,
+          config.soulOverride,
+          config.soulGrade
+        );
+      }
+
+      const agentContext = {
+        agentId: config.id,
+        agentName: config.name,
+        soulId: config.soulId,
+        soulOverride: config.soulOverride,
+        capabilities: config.capabilities,
+        vaultAccess: [], // Vault access loaded separately below
+      };
+
+      const promptParts = buildAgentSystemPrompt(agentContext);
+      soulCapabilitySystemPrompt = assembleSystemPrompt(promptParts);
+
+      if (soulCapabilitySystemPrompt) {
+        console.log(
+          `[AIService] SOUL/Capability system prompt built for ${config.name} (${soulCapabilitySystemPrompt.length} chars)`
+        );
+      }
+    } catch (e) {
+      console.error("[AIService] SOUL/Capability system prompt build failed:", e);
+    }
+
+    // ─── Vault Box Access Injection ──────────────────────────────────────────
+    // Load vault box contents via IPC if the agent has boxAccess configured.
+    // These boxes contain skill entries, credentials, and user data.
+    // ─────────────────────────────────────────────────────────────────────────
+    let enrichedMessages = messages;
+
+    if (config.boxAccess && config.boxAccess.length > 0) {
+      try {
+        const vaultApi = (window as any).electronAPI?.vault;
+        if (vaultApi?.getBoxContent) {
+          const vaultParts: string[] = [];
+          for (const boxId of config.boxAccess) {
+            try {
+              const box = await vaultApi.getBoxContent(boxId);
+              if (box?.entries?.length > 0) {
+                const entryTexts = box.entries
+                  .map(
+                    (e: any) =>
+                      `- [${e.label || "untitled"}]: ${(e.content || "").slice(0, 300)}${(e.content || "").length > 300 ? "..." : ""}`
+                  )
+                  .join("\n");
+                vaultParts.push(`### Vault Box: ${box.name || boxId}\n${entryTexts}`);
+              }
+            } catch (boxErr) {
+              console.warn(`[AIService] Failed to load vault box ${boxId}:`, boxErr);
+            }
+          }
+          if (vaultParts.length > 0) {
+            const vaultSystemMsg: ChatMessage = {
+              id: `vault-system-${Date.now()}`,
+              role: "system",
+              content:
+                `## Vault Knowledge\n\nYou have access to the following secure vault boxes:\n\n${vaultParts.join("\n\n")}\n\nReference these boxes by name when answering questions about stored data.`,
+              timestamp: Date.now(),
+              agentId: config.id,
+            };
+            // Prepend vault knowledge before existing messages
+            enrichedMessages = [vaultSystemMsg, ...enrichedMessages];
+            console.log(
+              `[AIService] Vault boxes injected for ${config.name}: ${config.boxAccess.join(", ")}`
+            );
+          }
+        } else {
+          console.warn(
+            `[AIService] Vault IPC unavailable for ${config.name}, skipping vault injection`
+          );
+        }
+      } catch (e) {
+        console.error("[AIService] Vault box injection failed:", e);
+      }
+    }
+
+    if (config.skills && config.skills.length > 0) {
+      try {
+        const skillsApi = (window as any).electronAPI?.skills;
+        if (skillsApi?.buildSystemPrompt) {
+          const result = await skillsApi.buildSystemPrompt({
+            baseSystemPrompt: soulCapabilitySystemPrompt,
+            skillNames: config.skills,
+            maxTokens: 12000,
+          });
+
+          if (result && result.loadedSkills.length > 0) {
+            const skillSystemMsg: ChatMessage = {
+              id: `skill-system-${Date.now()}`,
+              role: "system",
+              content: result.systemPrompt,
+              timestamp: Date.now(),
+              agentId: config.id,
+            };
+            // Prepend skills before existing messages
+            enrichedMessages = [skillSystemMsg, ...enrichedMessages];
+            console.log(
+              `[AIService] Skills injected for ${config.name}: ${result.loadedSkills.join(", ")} (${result.totalTokens}T)`
+            );
+          }
+          if (result?.failedSkills?.length > 0) {
+            console.warn(
+              `[AIService] Failed to load skills for ${config.name}: ${result.failedSkills.join(", ")}`
+            );
+          }
+        } else {
+          console.warn(
+            `[AIService] Skills IPC unavailable for ${config.name}, skipping skill injection`
+          );
+        }
+      } catch (e) {
+        console.error("[AIService] Skill injection failed:", e);
+      }
+    }
+
     switch (config.provider) {
       case "claude":
-        return this.sendToClaude(config, messages, callbacks);
+        return this.sendToClaude(config, enrichedMessages, callbacks);
       case "openai":
-        return this.sendToOpenAI(config, messages, callbacks);
+        return this.sendToOpenAI(config, enrichedMessages, callbacks);
       case "gemini":
-        return this.sendToGemini(config, messages, callbacks);
+        return this.sendToGemini(config, enrichedMessages, callbacks);
       case "ollama":
-        return this.sendToOllama(config, messages, callbacks);
+        return this.sendToOllama(config, enrichedMessages, callbacks);
       case "ollama-cloud":
         // Ollama Cloud uses OpenAI-compatible API; sendToOpenAI hardcodes the correct URL
-        return this.sendToOpenAI(config, messages, callbacks);
+        return this.sendToOpenAI(config, enrichedMessages, callbacks);
       case "custom":
         // Custom endpoints assume OpenAI-compatible API
-        return this.sendToOpenAI(config, messages, callbacks);
+        return this.sendToOpenAI(config, enrichedMessages, callbacks);
       case "hermes":
       case "hermes-aim":
       case "hermes-api":
         // Hermes providers use OpenAI-compatible API
-        return this.sendToOpenAI(config, messages, callbacks);
+        return this.sendToOpenAI(config, enrichedMessages, callbacks);
       case "hypercycle":
-        return this.sendToHypercycle(config, messages, callbacks);
+        return this.sendToHypercycle(config, enrichedMessages, callbacks);
       default:
         throw new Error(`Unknown provider: ${config.provider}`);
     }
