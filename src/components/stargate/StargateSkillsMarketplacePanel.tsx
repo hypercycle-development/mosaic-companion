@@ -11,6 +11,7 @@ import {
   RefreshCw, ChevronDown, Tag, Eye, TrendingUp, Clock, AlertTriangle,
   XCircle, Loader, LayoutGrid, List, BookOpen
 } from 'lucide-react';
+import { skillMarketplace, type SkillInfo } from '../../services/AdaPortal';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -61,6 +62,47 @@ interface ApiResponse<T> {
   categories?: T[];
   pagination?: Pagination;
   error?: string;
+}
+
+// ─── Mapper: local SkillInfo → panel Skill ─────────────────
+function mapSkillInfoToSkill(info: SkillInfo): Skill {
+  const installs = info.installs || 0;
+  return {
+    id: info.name,
+    slug: info.name,
+    name: info.name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+    owner: info.provider || 'community',
+    description: info.description || 'No description available',
+    stars: Math.floor(installs / 1000),
+    forks: Math.floor(installs / 5000),
+    language: info.tags?.[0] || null,
+    categorySlug: info.category || 'general',
+    tags: info.tags || [],
+    githubUrl: `https://github.com/${info.fullName || info.name}`,
+    riskScore: 10,
+    verified: info.provider === 'nvidia' || info.provider === 'vercel-labs',
+    published: true,
+    upvotes: Math.floor(installs / 2000),
+    downvotes: 0,
+    votesScore: Math.floor(installs / 2000),
+    readmeUrl: null,
+    license: 'MIT',
+    createdAt: new Date(info.lastUpdated || Date.now()).toISOString(),
+    updatedAt: new Date(info.lastUpdated || Date.now()).toISOString(),
+  };
+}
+
+function buildCategoriesFromSkills(skills: Skill[]): Category[] {
+  const counts = new Map<string, number>();
+  for (const s of skills) {
+    counts.set(s.categorySlug, (counts.get(s.categorySlug) || 0) + 1);
+  }
+  return Array.from(counts.entries()).map(([slug, count]) => ({
+    slug,
+    name: slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+    description: '',
+    _count: { skills: count },
+  }));
 }
 
 // ─── API Client ─────────────────────────────────────────────
@@ -434,9 +476,40 @@ const StargateSkillsMarketplacePanel: React.FC<{
       if (selectedCategory !== 'all') args.category = selectedCategory;
       if (searchQuery) args.query = searchQuery;
 
-      const data = await marketplaceCall<any>('search_skills', args);
-      const skillList = data.skills || data.data || [];
-      const pag = data.pagination || { page: 1, perPage, total: skillList.length, totalPages: 1, hasNext: false, hasPrev: false };
+      let skillList: Skill[] = [];
+      let pag: Pagination = { page: 1, perPage, total: 0, totalPages: 1, hasNext: false, hasPrev: false };
+
+      try {
+        const data = await marketplaceCall<any>('search_skills', args);
+        skillList = data.skills || data.data || [];
+        pag = data.pagination || { page: 1, perPage, total: skillList.length, totalPages: 1, hasNext: false, hasPrev: false };
+      } catch (apiErr: any) {
+        // ── Fallback: use local skillMarketplace data ──────────────────
+        console.warn('[SkillsMarketplace] API failed, falling back to local skillMarketplace:', apiErr?.message);
+        const localSkills = skillMarketplace.getSkills();
+        let filtered = localSkills.map(mapSkillInfoToSkill);
+        if (selectedCategory !== 'all') {
+          filtered = filtered.filter(s => s.categorySlug === selectedCategory);
+        }
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          filtered = filtered.filter(s =>
+            s.name.toLowerCase().includes(q) ||
+            s.description.toLowerCase().includes(q) ||
+            s.tags.some(t => t.toLowerCase().includes(q))
+          );
+        }
+        const start = (page - 1) * perPage;
+        skillList = filtered.slice(start, start + perPage);
+        pag = {
+          page,
+          perPage,
+          total: filtered.length,
+          totalPages: Math.max(1, Math.ceil(filtered.length / perPage)),
+          hasNext: start + perPage < filtered.length,
+          hasPrev: page > 1,
+        };
+      }
 
       setSkills(skillList);
       setPagination(pag);
@@ -452,7 +525,9 @@ const StargateSkillsMarketplacePanel: React.FC<{
       const data = await marketplaceCall<any>('get_categories', {});
       setCategories(data.categories || data.data || []);
     } catch (e) {
-      // silently fail
+      // ── Fallback: derive categories from local skillMarketplace ──
+      const localSkills = skillMarketplace.getSkills().map(mapSkillInfoToSkill);
+      setCategories(buildCategoriesFromSkills(localSkills));
     }
   }, []);
 
