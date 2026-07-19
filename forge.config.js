@@ -74,7 +74,9 @@ export default {
             /\.env\.local$/,
         ],
         extraResource: [
-            'config/gmail-credentials.json'
+            'config/gmail-credentials.json',
+            'bundled-skills',
+            'electron/integrations/mcp/servers',
         ],
         protocols: [
             {

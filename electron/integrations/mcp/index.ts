@@ -32,6 +32,7 @@ export function setMainWindow(win: BrowserWindow): void {
 // =============================================================================
 
 export async function initPlugins(): Promise<void> {
+  pluginManager.seedDefaults(); // Seed default plugins for new users
   const plugins = pluginManager.list().filter((p) => p.autoConnect);
   for (const plugin of plugins) {
     try {

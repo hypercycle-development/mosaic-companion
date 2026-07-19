@@ -1,0 +1,98 @@
+---
+name: midnight-core-concepts-midnight-core-concepts-data-models
+description: This skill should be used when the user asks about UTXO vs account models, ledger tokens, shielded/unshielded tokens, nullifiers, coin commitments, the Zswap commitment tree, double-spend prevention, token balances, parallel transaction processing, choosing between token paradigms in Midnight, minting tokens, token type identification, or the ledger structure.
+category: midnight
+version: 0.1.0
+---
+> **Hermes Integration Note:** This skill was ported from `midnight-expert/core-concepts`. Some Claude-specific commands may need adaptation.
+
+
+# Midnight Data Models
+
+Midnight supports two distinct token paradigms: **UTXO-based ledger tokens** and **account-based contract tokens**. Choose based on privacy requirements and use case complexity.
+
+## Quick Decision Guide
+
+| Requirement | Use UTXO (Ledger Tokens) | Use Account (Contract Tokens) |
+|-------------|--------------------------|-------------------------------|
+| Privacy critical | Yes - independent, shieldable | Less native privacy than UTXO; shielded contract tokens in development |
+| Parallel processing | Yes - no ordering deps | No - sequential nonce |
+| Simple transfers | Yes | Overkill |
+| Complex DeFi logic | Limited | Yes |
+| Gaming state machines | No | Yes |
+| Governance/delegation | No | Yes |
+
+## UTXO Model (Ledger Tokens)
+
+UTXO = Unspent Transaction Output. Each token is a discrete digital coin that must be spent entirely.
+
+### Core Mechanics
+
+```text
+Creation -> Existence -> Consumption -> Prevention of Reuse
+```
+
+1. **Creation**: UTXO born with a cryptographic commitment that hides the coin's value, type, and owner
+2. **Existence**: Queryable in the commitment tree
+3. **Consumption**: Entire UTXO spent in transaction (change returned as new UTXO)
+4. **Prevention**: Nullifier added to global set, prevents double-spend
+
+### Nullifier Innovation
+
+Unlike Bitcoin, which references prior outputs directly by txid+index (revealing which coin was spent), Midnight uses nullifiers:
+
+Each coin carries a value, token type, and unique nonce. The nullifier is a hash derived from the coin data and the spending key.
+
+**Privacy benefit**: The nullifier is computed from the raw coin data and the spending key, not from the commitment. This means the nullifier reveals nothing about which coin commitment was spent.
+
+### Shielded vs Unshielded
+
+Each UTXO independently chooses privacy level:
+- **Shielded**: Commitment hidden, value/owner private
+- **Unshielded**: Value visible for regulatory compliance
+
+## Account Model (Contract Tokens)
+
+Maintain address-to-balance mappings within Compact contracts, following patterns inspired by OpenZeppelin-style token standards adapted for Compact.
+
+### When to Use
+
+- Complex DeFi state machines requiring intricate interactions
+- Gaming systems with stateful game logic
+- Governance tokens with delegation mechanics
+- Social tokens tracking relationships
+
+### Trade-offs
+
+| Aspect | Account Model Limitation |
+|--------|-------------------------|
+| Privacy | Less native privacy than UTXO; shielded contract tokens in development |
+| Ordering | Nonce creates sequential dependency |
+| MEV | Mempool visibility enables front-running |
+| Scalability | Redundant computation on every node |
+
+## Ledger Structure
+
+Midnight's ledger has two components:
+
+### 1. Zswap State
+- **Commitment tree** — a Merkle tree of all coin commitments ever created
+- **First free index** — pointer to the next available leaf position (append-only)
+- **Nullifier set** — all spent-coin nullifiers, checked before accepting new spends
+- **Historic roots** — recent Merkle roots kept for a time window so proofs can reference slightly older tree states
+
+### 2. Contract Map
+- Associates contract addresses with states
+- Each contract state holds an Impact state value plus entry point operations (SNARK verifier keys)
+
+## Token Types
+
+Token types are 256-bit collision-resistant hashes:
+- **Native token**: The type identifier is the 256-bit zero value
+- **Custom tokens**: derived by hashing a domain separator with the issuing contract's address
+
+## References
+
+For detailed technical information:
+- **`references/utxo-mechanics.md`** - Complete UTXO lifecycle, nullifier computation
+- **`references/ledger-structure.md`** - Zswap state internals, Merkle tree details
