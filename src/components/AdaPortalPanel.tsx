@@ -75,6 +75,7 @@ import StargateTelemetryCard from './stargate/StargateTelemetryCard';
 import StargateCommunityAIMPanel from './stargate/StargateCommunityAIMPanel';
 import MidnightCityCommandPanel from './stargate/MidnightCityCommandPanel';
 import { cardanoWallet } from '../services/AdaPortal/CardanoWalletService';
+import { oneAmWallet } from '../services/OneAmWalletService';
 import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus, Pickaxe, Info } from 'lucide-react';
 
 // ---- Module-level helper: ensure wallet is on Base chain ----
@@ -284,6 +285,17 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     quantity: number;
     unit?: string;
   }> | null>(null);
+
+  // 1AM Wallet State (Midnight Network)
+  const [oneamConnected, setOneamConnected] = useState(false);
+  const [oneamAddress, setOneamAddress] = useState<string | null>(null);
+  const [oneamNetwork, setOneamNetwork] = useState<string | null>(null);
+  const [oneamBalance, setOneamBalance] = useState<{
+    lovelace: number; nightTokens: number; dustTokens: number; assets: any[];
+  } | null>(null);
+  const [oneamAgentWallets, setOneamAgentWallets] = useState<any[]>([]);
+  const [isConnectingOneam, setIsConnectingOneam] = useState(false);
+  const [oneamAvailable, setOneamAvailable] = useState(false);
 
   // Resolved collection groups with metadata + infrastructure
   const [collectionGroups, setCollectionGroups] = useState<ResolvedCollectionGroup[]>([]);
@@ -668,15 +680,51 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     return () => { mounted = false; clearInterval(timer); };
   }, []);
 
+  // 1AM Wallet Bridge — mount hidden iframe for extension detection
+  const bridgeContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        // Mount bridge iframe in a hidden container
+        const container = document.createElement('div');
+        container.id = 'oneam-bridge-host';
+        container.style.cssText = 'position:fixed;bottom:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1;';
+        document.body.appendChild(container);
+        bridgeContainerRef.current = container;
+
+        const ok = await oneAmWallet.mountBridge(container);
+        if (!mounted) return;
+        setOneamAvailable(ok);
+
+        if (ok) {
+          const info = await oneAmWallet.detect();
+          if (info && mounted) {
+            console.log('[AdaPortal] 1AM Wallet detected:', info.displayName);
+          }
+        }
+      } catch (e) {
+        console.warn('[AdaPortal] 1AM bridge mount failed:', e);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+      if (bridgeContainerRef.current) {
+        bridgeContainerRef.current.remove();
+        bridgeContainerRef.current = null;
+      }
+    };
+  }, []);
+
   // Enhanced Local Node Bridge — telemetry + Validator Fleet polling
   useEffect(() => {
     let mounted = true;
-    // Wire validator pool updates from enhanced telemetry
     const unsub = enhancedLocalNodeBridge.onUpdate((t) => {
       if (!mounted || !t?.validatorPool) return;
       setValidatorPool(t.validatorPool);
     });
-    // Kick off polling (refresh already triggers onUpdate)
     enhancedLocalNodeBridge.startPolling();
     return () => {
       mounted = false;
@@ -1116,127 +1164,188 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         <p className="text-gray-400">Select your goal and let AI configure the perfect workforce</p>
       </div>
 
-      {/* NFT Access - LACE Wallet */}
-      <div className="p-4 rounded-xl bg-gradient-to-r from-purple-900/30 to-cyan-900/30 border border-purple-500/30">
+      {/* ═══ 1AM Wallet Dashboard (Midnight Network) ═══ */}
+      <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-900/40 via-purple-900/30 to-pink-900/40 border border-indigo-500/30">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-              <Key size={20} className="text-purple-400" />
+            <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+              <Wallet size={20} className="text-indigo-400" />
             </div>
             <div>
-              <h4 className="font-medium text-white">NFT Access</h4>
-              <p className="text-xs text-gray-400">Connect wallet to verify NFT holdings for premium access</p>
+              <h4 className="font-medium text-white">1AM Wallet</h4>
+              <p className="text-xs text-gray-400">Midnight Network — NIGHT · DUST · Agent Identity</p>
             </div>
           </div>
-          {laceConnected ? (
+          {oneamConnected ? (
             <div className="flex items-center gap-2">
               <CheckCircle size={18} className="text-green-400" />
               <span className="text-sm text-green-400">Connected</span>
-              <span className="text-xs text-gray-500 ml-2">{laceAddress?.slice(0, 8)}...</span>
+              <span className="text-xs text-gray-500 ml-2">{oneamAddress?.slice(0, 10)}...</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/20">{oneamNetwork}</span>
             </div>
           ) : (
             <button
               onClick={async () => {
-                setIsConnectingLace(true);
+                setIsConnectingOneam(true);
                 try {
-                  const result = await cardanoWallet.connectWallet('lace');
-                  if (result.success && result.session?.connected && result.session.address) {
-                    setLaceConnected(true);
-                    setLaceAddress(result.session.address);
-                    const rawAssets = result.session.assets || [];
-                    const verifiedAssets = rawAssets.filter((a: any) =>
-                      nftPolicyIds.includes(a.policyId?.toLowerCase())
-                    );
-                    if (verifiedAssets.length > 0) {
-                      setCardanoAssets(verifiedAssets);
-                      setResolvingMetadata(true);
-                      try {
-                        const units = verifiedAssets.map((a: any) => ({
-                          ...a,
-                          unit: a.unit || a.policyId + a.assetName,
-                        }));
-                        const groups = await metadataResolver.resolveCollectionGroups(units);
-                        const verifiedGroups = groups.filter(g => g.isVerified);
-                        setCollectionGroups(verifiedGroups);
-                        showNotification('success', `Lace connected! ${verifiedAssets.length} verified NFT(s) · ${verifiedGroups.length} collection(s)`);
-                      } catch (metaErr: any) {
-                        console.warn('[AdaPortal] Metadata resolution failed:', metaErr);
-                        showNotification('success', `Lace wallet connected! Found ${verifiedAssets.length} verified NFT(s).`);
-                      } finally {
-                        setResolvingMetadata(false);
+                  // First try direct browser API (1AM Wallet extension)
+                  const result = await oneAmWallet.connect();
+                  if (result.success && result.session?.connected) {
+                    setOneamConnected(true);
+                    setOneamAddress(result.session.address);
+                    setOneamNetwork(result.session.network);
+                    setOneamBalance(result.session.balance);
+
+                    // Sync with main process cache
+                    if (window.electronAPI?.oneam) {
+                      await window.electronAPI.oneam.connect();
+                    }
+
+                    // Auto-create agent wallets for existing user agents
+                    const agents = userAgents;
+                    if (agents.length > 0) {
+                      for (const agent of agents) {
+                        oneAmWallet.createAgentWallet(agent.id, agent.name);
                       }
-                    } else {
-                      showNotification('info', 'Lace connected — no verified NFTs from allowed collections found.');
+                      setOneamAgentWallets(oneAmWallet.getAgentWallets());
                     }
-                    const verify = await cardanoWallet.verifyNFTAccess();
-                    if (verify.verified) {
-                      showNotification('success', `NFT verified! ${verify.message}`);
-                    } else {
-                      showNotification('error', 'No qualifying NFTs found in Lace wallet');
-                    }
+
+                    showNotification('success', `1AM Wallet connected on ${result.session.network}!`);
                   } else {
-                    showNotification('error', result.error || 'Failed to connect Lace wallet');
+                    showNotification('error', result.error || 'Failed to connect 1AM Wallet');
                   }
                 } catch (e: any) {
-                  showNotification('error', e.message || 'Lace connection failed');
+                  showNotification('error', e.message || '1AM connection failed');
                 } finally {
-                  setIsConnectingLace(false);
+                  setIsConnectingOneam(false);
                 }
               }}
-              disabled={isConnectingLace}
+              disabled={isConnectingOneam}
               className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium disabled:opacity-50 transition-colors"
             >
-              {isConnectingLace ? '...' : 'LACE'}
+              {isConnectingOneam ? 'Connecting...' : 'Connect 1AM'}
             </button>
           )}
         </div>
 
-        {/* NFT Policy ID Configuration */}
-        {laceConnected && (
+        {/* 1AM Balance + Assets */}
+        {oneamConnected && oneamBalance && (
           <div className="mt-3 pt-3 border-t border-gray-700">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs text-gray-400">Allowed Policy IDs:</span>
-              {nftPolicyIds.length === 0 ? (
-                <span className="text-xs text-gray-600">None configured</span>
-              ) : (
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="bg-gray-900/50 rounded-lg p-2 text-center">
+                <div className="text-xs text-gray-500 uppercase tracking-wide">Lovelace</div>
+                <div className="text-sm font-semibold text-white">{(oneamBalance.lovelace / 1_000_000).toFixed(2)}</div>
+              </div>
+              <div className="bg-gray-900/50 rounded-lg p-2 text-center">
+                <div className="text-xs text-gray-500 uppercase tracking-wide">NIGHT</div>
+                <div className="text-sm font-semibold text-pink-400">{oneamBalance.nightTokens.toLocaleString()}</div>
+              </div>
+              <div className="bg-gray-900/50 rounded-lg p-2 text-center">
+                <div className="text-xs text-gray-500 uppercase tracking-wide">DUST</div>
+                <div className="text-sm font-semibold text-amber-400">{oneamBalance.dustTokens.toLocaleString()}</div>
+              </div>
+            </div>
+
+            {/* Assets list */}
+            {oneamBalance.assets.length > 0 && (
+              <div className="mb-3">
+                <h5 className="text-xs text-gray-400 mb-1">Assets ({oneamBalance.assets.length})</h5>
                 <div className="flex flex-wrap gap-1">
-                  {nftPolicyIds.map((pid, idx) => (
-                    <span key={idx} className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-xs">
-                      {pid.slice(0, 8)}...
+                  {oneamBalance.assets.slice(0, 8).map((a, idx) => (
+                    <span key={idx} className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 text-xs border border-indigo-500/20">
+                      {a.assetName || a.policyId.slice(0, 8)} ×{a.quantity}
                     </span>
                   ))}
+                  {oneamBalance.assets.length > 8 && (
+                    <span className="px-2 py-0.5 rounded bg-gray-800 text-gray-500 text-xs">+{oneamBalance.assets.length - 8} more</span>
+                  )}
                 </div>
-              )}
-            </div>
-            <input
-              type="text"
-              placeholder="Enter Policy ID (hex) and press Enter to add"
-              onKeyDown={async (e) => {
-                if (e.key === 'Enter') {
-                  const input = e.currentTarget;
-                  const policyId = input.value.trim();
-                  if (policyId && /^([a-fA-F0-9]{56})$/.test(policyId)) {
-                    const lower = policyId.toLowerCase();
-                    if (!nftPolicyIds.includes(lower)) {
-                      const next = [...nftPolicyIds, lower];
-                      setNftPolicyIds(next);
-                      accessControl.setNFTConfig({ premiumPolicyIds: next });
-                      input.value = '';
-                      const verify = await cardanoWallet.verifyNFTAccess();
-                      if (verify.verified && verify.matchedPolicies.includes(lower)) {
-                        showNotification('success', `NFT found! Policy ID ${policyId.slice(0, 8)}... grants access.`);
-                      }
-                    }
-                  } else if (policyId) {
-                    showNotification('error', 'Invalid Policy ID - must be 56 hex characters');
-                  }
-                }
+              </div>
+            )}
+
+            {/* Agent Wallets */}
+            {oneamAgentWallets.length > 0 && (
+              <div className="mb-3">
+                <h5 className="text-xs text-gray-400 mb-1">Agent Wallets ({oneamAgentWallets.length})</h5>
+                <div className="space-y-1">
+                  {oneamAgentWallets.map((aw) => (
+                    <div key={aw.agentId} className="flex items-center justify-between px-2 py-1 rounded bg-gray-900/40 text-xs">
+                      <span className="text-gray-300">{aw.agentName}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-1.5 rounded text-[10px] ${aw.delegated ? 'bg-green-500/20 text-green-300' : 'bg-gray-700 text-gray-500'}`}>
+                          {aw.delegated ? 'Delegated' : 'Read-only'}
+                        </span>
+                        <span className="text-gray-500">{aw.permissions.slice(0, 2).join(', ')}{aw.permissions.length > 2 ? '...' : ''}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Disconnect */}
+            <button
+              onClick={() => {
+                oneAmWallet.disconnect();
+                setOneamConnected(false);
+                setOneamAddress(null);
+                setOneamNetwork(null);
+                setOneamBalance(null);
+                setOneamAgentWallets([]);
+                showNotification('info', '1AM Wallet disconnected');
               }}
-              className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white text-sm placeholder-gray-500 focus:border-purple-500 focus:outline-none"
-            />
+              className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+            >
+              Disconnect
+            </button>
           </div>
         )}
       </div>
+
+      {/* ═══ Legacy: Cardano / LACE Wallet (preserved, collapsible) ═══ */}
+      {!oneamConnected && (
+        <div className="p-3 rounded-xl bg-gradient-to-r from-purple-900/20 to-cyan-900/20 border border-purple-500/20 opacity-80 hover:opacity-100 transition-opacity">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                <Key size={16} className="text-purple-400" />
+              </div>
+              <div>
+                <h4 className="font-medium text-white text-sm">Cardano (LACE)</h4>
+                <p className="text-xs text-gray-400">Legacy NFT access via Cardano wallet</p>
+              </div>
+            </div>
+            {laceConnected ? (
+              <div className="flex items-center gap-2">
+                <CheckCircle size={16} className="text-green-400" />
+                <span className="text-xs text-green-400">{laceAddress?.slice(0, 8)}...</span>
+              </div>
+            ) : (
+              <button
+                onClick={async () => {
+                  setIsConnectingLace(true);
+                  try {
+                    const result = await cardanoWallet.connectWallet('lace');
+                    if (result.success && result.session?.connected) {
+                      setLaceConnected(true);
+                      setLaceAddress(result.session.address);
+                      showNotification('success', 'LACE wallet connected');
+                    }
+                  } catch (e: any) {
+                    showNotification('error', e.message || 'LACE connection failed');
+                  } finally {
+                    setIsConnectingLace(false);
+                  }
+                }}
+                disabled={isConnectingLace}
+                className="px-2 py-1 rounded bg-purple-600/60 hover:bg-purple-500/60 text-white text-xs disabled:opacity-50"
+              >
+                {isConnectingLace ? '...' : 'LACE'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Cardano Wallet NFT Collection Cards ── */}
       {laceConnected && collectionGroups.length > 0 && (

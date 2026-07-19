@@ -1,0 +1,10 @@
+{
+  "id": "mosaic-stargate",
+  "name": "MosAIc Stargate",
+  "description": "AI-native workspace with agent orchestration and identity on Midnight",
+  "icon": "https://raw.githubusercontent.com/webisoftSoftware/1AM-app-registery/main/icons/mosaic-stargate.svg",
+  "url": "https://stargate.mosaic-companion.io",
+  "category": "tools",
+  "networks": ["preview", "preprod"],
+  "new": true
+}

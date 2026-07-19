@@ -1132,7 +1132,119 @@ ipcMain.handle("midnight:clearConfig", async () => {
   return { success: true };
 });
 // ═══ End Midnight City ════════════════════════════════════════════════
-// ═══ End Midnight City ════════════════════════════════════════════════
+
+// ═══ 1AM Wallet IPC Handlers ═══════════════════════════════════════════
+// Bridge to the Midnight DApp Connector injected by 1AM Wallet extension.
+// These handlers proxy renderer requests to the in-page API when available.
+
+interface OneAMSessionCache {
+  connected: boolean;
+  address: string | null;
+  network: string | null;
+  agentWallets: Array<{ agentId: string; agentName: string; address: string | null; delegated: boolean; permissions: string[] }>;
+}
+
+const oneamCache: OneAMSessionCache = {
+  connected: false,
+  address: null,
+  network: null,
+  agentWallets: [],
+};
+
+ipcMain.handle("oneam:detect", async () => {
+  // We can't directly query the browser extension from main process.
+  // The renderer will detect via window.oneam; main process just returns cached state.
+  return {
+    available: oneamCache.connected || false,
+    name: "1AM Wallet",
+    version: "4.0",
+  };
+});
+
+ipcMain.handle("oneam:connect", async () => {
+  // Handled in renderer via OneAmWalletService; main process stores cache
+  return {
+    success: true,
+    session: oneamCache,
+    note: "Use window.electronAPI.oneam.connect() in renderer to trigger actual wallet flow",
+  };
+});
+
+ipcMain.handle("oneam:disconnect", async () => {
+  oneamCache.connected = false;
+  oneamCache.address = null;
+  oneamCache.network = null;
+  return { success: true };
+});
+
+ipcMain.handle("oneam:getSession", async () => {
+  return {
+    connected: oneamCache.connected,
+    address: oneamCache.address,
+    network: oneamCache.network,
+    balance: null,
+  };
+});
+
+ipcMain.handle("oneam:fetchData", async () => {
+  return {
+    success: oneamCache.connected,
+    balance: null,
+    assets: [],
+    error: oneamCache.connected ? undefined : "Not connected",
+  };
+});
+
+ipcMain.handle("oneam:signTx", async (_event, txHex: string, _partialSign?: boolean) => {
+  // Proxy: renderer does actual signing via window.oneam API
+  return {
+    success: false,
+    error: "SignTx must be called from renderer process via injected API",
+    txHex,
+  };
+});
+
+ipcMain.handle("oneam:submitTx", async (_event, txHex: string) => {
+  // Proxy: renderer does actual submit
+  return {
+    success: false,
+    error: "SubmitTx must be called from renderer process via injected API",
+    txHex,
+  };
+});
+
+ipcMain.handle("oneam:createAgentWallet", async (_event, agentId: string, agentName: string) => {
+  const wallet = {
+    agentId,
+    agentName,
+    address: oneamCache.address,
+    delegated: false,
+    permissions: ["read"],
+  };
+  oneamCache.agentWallets.push(wallet);
+  return { success: true, wallet };
+});
+
+ipcMain.handle("oneam:delegateAgent", async (_event, agentId: string, permissions: string[]) => {
+  const wallet = oneamCache.agentWallets.find((w) => w.agentId === agentId);
+  if (!wallet) return { success: false, error: "Agent wallet not found" };
+  wallet.delegated = true;
+  wallet.permissions = permissions;
+  return { success: true };
+});
+
+ipcMain.handle("oneam:revokeAgent", async (_event, agentId: string) => {
+  const wallet = oneamCache.agentWallets.find((w) => w.agentId === agentId);
+  if (!wallet) return { success: false, error: "Agent wallet not found" };
+  wallet.delegated = false;
+  wallet.permissions = [];
+  return { success: true };
+});
+
+ipcMain.handle("oneam:listAgentWallets", async () => {
+  return { wallets: oneamCache.agentWallets };
+});
+// ═══ End 1AM Wallet ═══════════════════════════════════════════════════
 
 // ═══ Node Factory IPC Handlers ════════════════════════════════════════
 ipcMain.handle("nodeFactory:loadJsonFile", async (_event, filePath: string) => {

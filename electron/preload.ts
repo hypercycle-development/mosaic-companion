@@ -466,6 +466,25 @@ contextBridge.exposeInMainWorld("electronAPI", {
     disconnectWallet: () =>
       ipcRenderer.invoke("cardano:disconnectWallet"),
   },
+  // ─── 1AM Wallet (Midnight Network) ───
+  oneam: {
+    detect: () => ipcRenderer.invoke("oneam:detect"),
+    connect: () => ipcRenderer.invoke("oneam:connect"),
+    disconnect: () => ipcRenderer.invoke("oneam:disconnect"),
+    getSession: () => ipcRenderer.invoke("oneam:getSession"),
+    fetchData: () => ipcRenderer.invoke("oneam:fetchData"),
+    signTx: (txHex: string, partialSign?: boolean) =>
+      ipcRenderer.invoke("oneam:signTx", txHex, partialSign),
+    submitTx: (txHex: string) =>
+      ipcRenderer.invoke("oneam:submitTx", txHex),
+    createAgentWallet: (agentId: string, agentName: string) =>
+      ipcRenderer.invoke("oneam:createAgentWallet", agentId, agentName),
+    delegateAgent: (agentId: string, permissions: string[]) =>
+      ipcRenderer.invoke("oneam:delegateAgent", agentId, permissions),
+    revokeAgent: (agentId: string) =>
+      ipcRenderer.invoke("oneam:revokeAgent", agentId),
+    listAgentWallets: () => ipcRenderer.invoke("oneam:listAgentWallets"),
+  },
   // ─── Hermes Dashboard ───
   hermes: {
     startDashboard: (port?: number) =>

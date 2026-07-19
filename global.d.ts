@@ -462,6 +462,19 @@ declare global {
         getPoolDistribution: () => Promise<any>;
         [key: string]: any;
       };
+      oneam: {
+        detect: () => Promise<{ available: boolean; name?: string; version?: string; error?: string }>;
+        connect: () => Promise<{ success: boolean; session?: any; error?: string }>;
+        disconnect: () => Promise<{ success: boolean }>;
+        getSession: () => Promise<{ connected: boolean; address?: string | null; network?: string | null; balance?: any }>;
+        fetchData: () => Promise<{ success: boolean; balance?: any; assets?: any[]; error?: string }>;
+        signTx: (txHex: string, partialSign?: boolean) => Promise<{ success: boolean; signedTx?: string; error?: string }>;
+        submitTx: (txHex: string) => Promise<{ success: boolean; txHash?: string; error?: string }>;
+        createAgentWallet: (agentId: string, agentName: string) => Promise<{ success: boolean; wallet?: any; error?: string }>;
+        delegateAgent: (agentId: string, permissions: string[]) => Promise<{ success: boolean; error?: string }>;
+        revokeAgent: (agentId: string) => Promise<{ success: boolean; error?: string }>;
+        listAgentWallets: () => Promise<{ wallets: any[] }>;
+      };
       midnightCity: {
         getCityState: () => Promise<any>;
         getDistricts: () => Promise<any>;
