@@ -382,7 +382,7 @@ const MidnightCityCommandPanelInner: React.FC = () => {
   const fetchThreads = useCallback(async () => {
     if (!connectedRef.current) return;
     try {
-      const data = await apiCall(`/api/agents/${encodeURIComponent(agentId)}/threads?limit=50`);
+      const data = await apiCall(`/api/skill/agents/${encodeURIComponent(agentId)}/threads?limit=50`);
       setThreads(data?.threads || []);
     } catch (err: any) {
       addLog("warn", "Threads fetch failed", err.message);
