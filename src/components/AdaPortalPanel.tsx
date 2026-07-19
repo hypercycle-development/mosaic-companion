@@ -4,7 +4,6 @@
 // ============================================
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import QRCode from 'qrcode';
 
 // Type declaration for window.ethereum
 declare global {
@@ -75,6 +74,7 @@ import StargatePoolHub from './stargate/StargatePoolHub';
 import StargateTelemetryCard from './stargate/StargateTelemetryCard';
 import StargateCommunityAIMPanel from './stargate/StargateCommunityAIMPanel';
 import MidnightCityCommandPanel from './stargate/MidnightCityCommandPanel';
+import { cardanoWallet } from '../services/AdaPortal/CardanoWalletService';
 import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus, Pickaxe, Info } from 'lucide-react';
 
 // ---- Module-level helper: ensure wallet is on Base chain ----
@@ -274,8 +274,9 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [notification, setNotification] = useState<{type: 'success' | 'error' | 'info' | 'warning'; message: string} | null>(null);
   const [accessCheck, setAccessCheck] = useState<AccessCheck | null>(null);
-  const [tokeoConnected, setTokeoConnected] = useState(false);
-  const [tokeoAddress, setTokeoAddress] = useState<string | null>(null);
+  const [laceConnected, setLaceConnected] = useState(false);
+  const [laceAddress, setLaceAddress] = useState<string | null>(null);
+  const [isConnectingLace, setIsConnectingLace] = useState(false);
   const [cardanoAssets, setCardanoAssets] = useState<Array<{
     policyId: string;
     assetName: string;
@@ -293,9 +294,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     '454fb57214730cb34f83d7b377308a76ab6e7140ea634a7fc63affa5', // CMHPEC DAO PASS
     'bc963a07e32da4d22b77c8cba7ab9f3df6241f37d7bfc9b0deb48f65', // HyperDegens
   ]);
-  const [isConnectingTokeo, setIsConnectingTokeo] = useState(false);
-  const [showQRModal, setShowQRModal] = useState(false);
-  const [qrData, setQrData] = useState<{uri: string; sessionId: string} | null>(null);
   const [factories, setFactories] = useState<{factory: NodeFactory; isEligible: boolean; reason?: string}[]>([]);
   const [ethAddress, setEthAddress] = useState<string | null>(null);
   const [isLoadingFactories, setIsLoadingFactories] = useState(false);
@@ -1118,7 +1116,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         <p className="text-gray-400">Select your goal and let AI configure the perfect workforce</p>
       </div>
 
-      {/* NFT Access - Tokeo Wallet */}
+      {/* NFT Access - LACE Wallet */}
       <div className="p-4 rounded-xl bg-gradient-to-r from-purple-900/30 to-cyan-900/30 border border-purple-500/30">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1130,146 +1128,71 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
               <p className="text-xs text-gray-400">Connect wallet to verify NFT holdings for premium access</p>
             </div>
           </div>
-          {tokeoConnected ? (
+          {laceConnected ? (
             <div className="flex items-center gap-2">
               <CheckCircle size={18} className="text-green-400" />
               <span className="text-sm text-green-400">Connected</span>
-              <span className="text-xs text-gray-500 ml-2">{tokeoAddress?.slice(0, 8)}...</span>
+              <span className="text-xs text-gray-500 ml-2">{laceAddress?.slice(0, 8)}...</span>
             </div>
           ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={async () => {
-                  setIsConnectingTokeo(true);
-                  try {
-                    const detectResult = await window.electronAPI?.cardano?.detectWallets();
-                    const detect = detectResult as any;
-                    if (detect?.success && detect?.data?.available) {
-                      const wallets = detect.data.wallets || [];
-                      const hasLace = wallets.some((w: any) => w.key === 'lace' || /lace/i.test(w.name));
-                      if (hasLace) {
-                        const result = await window.electronAPI?.cardano?.connectWallet('lace');
-                        const r = result as any;
-                        if (r?.success && r?.data?.connected) {
-                          setTokeoConnected(true);
-                          setTokeoAddress(r.data.address);
-                          // Store wallet assets from bridge — FILTER to verified policies only
-                          const rawAssets = r.data.assets || [];
-                          const verifiedAssets = rawAssets.filter((a: any) =>
-                            nftPolicyIds.includes(a.policyId?.toLowerCase())
-                          );
-                          if (verifiedAssets.length > 0) {
-                            setCardanoAssets(verifiedAssets);
-                            // Resolve rich metadata + group collections
-                            setResolvingMetadata(true);
-                            try {
-                              const units = verifiedAssets.map((a: any) => ({
-                                ...a,
-                                unit: a.unit || a.policyId + a.assetName,
-                              }));
-                              const groups = await metadataResolver.resolveCollectionGroups(units);
-                              // Only show verified collection groups
-                              const verifiedGroups = groups.filter(g => g.isVerified);
-                              setCollectionGroups(verifiedGroups);
-                              showNotification('success', `Lace connected! ${verifiedAssets.length} verified NFT(s) · ${verifiedGroups.length} collection(s)`);
-                            } catch (metaErr: any) {
-                              console.warn('[AdaPortal] Metadata resolution failed:', metaErr);
-                              showNotification('success', `Lace wallet connected! Found ${verifiedAssets.length} verified NFT(s).`);
-                            } finally {
-                              setResolvingMetadata(false);
-                            }
-                          } else {
-                            showNotification('info', 'Lace connected — no verified NFTs from allowed collections found.');
-                          }
-                          if (nftPolicyIds.length > 0) {
-                            const verifyResult = await window.electronAPI?.cardano?.tokeoVerifyCollection(nftPolicyIds, false);
-                            const v = verifyResult as any;
-                            if (v?.success && v?.data?.hasAccess) {
-                              const matched = v.data.matchedPolicies || [];
-                              showNotification('success', `NFT verified! Found: ${matched.length} collection(s)`);
-                            } else {
-                              showNotification('error', 'No matching NFTs found in Lace wallet');
-                            }
-                          }
-                        } else {
-                          showNotification('error', r?.error || 'Failed to connect Lace wallet');
-                        }
-                      } else {
-                        showNotification('error', 'Lace wallet not detected. Ensure Lace extension is installed in Chrome/Brave/Edge.');
+            <button
+              onClick={async () => {
+                setIsConnectingLace(true);
+                try {
+                  const result = await cardanoWallet.connectWallet('lace');
+                  if (result.success && result.session?.connected && result.session.address) {
+                    setLaceConnected(true);
+                    setLaceAddress(result.session.address);
+                    const rawAssets = result.session.assets || [];
+                    const verifiedAssets = rawAssets.filter((a: any) =>
+                      nftPolicyIds.includes(a.policyId?.toLowerCase())
+                    );
+                    if (verifiedAssets.length > 0) {
+                      setCardanoAssets(verifiedAssets);
+                      setResolvingMetadata(true);
+                      try {
+                        const units = verifiedAssets.map((a: any) => ({
+                          ...a,
+                          unit: a.unit || a.policyId + a.assetName,
+                        }));
+                        const groups = await metadataResolver.resolveCollectionGroups(units);
+                        const verifiedGroups = groups.filter(g => g.isVerified);
+                        setCollectionGroups(verifiedGroups);
+                        showNotification('success', `Lace connected! ${verifiedAssets.length} verified NFT(s) · ${verifiedGroups.length} collection(s)`);
+                      } catch (metaErr: any) {
+                        console.warn('[AdaPortal] Metadata resolution failed:', metaErr);
+                        showNotification('success', `Lace wallet connected! Found ${verifiedAssets.length} verified NFT(s).`);
+                      } finally {
+                        setResolvingMetadata(false);
                       }
                     } else {
-                      showNotification('error', 'No CIP-30 wallets detected. Ensure Lace extension is installed in Chrome/Brave/Edge.');
+                      showNotification('info', 'Lace connected — no verified NFTs from allowed collections found.');
                     }
-                  } catch (e: any) {
-                    showNotification('error', e.message || 'Lace connection failed');
-                  } finally {
-                    setIsConnectingTokeo(false);
-                  }
-                }}
-                disabled={isConnectingTokeo}
-                className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium disabled:opacity-50 transition-colors"
-              >
-                {isConnectingTokeo ? '...' : 'LACE'}
-              </button>
-              <button
-                onClick={async () => {
-                  setIsConnectingTokeo(true);
-                  try {
-                    const qrResult = await window.electronAPI?.cardano?.tokeoQRPairing(nftPolicyIds);
-                    const qr = qrResult as any;
-                    if (qr?.success && qr?.data?.uri) {
-                      setQrData({ uri: qr.data.uri, sessionId: qr.data.sessionId });
-                      setShowQRModal(true);
-                      const host = qr.data.host || 'localhost';
-                      showNotification('info', `Scan QR with Tokeo mobile app → ${host}:${qr.data.port}`);
-                      const pollInterval = setInterval(async () => {
-                        const checkResult = await window.electronAPI?.cardano?.tokeoCheckQR();
-                        const c = checkResult as any;
-                        if (c?.success && c?.data?.connected) {
-                          clearInterval(pollInterval);
-                          setTokeoConnected(true);
-                          setTokeoAddress(c.data.address);
-                          setShowQRModal(false);
-                          showNotification('success', `Tokeo connected: ${c.data.address?.slice(0, 12)}...`);
-                          if (nftPolicyIds.length > 0) {
-                            const verifyResult = await window.electronAPI?.cardano?.tokeoVerifyCollection(nftPolicyIds, false);
-                            const v = verifyResult as any;
-                            if (v?.success && v?.data?.hasAccess) {
-                              const matched = v.data.matchedPolicies || [];
-                              showNotification('success', `NFT verified! Found: ${matched.length} collection(s)`);
-                            } else {
-                              showNotification('error', 'No matching NFTs found in wallet');
-                            }
-                          }
-                        }
-                        if (c?.success === false) {
-                          // Session expired or error - stop polling
-                          clearInterval(pollInterval);
-                          showNotification('error', c.error || 'QR session expired');
-                        }
-                      }, 3000);
-                      // Stop polling after 5 minutes (session expiry)
-                      setTimeout(() => clearInterval(pollInterval), 5 * 60 * 1000);
+                    const verify = await cardanoWallet.verifyNFTAccess();
+                    if (verify.verified) {
+                      showNotification('success', `NFT verified! ${verify.message}`);
                     } else {
-                      showNotification('error', 'Failed to generate QR code');
+                      showNotification('error', 'No qualifying NFTs found in Lace wallet');
                     }
-                  } catch (e: any) {
-                    showNotification('error', e.message || 'QR pairing failed');
-                  } finally {
-                    setIsConnectingTokeo(false);
+                  } else {
+                    showNotification('error', result.error || 'Failed to connect Lace wallet');
                   }
-                }}
-                disabled={isConnectingTokeo}
-                className="px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium disabled:opacity-50 transition-colors"
-              >
-                QR
-              </button>
-            </div>
+                } catch (e: any) {
+                  showNotification('error', e.message || 'Lace connection failed');
+                } finally {
+                  setIsConnectingLace(false);
+                }
+              }}
+              disabled={isConnectingLace}
+              className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium disabled:opacity-50 transition-colors"
+            >
+              {isConnectingLace ? '...' : 'LACE'}
+            </button>
           )}
         </div>
-        
+
         {/* NFT Policy ID Configuration */}
-        {tokeoConnected && (
+        {laceConnected && (
           <div className="mt-3 pt-3 border-t border-gray-700">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs text-gray-400">Allowed Policy IDs:</span>
@@ -1293,15 +1216,14 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                   const input = e.currentTarget;
                   const policyId = input.value.trim();
                   if (policyId && /^([a-fA-F0-9]{56})$/.test(policyId)) {
-                    if (!nftPolicyIds.includes(policyId.toLowerCase())) {
-                      setNftPolicyIds([...nftPolicyIds, policyId.toLowerCase()]);
-                      accessControl.setNFTConfig({ premiumPolicyIds: [...nftPolicyIds, policyId.toLowerCase()] });
+                    const lower = policyId.toLowerCase();
+                    if (!nftPolicyIds.includes(lower)) {
+                      const next = [...nftPolicyIds, lower];
+                      setNftPolicyIds(next);
+                      accessControl.setNFTConfig({ premiumPolicyIds: next });
                       input.value = '';
-                      
-                      // Verify access with new policy
-                      const verifyResult = await window.electronAPI?.cardano?.tokeoVerifyCollection([policyId.toLowerCase()], false);
-                      const v = verifyResult as any;
-                      if (v?.success && v?.data?.hasAccess) {
+                      const verify = await cardanoWallet.verifyNFTAccess();
+                      if (verify.verified && verify.matchedPolicies.includes(lower)) {
                         showNotification('success', `NFT found! Policy ID ${policyId.slice(0, 8)}... grants access.`);
                       }
                     }
@@ -1317,7 +1239,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       </div>
 
       {/* ── Cardano Wallet NFT Collection Cards ── */}
-      {tokeoConnected && collectionGroups.length > 0 && (
+      {laceConnected && collectionGroups.length > 0 && (
         <NFTCollectionGrid
           groups={collectionGroups}
           onAssetClick={(asset) => setSelectedAsset(asset)}
@@ -1326,7 +1248,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       )}
 
       {/* Fallback: show old simple cards if metadata resolver failed but assets exist */}
-      {tokeoConnected && !resolvingMetadata && collectionGroups.length === 0 && cardanoAssets && cardanoAssets.length > 0 && (
+      {laceConnected && !resolvingMetadata && collectionGroups.length === 0 && cardanoAssets && cardanoAssets.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h4 className="font-semibold text-white flex items-center gap-2">
@@ -3937,166 +3859,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     );
   };
 
-  // ============== QR CODE MODAL FOR MOBILE PAIRING ==============
-  const QRModal = () => {
-    const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-    const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
-    const [status, setStatus] = useState<'pending' | 'scanning' | 'connected'>('pending');
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-
-    useEffect(() => {
-      const generateQR = async () => {
-        try {
-          const qrResult = await window.electronAPI?.cardano?.tokeoQRPairing();
-          const qr = qrResult as any;
-          if (qr?.success && qr?.data?.uri) {
-            setStatus('scanning');
-            
-            // Generate QR code as data URL
-            const dataUrl = await QRCode.toDataURL(qr.data.uri, {
-              width: 200,
-              margin: 2,
-              color: { dark: '#000000', light: '#FFFFFF' }
-            });
-            setQrDataUrl(dataUrl);
-            
-            // Start polling for connection
-            const interval = setInterval(async () => {
-              const checkResult = await window.electronAPI?.cardano?.tokeoCheckQR();
-              const c = checkResult as any;
-              if (c?.success && c?.data?.connected) {
-                clearInterval(interval);
-                setTokeoConnected(true);
-                setTokeoAddress(c.data.address);
-                setStatus('connected');
-                setTimeout(() => {
-                  setShowQRModal(false);
-                  showNotification('success', 'Tokeo mobile wallet connected!');
-                  if (nftPolicyIds.length > 0) {
-                    window.electronAPI?.cardano?.tokeoVerifyCollection(nftPolicyIds, false).then((v: any) => {
-                      if (v?.success && v?.data?.hasAccess) {
-                        showNotification('success', 'NFT access verified! Premium features unlocked.');
-                      }
-                    });
-                  }
-                }, 1500);
-              }
-            }, 3000);
-            setPollInterval(interval);
-          }
-        } catch (e) {
-          console.error('[QRModal] Failed to generate QR:', e);
-        }
-      };
-      
-      generateQR();
-      
-      return () => {
-        if (pollInterval) clearInterval(pollInterval);
-        window.electronAPI?.cardano?.tokeoCancelQR();
-      };
-    }, []);
-
-    const handleCancel = () => {
-      if (pollInterval) clearInterval(pollInterval);
-      window.electronAPI?.cardano?.tokeoCancelQR();
-      setShowQRModal(false);
-    };
-
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-        <div className="bg-gray-900 rounded-2xl p-6 max-w-sm w-full mx-4 border border-gray-700 shadow-2xl">
-          {/* Header */}
-          <div className="text-center mb-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 mx-auto mb-3 flex items-center justify-center">
-              <Wallet size={32} className="text-white" />
-            </div>
-            <h3 className="text-xl font-bold text-white">Scan with Tokeo</h3>
-            <p className="text-sm text-gray-400 mt-1">
-              {status === 'connected' 
-                ? 'Connected!' 
-                : 'Open Tokeo app → Wallet → Connect DApp → Scan QR'}
-            </p>
-          </div>
-
-          {/* QR Code Display */}
-          <div className="bg-white rounded-xl p-4 mb-4">
-            {status === 'connected' ? (
-              <div className="flex items-center justify-center py-8">
-                <CheckCircle size={64} className="text-green-500" />
-              </div>
-            ) : qrDataUrl ? (
-              <div className="flex items-center justify-center py-2">
-                <img src={qrDataUrl} alt="Scan QR Code" className="w-48 h-48 rounded-lg" />
-              </div>
-            ) : (
-              <div className="flex items-center justify-center py-8">
-                <Loader size={32} className="text-gray-400 animate-spin" />
-              </div>
-            )}
-          </div>
-
-          {/* Status indicator */}
-          <div className="flex items-center justify-center gap-2 mb-4">
-            {status === 'scanning' && (
-              <>
-                <Loader size={16} className="text-cyan-400 animate-spin" />
-                <span className="text-sm text-cyan-400">Waiting for scan...</span>
-              </>
-            )}
-            {status === 'connected' && (
-              <>
-                <CheckCircle size={16} className="text-green-400" />
-                <span className="text-sm text-green-400">Successfully connected!</span>
-              </>
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <button
-              onClick={handleCancel}
-              className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium transition-colors"
-            >
-              {status === 'connected' ? 'Done' : 'Cancel'}
-            </button>
-            {status === 'scanning' && (
-              <button
-                onClick={async () => {
-                  // Manual retry check
-                  const checkResult = await window.electronAPI?.cardano?.tokeoCheckQR();
-                  const c = checkResult as any;
-                  if (c?.success && c?.data?.connected) {
-                    if (pollInterval) clearInterval(pollInterval);
-                    setTokeoConnected(true);
-                    setTokeoAddress(c.data.address);
-                    setStatus('connected');
-                    setTimeout(() => {
-                      setShowQRModal(false);
-                      showNotification('success', 'Tokeo mobile wallet connected!');
-                    }, 1500);
-                  }
-                }}
-                className="flex-1 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                <RefreshCw size={16} />
-                Check
-              </button>
-            )}
-          </div>
-
-          {/* Help text */}
-          {status === 'scanning' && (
-            <p className="text-xs text-gray-500 text-center mt-3">
-              The QR code links your Tokeo mobile wallet to Stargate.<br />
-              No funds will be transferred without your confirmation.
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   // ============== AGENT SELECT MODAL ==============
   // Used for Hire Agent, Book Training, Get Package, and Attach Skill
   const AgentSelectModal = () => {
@@ -4395,9 +4157,6 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
 
   return (
     <div className="h-full flex flex-col bg-gray-900 relative">
-      {/* QR Modal */}
-      {showQRModal && <QRModal />}
-      
       {/* Agent Select Modal */}
       {showAgentSelectModal && <AgentSelectModal />}
       
