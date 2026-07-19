@@ -404,6 +404,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("stargate:tilling:update", tenantId, payload),
     skillSyncToNode: (payload: any) =>
       ipcRenderer.invoke("stargate:skill:syncToNode", payload),
+    aimify: {
+      exec: (command: string, args: string[], options?: { cwd?: string; timeout?: number }) =>
+        ipcRenderer.invoke("stargate:aimify:exec", command, args, options),
+      readFile: (filePath: string) =>
+        ipcRenderer.invoke("stargate:aimify:readFile", filePath),
+      writeFile: (filePath: string, content: string) =>
+        ipcRenderer.invoke("stargate:aimify:writeFile", filePath, content),
+    },
   },
   // Krea AI Image Generation
   krea: {

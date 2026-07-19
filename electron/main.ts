@@ -2,6 +2,7 @@ import { app, BrowserWindow, clipboard, ipcMain, IpcMainInvokeEvent, powerMonito
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import { spawn } from "child_process";
 import {
   checkForUpdates,
   manualCheckForUpdates,
@@ -1166,4 +1167,62 @@ ipcMain.handle("nodeFactory:checkLicense", async (_event, licenseId: string, api
   }
 });
 // ═══ End Node Factory ═════════════════════════════════════════════════
+
+// ═══ Aimify (Docker build) IPC Handlers ═════════════════════════════════
+
+ipcMain.handle("stargate:aimify:exec", async (_event, command: string, args: string[], options?: { cwd?: string; timeout?: number }) => {
+  return new Promise((resolve) => {
+    const cwd = options?.cwd || undefined;
+    const timeoutMs = options?.timeout || 30000;
+    const proc = spawn(command, args, { cwd });
+
+    let stdout = "";
+    let stderr = "";
+    let killed = false;
+
+    const timer = setTimeout(() => {
+      killed = true;
+      proc.kill();
+      resolve({ stdout, stderr, exitCode: -1, success: false, error: `Timed out after ${timeoutMs}ms` });
+    }, timeoutMs);
+
+    proc.stdout?.on("data", (data: Buffer) => { stdout += data.toString(); });
+    proc.stderr?.on("data", (data: Buffer) => { stderr += data.toString(); });
+
+    proc.on("close", (code: number | null) => {
+      clearTimeout(timer);
+      if (!killed) {
+        resolve({ stdout, stderr, exitCode: code ?? -1, success: code === 0 });
+      }
+    });
+
+    proc.on("error", (err: Error) => {
+      clearTimeout(timer);
+      if (!killed) {
+        resolve({ stdout, stderr, exitCode: -1, success: false, error: err.message });
+      }
+    });
+  });
+});
+
+ipcMain.handle("stargate:aimify:readFile", async (_event, filePath: string) => {
+  try {
+    if (!fs.existsSync(filePath)) return { success: false, error: "File not found" };
+    const content = fs.readFileSync(filePath, "utf8");
+    return { success: true, content };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("stargate:aimify:writeFile", async (_event, filePath: string, content: string) => {
+  try {
+    fs.writeFileSync(filePath, content, "utf8");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+});
+
+// ═══ End Aimify ════════════════════════════════════════════════════════
 
