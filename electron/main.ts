@@ -79,6 +79,7 @@ import {
 } from "./integrations/midnight-city";
 import type { MidnightCredentials } from "./integrations/midnight-city";
 import { skillInjector } from "../src/services/skillInjector";
+import { agentForgeEngine } from "./integrations/forge/AgentForgeEngine";
 import {
   getBoxes,
   getBox,
@@ -1259,4 +1260,109 @@ ipcMain.handle(
 // ═══ End Skill System Prompt Builder ══════════════════════════════════════
 
 // ═══ End Aimify ════════════════════════════════════════════════════════
+
+// ═══ Agent Forge Engine IPC Handlers ════════════════════════════════════
+
+ipcMain.handle(
+  "stargate:testAgentCode",
+  async (_event: IpcMainInvokeEvent, code: string, templateId: string) => {
+    return agentForgeEngine.runTest(code, templateId);
+  }
+);
+
+ipcMain.handle(
+  "stargate:deployAgentCode",
+  async (
+    _event: IpcMainInvokeEvent,
+    code: string,
+    config: Record<string, unknown>
+  ) => {
+    return agentForgeEngine.deploy(code, config as any);
+  }
+);
+
+ipcMain.handle("stargate:forge:listDeployed", async () => {
+  return { success: true, agents: agentForgeEngine.getDeployedAgents() };
+});
+
+ipcMain.handle("stargate:forge:listRunning", async () => {
+  return { success: true, agents: agentForgeEngine.getRunningAgents() };
+});
+
+ipcMain.handle(
+  "stargate:forge:stopAgent",
+  async (_event: IpcMainInvokeEvent, agentId: string) => {
+    return { success: agentForgeEngine.stopAgent(agentId) };
+  }
+);
+
+ipcMain.handle(
+  "stargate:forge:enableHealthCheck",
+  async (
+    _event: IpcMainInvokeEvent,
+    agentId: string,
+    intervalMs?: number,
+    maxRestarts?: number
+  ) => {
+    try {
+      const agents = agentForgeEngine.getDeployedAgents();
+      const manifest = agents.find((a) => a.id === agentId);
+      if (!manifest) {
+        return {
+          success: false,
+          error: `Agent ${agentId} not found among deployed agents.`,
+        };
+      }
+      agentForgeEngine.enableHealthCheck(agentId, manifest, {
+        intervalMs,
+        maxRestarts,
+      });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+);
+
+ipcMain.handle(
+  "stargate:forge:disableHealthCheck",
+  async (_event: IpcMainInvokeEvent, agentId: string) => {
+    agentForgeEngine.disableHealthCheck(agentId);
+    return { success: true };
+  }
+);
+
+ipcMain.handle(
+  "stargate:forge:isHealthy",
+  async (_event: IpcMainInvokeEvent, agentId: string) => {
+    return { success: true, healthy: agentForgeEngine.isHealthy(agentId) };
+  }
+);
+
+ipcMain.handle(
+  "stargate:deployAgentToNode",
+  async (
+    _event: IpcMainInvokeEvent,
+    code: string,
+    config: Record<string, unknown>
+  ) => {
+    const { templateId, nodeConfig, autoStart, enableWallet, tier } =
+      config as any;
+    if (!nodeConfig?.host || !nodeConfig?.user) {
+      return {
+        success: false,
+        error: "nodeConfig requires host and user fields",
+      };
+    }
+    return agentForgeEngine.deployToNode(code, {
+      templateId,
+      nodeConfig,
+      autoStart,
+      enableWallet,
+      tier,
+    });
+  }
+);
+
+// ═══ End Agent Forge Engine ═════════════════════════════════════════════
 
