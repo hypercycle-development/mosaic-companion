@@ -961,6 +961,7 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
 
                       {(agent.provider === "custom" ||
                         agent.provider === "ollama" ||
+                        agent.provider === "ollama-cloud" ||
                         agent.provider === "hypercycle") && (
                         <label className="block">
                           <span className="text-sm text-gray-400 mb-1 block">
@@ -991,7 +992,9 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                                 ? agent.hypercycleBackend === "basechain"
                                   ? "http://207.53.252.108 or https://hyperpg.site/forward/…"
                                   : "http://207.53.252.108"
-                                : "http://localhost:11434"
+                                : agent.provider === "ollama-cloud"
+                                  ? "https://api.ollama.com"
+                                  : "http://localhost:11434"
                             }
                           />
                         </label>
