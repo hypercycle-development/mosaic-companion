@@ -1147,25 +1147,23 @@ ipcMain.handle("nodeFactory:loadJsonFile", async (_event, filePath: string) => {
 
 ipcMain.handle("nodeFactory:checkLicense", async (_event, licenseId: string, apiBase: string) => {
   try {
-    const r = await fetch(`${apiBase}/nodes/${licenseId}`, {
-      headers: { Accept: "application/json" },
+    const response = await fetch(`${apiBase}/license_status?license=${encodeURIComponent(licenseId)}`, {
+      signal: AbortSignal.timeout(10000),
     });
-    if (r.ok) {
-      const data = await r.json();
-      return { data };
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      return { success: false, error: `HTTP ${response.status}: ${text.slice(0, 200)}` };
     }
-    const r2 = await fetch(`${apiBase}/verify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ anfeId: licenseId }),
-    });
-    if (r2.ok) {
-      const data = await r2.json();
-      return { data };
+    const data = await response.json();
+    if (data.error) {
+      return { success: false, error: data.error, data };
     }
-    return { error: `HTTP ${r2.status}` };
-  } catch (err: any) {
-    return { error: err.message };
+    return { success: true, data };
+  } catch (e: any) {
+    if (e.name === "TimeoutError" || e.name === "AbortError") {
+      return { success: false, error: "Request timed out after 10s" };
+    }
+    return { success: false, error: e.message || "Network error" };
   }
 });
 // ═══ End Node Factory ═════════════════════════════════════════════════
