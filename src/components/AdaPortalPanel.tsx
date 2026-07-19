@@ -680,43 +680,8 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
     return () => { mounted = false; clearInterval(timer); };
   }, []);
 
-  // 1AM Wallet Bridge — mount hidden iframe for extension detection
-  const bridgeContainerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        // Mount bridge iframe in a hidden container
-        const container = document.createElement('div');
-        container.id = 'oneam-bridge-host';
-        container.style.cssText = 'position:fixed;bottom:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1;';
-        document.body.appendChild(container);
-        bridgeContainerRef.current = container;
-
-        const ok = await oneAmWallet.mountBridge(container);
-        if (!mounted) return;
-        setOneamAvailable(ok);
-
-        if (ok) {
-          const info = await oneAmWallet.detect();
-          if (info && mounted) {
-            console.log('[AdaPortal] 1AM Wallet detected:', info.displayName);
-          }
-        }
-      } catch (e) {
-        console.warn('[AdaPortal] 1AM bridge mount failed:', e);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-      if (bridgeContainerRef.current) {
-        bridgeContainerRef.current.remove();
-        bridgeContainerRef.current = null;
-      }
-    };
-  }, []);
+  // 1AM Wallet — state managed via external browser bridge (Chrome + 1AM extension)
+  // Bridge is opened on-demand when user clicks "Connect 1AM" — see onClick handler below
 
   // Enhanced Local Node Bridge — telemetry + Validator Fleet polling
   useEffect(() => {
@@ -1188,18 +1153,24 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
               onClick={async () => {
                 setIsConnectingOneam(true);
                 try {
-                  // First try direct browser API (1AM Wallet extension)
-                  const result = await oneAmWallet.connect();
-                  if (result.success && result.session?.connected) {
-                    setOneamConnected(true);
-                    setOneamAddress(result.session.address);
-                    setOneamNetwork(result.session.network);
-                    setOneamBalance(result.session.balance);
+                  // Open external browser bridge — Chrome opens with 1AM Wallet page
+                  if (!window.electronAPI?.oneam?.openExternal) {
+                    showNotification('error', '1AM external bridge not available');
+                    return;
+                  }
+                  showNotification('info', 'Opening Chrome to connect 1AM Wallet...');
+                  const result = await window.electronAPI.oneam.openExternal();
 
-                    // Sync with main process cache
-                    if (window.electronAPI?.oneam) {
-                      await window.electronAPI.oneam.connect();
-                    }
+                  if (result?.connected && result?.address) {
+                    setOneamConnected(true);
+                    setOneamAddress(result.address);
+                    setOneamNetwork(result.network || 'unknown');
+                    setOneamBalance({
+                      lovelace: result.lovelace || 0,
+                      nightTokens: result.night || 0,
+                      dustTokens: result.dust || 0,
+                      assets: result.assets || [],
+                    });
 
                     // Auto-create agent wallets for existing user agents
                     const agents = userAgents;
@@ -1210,9 +1181,9 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                       setOneamAgentWallets(oneAmWallet.getAgentWallets());
                     }
 
-                    showNotification('success', `1AM Wallet connected on ${result.session.network}!`);
+                    showNotification('success', `1AM Wallet connected on ${result.network || 'unknown'}!`);
                   } else {
-                    showNotification('error', result.error || 'Failed to connect 1AM Wallet');
+                    showNotification('error', result?.error || 'Failed to connect 1AM Wallet');
                   }
                 } catch (e: any) {
                   showNotification('error', e.message || '1AM connection failed');

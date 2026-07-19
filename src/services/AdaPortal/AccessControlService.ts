@@ -140,109 +140,19 @@ class AccessControlService {
     }
   }
 
-  // Check Tokeo wallet for NFT-gated access
+  // Check Tokeo wallet for NFT-gated access (DEPRECATED — Tokeo removed, returns not available)
   private async checkTokeoAccess(): Promise<AccessCheck> {
-    try {
-      if (!window.electronAPI?.cardano?.tokeoStatus) {
-        return { hasAccess: false, level: 'none', reason: 'Tokeo not available' };
-      }
-
-      const statusResult = await window.electronAPI.cardano.tokeoStatus();
-      const status = statusResult as any;
-      
-      if (!status?.success || !status?.data?.connected) {
-        return { hasAccess: false, level: 'none', reason: 'Tokeo not connected' };
-      }
-
-      this.tokeoConnected = true;
-      this.tokeoAddress = status.data.address;
-
-      // Check for NFT holdings using Policy IDs
-      if (this.nftConfig.premiumPolicyIds.length > 0) {
-        const verifyResult = await window.electronAPI.cardano.tokeoVerifyCollection(
-          this.nftConfig.premiumPolicyIds,
-          false
-        );
-        const verify = verifyResult as any;
-        
-        if (verify?.success && verify?.data?.hasAccess) {
-          this.accessLevel = 'premium';
-          this.accessType = 'nft_holder';
-          return {
-            hasAccess: true,
-            level: 'premium',
-            type: 'nft_holder',
-            reason: 'NFT holder access granted via Tokeo'
-          };
-        }
-      }
-
-      // Basic wallet connection grants basic access
-      this.accessLevel = 'basic';
-      this.accessType = 'human';
-      return {
-        hasAccess: true,
-        level: 'basic',
-        type: 'human',
-        reason: 'Tokeo wallet connected'
-      };
-    } catch (e) {
-      console.log('[AdaPortal] Tokeo check failed:', e);
-      return { hasAccess: false, level: 'none' };
-    }
+    return { hasAccess: false, level: 'none', reason: 'Tokeo wallet integration removed' };
   }
 
-  // Connect Tokeo wallet
+  // Connect Tokeo wallet (DEPRECATED — Tokeo removed)
   async connectTokeo(wallet?: string): Promise<{ success: boolean; address?: string; error?: string }> {
-    try {
-      if (!window.electronAPI?.cardano?.tokeoConnect) {
-        return { success: false, error: 'Tokeo API not available' };
-      }
-
-      const result = await window.electronAPI.cardano.tokeoConnect(wallet);
-      const r = result as any;
-      
-      if (r?.success && r?.data?.connected) {
-        this.tokeoConnected = true;
-        this.tokeoAddress = r.data.address;
-        return { success: true, address: r.data.address };
-      }
-      
-      return { success: false, error: r?.error || 'Connection failed' };
-    } catch (e: any) {
-      return { success: false, error: e.message };
-    }
+    return { success: false, error: 'Tokeo wallet integration removed' };
   }
 
-  // Verify NFT access for specific agent or node
+  // Verify NFT access for specific agent or node (DEPRECATED — Tokeo removed)
   async verifyNFTAccess(policyIds: string[], requireAll: boolean = false): Promise<{ hasAccess: boolean; matchedPolicies: string[] }> {
-    try {
-      if (!this.tokeoConnected) {
-        // Try to get status
-        const statusResult = await window.electronAPI?.cardano?.tokeoStatus();
-        const status = statusResult as any;
-        if (!status?.success || !status?.data?.connected) {
-          return { hasAccess: false, matchedPolicies: [] };
-        }
-        this.tokeoConnected = true;
-        this.tokeoAddress = status.data.address;
-      }
-
-      const result = await window.electronAPI.cardano.tokeoVerifyCollection(policyIds, requireAll);
-      const r = result as any;
-      
-      if (r?.success && r?.data) {
-        return {
-          hasAccess: r.data.hasAccess,
-          matchedPolicies: r.data.matchedPolicies || []
-        };
-      }
-      
-      return { hasAccess: false, matchedPolicies: [] };
-    } catch (e) {
-      console.error('[AdaPortal] NFT verification failed:', e);
-      return { hasAccess: false, matchedPolicies: [] };
-    }
+    return { hasAccess: false, matchedPolicies: [] };
   }
 
   // Check if user has access to specific agent via NFT

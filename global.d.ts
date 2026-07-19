@@ -453,13 +453,12 @@ declare global {
         [key: string]: any;
       };
       cardano: {
-        tokeoDetect: () => Promise<any>;
-        tokeoConnect: () => Promise<any>;
-        tokeoGetAddress: () => Promise<any>;
-        tokeoGetBalance: () => Promise<any>;
-        tokeoSignTx: (tx: any) => Promise<any>;
-        getNetworkInfo: () => Promise<any>;
-        getPoolDistribution: () => Promise<any>;
+        detectWallets: () => Promise<any>;
+        connectWallet: (walletKey: string) => Promise<any>;
+        getWalletAssets: () => Promise<any>;
+        signTx: (walletKey: string, txHex: string, partialSign?: boolean) => Promise<any>;
+        getBridgeStatus: () => Promise<any>;
+        disconnectWallet: () => Promise<any>;
         [key: string]: any;
       };
       oneam: {
@@ -474,6 +473,7 @@ declare global {
         delegateAgent: (agentId: string, permissions: string[]) => Promise<{ success: boolean; error?: string }>;
         revokeAgent: (agentId: string) => Promise<{ success: boolean; error?: string }>;
         listAgentWallets: () => Promise<{ wallets: any[] }>;
+        openExternal: () => Promise<{ connected: boolean; address?: string; network?: string; lovelace?: number; night?: number; dust?: number; assets?: any[]; error?: string }>;
       };
       midnightCity: {
         getCityState: () => Promise<any>;

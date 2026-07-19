@@ -437,22 +437,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   // ─── Cardano / Tokeo Wallet Bridge ───
   cardano: {
-    tokeoDetect: () =>
-      ipcRenderer.invoke("cardano:tokeoDetect"),
-    tokeoConnect: () =>
-      ipcRenderer.invoke("cardano:tokeoConnect"),
-    tokeoQRPairing: (policyIds?: string[]) =>
-      ipcRenderer.invoke("cardano:tokeoQRPairing", policyIds),
-    tokeoCheckQR: (sessionId?: string) =>
-      ipcRenderer.invoke("cardano:tokeoCheckQR", sessionId),
-    tokeoVerifyCollection: (policyIds: string[], strict?: boolean) =>
-      ipcRenderer.invoke("cardano:tokeoVerifyCollection", policyIds, strict),
-    tokeoCancelQR: (sessionId?: string) =>
-      ipcRenderer.invoke("cardano:tokeoCancelQR", sessionId),
-    tokeoStatus: () =>
-      ipcRenderer.invoke("cardano:tokeoStatus"),
-    tokeoDisconnect: () =>
-      ipcRenderer.invoke("cardano:tokeoDisconnect"),
     detectWallets: () =>
       ipcRenderer.invoke("cardano:detectWallets"),
     connectWallet: (walletKey: string) =>
@@ -484,6 +468,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     revokeAgent: (agentId: string) =>
       ipcRenderer.invoke("oneam:revokeAgent", agentId),
     listAgentWallets: () => ipcRenderer.invoke("oneam:listAgentWallets"),
+    openExternal: () => ipcRenderer.invoke("oneam:openExternal"),
   },
   // ─── Hermes Dashboard ───
   hermes: {
