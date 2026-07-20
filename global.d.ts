@@ -476,6 +476,15 @@ declare global {
         openExternal: () => Promise<{ connected: boolean; address?: string; network?: string; lovelace?: number; night?: number; dust?: number; shieldedTokens?: number; unshieldedTokens?: number; cardanoAda?: number; oneamConnected?: boolean; rawOneAmResponses?: any[]; assets?: any[]; addresses?: { shielded: string[]; unshielded: string | null; dust: string | null; cardano: string | null }; txHistory?: any[]; error?: string }>;
         generateDust: () => Promise<{ success: boolean; dustAmount?: number; txHash?: string; error?: string }>;
       };
+      oneamCli: {
+        createWallet: (name: string, options?: any) => Promise<any>;
+        listWallets: () => Promise<any>;
+        showWallet: (name?: string) => Promise<any>;
+        syncWallet: (name: string, network: string, options?: any) => Promise<any>;
+        useWallet: (name: string) => Promise<any>;
+        explorerSummary: () => Promise<any>;
+        explorerAddressActivity: (identifier: string) => Promise<any>;
+      };
       midnightCity: {
         getCityState: () => Promise<any>;
         getDistricts: () => Promise<any>;

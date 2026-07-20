@@ -62,6 +62,7 @@ interface OneAmWalletCardProps {
   onReceive: () => void;
   onYourDust: () => void;
   onCreateAgentWallet: (agentId: string, agentName: string) => void;
+  onSync?: () => void;
   showNotification: (type: 'info' | 'success' | 'error', message: string) => void;
 }
 
@@ -135,7 +136,7 @@ export const OneAmWalletCard: React.FC<OneAmWalletCardProps> = ({
   connected, address, network, balance, addresses = { shielded: [], unshielded: null, dust: null, cardano: null }, txHistory: propTxHistory,
   agentWallets,
   isConnecting, onConnect, onDisconnect, onGenerateDust,
-  onSend, onReceive, onYourDust, onCreateAgentWallet,
+  onSend, onReceive, onYourDust, onCreateAgentWallet, onSync,
   showNotification,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'assets' | 'nfts' | 'transactions' | 'apps'>('transactions');
@@ -347,9 +348,15 @@ export const OneAmWalletCard: React.FC<OneAmWalletCardProps> = ({
           <ArrowDownLeft size={20} className="text-gray-400 group-hover:text-green-400" />
           <span className="text-xs text-gray-400 group-hover:text-white font-medium">RECEIVE</span>
         </button>
-        <button onClick={onYourDust} className="py-4 flex flex-col items-center gap-1.5 hover:bg-gray-800/50 transition-colors group">
+        <button
+          onClick={() => {
+            if (onSync) onSync();
+            else if (onYourDust) onYourDust();
+          }}
+          className="py-4 flex flex-col items-center gap-1.5 hover:bg-gray-800/50 transition-colors group"
+        >
           <RefreshCw size={20} className="text-gray-400 group-hover:text-amber-400" />
-          <span className="text-xs text-gray-400 group-hover:text-white font-medium">YOUR DUST</span>
+          <span className="text-xs text-gray-400 group-hover:text-white font-medium">SYNC</span>
         </button>
       </div>
 

@@ -470,7 +470,23 @@ contextBridge.exposeInMainWorld("electronAPI", {
     listAgentWallets: () => ipcRenderer.invoke("oneam:listAgentWallets"),
     openExternal: () => ipcRenderer.invoke("oneam:openExternal"),
     generateDust: () => ipcRenderer.invoke("oneam:generateDust"),
-    },
+  },
+  // ─── 1AM CLI (Midnight Wallet Backend) ───
+  oneamCli: {
+    createWallet: (name: string, options?: any) =>
+      ipcRenderer.invoke("oneam-cli:createWallet", name, options),
+    listWallets: () => ipcRenderer.invoke("oneam-cli:listWallets"),
+    showWallet: (name?: string) =>
+      ipcRenderer.invoke("oneam-cli:showWallet", name),
+    syncWallet: (name: string, network: string, options?: any) =>
+      ipcRenderer.invoke("oneam-cli:syncWallet", name, network, options),
+    useWallet: (name: string) =>
+      ipcRenderer.invoke("oneam-cli:useWallet", name),
+    explorerSummary: () =>
+      ipcRenderer.invoke("oneam-cli:explorerSummary"),
+    explorerAddressActivity: (identifier: string) =>
+      ipcRenderer.invoke("oneam-cli:explorerAddressActivity", identifier),
+  },
   // ─── Hermes Dashboard ───
   hermes: {
     startDashboard: (port?: number) =>

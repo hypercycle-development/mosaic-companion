@@ -77,6 +77,7 @@ import MidnightCityCommandPanel from './stargate/MidnightCityCommandPanel';
 import { cardanoWallet } from '../services/AdaPortal/CardanoWalletService';
 import { OneAmWalletCard } from './stargate/OneAmWalletCard';
 import { oneAmWallet } from '../services/OneAmWalletService';
+import * as oneAmCli from '../services/OneAmCliService';
 import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus, Pickaxe, Info } from 'lucide-react';
 
 // ---- Module-level helper: ensure wallet is on Base chain ----
@@ -1156,43 +1157,57 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         onConnect={async () => {
           setIsConnectingOneam(true);
           try {
-            if (!window.electronAPI?.oneam?.openExternal) {
-              showNotification('error', '1AM external bridge not available');
+            showNotification('info', 'Discovering 1AM CLI wallets...');
+            const wallets = await oneAmCli.listWallets();
+            if ('error' in wallets) {
+              showNotification('error', wallets.error || 'Failed to list wallets');
               return;
             }
-            showNotification('info', 'Opening Chrome to connect 1AM Wallet...');
-            const result = await window.electronAPI.oneam.openExternal();
-
-            if (result?.connected) {
-              setOneamConnected(true);
-              setOneamAddress(result.address || null);
-              setOneamNetwork(result.network || 'unknown');
-              setOneamBalance({
-                lovelace: result.lovelace || 0,
-                nightTokens: result.night || 0,
-                dustTokens: result.dust || 0,
-                shieldedTokens: result.shieldedTokens || 0,
-                unshieldedTokens: result.unshieldedTokens || 0,
-                cardanoAda: result.cardanoAda || 0,
-                assets: result.assets || [],
+            if (wallets.length === 0) {
+              showNotification('info', 'No wallets found. Creating default wallet via 1AM CLI...');
+              const created = await oneAmCli.createAgentWallet('mosaic-default', {
+                setDefault: true,
+                insecurePlain: false,
               });
-              setOneamAddresses(result.addresses || { shielded: [], unshielded: null, dust: null, cardano: null });
-              setOneamTxHistory(result.txHistory || []);
-
-              const agents = userAgents;
-              if (agents.length > 0) {
-                for (const agent of agents) {
-                  oneAmWallet.createAgentWallet(agent.id, agent.name);
-                }
-                setOneamAgentWallets(oneAmWallet.getAgentWallets());
+              if ('error' in created) {
+                showNotification('error', created.error || 'Wallet creation failed');
+                return;
               }
-
-              showNotification('success', `1AM Wallet connected on ${result.network || 'unknown'}${result.address ? '' : ' (no address read)'}!`);
-            } else {
-              showNotification('error', result?.error || 'Failed to connect 1AM Wallet');
+              const w = created.wallet;
+              setOneamConnected(true);
+              setOneamAddress(w.public?.unshielded?.mainnet || w.public?.unshielded?.preprod || null);
+              setOneamNetwork('mainnet');
+              setOneamBalance({
+                lovelace: 0, nightTokens: 0, dustTokens: 0,
+                shieldedTokens: 0, unshieldedTokens: 0, cardanoAda: 0, assets: [],
+              });
+              setOneamAddresses({
+                shielded: w.public?.shielded?.mainnet ? [w.public.shielded.mainnet] : [],
+                unshielded: w.public?.unshielded?.mainnet || null,
+                dust: w.public?.dust?.mainnet || null,
+                cardano: null,
+              });
+              showNotification('success', `Wallet '${w.name}' created! Use Sync to fetch balances.`);
+              return;
             }
+            // Use first wallet (or default if available)
+            const w = wallets[0];
+            setOneamConnected(true);
+            setOneamAddress(w.public?.unshielded?.mainnet || w.public?.unshielded?.preprod || null);
+            setOneamNetwork('mainnet');
+            setOneamBalance({
+              lovelace: 0, nightTokens: 0, dustTokens: 0,
+              shieldedTokens: 0, unshieldedTokens: 0, cardanoAda: 0, assets: [],
+            });
+            setOneamAddresses({
+              shielded: w.public?.shielded?.mainnet ? [w.public.shielded.mainnet] : [],
+              unshielded: w.public?.unshielded?.mainnet || null,
+              dust: w.public?.dust?.mainnet || null,
+              cardano: null,
+            });
+            showNotification('success', `1AM wallet '${w.name}' loaded! Click Sync to fetch balances.`);
           } catch (e: any) {
-            showNotification('error', e.message || '1AM connection failed');
+            showNotification('error', e.message || '1AM CLI connection failed');
           } finally {
             setIsConnectingOneam(false);
           }
@@ -1239,6 +1254,40 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         onCreateAgentWallet={(agentId, agentName) => {
           oneAmWallet.createAgentWallet(agentId, agentName);
           setOneamAgentWallets(oneAmWallet.getAgentWallets());
+        }}
+        onSync={async () => {
+          if (!oneamAddress) {
+            showNotification('error', 'No wallet address to sync');
+            return;
+          }
+          try {
+            showNotification('info', 'Syncing wallet via 1AM CLI...');
+            // Determine wallet name from state or use default
+            const walletName = oneamAddress ? 'mosaic-default' : undefined;
+            if (!walletName) return;
+            const result = await oneAmCli.syncWallet(walletName, 'mainnet', { timeout: 300 });
+            if ('error' in result) {
+              showNotification('error', result.error || 'Sync failed');
+              return;
+            }
+            const snap = result.snapshot;
+            setOneamBalance({
+              lovelace: snap.availableCoins || 0,
+              nightTokens: snap.balances?.NIGHT || 0,
+              dustTokens: snap.balances?.DUST || 0,
+              shieldedTokens: 0,
+              unshieldedTokens: snap.availableCoins || 0,
+              cardanoAda: 0,
+              assets: Object.entries(snap.balances || {}).map(([k, v]) => ({
+                policyId: k,
+                assetName: k,
+                quantity: typeof v === 'number' ? v : 0,
+              })),
+            });
+            showNotification('success', `Synced! Available coins: ${snap.availableCoins}`);
+          } catch (e: any) {
+            showNotification('error', e.message || 'Sync failed');
+          }
         }}
         showNotification={showNotification}
       />

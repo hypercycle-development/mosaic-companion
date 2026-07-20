@@ -49,6 +49,7 @@ import { registerHyperInsightIpc, stopScorePolling } from "../plugins/hyperinsig
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
 import { registerPaymentsJitIpc } from "../plugins/payments-jit/main/index.ts";
 import { registerCardanoIpc } from "./integrations/cardano/ipcHandlers";
+import { registerOneAmCliIpc } from "./integrations/oneam-cli/index";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
@@ -369,6 +370,7 @@ app.whenReady().then(() => {
   registerPaymentsJitIpc(ipcMain);
   // Remove duplicate oneam:openExternal handler from old external bridge
   // registerOneAmExternalBridge(ipcMain);
+  registerOneAmCliIpc(ipcMain);
   registerCardanoIpc();
 
   // Now auto-connect MCP plugins (with correct env already set)
