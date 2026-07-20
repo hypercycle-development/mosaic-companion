@@ -163,12 +163,12 @@ function detectProviders() {
   if (window.midnight && typeof window.midnight.enable === 'function') {
     providers.push({ key: 'midnight', wallet: window.midnight, is1AM: true });
   }
-  // Then any cardano provider whose name suggests 1AM/Midnight
+  // Then any cardano provider whose name suggests 1AM/Midnight/1am
   if (cardano) {
     for (const [key, wallet] of Object.entries(cardano)) {
       if (!wallet || typeof wallet.enable !== 'function') continue;
       const name = (wallet.name || key).toLowerCase();
-      if (/oneam|midnight/i.test(name) && !providers.find(p => p.wallet === wallet)) {
+      if (/oneam|midnight|1am/i.test(name) && !providers.find(p => p.wallet === wallet)) {
         providers.push({ key, wallet, is1AM: true });
       }
     }

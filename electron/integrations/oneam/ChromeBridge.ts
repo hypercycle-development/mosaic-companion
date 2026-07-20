@@ -267,7 +267,7 @@ function getBridgePage(port: number): string {
     function isOneAmMidnight(provider) {
       const key = provider.key || '';
       const name = (provider.wallet && provider.wallet.name) || key || '';
-      return /oneam|midnight/i.test(key) || /oneam|midnight/i.test(name);
+      return /oneam|midnight|1am/i.test(key) || /oneam|midnight|1am/i.test(name);
     }
 
     function isLace(provider) {
