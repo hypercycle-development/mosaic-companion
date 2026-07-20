@@ -264,20 +264,43 @@ function getBridgePage(port: number): string {
       return { found, providers };
     }
 
-    async function tryConnectCIP30(targetKey) {
-      const { providers } = detectCIP30Providers();
-      if (!providers.length) return null;
-      showProviders(providers.map(p => p.key));
-      setStatus('detecting', 'Connecting via ' + (targetKey || providers[0].key) + '...');
+    function isOneAmMidnight(provider) {
+      const key = provider.key || '';
+      const name = (provider.wallet && provider.wallet.name) || key || '';
+      return /oneam|midnight/i.test(key) || /oneam|midnight/i.test(name);
+    }
 
-      // If a specific key requested, use it; otherwise try all
+    function isLace(provider) {
+      const key = provider.key || '';
+      const name = (provider.wallet && provider.wallet.name) || key || '';
+      return /lace/i.test(key) || /lace/i.test(name);
+    }
+
+    async function tryConnectCIP30(targetKey) {
+      // Re-detect providers right before connecting so we don't use a stale
+      // provider object that the extension has re-initialized.
+      const { providers } = detectCIP30Providers();
+      const relevant = providers.filter(p => isOneAmMidnight(p) && !isLace(p));
+      if (!relevant.length) return null;
+
+      showProviders(relevant.map(p => p.key));
+      setStatus('detecting', 'Connecting via ' + targetKey + '...');
+
       const candidates = targetKey
-        ? providers.filter(p => p.key === targetKey)
-        : providers;
+        ? relevant.filter(p => p.key === targetKey)
+        : relevant;
 
       for (const { key, wallet } of candidates) {
         try {
-          const api = await wallet.enable();
+          let api;
+          try {
+            api = await wallet.enable();
+          } catch (e) {
+            console.warn('First enable attempt failed for ' + key + ', retrying...', e);
+            await new Promise(r => setTimeout(r, 800));
+            api = await wallet.enable();
+          }
+
           const addresses = await api.getUsedAddresses();
           const address = addresses?.[0] || null;
           const networkId = await api.getNetworkId().catch(() => 0);
@@ -294,6 +317,8 @@ function getBridgePage(port: number): string {
           return { success: true, walletName: wallet.name || key, address, networkId, lovelace, night, dust, assets };
         } catch (e) {
           console.warn('CIP-30 provider ' + key + ' failed:', e);
+          // Return an error object for this provider so the caller can decide
+          return { success: false, walletName: wallet.name || key, error: String(e?.message || e) };
         }
       }
       return null;
@@ -382,46 +407,62 @@ function getBridgePage(port: number): string {
     }
 
     async function connectProviders(providers) {
+      // Only present 1AM/Midnight providers; never Lace, NUFI, Eternl, etc.
+      const relevant = providers.filter(p => isOneAmMidnight(p) && !isLace(p));
+
       // Show detected providers — clear any previous error state
       showProviders(providers.map(p => p.key));
       setStatus('detecting', 'Found ' + providers.length + ' provider(s)');
+
+      if (!relevant.length) {
+        setStatus('error', 'No 1AM/Midnight provider found');
+        document.getElementById('msg').textContent = 'A wallet extension was detected, but it is not 1AM or Midnight. If you see 1AM in your toolbar, click its icon to wake it, then click Retry.';
+        document.getElementById('retryBtn').style.display = 'inline-block';
+        await postResult({ success: false, error: 'No 1AM/Midnight provider found' });
+        return;
+      }
+
       document.getElementById('msg').textContent = 'Select a wallet below or auto-connecting...';
 
-      // Build wallet buttons
+      // Build wallet buttons only for 1AM/Midnight
       const walletsEl = document.getElementById('wallets');
       walletsEl.innerHTML = '';
-      providers.forEach(({ key, wallet }) => {
+      relevant.forEach(({ key, wallet }) => {
         const btn = document.createElement('button');
         btn.className = 'wallet-btn';
-        btn.textContent = 'Connect ' + (wallet.name || key);
+        const walletName = wallet.name || key;
+        btn.textContent = 'Connect ' + walletName + ' [' + key + ']';
         btn.addEventListener('click', async () => {
           btn.disabled = true;
-          btn.textContent = 'Connecting...';
+          btn.textContent = 'Connecting ' + walletName + '...';
           const result = await tryConnectCIP30(key);
           if (result && result.success) {
             setStatus('connected', 'Connected to ' + (result.walletName || key) + '!');
             await postResult(result);
           } else {
             btn.disabled = false;
-            btn.textContent = 'Connect ' + (wallet.name || key);
-            setStatus('error', 'Connection failed');
-            await postResult({ success: false, error: 'Failed to connect to ' + key });
+            btn.textContent = 'Connect ' + walletName + ' [' + key + ']';
+            const errText = result?.error || 'unknown error';
+            setStatus('error', 'Connection failed for ' + walletName + ': ' + errText);
+            await postResult({ success: false, error: 'Failed to connect to ' + key + ' (' + walletName + '): ' + errText });
           }
         });
         walletsEl.appendChild(btn);
       });
 
       // Auto-connect only if a provider explicitly matches oneam/midnight
-      const oneamProvider = providers.find(p => /oneam|midnight/i.test(p.key) || /oneam|midnight/i.test(p.wallet?.name || ''));
-      const target = oneamProvider || (providers.length === 1 ? providers[0] : null);
-
-      if (target && !/lace/i.test(target.key) && !/lace/i.test(target.wallet?.name || '')) {
-        setStatus('detecting', 'Auto-connecting ' + (target.wallet?.name || target.key) + '...');
-        await new Promise(r => setTimeout(r, 800));
-        const result = await tryConnectCIP30(target.key);
+      const oneamProvider = relevant[0];
+      if (oneamProvider) {
+        setStatus('detecting', 'Auto-connecting ' + (oneamProvider.wallet?.name || oneamProvider.key) + '...');
+        await new Promise(r => setTimeout(r, 1200));
+        const result = await tryConnectCIP30(oneamProvider.key);
         if (result && result.success) {
-          setStatus('connected', 'Connected to ' + (result.walletName || target.key) + '!');
+          setStatus('connected', 'Connected to ' + (result.walletName || oneamProvider.key) + '!');
           await postResult(result);
+          return;
+        } else if (result && result.error) {
+          setStatus('error', 'Auto-connect failed: ' + result.error);
+          await postResult({ success: false, error: result.error });
           return;
         }
       }
