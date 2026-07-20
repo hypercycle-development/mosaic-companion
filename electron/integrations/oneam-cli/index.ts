@@ -61,7 +61,7 @@ export interface OneAmCliError {
 function runOneAm(args: string[], env?: Record<string, string>): Promise<any> {
   return new Promise((resolve, reject) => {
     const child = spawn("1am", args, {
-      shell: true,
+      shell: false, // SECURITY: never use shell for user-provided args
       env: { ...process.env, ...env },
     });
 
@@ -100,7 +100,29 @@ function runOneAm(args: string[], env?: Record<string, string>): Promise<any> {
     child.on("error", (err) => {
       reject({ error: err.message, stderr: stderr.trim() });
     });
+
+    // Hard timeout safety net
+    const timeoutMs = 120_000;
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      setTimeout(() => child.kill("SIGKILL"), 5_000);
+      reject({ error: `1am command timed out after ${timeoutMs}ms` });
+    }, timeoutMs);
+    child.on("close", () => clearTimeout(timer));
   });
+}
+
+/** Verify the 1am binary exists and is callable */
+export async function oneamCheckBinary(): Promise<{ ok: boolean; version?: string; error?: string }> {
+  try {
+    const result = await runOneAm(["--version"]);
+    if (result && typeof result === "string") {
+      return { ok: true, version: result.trim() };
+    }
+    return { ok: true, version: String(result).trim() };
+  } catch (e: any) {
+    return { ok: false, error: e.error || e.message || "1am binary not found" };
+  }
 }
 
 /* ─── Public API ────────────────────────────────────────── */
@@ -188,6 +210,27 @@ export async function oneamExplorerAddressActivity(
   }
 }
 
+export async function oneamExplorerTx(hash: string): Promise<any | OneAmCliError> {
+  try {
+    return await runOneAm(["explorer", "tx", hash, "--json"]);
+  } catch (e: any) {
+    return { error: e.error || String(e), stderr: e.stderr };
+  }
+}
+
+export async function oneamExplorerSearch(
+  query: string,
+  options?: { limit?: number }
+): Promise<any | OneAmCliError> {
+  const args = ["explorer", "search", query, "--json"];
+  if (options?.limit) args.push("--limit", String(options.limit));
+  try {
+    return await runOneAm(args);
+  } catch (e: any) {
+    return { error: e.error || String(e), stderr: e.stderr };
+  }
+}
+
 /* ─── IPC Registration ──────────────────────────────────── */
 
 export function registerOneAmCliIpc(ipcMainRef: IpcMain = ipcMain) {
@@ -217,5 +260,17 @@ export function registerOneAmCliIpc(ipcMainRef: IpcMain = ipcMain) {
 
   ipcMainRef.handle("oneam-cli:explorerAddressActivity", async (_, identifier: string) => {
     return oneamExplorerAddressActivity(identifier);
+  });
+
+  ipcMainRef.handle("oneam-cli:explorerTx", async (_, hash: string) => {
+    return oneamExplorerTx(hash);
+  });
+
+  ipcMainRef.handle("oneam-cli:explorerSearch", async (_, query: string, limit?: number) => {
+    return oneamExplorerSearch(query, { limit });
+  });
+
+  ipcMainRef.handle("oneam-cli:checkBinary", async () => {
+    return oneamCheckBinary();
   });
 }

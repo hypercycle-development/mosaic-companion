@@ -91,7 +91,27 @@ export async function getAddressActivity(identifier: string): Promise<any | OneA
   return api.explorerAddressActivity(identifier);
 }
 
-/* ─── Helpers ─────────────────────────────────────────────── */
+export async function getTransaction(hash: string): Promise<any | OneAmCliError> {
+  const api = getApi();
+  if (!api) return { error: "1AM CLI bridge not available" };
+  return api.explorerTx(hash);
+}
+
+export async function searchExplorer(query: string, limit?: number): Promise<any | OneAmCliError> {
+  const api = getApi();
+  if (!api) return { error: "1AM CLI bridge not available" };
+  return api.explorerSearch(query, limit);
+}
+
+/* ─── Health Check ──────────────────────────────────────── */
+
+export async function checkBinary(): Promise<{ ok: boolean; version?: string; error?: string }> {
+  const api = getApi();
+  if (!api) return { ok: false, error: "1AM CLI bridge not available" };
+  return api.checkBinary();
+}
+
+/* ─── Helpers ───────────────────────────────────────────── */
 
 function getApi() {
   return (window as any).electronAPI?.oneamCli;

@@ -484,6 +484,9 @@ declare global {
         useWallet: (name: string) => Promise<any>;
         explorerSummary: () => Promise<any>;
         explorerAddressActivity: (identifier: string) => Promise<any>;
+        explorerTx: (hash: string) => Promise<any>;
+        explorerSearch: (query: string, limit?: number) => Promise<any>;
+        checkBinary: () => Promise<{ ok: boolean; version?: string; error?: string }>;
       };
       midnightCity: {
         getCityState: () => Promise<any>;

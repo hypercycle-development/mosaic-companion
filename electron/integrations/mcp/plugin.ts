@@ -123,6 +123,15 @@ export class MCPPluginManager {
         env: { HERMES_HOME: path.join(os.homedir(), ".hermes"), MIDNIGHT_EXPERT: path.join(os.homedir(), "midnight-expert") },
         autoConnect: true,
       },
+      {
+        name: "oneam-cli",
+        description: "1AM Midnight Wallet CLI — create wallets, sync balances, query explorer via 1am CLI",
+        transport: "stdio",
+        command: "node",
+        args: [path.join(__dirname || "", "..", "..", "..", "electron", "integrations", "mcp", "servers", "oneam-mcp-server.js")],
+        env: {},
+        autoConnect: true,
+      },
     ];
 
     for (const plugin of defaults) {

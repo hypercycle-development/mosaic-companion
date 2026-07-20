@@ -486,6 +486,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("oneam-cli:explorerSummary"),
     explorerAddressActivity: (identifier: string) =>
       ipcRenderer.invoke("oneam-cli:explorerAddressActivity", identifier),
+    explorerTx: (hash: string) =>
+      ipcRenderer.invoke("oneam-cli:explorerTx", hash),
+    explorerSearch: (query: string, limit?: number) =>
+      ipcRenderer.invoke("oneam-cli:explorerSearch", query, limit),
+    checkBinary: () => ipcRenderer.invoke("oneam-cli:checkBinary"),
   },
   // ─── Hermes Dashboard ───
   hermes: {
