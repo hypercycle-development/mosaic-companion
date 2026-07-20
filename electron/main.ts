@@ -1289,76 +1289,60 @@ ipcMain.handle("oneam:listAgentWallets", async () => {
   return { wallets: oneamCache.agentWallets };
 });
 ipcMain.handle("oneam:openExternal", async () => {
-  // Prefer the in-process Electron WebView bridge (loads extension directly)
+  // Use only the in-process Electron WebView bridge (loads extension directly).
+  // We do not fall back to the external Chrome bridge here because it cannot
+  // reliably activate the 1AM MV3 service worker and often auto-connects to
+  // Lace instead. If the WebView bridge fails, we surface the error.
   try {
     const detected = await bridgeDetectWallets();
     console.log('[1AM] WebView detection result:', detected);
-    if (detected.available) {
-      // Always prefer a 1AM/Midnight-named provider
-      const oneam = detected.wallets.find(
-        (w) => /oneam|midnight/i.test(w.key) || /oneam|midnight/i.test(w.name)
-      );
-      const target = oneam || detected.wallets[0];
-      console.log('[1AM] Connecting via WebView to:', target);
-      const result = await bridgeConnectWallet(target.key);
-      if (result.success && result.address) {
-        oneamCache = {
-          connected: true,
-          address: result.address,
-          network: result.networkId === 1 ? 'mainnet' : 'preprod',
-          balance: {
-            lovelace: result.lovelace || 0,
-            nightTokens: result.night || 0,
-            dustTokens: result.dust || 0,
-            assets: result.assets || [],
-          },
-          agentWallets: [],
-          connectedAt: new Date().toISOString(),
-        };
-      }
+
+    if (!detected.available || detected.wallets.length === 0) {
       return {
-        connected: result.success,
-        address: result.address,
-        network: result.networkId === 1 ? 'mainnet' : 'preprod',
-        lovelace: result.lovelace || 0,
-        night: result.night || 0,
-        dust: result.dust || 0,
-        assets: result.assets || [],
-        error: result.error,
+        connected: false,
+        error: 'No Cardano wallet extensions detected in Electron. Try clicking the 1AM extension icon in Chrome first to wake its service worker, then retry.',
       };
     }
-  } catch (e) {
-    console.warn('[1AM] WebView bridge failed, falling back to external Chrome:', e);
-  }
 
-  // Fallback: spawn external Chrome bridge window
-  console.log('[1AM] Falling back to external Chrome bridge');
-  const result = await connectOneAmChrome();
-  if (result.success && result.address) {
-    oneamCache = {
-      connected: true,
+    // Always prefer a 1AM/Midnight-named provider, never Lace, for this flow
+    const oneam = detected.wallets.find(
+      (w) => /oneam|midnight/i.test(w.key) || /oneam|midnight/i.test(w.name)
+    );
+    const target = oneam || detected.wallets[0];
+    console.log('[1AM] Connecting via WebView to:', target);
+    const result = await bridgeConnectWallet(target.key);
+    if (result.success && result.address) {
+      oneamCache = {
+        connected: true,
+        address: result.address,
+        network: result.networkId === 1 ? 'mainnet' : 'preprod',
+        balance: {
+          lovelace: result.lovelace || 0,
+          nightTokens: result.night || 0,
+          dustTokens: result.dust || 0,
+          assets: result.assets || [],
+        },
+        agentWallets: [],
+        connectedAt: new Date().toISOString(),
+      };
+    }
+    return {
+      connected: result.success,
       address: result.address,
       network: result.networkId === 1 ? 'mainnet' : 'preprod',
-      balance: {
-        lovelace: result.lovelace || 0,
-        nightTokens: result.night || 0,
-        dustTokens: result.dust || 0,
-        assets: result.assets || [],
-      },
-      agentWallets: [],
-      connectedAt: new Date().toISOString(),
+      lovelace: result.lovelace || 0,
+      night: result.night || 0,
+      dust: result.dust || 0,
+      assets: result.assets || [],
+      error: result.error,
+    };
+  } catch (e: any) {
+    console.error('[1AM] WebView bridge failed:', e);
+    return {
+      connected: false,
+      error: e.message || 'WebView bridge failed. Try clicking the 1AM extension icon in Chrome to wake its service worker, then retry.',
     };
   }
-  return {
-    connected: result.success,
-    address: result.address,
-    network: result.networkId === 1 ? 'mainnet' : 'preprod',
-    lovelace: result.lovelace || 0,
-    night: result.night || 0,
-    dust: result.dust || 0,
-    assets: result.assets || [],
-    error: result.error,
-  };
 });
 
 ipcMain.handle("oneam:generateDust", async () => {

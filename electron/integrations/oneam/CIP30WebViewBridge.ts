@@ -376,7 +376,7 @@ export async function createBridgeWindow(): Promise<BrowserWindow> {
   bridgeWindow = new BrowserWindow({
     width: 700,
     height: 520,
-    show: !app.isPackaged, // show in dev for debugging
+    show: true, // always show for manual selection and debugging
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

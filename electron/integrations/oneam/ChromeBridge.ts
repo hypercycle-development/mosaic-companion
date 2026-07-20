@@ -410,11 +410,11 @@ function getBridgePage(port: number): string {
         walletsEl.appendChild(btn);
       });
 
-      // Auto-connect only if a provider explicitly matches oneam/midnight/lace
-      const oneamProvider = providers.find(p => /oneam|midnight|lace/i.test(p.key) || /oneam|midnight|lace/i.test(p.wallet?.name || ''));
+      // Auto-connect only if a provider explicitly matches oneam/midnight
+      const oneamProvider = providers.find(p => /oneam|midnight/i.test(p.key) || /oneam|midnight/i.test(p.wallet?.name || ''));
       const target = oneamProvider || (providers.length === 1 ? providers[0] : null);
 
-      if (target) {
+      if (target && !/lace/i.test(target.key) && !/lace/i.test(target.wallet?.name || '')) {
         setStatus('detecting', 'Auto-connecting ' + (target.wallet?.name || target.key) + '...');
         await new Promise(r => setTimeout(r, 800));
         const result = await tryConnectCIP30(target.key);
