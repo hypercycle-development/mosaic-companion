@@ -77,6 +77,7 @@ export default {
             'config/gmail-credentials.json',
             'bundled-skills',
             'electron/integrations/mcp/servers',
+            'electron/integrations/oneam/cip30-bridge-preload.js',
         ],
         protocols: [
             {

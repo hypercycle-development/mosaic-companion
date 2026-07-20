@@ -36,6 +36,11 @@ import {
 import { mcpClient, setMainWindow as mcpSetMainWindow, initPlugins } from "./integrations/mcp/index";
 import { initializeTools, cleanupTools } from "./integrations/tools";
 import { connectOneAmChrome } from "./integrations/oneam/ChromeBridge";
+import {
+  bridgeConnectWallet,
+  bridgeDetectWallets,
+  bridgeDisconnect,
+} from "./integrations/oneam/CIP30WebViewBridge";
 import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integrations/chat/index";
 import { initIDE, cleanupIDE } from "./integrations/ide/index";
@@ -1209,6 +1214,7 @@ ipcMain.handle("oneam:disconnect", async () => {
   oneamCache.connected = false;
   oneamCache.address = null;
   oneamCache.network = null;
+  await bridgeDisconnect().catch(() => {});
   return { success: true };
 });
 
@@ -1280,7 +1286,44 @@ ipcMain.handle("oneam:listAgentWallets", async () => {
   return { wallets: oneamCache.agentWallets };
 });
 ipcMain.handle("oneam:openExternal", async () => {
-  // Spawn real Chrome with 1AM bridge page so the extension injects properly
+  // Prefer the in-process Electron WebView bridge (loads extension directly)
+  try {
+    const detected = await bridgeDetectWallets();
+    if (detected.available) {
+      const oneam = detected.wallets.find((w) => /oneam|midnight/i.test(w.key) || /oneam|midnight/i.test(w.name));
+      const target = oneam || detected.wallets[0];
+      const result = await bridgeConnectWallet(target.key);
+      if (result.success && result.address) {
+        oneamCache = {
+          connected: true,
+          address: result.address,
+          network: result.networkId === 1 ? 'mainnet' : 'preprod',
+          balance: {
+            lovelace: result.lovelace || 0,
+            nightTokens: result.night || 0,
+            dustTokens: result.dust || 0,
+            assets: result.assets || [],
+          },
+          agentWallets: [],
+          connectedAt: new Date().toISOString(),
+        };
+      }
+      return {
+        connected: result.success,
+        address: result.address,
+        network: result.networkId === 1 ? 'mainnet' : 'preprod',
+        lovelace: result.lovelace || 0,
+        night: result.night || 0,
+        dust: result.dust || 0,
+        assets: result.assets || [],
+        error: result.error,
+      };
+    }
+  } catch (e) {
+    console.warn('[1AM] WebView bridge failed, falling back to external Chrome:', e);
+  }
+
+  // Fallback: spawn external Chrome bridge window
   const result = await connectOneAmChrome();
   if (result.success && result.address) {
     oneamCache = {

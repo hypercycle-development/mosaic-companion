@@ -221,6 +221,8 @@ function getBridgePage(port: number): string {
         msg.textContent = 'Wallet connected successfully. You can close this tab.';
       } else if (cls === 'error') {
         msg.textContent = 'Could not detect the 1AM extension. Try clicking the extension icon in Chrome, then click Retry.';
+      } else if (cls === 'detecting') {
+        msg.textContent = 'Scanning for wallet providers...';
       }
     }
 
@@ -342,35 +344,47 @@ function getBridgePage(port: number): string {
 
     // ── Strategy 3: Manual user retry ─────────────────────────────────────
     async function run() {
-      // Give extensions a moment to inject content scripts
-      await new Promise(r => setTimeout(r, 2000));
-
-      const { found, providers } = detectCIP30Providers();
-
-      if (!providers.length) {
-        // Try extension messaging as fallback
-        const msgResult = await tryExtensionMessaging();
-        if (msgResult) {
-          setStatus('connected', 'Connected!');
-          await postResult(msgResult);
-          return;
+      // Give extensions a moment to inject content scripts, then try several times
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt > 0) {
+          setStatus('detecting', 'Retry scan ' + attempt + '/3...');
+          await new Promise(r => setTimeout(r, 2000));
+        } else {
+          await new Promise(r => setTimeout(r, 1500));
         }
 
-        // Show retry button for manual user intervention
-        setStatus('error', 'Not detected — click Retry after activating the extension');
-        document.getElementById('retryBtn').style.display = 'inline-block';
-        document.getElementById('msg').textContent = 'No wallet providers found. Ensure 1AM/Midnight is installed in Chrome/Brave, unlocked, and try clicking Retry.';
-        await postResult({
-          success: false,
-          error: 'No wallet providers detected. Extensions may only inject after user interaction. Try clicking the 1AM extension icon in Chrome first, then click Retry.',
-        });
-        return;
+        const { found, providers } = detectCIP30Providers();
+
+        if (!providers.length) {
+          // Try extension messaging as fallback
+          const msgResult = await tryExtensionMessaging();
+          if (msgResult) {
+            setStatus('connected', 'Connected!');
+            await postResult(msgResult);
+            return;
+          }
+          continue; // retry scan
+        }
+
+        // Found providers — proceed with connection flow
+        return await connectProviders(providers);
       }
 
+      // All attempts exhausted
+      setStatus('error', 'Not detected — click Retry after activating the extension');
+      document.getElementById('retryBtn').style.display = 'inline-block';
+      document.getElementById('msg').textContent = 'No wallet providers found after multiple attempts. Ensure 1AM/Midnight is installed in Chrome/Brave, unlocked, and try clicking Retry.';
+      await postResult({
+        success: false,
+        error: 'No wallet providers detected. Extensions may only inject after user interaction. Try clicking the 1AM extension icon in Chrome first, then click Retry.',
+      });
+    }
+
+    async function connectProviders(providers) {
       // Show detected providers — clear any previous error state
       showProviders(providers.map(p => p.key));
       setStatus('detecting', 'Found ' + providers.length + ' provider(s)');
-      document.getElementById('msg').textContent = 'Select a wallet below or auto-connecting in 3 seconds...';
+      document.getElementById('msg').textContent = 'Select a wallet below or auto-connecting...';
 
       // Build wallet buttons
       const walletsEl = document.getElementById('wallets');
@@ -396,13 +410,13 @@ function getBridgePage(port: number): string {
         walletsEl.appendChild(btn);
       });
 
-      // Auto-connect if only one provider (or if 'oneam'/'midnight'/'lace' specifically)
-      const oneamProvider = providers.find(p => /oneam|midnight|lace/i.test(p.key));
+      // Auto-connect only if a provider explicitly matches oneam/midnight/lace
+      const oneamProvider = providers.find(p => /oneam|midnight|lace/i.test(p.key) || /oneam|midnight|lace/i.test(p.wallet?.name || ''));
       const target = oneamProvider || (providers.length === 1 ? providers[0] : null);
 
-      if (target && providers.length <= 2) {
-        setStatus('detecting', 'Auto-connecting ' + target.key + '...');
-        await new Promise(r => setTimeout(r, 1500));
+      if (target) {
+        setStatus('detecting', 'Auto-connecting ' + (target.wallet?.name || target.key) + '...');
+        await new Promise(r => setTimeout(r, 800));
         const result = await tryConnectCIP30(target.key);
         if (result && result.success) {
           setStatus('connected', 'Connected to ' + (result.walletName || target.key) + '!');
@@ -417,11 +431,9 @@ function getBridgePage(port: number): string {
 
     document.getElementById('retryBtn').addEventListener('click', async () => {
       document.getElementById('retryBtn').disabled = true;
-      document.getElementById('retryBtn').textContent = 'Retrying...';
-      setStatus('detecting', 'Retrying...');
-      await run();
-      document.getElementById('retryBtn').disabled = false;
-      document.getElementById('retryBtn').textContent = 'Retry Detection';
+      document.getElementById('retryBtn').textContent = 'Reloading...';
+      // Full page reload so MV3 content scripts can re-inject after extension activation
+      window.location.reload();
     });
 
     run();
