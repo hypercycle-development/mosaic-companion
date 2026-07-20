@@ -48,7 +48,6 @@ import { initIDE, cleanupIDE } from "./integrations/ide/index";
 import { registerHyperInsightIpc, stopScorePolling } from "../plugins/hyperinsight/main/index.js";
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
 import { registerPaymentsJitIpc } from "../plugins/payments-jit/main/index.ts";
-import { registerOneAmExternalBridge } from "./integrations/oneam-external-bridge";
 import { registerCardanoIpc } from "./integrations/cardano/ipcHandlers";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
@@ -368,7 +367,8 @@ app.whenReady().then(() => {
   registerHyperInsightIpc(ipcMain);
   registerAimNodesIpc(ipcMain);
   registerPaymentsJitIpc(ipcMain);
-  registerOneAmExternalBridge(ipcMain);
+  // Remove duplicate oneam:openExternal handler from old external bridge
+  // registerOneAmExternalBridge(ipcMain);
   registerCardanoIpc();
 
   // Now auto-connect MCP plugins (with correct env already set)
@@ -1289,28 +1289,19 @@ ipcMain.handle("oneam:listAgentWallets", async () => {
   return { wallets: oneamCache.agentWallets };
 });
 ipcMain.handle("oneam:openExternal", async () => {
-  // Use only the in-process Electron WebView bridge (loads extension directly).
-  // We do not fall back to the external Chrome bridge here because it cannot
-  // reliably activate the 1AM MV3 service worker and often auto-connects to
-  // Lace instead. If the WebView bridge fails, we surface the error.
+  // WebView bridge works for some CIP-30 extensions, but 1AM's MV3 service
+  // worker doesn't fully activate inside Electron. Fall back to spawning real
+  // Chrome in a temp profile with ONLY the 1AM extension loaded.
   try {
-    const detected = await bridgeDetectWallets();
-    console.log('[1AM] WebView detection result:', detected);
+    const webViewResult = await tryWebViewBridgeFirst();
+    if (webViewResult.connected) return webViewResult;
+  } catch (e: any) {
+    console.log('[1AM] WebView bridge did not connect:', e.message);
+  }
 
-    if (!detected.available || detected.wallets.length === 0) {
-      return {
-        connected: false,
-        error: 'No Cardano wallet extensions detected in Electron. Try clicking the 1AM extension icon in Chrome first to wake its service worker, then retry.',
-      };
-    }
-
-    // Always prefer a 1AM/Midnight-named provider, never Lace, for this flow
-    const oneam = detected.wallets.find(
-      (w) => /oneam|midnight/i.test(w.key) || /oneam|midnight/i.test(w.name)
-    );
-    const target = oneam || detected.wallets[0];
-    console.log('[1AM] Connecting via WebView to:', target);
-    const result = await bridgeConnectWallet(target.key);
+  console.log('[1AM] Falling back to isolated Chrome bridge with 1AM only');
+  try {
+    const result = await connectOneAmChrome();
     if (result.success && result.address) {
       oneamCache = {
         connected: true,
@@ -1337,13 +1328,63 @@ ipcMain.handle("oneam:openExternal", async () => {
       error: result.error,
     };
   } catch (e: any) {
-    console.error('[1AM] WebView bridge failed:', e);
     return {
       connected: false,
-      error: e.message || 'WebView bridge failed. Try clicking the 1AM extension icon in Chrome to wake its service worker, then retry.',
+      error: e.message || '1AM Chrome bridge failed',
     };
   }
 });
+
+async function tryWebViewBridgeFirst(): Promise<{
+  connected: boolean;
+  address?: string;
+  network?: string;
+  lovelace?: number;
+  night?: number;
+  dust?: number;
+  assets?: any[];
+  error?: string;
+}> {
+  const detected = await bridgeDetectWallets();
+  console.log('[1AM] WebView detection result:', detected);
+  if (!detected.available || detected.wallets.length === 0) {
+    return {
+      connected: false,
+      error: 'No Cardano wallet extensions detected in Electron.',
+    };
+  }
+  const oneam = detected.wallets.find(
+    (w) => /oneam|midnight/i.test(w.key) || /oneam|midnight/i.test(w.name)
+  );
+  const target = oneam || detected.wallets[0];
+  console.log('[1AM] Connecting via WebView to:', target);
+  const result = await bridgeConnectWallet(target.key);
+  if (result.success && result.address) {
+    oneamCache = {
+      connected: true,
+      address: result.address,
+      network: result.networkId === 1 ? 'mainnet' : 'preprod',
+      balance: {
+        lovelace: result.lovelace || 0,
+        nightTokens: result.night || 0,
+        dustTokens: result.dust || 0,
+        assets: result.assets || [],
+      },
+      agentWallets: [],
+      connectedAt: new Date().toISOString(),
+    };
+  }
+  return {
+    connected: result.success,
+    address: result.address,
+    network: result.networkId === 1 ? 'mainnet' : 'preprod',
+    lovelace: result.lovelace || 0,
+    night: result.night || 0,
+    dust: result.dust || 0,
+    assets: result.assets || [],
+    error: result.error,
+  };
+}
 
 ipcMain.handle("oneam:generateDust", async () => {
   // Dust generation is handled in renderer via bridge to the 1AM extension
