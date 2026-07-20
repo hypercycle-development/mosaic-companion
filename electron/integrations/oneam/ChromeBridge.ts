@@ -1,26 +1,29 @@
 /**
  * 1AM Chrome Bridge for Desktop Browser Wallet
  *
- * Architecture:
- * 1. Electron starts a temporary HTTP server on 127.0.0.1 serving bridge HTML
- * 2. spawns a real Chrome process with the bridge URL
- * 3. The bridge page runs in REAL Chrome, so the 1AM extension injects window.oneam
- * 4. The bridge connects to the wallet and POSTs the result back to the temp server
- * 5. Electron resolves the promise with wallet data
+ * Spawns a real Chrome process with a temporary HTTP bridge server.
+ * The bridge page attempts wallet detection via multiple strategies:
+ *   1. CIP-30 globals (window.oneam, window.midnight, window.cardano)
+ *   2. Chrome extension messaging (chrome.runtime.sendMessage to known IDs)
+ *   3. Manual user-triggered retry
  *
- * Why not Electron BrowserWindow?
+ * Why real Chrome?
  * - Chrome extensions (MV3) require a real browser profile with service workers
- * - Content scripts only inject into http/https/file URLs, NOT data: URLs or iframes
- * - The ONLY reliable way to access window.oneam is from a real Chrome tab
+ * - Content scripts only reliably inject into http/https URLs in real Chrome
+ * - chrome.runtime messaging only works inside real Chrome tabs
  */
 
 import * as http from 'http';
 import { spawn, execSync } from 'child_process';
-import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 
-// ─── Browser Detection ─────────────────────────────────────────────────
+// ─── Known 1AM / Midnight Extension IDs ────────────────────────────────────
+const KNOWN_EXTENSION_IDS = [
+  'pljbjmehgjnlccgbbhhffncgkfmkbmgl', // 1AM (published)
+  'midnight-wallet',                   // Midnight placeholder
+];
+
+// ─── Browser Detection ─────────────────────────────────────────────────────
 
 export function isChromeInstalled(): boolean {
   return !!getChromeCommand();
@@ -44,7 +47,7 @@ export function getChromeCommand(): string | null {
   return null;
 }
 
-// ─── Temporary Callback Server ──────────────────────────────────────────
+// ─── Bridge Result Type ────────────────────────────────────────────────────
 
 export interface OneAmBridgeResult {
   success: boolean;
@@ -57,6 +60,8 @@ export interface OneAmBridgeResult {
   assets?: Array<{ policyId: string; assetName: string; quantity: number }>;
   error?: string;
 }
+
+// ─── Temporary Callback Server ───────────────────────────────────────────
 
 function startOneAmCallbackServer(preferredPort: number = 9877): Promise<{
   server: http.Server;
@@ -128,37 +133,52 @@ function startOneAmCallbackServer(preferredPort: number = 9877): Promise<{
   });
 }
 
-// ─── Bridge HTML Page (served to Chrome) ────────────────────────────────
+// ─── Bridge HTML Page (served to Chrome) ──────────────────────────────────
 
 function getBridgePage(port: number): string {
+  const extensionIds = JSON.stringify(KNOWN_EXTENSION_IDS);
+
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <title>1AM Wallet Bridge</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0f0c29; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-    .container { text-align: center; padding: 40px; }
-    .logo { font-size: 48px; margin-bottom: 20px; }
-    h1 { font-weight: 600; margin-bottom: 10px; }
-    p { color: #a0a0c0; margin-bottom: 30px; }
-    .status { padding: 12px 24px; border-radius: 8px; background: rgba(255,255,255,0.1); font-weight: 500; }
-    .status.detecting { background: rgba(255,193,7,0.2); color: #ffc107; }
-    .status.connected { background: rgba(76,175,80,0.2); color: #4caf50; }
-    .status.error { background: rgba(244,67,54,0.2); color: #f44336; }
-    .close-hint { margin-top: 30px; font-size: 12px; color: #666; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0c29; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    .container { text-align: center; padding: 40px; max-width: 480px; }
+    .logo { font-size: 56px; margin-bottom: 16px; }
+    h1 { font-weight: 600; margin-bottom: 8px; }
+    p { color: #a0a0c0; margin-bottom: 24px; line-height: 1.5; }
+    .status { padding: 14px 28px; border-radius: 10px; background: rgba(255,255,255,0.08); font-weight: 500; font-size: 15px; margin-bottom: 20px; transition: all 0.3s; }
+    .status.detecting { background: rgba(255,193,7,0.15); color: #ffc107; }
+    .status.connected { background: rgba(76,175,80,0.15); color: #4caf50; }
+    .status.error { background: rgba(244,67,54,0.15); color: #f44336; }
+    .btn { padding: 12px 24px; border-radius: 8px; border: none; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; font-weight: 600; font-size: 15px; cursor: pointer; margin-top: 12px; }
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .detail { font-size: 12px; color: #666; margin-top: 16px; }
+    .providers { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+    .tag { padding: 4px 10px; border-radius: 12px; background: rgba(255,255,255,0.06); font-size: 11px; color: #888; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="logo">1AM</div>
     <h1>1AM Wallet Bridge</h1>
-    <p id="msg">Detecting 1AM Wallet extension...</p>
+    <p id="msg">Scanning for wallet providers...</p>
     <div id="status" class="status detecting">Detecting...</div>
-    <div class="close-hint">This tab will close automatically after connecting.</div>
+    <div class="providers" id="providers">
+      <div class="tag">window.oneam</div>
+      <div class="tag">window.midnight</div>
+      <div class="tag">window.cardano</div>
+      <div class="tag">chrome.runtime</div>
+    </div>
+    <button id="retryBtn" class="btn" style="display:none;">Retry Detection</button>
+    <div class="detail">This tab will close automatically after connecting.</div>
   </div>
   <script>
     const PORT = ${port};
+    const EXTENSION_IDS = ${extensionIds};
 
     async function postResult(payload) {
       try {
@@ -178,43 +198,143 @@ function getBridgePage(port: number): string {
       el.className = 'status ' + cls;
       el.textContent = text;
       if (cls === 'connected') {
-        msg.textContent = 'You can close this tab now.';
+        msg.textContent = 'Wallet connected successfully. You can close this tab.';
       } else if (cls === 'error') {
-        msg.textContent = 'Please make sure the 1AM extension is enabled.';
+        msg.textContent = 'Could not detect the 1AM extension. Try clicking the extension icon in Chrome, then click Retry.';
       }
     }
 
+    function showProviders(found) {
+      const container = document.getElementById('providers');
+      container.innerHTML = '';
+      found.forEach(name => {
+        const tag = document.createElement('div');
+        tag.className = 'tag';
+        tag.style.color = '#4caf50';
+        tag.textContent = '✓ ' + name;
+        container.appendChild(tag);
+      });
+    }
+
+    // ── Strategy 1: CIP-30 global providers ────────────────────────────────
+    function detectCIP30Providers() {
+      const found = [];
+      const providers = [];
+      if (window.oneam) { found.push('window.oneam'); providers.push(window.oneam); }
+      if (window.midnight) { found.push('window.midnight'); providers.push(window.midnight); }
+      if (window.cardano?.oneam) { found.push('window.cardano.oneam'); providers.push(window.cardano.oneam); }
+      if (window.cardano?.midnight) { found.push('window.cardano.midnight'); providers.push(window.cardano.midnight); }
+      return { found, providers };
+    }
+
+    async function tryConnectCIP30() {
+      const { found, providers } = detectCIP30Providers();
+      if (!providers.length) return null;
+      showProviders(found);
+      setStatus('detecting', 'Connecting via ' + found[0] + '...');
+
+      for (const provider of providers) {
+        try {
+          const api = await provider.enable();
+          const addresses = await api.getUsedAddresses();
+          const address = addresses?.[0] || null;
+          const networkId = await api.getNetworkId().catch(() => 0);
+
+          let lovelace = 0, night = 0, dust = 0, assets = [];
+          try {
+            const bal = await api.getBalance();
+            lovelace = bal.lovelace || 0;
+            assets = bal.tokens || [];
+          } catch (e) {}
+          try { night = await api.getNightBalance(); } catch (e) {}
+          try { dust = await api.getDustBalance(); } catch (e) {}
+
+          return { success: true, walletName: '1AM Wallet', address, networkId, lovelace, night, dust, assets };
+        } catch (e) {
+          console.warn('CIP-30 provider failed:', e);
+        }
+      }
+      return null;
+    }
+
+    // ── Strategy 2: Chrome extension messaging ────────────────────────────
+    async function tryExtensionMessaging() {
+      if (!window.chrome?.runtime?.sendMessage) return null;
+      const found = [];
+      for (const extId of EXTENSION_IDS) {
+        try {
+          const response = await new Promise((resolve) => {
+            chrome.runtime.sendMessage(extId, { action: 'PING' }, (resp) => {
+              resolve(resp || chrome.runtime.lastError);
+            });
+          });
+          if (response && !response.message) {
+            found.push('ext:' + extId.slice(0, 8));
+          }
+        } catch (e) {}
+      }
+      if (!found.length) return null;
+      showProviders(found);
+      setStatus('detecting', 'Connecting via extension messaging...');
+
+      // Try to get wallet state via messaging
+      for (const extId of EXTENSION_IDS) {
+        try {
+          const state = await new Promise((resolve) => {
+            chrome.runtime.sendMessage(extId, { action: 'GET_WALLET_STATE' }, (resp) => {
+              resolve(resp || chrome.runtime.lastError);
+            });
+          });
+          if (state && state.address) {
+            return {
+              success: true,
+              walletName: '1AM Wallet (messaging)',
+              address: state.address,
+              networkId: state.networkId || 0,
+              lovelace: state.balance?.lovelace || 0,
+              night: state.balance?.night || 0,
+              dust: state.balance?.dust || 0,
+              assets: state.balance?.assets || [],
+            };
+          }
+        } catch (e) {}
+      }
+      return null;
+    }
+
+    // ── Strategy 3: Manual user retry ─────────────────────────────────────
     async function run() {
-      const provider = window.oneam || window.midnight;
-      if (!provider) {
-        setStatus('error', 'Not detected');
-        await postResult({ success: false, error: '1AM Wallet extension not detected. Please install and enable it in Chrome.' });
+      // Give extensions a moment to inject content scripts
+      await new Promise(r => setTimeout(r, 800));
+
+      let result = await tryConnectCIP30();
+      if (!result) {
+        result = await tryExtensionMessaging();
+      }
+
+      if (result) {
+        setStatus('connected', 'Connected!');
+        await postResult(result);
         return;
       }
 
-      try {
-        setStatus('detecting', 'Connecting...');
-        const api = await provider.enable();
-        const addresses = await api.getUsedAddresses();
-        const address = addresses?.[0] || null;
-        const networkId = await api.getNetworkId().catch(() => 0);
-
-        let lovelace = 0, night = 0, dust = 0, assets = [];
-        try {
-          const bal = await api.getBalance();
-          lovelace = bal.lovelace || 0;
-          assets = bal.tokens || [];
-        } catch (e) {}
-        try { night = await api.getNightBalance(); } catch (e) {}
-        try { dust = await api.getDustBalance(); } catch (e) {}
-
-        setStatus('connected', 'Connected!');
-        await postResult({ success: true, walletName: '1AM Wallet', address, networkId, lovelace, night, dust, assets });
-      } catch (err) {
-        setStatus('error', 'Connection failed');
-        await postResult({ success: false, error: err.message || 'Failed to connect 1AM Wallet' });
-      }
+      // Show retry button for manual user intervention
+      setStatus('error', 'Not detected');
+      document.getElementById('retryBtn').style.display = 'inline-block';
+      await postResult({
+        success: false,
+        error: '1AM Wallet extension not detected on this page. The extension may only inject on specific domains. Try clicking the 1AM extension icon in Chrome first, then click Retry.',
+      });
     }
+
+    document.getElementById('retryBtn').addEventListener('click', async () => {
+      document.getElementById('retryBtn').disabled = true;
+      document.getElementById('retryBtn').textContent = 'Retrying...';
+      setStatus('detecting', 'Retrying...');
+      await run();
+      document.getElementById('retryBtn').disabled = false;
+      document.getElementById('retryBtn').textContent = 'Retry Detection';
+    });
 
     run();
   </script>
@@ -222,7 +342,7 @@ function getBridgePage(port: number): string {
 </html>`;
 }
 
-// ─── Public API ─────────────────────────────────────────────────────────
+// ─── Public API ─────────────────────────────────────────────────────────────
 
 export async function connectOneAmChrome(): Promise<OneAmBridgeResult> {
   const chromeCmd = getChromeCommand();
@@ -238,7 +358,6 @@ export async function connectOneAmChrome(): Promise<OneAmBridgeResult> {
     '--new-window',
     '--no-first-run',
     '--no-default-browser-check',
-    '--disable-extensions-except=' + (process.env.ONEAM_EXT_ID || ''),
     bridgeUrl,
   ], {
     detached: false,
@@ -264,7 +383,7 @@ export async function connectOneAmChrome(): Promise<OneAmBridgeResult> {
         clearInterval(timer);
         chromeProcess.kill();
         server.close();
-        resolve({ success: false, error: 'Timeout: 1AM Wallet did not connect within 2 minutes. Please make sure the extension is enabled and unlocked.' });
+        resolve({ success: false, error: 'Timeout: 1AM Wallet did not connect within 2 minutes. Please make sure the extension is enabled, unlocked, and try clicking Retry on the bridge page.' });
       }
     }, pollInterval);
   });
