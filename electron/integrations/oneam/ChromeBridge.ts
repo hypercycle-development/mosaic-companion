@@ -159,6 +159,10 @@ function getBridgePage(port: number): string {
     .detail { font-size: 12px; color: #666; margin-top: 16px; }
     .providers { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
     .tag { padding: 4px 10px; border-radius: 12px; background: rgba(255,255,255,0.06); font-size: 11px; color: #888; }
+    .wallet-list { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
+    .wallet-btn { padding: 12px 16px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; cursor: pointer; transition: all 0.2s; font-size: 14px; font-weight: 500; }
+    .wallet-btn:hover { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.4); }
+    .wallet-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -168,11 +172,12 @@ function getBridgePage(port: number): string {
     <p id="msg">Scanning for wallet providers...</p>
     <div id="status" class="status detecting">Detecting...</div>
     <div class="providers" id="providers">
+      <div class="tag">Scanning window.cardano...</div>
       <div class="tag">window.oneam</div>
       <div class="tag">window.midnight</div>
-      <div class="tag">window.cardano</div>
       <div class="tag">chrome.runtime</div>
     </div>
+    <div class="wallet-list" id="wallets"></div>
     <button id="retryBtn" class="btn" style="display:none;">Retry Detection</button>
     <div class="detail">This tab will close automatically after connecting.</div>
   </div>
@@ -220,22 +225,41 @@ function getBridgePage(port: number): string {
     function detectCIP30Providers() {
       const found = [];
       const providers = [];
-      if (window.oneam) { found.push('window.oneam'); providers.push(window.oneam); }
-      if (window.midnight) { found.push('window.midnight'); providers.push(window.midnight); }
-      if (window.cardano?.oneam) { found.push('window.cardano.oneam'); providers.push(window.cardano.oneam); }
-      if (window.cardano?.midnight) { found.push('window.cardano.midnight'); providers.push(window.cardano.midnight); }
+      const cardano = window.cardano;
+      if (cardano) {
+        for (const [key, wallet] of Object.entries(cardano)) {
+          if (wallet && typeof wallet.enable === 'function') {
+            found.push(key + ' (' + (wallet.name || key) + ')');
+            providers.push({ key, wallet });
+          }
+        }
+      }
+      // Also check top-level globals (non-standard extensions)
+      if (window.oneam && typeof window.oneam.enable === 'function') {
+        found.push('window.oneam');
+        providers.push({ key: 'oneam', wallet: window.oneam });
+      }
+      if (window.midnight && typeof window.midnight.enable === 'function') {
+        found.push('window.midnight');
+        providers.push({ key: 'midnight', wallet: window.midnight });
+      }
       return { found, providers };
     }
 
-    async function tryConnectCIP30() {
-      const { found, providers } = detectCIP30Providers();
+    async function tryConnectCIP30(targetKey) {
+      const { providers } = detectCIP30Providers();
       if (!providers.length) return null;
-      showProviders(found);
-      setStatus('detecting', 'Connecting via ' + found[0] + '...');
+      showProviders(providers.map(p => p.key));
+      setStatus('detecting', 'Connecting via ' + (targetKey || providers[0].key) + '...');
 
-      for (const provider of providers) {
+      // If a specific key requested, use it; otherwise try all
+      const candidates = targetKey
+        ? providers.filter(p => p.key === targetKey)
+        : providers;
+
+      for (const { key, wallet } of candidates) {
         try {
-          const api = await provider.enable();
+          const api = await wallet.enable();
           const addresses = await api.getUsedAddresses();
           const address = addresses?.[0] || null;
           const networkId = await api.getNetworkId().catch(() => 0);
@@ -249,9 +273,9 @@ function getBridgePage(port: number): string {
           try { night = await api.getNightBalance(); } catch (e) {}
           try { dust = await api.getDustBalance(); } catch (e) {}
 
-          return { success: true, walletName: '1AM Wallet', address, networkId, lovelace, night, dust, assets };
+          return { success: true, walletName: wallet.name || key, address, networkId, lovelace, night, dust, assets };
         } catch (e) {
-          console.warn('CIP-30 provider failed:', e);
+          console.warn('CIP-30 provider ' + key + ' failed:', e);
         }
       }
       return null;
@@ -277,7 +301,6 @@ function getBridgePage(port: number): string {
       showProviders(found);
       setStatus('detecting', 'Connecting via extension messaging...');
 
-      // Try to get wallet state via messaging
       for (const extId of EXTENSION_IDS) {
         try {
           const state = await new Promise((resolve) => {
@@ -305,26 +328,76 @@ function getBridgePage(port: number): string {
     // ── Strategy 3: Manual user retry ─────────────────────────────────────
     async function run() {
       // Give extensions a moment to inject content scripts
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise(r => setTimeout(r, 2000));
 
-      let result = await tryConnectCIP30();
-      if (!result) {
-        result = await tryExtensionMessaging();
-      }
+      const { found, providers } = detectCIP30Providers();
 
-      if (result) {
-        setStatus('connected', 'Connected!');
-        await postResult(result);
+      if (!providers.length) {
+        // Try extension messaging as fallback
+        const msgResult = await tryExtensionMessaging();
+        if (msgResult) {
+          setStatus('connected', 'Connected!');
+          await postResult(msgResult);
+          return;
+        }
+
+        // Show retry button for manual user intervention
+        setStatus('error', 'Not detected');
+        document.getElementById('retryBtn').style.display = 'inline-block';
+        document.getElementById('msg').textContent = 'No wallet providers found. Ensure 1AM/Midnight is installed in Chrome/Brave, unlocked, and try clicking Retry.';
+        await postResult({
+          success: false,
+          error: 'No wallet providers detected on this page. Extensions may only inject after user interaction. Try clicking the 1AM extension icon in Chrome first, then click Retry.',
+        });
         return;
       }
 
-      // Show retry button for manual user intervention
-      setStatus('error', 'Not detected');
-      document.getElementById('retryBtn').style.display = 'inline-block';
-      await postResult({
-        success: false,
-        error: '1AM Wallet extension not detected on this page. The extension may only inject on specific domains. Try clicking the 1AM extension icon in Chrome first, then click Retry.',
+      // Show detected providers
+      showProviders(providers.map(p => p.key));
+      setStatus('detecting', 'Found ' + providers.length + ' provider(s)');
+      document.getElementById('msg').textContent = 'Select a wallet below or auto-connecting in 3 seconds...';
+
+      // Build wallet buttons
+      const walletsEl = document.getElementById('wallets');
+      walletsEl.innerHTML = '';
+      providers.forEach(({ key, wallet }) => {
+        const btn = document.createElement('button');
+        btn.className = 'wallet-btn';
+        btn.textContent = 'Connect ' + (wallet.name || key);
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          btn.textContent = 'Connecting...';
+          const result = await tryConnectCIP30(key);
+          if (result && result.success) {
+            setStatus('connected', 'Connected to ' + (result.walletName || key) + '!');
+            await postResult(result);
+          } else {
+            btn.disabled = false;
+            btn.textContent = 'Connect ' + (wallet.name || key);
+            setStatus('error', 'Connection failed');
+            await postResult({ success: false, error: 'Failed to connect to ' + key });
+          }
+        });
+        walletsEl.appendChild(btn);
       });
+
+      // Auto-connect if only one provider (or if 'oneam'/'midnight'/'lace' specifically)
+      const oneamProvider = providers.find(p => /oneam|midnight|lace/i.test(p.key));
+      const target = oneamProvider || (providers.length === 1 ? providers[0] : null);
+
+      if (target && providers.length <= 2) {
+        setStatus('detecting', 'Auto-connecting ' + target.key + '...');
+        await new Promise(r => setTimeout(r, 1500));
+        const result = await tryConnectCIP30(target.key);
+        if (result && result.success) {
+          setStatus('connected', 'Connected to ' + (result.walletName || target.key) + '!');
+          await postResult(result);
+          return;
+        }
+      }
+
+      // Multiple providers found — show buttons and wait for user
+      setStatus('detecting', 'Select a wallet to connect');
     }
 
     document.getElementById('retryBtn').addEventListener('click', async () => {
