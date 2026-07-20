@@ -1214,6 +1214,7 @@ ipcMain.handle("oneam:disconnect", async () => {
   oneamCache.connected = false;
   oneamCache.address = null;
   oneamCache.network = null;
+  oneamCache.balance = null;
   await bridgeDisconnect().catch(() => {});
   return { success: true };
 });
@@ -1289,9 +1290,14 @@ ipcMain.handle("oneam:openExternal", async () => {
   // Prefer the in-process Electron WebView bridge (loads extension directly)
   try {
     const detected = await bridgeDetectWallets();
+    console.log('[1AM] WebView detection result:', detected);
     if (detected.available) {
-      const oneam = detected.wallets.find((w) => /oneam|midnight/i.test(w.key) || /oneam|midnight/i.test(w.name));
+      // Always prefer a 1AM/Midnight-named provider
+      const oneam = detected.wallets.find(
+        (w) => /oneam|midnight/i.test(w.key) || /oneam|midnight/i.test(w.name)
+      );
       const target = oneam || detected.wallets[0];
+      console.log('[1AM] Connecting via WebView to:', target);
       const result = await bridgeConnectWallet(target.key);
       if (result.success && result.address) {
         oneamCache = {
@@ -1324,6 +1330,7 @@ ipcMain.handle("oneam:openExternal", async () => {
   }
 
   // Fallback: spawn external Chrome bridge window
+  console.log('[1AM] Falling back to external Chrome bridge');
   const result = await connectOneAmChrome();
   if (result.success && result.address) {
     oneamCache = {

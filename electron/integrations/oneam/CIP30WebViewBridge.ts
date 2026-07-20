@@ -2,24 +2,14 @@
  * 1AM CIP-30 WebView Bridge
  *
  * Loads the 1AM/Midnight browser extension directly into Electron's session,
- * then creates a hidden BrowserWindow running a bridge page that detects
- * window.cardano (injected by the loaded extension) and returns wallet data
+ * then creates a BrowserWindow running a local HTTP bridge page so the
+ * extension's content script can inject (MV3 extensions need http/https).
+ * The bridge detects window.cardano / window.oneam and returns wallet data
  * to the main process via IPC.
- *
- * This is the canonical approach for MV3 extensions whose service workers
- * do not activate when spawned in an external Chrome process.
- *
- * Architecture:
- *   Renderer (React)  <--IPC-->  Main process
- *                                  |
- *                                  v
- *                         hidden BrowserWindow (bridge page)
- *                                  |
- *                                  v
- *                         window.cardano injected by loaded extension
  */
 
-import { BrowserWindow, session, ipcMain } from 'electron';
+import { BrowserWindow, session, ipcMain, app } from 'electron';
+import * as http from 'http';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -91,9 +81,10 @@ function scanExtensionDirectory(extPath: string): DiscoveredExtension[] {
             const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
             const name = manifest.name || '';
             const desc = manifest.description || '';
-            if (/1am|midnight|cardano|lace|eternl|nami|yoroi|flint|gero/i.test(name + ' ' + desc)) {
+            const text = (name + ' ' + desc).toLowerCase();
+            if (/1am|midnight/i.test(text)) {
               found.push({
-                key: name.toLowerCase().replace(/\s+/g, ''),
+                key: name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, ''),
                 name,
                 path: path.join(extPath, entry.name, latestVersion),
                 version: latestVersion,
@@ -117,7 +108,10 @@ export async function discoverWalletExtensions(): Promise<DiscoveredExtension[]>
 
 async function loadWalletExtension(extensionPath: string): Promise<boolean> {
   try {
-    await session.defaultSession.loadExtension(extensionPath, { allowFileAccess: true });
+    const sess = session.defaultSession;
+    const extensions = (sess as any).extensions || sess;
+    const loader = (extensions.loadExtension || (sess as any).loadExtension).bind(extensions !== sess ? extensions : sess);
+    await loader(extensionPath, { allowFileAccess: true });
     console.log('[1AM WebView Bridge] Loaded extension from:', extensionPath);
     return true;
   } catch (err: any) {
@@ -126,9 +120,7 @@ async function loadWalletExtension(extensionPath: string): Promise<boolean> {
   }
 }
 
-// ─── Bridge Window ──────────────────────────────────────────────────────────
-
-let bridgeWindow: BrowserWindow | null = null;
+// ─── Bridge HTML ────────────────────────────────────────────────────────────
 
 const BRIDGE_HTML = `<!DOCTYPE html>
 <html>
@@ -140,15 +132,20 @@ const BRIDGE_HTML = `<!DOCTYPE html>
   .success { background: #1e4620; }
   .error { background: #5f1e1e; }
   pre { font-size: 11px; overflow-x: auto; }
+  .wallet-btn { padding: 10px 14px; border-radius: 6px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #e2e8f0; cursor: pointer; margin: 6px 0; display: block; width: 100%; }
+  .wallet-btn:hover { background: rgba(99,102,241,0.25); border-color: rgba(99,102,241,0.5); }
+  .wallet-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 </head>
 <body>
 <h3>1AM CIP-30 Bridge</h3>
 <div id="status" class="status pending">Detecting wallets...</div>
+<div id="wallets"></div>
 <pre id="log"></pre>
 <script>
 const statusEl = document.getElementById('status');
 const logEl = document.getElementById('log');
+const walletsEl = document.getElementById('wallets');
 function log(msg) { logEl.textContent += msg + '\n'; console.log(msg); }
 function report(type, data) {
   if (window.bridgeAPI && window.bridgeAPI.report) {
@@ -156,40 +153,94 @@ function report(type, data) {
   }
 }
 
-async function detectWallets() {
-  log('Scanning window.cardano...');
+function detectProviders() {
   const cardano = window.cardano;
-  if (!cardano) {
-    statusEl.className = 'status error';
-    statusEl.textContent = 'No Cardano wallet extensions found.';
-    report('detect', { available: false, wallets: [] });
-    return;
+  const providers = [];
+  // Prefer 1AM / Midnight globals
+  if (window.oneam && typeof window.oneam.enable === 'function') {
+    providers.push({ key: 'oneam', wallet: window.oneam, is1AM: true });
   }
-  const wallets = [];
-  for (const [key, wallet] of Object.entries(cardano)) {
-    if (wallet && typeof wallet.enable === 'function') {
-      wallets.push({ name: wallet.name || key, key, icon: wallet.icon || '', version: wallet.apiVersion || '1.0' });
+  if (window.midnight && typeof window.midnight.enable === 'function') {
+    providers.push({ key: 'midnight', wallet: window.midnight, is1AM: true });
+  }
+  // Then any cardano provider whose name suggests 1AM/Midnight
+  if (cardano) {
+    for (const [key, wallet] of Object.entries(cardano)) {
+      if (!wallet || typeof wallet.enable !== 'function') continue;
+      const name = (wallet.name || key).toLowerCase();
+      if (/oneam|midnight/i.test(name) && !providers.find(p => p.wallet === wallet)) {
+        providers.push({ key, wallet, is1AM: true });
+      }
     }
   }
-  log('Found: ' + wallets.map(w => w.name).join(', '));
-  statusEl.className = wallets.length > 0 ? 'status success' : 'status error';
-  statusEl.textContent = wallets.length > 0 ? 'Found: ' + wallets.map(w => w.name).join(', ') : 'No CIP-30 wallets detected.';
-  report('detect', { available: wallets.length > 0, wallets });
+  // Fallback: all CIP-30 providers if none matched 1AM
+  if (providers.length === 0 && cardano) {
+    for (const [key, wallet] of Object.entries(cardano)) {
+      if (wallet && typeof wallet.enable === 'function') {
+        providers.push({ key, wallet, is1AM: false });
+      }
+    }
+  }
+  return providers;
+}
+
+async function detectWallets() {
+  log('Scanning window.cardano / window.oneam / window.midnight...');
+  const providers = detectProviders();
+  log('Found ' + providers.length + ' provider(s): ' + providers.map(p => (p.wallet.name || p.key)).join(', '));
+
+  const names = providers.map(p => ({
+    name: p.wallet.name || p.key,
+    key: p.key,
+    is1AM: p.is1AM,
+    version: p.wallet.apiVersion || '1.0',
+  }));
+  report('detect', { available: providers.length > 0, wallets: names });
+
+  walletsEl.innerHTML = '';
+  if (providers.length === 0) {
+    statusEl.className = 'status error';
+    statusEl.textContent = 'No Cardano wallet extensions found.';
+    return;
+  }
+
+  statusEl.className = 'status pending';
+  statusEl.textContent = 'Found ' + providers.length + ' provider(s)';
+
+  providers.forEach(({ key, wallet }) => {
+    const btn = document.createElement('button');
+    btn.className = 'wallet-btn';
+    btn.textContent = 'Connect ' + (wallet.name || key);
+    btn.addEventListener('click', () => connectWallet(key));
+    walletsEl.appendChild(btn);
+  });
+
+  // Auto-connect if exactly one 1AM provider exists
+  const oneamProviders = providers.filter(p => p.is1AM);
+  if (oneamProviders.length === 1) {
+    statusEl.textContent = 'Auto-connecting 1AM...';
+    await new Promise(r => setTimeout(r, 500));
+    await connectWallet(oneamProviders[0].key);
+  }
 }
 
 async function connectWallet(walletKey) {
   try {
-    log('Connecting to ' + walletKey + '...');
-    const cardano = window.cardano;
-    if (!cardano || !cardano[walletKey]) {
-      report('connect', { success: false, error: 'Wallet ' + walletKey + ' not found' });
-      return;
-    }
-    const wallet = cardano[walletKey];
-    const api = await wallet.enable();
-    log('Enabled, fetching addresses...');
+    statusEl.className = 'status pending';
+    statusEl.textContent = 'Connecting to ' + walletKey + '...';
+    log('Connecting to ' + walletKey);
+
+    const providers = detectProviders();
+    const provider = providers.find(p => p.key === walletKey);
+    if (!provider) throw new Error('Provider ' + walletKey + ' disappeared');
+
+    const api = await provider.wallet.enable();
+    log('Enabled wallet');
+
     const usedAddresses = await api.getUsedAddresses();
     const address = usedAddresses && usedAddresses.length > 0 ? usedAddresses[0] : null;
+    log('Address: ' + (address ? address.slice(0, 20) + '...' : 'none'));
+
     const rewardAddresses = await api.getRewardAddresses();
     const rewardAddress = rewardAddresses && rewardAddresses.length > 0 ? rewardAddresses[0] : null;
     const networkId = await api.getNetworkId();
@@ -199,14 +250,24 @@ async function connectWallet(walletKey) {
       const bal = await api.getBalance();
       lovelace = bal.lovelace || 0;
       assets = bal.tokens || [];
+      log('Balance: ' + lovelace + ' lovelace, ' + assets.length + ' assets');
     } catch (e) { log('getBalance failed: ' + (e.message || e)); }
-    try { night = await api.getNightBalance(); } catch (e) {}
-    try { dust = await api.getDustBalance(); } catch (e) {}
+    try { night = await api.getNightBalance(); log('NIGHT: ' + night); } catch (e) {}
+    try { dust = await api.getDustBalance(); log('DUST: ' + dust); } catch (e) {}
 
-    log('Addr: ' + (address ? address.slice(0, 20) + '...' : 'none'));
     statusEl.className = 'status success';
-    statusEl.textContent = 'Connected to ' + walletKey + ' on ' + (networkId === 1 ? 'mainnet' : 'testnet');
-    report('connect', { success: true, walletName: wallet.name || walletKey, address, rewardAddress, networkId, lovelace, night, dust, assets });
+    statusEl.textContent = 'Connected to ' + (provider.wallet.name || walletKey);
+    report('connect', {
+      success: true,
+      walletName: provider.wallet.name || walletKey,
+      address,
+      rewardAddress,
+      networkId,
+      lovelace,
+      night,
+      dust,
+      assets,
+    });
   } catch (err) {
     log('Error: ' + (err.message || err));
     statusEl.className = 'status error';
@@ -228,12 +289,62 @@ detectWallets();
 </body>
 </html>`;
 
+// ─── Local HTTP bridge server ────────────────────────────────────────────────
+
+let bridgeServer: http.Server | null = null;
+let bridgeUrl: string | null = null;
+
+function startBridgeServer(preferredPort = 19666): Promise<{ server: http.Server; url: string }> {
+  return new Promise((resolve, reject) => {
+    if (bridgeServer) return resolve({ server: bridgeServer, url: bridgeUrl! });
+
+    const server = http.createServer((req, res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+      if (req.url === '/' || req.url === '/index.html') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(BRIDGE_HTML);
+        return;
+      }
+      res.writeHead(404); res.end('Not found');
+    });
+
+    server.on('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') server.listen(preferredPort + 1);
+      else reject(err);
+    });
+
+    server.listen(preferredPort, '127.0.0.1', () => {
+      const addr = server.address();
+      const port = addr && typeof addr === 'object' ? addr.port : preferredPort;
+      bridgeServer = server;
+      bridgeUrl = `http://127.0.0.1:${port}/`;
+      console.log('[1AM WebView Bridge] Bridge server listening at', bridgeUrl);
+      resolve({ server, url: bridgeUrl });
+    });
+  });
+}
+
+function stopBridgeServer() {
+  if (bridgeServer) {
+    bridgeServer.close();
+    bridgeServer = null;
+    bridgeUrl = null;
+  }
+}
+
+// ─── Bridge Window ──────────────────────────────────────────────────────────
+
+let bridgeWindow: BrowserWindow | null = null;
+
 async function getPreloadPath(): Promise<string> {
-  // In dev: __dirname is electron/integrations/oneam
-  // In prod: bundled alongside main.js
   const candidates = [
     path.join(__dirname, 'cip30-bridge-preload.js'),
     path.join(__dirname, '..', '..', 'cip30-bridge-preload.js'),
+    path.join(__dirname, '..', '..', 'electron', 'integrations', 'oneam', 'cip30-bridge-preload.js'),
+    path.join(app.getAppPath(), 'cip30-bridge-preload.js'),
+    path.join(app.getAppPath(), 'electron', 'integrations', 'oneam', 'cip30-bridge-preload.js'),
     path.join(process.resourcesPath || '', 'app', 'cip30-bridge-preload.js'),
     path.join(process.resourcesPath || '', 'app.asar.unpacked', 'cip30-bridge-preload.js'),
   ];
@@ -248,15 +359,24 @@ export async function createBridgeWindow(): Promise<BrowserWindow> {
     return bridgeWindow;
   }
 
+  const { url } = await startBridgeServer();
+  const extensions = await discoverWalletExtensions();
+  console.log('[1AM WebView Bridge] Discovered:', extensions.map((e) => e.name).join(', ') || 'none');
+
+  // Load discovered 1AM/Midnight extensions into Electron session
+  for (const ext of extensions) {
+    await loadWalletExtension(ext.path);
+  }
+
   const preloadPath = await getPreloadPath().catch((err) => {
     console.warn('[1AM WebView Bridge]', err.message);
     return '';
   });
 
   bridgeWindow = new BrowserWindow({
-    width: 600,
-    height: 400,
-    show: false,
+    width: 700,
+    height: 520,
+    show: !app.isPackaged, // show in dev for debugging
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -264,17 +384,7 @@ export async function createBridgeWindow(): Promise<BrowserWindow> {
     },
   });
 
-  await bridgeWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(BRIDGE_HTML));
-
-  // Try to auto-load discovered extensions, then reload so content scripts inject
-  const extensions = await discoverWalletExtensions();
-  if (extensions.length > 0) {
-    console.log('[1AM WebView Bridge] Discovered:', extensions.map((e) => e.name).join(', '));
-    for (const ext of extensions) {
-      await loadWalletExtension(ext.path);
-    }
-    await bridgeWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(BRIDGE_HTML));
-  }
+  await bridgeWindow.loadURL(url);
 
   bridgeWindow.on('closed', () => {
     bridgeWindow = null;
@@ -295,6 +405,7 @@ export function destroyBridgeWindow(): void {
     bridgeWindow.destroy();
     bridgeWindow = null;
   }
+  stopBridgeServer();
 }
 
 // ─── Bridge Actions ─────────────────────────────────────────────────────────
@@ -302,9 +413,6 @@ export function destroyBridgeWindow(): void {
 export async function bridgeDetectWallets(): Promise<{ available: boolean; wallets: Array<{ name: string; key: string; version: string }> }> {
   const win = await createBridgeWindow();
   return new Promise((resolve) => {
-    win.webContents.executeJavaScript(`
-      window.postMessage({ source: 'cip30-bridge-command', command: 'detect' }, '*')
-    `);
     const handler = (_event: any, data: any) => {
       if (data?.type === 'detect') {
         ipcMain.removeListener('bridge:report', handler);
@@ -312,19 +420,19 @@ export async function bridgeDetectWallets(): Promise<{ available: boolean; walle
       }
     };
     ipcMain.on('bridge:report', handler);
+    win.webContents.executeJavaScript(`
+      window.postMessage({ source: 'cip30-bridge-command', command: 'detect' }, '*')
+    `);
     setTimeout(() => {
       ipcMain.removeListener('bridge:report', handler);
       resolve({ available: false, wallets: [] });
-    }, 10000);
+    }, 15000);
   });
 }
 
 export async function bridgeConnectWallet(walletKey: string): Promise<OneAmBridgeResult> {
   const win = await createBridgeWindow();
   return new Promise((resolve) => {
-    win.webContents.executeJavaScript(`
-      window.postMessage({ source: 'cip30-bridge-command', command: 'connect', walletKey: '${walletKey}' }, '*')
-    `);
     const handler = (_event: any, data: any) => {
       if (data?.type === 'connect') {
         ipcMain.removeListener('bridge:report', handler);
@@ -343,6 +451,9 @@ export async function bridgeConnectWallet(walletKey: string): Promise<OneAmBridg
       }
     };
     ipcMain.on('bridge:report', handler);
+    win.webContents.executeJavaScript(`
+      window.postMessage({ source: 'cip30-bridge-command', command: 'connect', walletKey: ${JSON.stringify(walletKey)} }, '*')
+    `);
     setTimeout(() => {
       ipcMain.removeListener('bridge:report', handler);
       resolve({ success: false, error: 'Connection timeout' });
