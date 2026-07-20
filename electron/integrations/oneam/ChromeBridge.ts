@@ -187,11 +187,26 @@ function getBridgePage(port: number): string {
 
     async function postResult(payload) {
       try {
-        await fetch('http://127.0.0.1:' + PORT + '/callback', {
+        const resp = await fetch('http://127.0.0.1:' + PORT + '/callback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
+        if (!resp.ok) {
+          console.error('Bridge callback HTTP error:', resp.status);
+          // Retry once after 1s
+          setTimeout(async () => {
+            try {
+              await fetch('http://127.0.0.1:' + PORT + '/callback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              });
+            } catch (e2) { console.error('Bridge callback retry failed:', e2); }
+          }, 1000);
+        } else {
+          console.log('Bridge callback sent successfully');
+        }
       } catch (e) {
         console.error('Bridge callback failed:', e);
       }
@@ -342,17 +357,17 @@ function getBridgePage(port: number): string {
         }
 
         // Show retry button for manual user intervention
-        setStatus('error', 'Not detected');
+        setStatus('error', 'Not detected — click Retry after activating the extension');
         document.getElementById('retryBtn').style.display = 'inline-block';
         document.getElementById('msg').textContent = 'No wallet providers found. Ensure 1AM/Midnight is installed in Chrome/Brave, unlocked, and try clicking Retry.';
         await postResult({
           success: false,
-          error: 'No wallet providers detected on this page. Extensions may only inject after user interaction. Try clicking the 1AM extension icon in Chrome first, then click Retry.',
+          error: 'No wallet providers detected. Extensions may only inject after user interaction. Try clicking the 1AM extension icon in Chrome first, then click Retry.',
         });
         return;
       }
 
-      // Show detected providers
+      // Show detected providers — clear any previous error state
       showProviders(providers.map(p => p.key));
       setStatus('detecting', 'Found ' + providers.length + ' provider(s)');
       document.getElementById('msg').textContent = 'Select a wallet below or auto-connecting in 3 seconds...';
@@ -447,14 +462,14 @@ export async function connectOneAmChrome(): Promise<OneAmBridgeResult> {
       const result = getResult();
       if (result) {
         clearInterval(timer);
-        chromeProcess.kill();
+        // Don't kill Chrome — let the user see the "Connected" state
+        // Only close the callback server
         server.close();
         resolve(result);
         return;
       }
       if (Date.now() - start > timeoutMs) {
         clearInterval(timer);
-        chromeProcess.kill();
         server.close();
         resolve({ success: false, error: 'Timeout: 1AM Wallet did not connect within 2 minutes. Please make sure the extension is enabled, unlocked, and try clicking Retry on the bridge page.' });
       }
