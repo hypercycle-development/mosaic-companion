@@ -421,8 +421,8 @@ function getBridgePage(port: number): string {
       const relevant = providers.filter(p => isOneAmMidnight(p) && !isLace(p));
 
       // Show detected providers — clear any previous error state
-      showProviders(providers.map(p => p.key));
-      setStatus('detecting', 'Found ' + providers.length + ' provider(s)');
+      showProviders(relevant.map(p => p.key));
+      setStatus('detecting', 'Found ' + relevant.length + ' 1AM/Midnight provider(s)');
 
       if (!relevant.length) {
         setStatus('error', 'No 1AM/Midnight provider found');
@@ -432,7 +432,7 @@ function getBridgePage(port: number): string {
         return;
       }
 
-      document.getElementById('msg').textContent = 'Select a wallet below or auto-connecting...';
+      document.getElementById('msg').textContent = 'Click Connect 1AM Wallet below to authorize this site.';
 
       // Build wallet buttons only for 1AM/Midnight
       const walletsEl = document.getElementById('wallets');
@@ -460,25 +460,9 @@ function getBridgePage(port: number): string {
         walletsEl.appendChild(btn);
       });
 
-      // Auto-connect only if a provider explicitly matches oneam/midnight
-      const oneamProvider = relevant[0];
-      if (oneamProvider) {
-        setStatus('detecting', 'Auto-connecting ' + (oneamProvider.wallet?.name || oneamProvider.key) + '...');
-        await new Promise(r => setTimeout(r, 1200));
-        const result = await tryConnectCIP30(oneamProvider.key);
-        if (result && result.success) {
-          setStatus('connected', 'Connected to ' + (result.walletName || oneamProvider.key) + '!');
-          await postResult(result);
-          return;
-        } else if (result && result.error) {
-          setStatus('error', 'Auto-connect failed: ' + result.error);
-          await postResult({ success: false, error: result.error });
-          return;
-        }
-      }
-
-      // Multiple providers found — show buttons and wait for user
-      setStatus('detecting', 'Select a wallet to connect');
+      // Do NOT auto-connect. 1AM's enable() requires a real user gesture
+      // (button click). Auto-calling it after setTimeout yields error code -2.
+      setStatus('detecting', 'Click Connect 1AM Wallet to authorize');
     }
 
     document.getElementById('retryBtn').addEventListener('click', async () => {
