@@ -75,6 +75,7 @@ import StargateTelemetryCard from './stargate/StargateTelemetryCard';
 import StargateCommunityAIMPanel from './stargate/StargateCommunityAIMPanel';
 import MidnightCityCommandPanel from './stargate/MidnightCityCommandPanel';
 import { cardanoWallet } from '../services/AdaPortal/CardanoWalletService';
+import { OneAmWalletCard } from './stargate/OneAmWalletCard';
 import { oneAmWallet } from '../services/OneAmWalletService';
 import { Users, Trophy, GraduationCap, Package, Cpu, Zap, Star, ArrowRight, Search, Filter, RefreshCw, TrendingUp, CheckCircle, XCircle, Loader, Rocket, TrendingUpIcon, Code, Bot, Workflow, Sparkles, Settings, CpuIcon, LayoutDashboard, Wallet, Key, Building2, FolderOutput, Network, Shield, Lock,  Unlock, Layers, Server, Plus, BookOpen, Download, Wand2, ImagePlus, Pickaxe, Info } from 'lucide-react';
 
@@ -1130,148 +1131,94 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
       </div>
 
       {/* ═══ 1AM Wallet Dashboard (Midnight Network) ═══ */}
-      <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-900/40 via-purple-900/30 to-pink-900/40 border border-indigo-500/30">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
-              <Wallet size={20} className="text-indigo-400" />
-            </div>
-            <div>
-              <h4 className="font-medium text-white">1AM Wallet</h4>
-              <p className="text-xs text-gray-400">Midnight Network — NIGHT · DUST · Agent Identity</p>
-            </div>
-          </div>
-          {oneamConnected ? (
-            <div className="flex items-center gap-2">
-              <CheckCircle size={18} className="text-green-400" />
-              <span className="text-sm text-green-400">Connected</span>
-              <span className="text-xs text-gray-500 ml-2">{oneamAddress?.slice(0, 10)}...</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/20">{oneamNetwork}</span>
-            </div>
-          ) : (
-            <button
-              onClick={async () => {
-                setIsConnectingOneam(true);
-                try {
-                  // Open external browser bridge — Chrome opens with 1AM Wallet page
-                  if (!window.electronAPI?.oneam?.openExternal) {
-                    showNotification('error', '1AM external bridge not available');
-                    return;
-                  }
-                  showNotification('info', 'Opening Chrome to connect 1AM Wallet...');
-                  const result = await window.electronAPI.oneam.openExternal();
+      <OneAmWalletCard
+        connected={oneamConnected}
+        address={oneamAddress}
+        network={oneamNetwork}
+        balance={oneamBalance}
+        agentWallets={oneamAgentWallets}
+        isConnecting={isConnectingOneam}
+        onConnect={async () => {
+          setIsConnectingOneam(true);
+          try {
+            if (!window.electronAPI?.oneam?.openExternal) {
+              showNotification('error', '1AM external bridge not available');
+              return;
+            }
+            showNotification('info', 'Opening Chrome to connect 1AM Wallet...');
+            const result = await window.electronAPI.oneam.openExternal();
 
-                  if (result?.connected && result?.address) {
-                    setOneamConnected(true);
-                    setOneamAddress(result.address);
-                    setOneamNetwork(result.network || 'unknown');
-                    setOneamBalance({
-                      lovelace: result.lovelace || 0,
-                      nightTokens: result.night || 0,
-                      dustTokens: result.dust || 0,
-                      assets: result.assets || [],
-                    });
+            if (result?.connected && result?.address) {
+              setOneamConnected(true);
+              setOneamAddress(result.address);
+              setOneamNetwork(result.network || 'unknown');
+              setOneamBalance({
+                lovelace: result.lovelace || 0,
+                nightTokens: result.night || 0,
+                dustTokens: result.dust || 0,
+                assets: result.assets || [],
+              });
 
-                    // Auto-create agent wallets for existing user agents
-                    const agents = userAgents;
-                    if (agents.length > 0) {
-                      for (const agent of agents) {
-                        oneAmWallet.createAgentWallet(agent.id, agent.name);
-                      }
-                      setOneamAgentWallets(oneAmWallet.getAgentWallets());
-                    }
-
-                    showNotification('success', `1AM Wallet connected on ${result.network || 'unknown'}!`);
-                  } else {
-                    showNotification('error', result?.error || 'Failed to connect 1AM Wallet');
-                  }
-                } catch (e: any) {
-                  showNotification('error', e.message || '1AM connection failed');
-                } finally {
-                  setIsConnectingOneam(false);
+              const agents = userAgents;
+              if (agents.length > 0) {
+                for (const agent of agents) {
+                  oneAmWallet.createAgentWallet(agent.id, agent.name);
                 }
-              }}
-              disabled={isConnectingOneam}
-              className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium disabled:opacity-50 transition-colors"
-            >
-              {isConnectingOneam ? 'Connecting...' : 'Connect 1AM'}
-            </button>
-          )}
-        </div>
+                setOneamAgentWallets(oneAmWallet.getAgentWallets());
+              }
 
-        {/* 1AM Balance + Assets */}
-        {oneamConnected && oneamBalance && (
-          <div className="mt-3 pt-3 border-t border-gray-700">
-            <div className="grid grid-cols-3 gap-3 mb-3">
-              <div className="bg-gray-900/50 rounded-lg p-2 text-center">
-                <div className="text-xs text-gray-500 uppercase tracking-wide">Lovelace</div>
-                <div className="text-sm font-semibold text-white">{(oneamBalance.lovelace / 1_000_000).toFixed(2)}</div>
-              </div>
-              <div className="bg-gray-900/50 rounded-lg p-2 text-center">
-                <div className="text-xs text-gray-500 uppercase tracking-wide">NIGHT</div>
-                <div className="text-sm font-semibold text-pink-400">{oneamBalance.nightTokens.toLocaleString()}</div>
-              </div>
-              <div className="bg-gray-900/50 rounded-lg p-2 text-center">
-                <div className="text-xs text-gray-500 uppercase tracking-wide">DUST</div>
-                <div className="text-sm font-semibold text-amber-400">{oneamBalance.dustTokens.toLocaleString()}</div>
-              </div>
-            </div>
-
-            {/* Assets list */}
-            {oneamBalance.assets.length > 0 && (
-              <div className="mb-3">
-                <h5 className="text-xs text-gray-400 mb-1">Assets ({oneamBalance.assets.length})</h5>
-                <div className="flex flex-wrap gap-1">
-                  {oneamBalance.assets.slice(0, 8).map((a, idx) => (
-                    <span key={idx} className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 text-xs border border-indigo-500/20">
-                      {a.assetName || a.policyId.slice(0, 8)} ×{a.quantity}
-                    </span>
-                  ))}
-                  {oneamBalance.assets.length > 8 && (
-                    <span className="px-2 py-0.5 rounded bg-gray-800 text-gray-500 text-xs">+{oneamBalance.assets.length - 8} more</span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Agent Wallets */}
-            {oneamAgentWallets.length > 0 && (
-              <div className="mb-3">
-                <h5 className="text-xs text-gray-400 mb-1">Agent Wallets ({oneamAgentWallets.length})</h5>
-                <div className="space-y-1">
-                  {oneamAgentWallets.map((aw) => (
-                    <div key={aw.agentId} className="flex items-center justify-between px-2 py-1 rounded bg-gray-900/40 text-xs">
-                      <span className="text-gray-300">{aw.agentName}</span>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-1.5 rounded text-[10px] ${aw.delegated ? 'bg-green-500/20 text-green-300' : 'bg-gray-700 text-gray-500'}`}>
-                          {aw.delegated ? 'Delegated' : 'Read-only'}
-                        </span>
-                        <span className="text-gray-500">{aw.permissions.slice(0, 2).join(', ')}{aw.permissions.length > 2 ? '...' : ''}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Disconnect */}
-            <button
-              onClick={() => {
-                oneAmWallet.disconnect();
-                setOneamConnected(false);
-                setOneamAddress(null);
-                setOneamNetwork(null);
-                setOneamBalance(null);
-                setOneamAgentWallets([]);
-                showNotification('info', '1AM Wallet disconnected');
-              }}
-              className="text-xs text-gray-500 hover:text-red-400 transition-colors"
-            >
-              Disconnect
-            </button>
-          </div>
-        )}
-      </div>
+              showNotification('success', `1AM Wallet connected on ${result.network || 'unknown'}!`);
+            } else {
+              showNotification('error', result?.error || 'Failed to connect 1AM Wallet');
+            }
+          } catch (e: any) {
+            showNotification('error', e.message || '1AM connection failed');
+          } finally {
+            setIsConnectingOneam(false);
+          }
+        }}
+        onDisconnect={() => {
+          oneAmWallet.disconnect();
+          setOneamConnected(false);
+          setOneamAddress(null);
+          setOneamNetwork(null);
+          setOneamBalance(null);
+          setOneamAgentWallets([]);
+          showNotification('info', '1AM Wallet disconnected');
+        }}
+        onGenerateDust={async () => {
+          try {
+            showNotification('info', 'Generating DUST...');
+            const result = await oneAmWallet.generateDust();
+            if (result.success) {
+              showNotification('success', `DUST generated! +${result.dustAmount || 0} DUST`);
+              // Refresh balance
+              const data = await oneAmWallet.fetchWalletData();
+              if (data.success) {
+                const s = oneAmWallet.getSession();
+                setOneamBalance(s.balance);
+              }
+            } else {
+              showNotification('error', result.error || 'DUST generation failed');
+            }
+          } catch (e: any) {
+            showNotification('error', e.message || 'DUST generation failed');
+          }
+        }}
+        onSend={() => showNotification('info', 'Send feature — use 1AM extension for now')}
+        onReceive={() => {
+          if (oneamAddress) {
+            navigator.clipboard.writeText(oneamAddress);
+            showNotification('success', 'Address copied to clipboard');
+          }
+        }}
+        onYourDust={() => showNotification('info', `Your DUST: ${oneamBalance?.dustTokens?.toLocaleString() || 0}`)}
+        onCreateAgentWallet={(agentId, agentName) => {
+          oneAmWallet.createAgentWallet(agentId, agentName);
+          setOneamAgentWallets(oneAmWallet.getAgentWallets());
+        }}
+        showNotification={showNotification}
+      />
 
       {/* ═══ Legacy: Cardano / LACE Wallet (preserved, collapsible) ═══ */}
       {!oneamConnected && (

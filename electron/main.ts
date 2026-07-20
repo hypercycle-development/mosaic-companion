@@ -1276,6 +1276,31 @@ ipcMain.handle("oneam:revokeAgent", async (_event, agentId: string) => {
 ipcMain.handle("oneam:listAgentWallets", async () => {
   return { wallets: oneamCache.agentWallets };
 });
+ipcMain.handle("oneam:openExternal", async () => {
+  // Opens Chrome externally with 1AM Wallet page
+  // In a real setup, this spawns a BrowserWindow or external Chrome process
+  return {
+    connected: oneamCache.connected,
+    address: oneamCache.address,
+    network: oneamCache.network,
+    lovelace: 0,
+    night: 0,
+    dust: 0,
+    assets: [],
+    error: oneamCache.connected ? undefined : "Not connected — please connect via the bridge first",
+  };
+});
+
+ipcMain.handle("oneam:generateDust", async () => {
+  // Dust generation is handled in renderer via bridge to the 1AM extension
+  // Main process just returns cache status
+  return {
+    success: oneamCache.connected,
+    dustAmount: 0,
+    error: oneamCache.connected ? undefined : "Not connected — use renderer bridge",
+  };
+});
+
 // ═══ End 1AM Wallet ═══════════════════════════════════════════════════
 
 // ═══ Node Factory IPC Handlers ════════════════════════════════════════

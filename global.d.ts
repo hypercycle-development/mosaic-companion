@@ -474,6 +474,7 @@ declare global {
         revokeAgent: (agentId: string) => Promise<{ success: boolean; error?: string }>;
         listAgentWallets: () => Promise<{ wallets: any[] }>;
         openExternal: () => Promise<{ connected: boolean; address?: string; network?: string; lovelace?: number; night?: number; dust?: number; assets?: any[]; error?: string }>;
+        generateDust: () => Promise<{ success: boolean; dustAmount?: number; txHash?: string; error?: string }>;
       };
       midnightCity: {
         getCityState: () => Promise<any>;

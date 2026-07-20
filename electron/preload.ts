@@ -469,7 +469,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("oneam:revokeAgent", agentId),
     listAgentWallets: () => ipcRenderer.invoke("oneam:listAgentWallets"),
     openExternal: () => ipcRenderer.invoke("oneam:openExternal"),
-  },
+    generateDust: () => ipcRenderer.invoke("oneam:generateDust"),
+    },
   // ─── Hermes Dashboard ───
   hermes: {
     startDashboard: (port?: number) =>

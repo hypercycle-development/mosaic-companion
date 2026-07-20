@@ -333,6 +333,88 @@ class OneAmWalletService {
     return { ...this.session };
   }
 
+  // --- Dust Generation ---
+
+  async generateDust(): Promise<{ success: boolean; dustAmount?: number; txHash?: string; error?: string }> {
+    if (!this.session.connected) return { success: false, error: 'Not connected' };
+    try {
+      const result = await this.sendCommand('generateDust');
+      // Refresh balance after generation
+      await this.fetchWalletData();
+      return {
+        success: true,
+        dustAmount: result.dustAmount || 0,
+        txHash: result.txHash,
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // --- Transaction History via Koios ---
+
+  async getTransactions(address?: string): Promise<Array<{
+    txHash: string;
+    timestamp: string;
+    method: string;
+    chain: string;
+    token: string;
+    amount: string;
+    fee: string;
+    status: string;
+  }>> {
+    const addr = address || this.session.address;
+    if (!addr) return [];
+    try {
+      const data = await this.koiosGet(`/address_txs?address=${encodeURIComponent(addr)}&limit=50`);
+      if (!Array.isArray(data)) return [];
+      return data.map((tx: any) => {
+        const isOutgoing = tx.out_sum !== undefined && tx.out_sum > 0;
+        const date = tx.block_time
+          ? new Date(tx.block_time * 1000).toLocaleDateString('en-US', {
+              year: 'numeric', month: '2-digit', day: '2-digit',
+              hour: '2-digit', minute: '2-digit',
+            })
+          : 'Unknown';
+        return {
+          txHash: tx.tx_hash || 'unknown',
+          timestamp: date,
+          method: isOutgoing ? 'Sent' : 'Received',
+          chain: 'CARDANO',
+          token: tx.asset_name || 'ADA',
+          amount: isOutgoing
+            ? `-${tx.out_sum || 0} ADA`
+            : `+${tx.in_sum || 0} ADA`,
+          fee: `${tx.fee ? (tx.fee / 1_000_000).toFixed(4) : '0.0000'} ADA`,
+          status: 'CONFIRMED',
+        };
+      });
+    } catch (e: any) {
+      console.warn('[1AM] Koios tx query failed:', e.message);
+      return [];
+    }
+  }
+
+  private async koiosGet(endpoint: string): Promise<any> {
+    const KOIOS_BASE = 'https://api.koios.rest/api/v1';
+    const url = `${KOIOS_BASE}${endpoint}`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error(`Koios ${endpoint}: HTTP ${res.status}`);
+      return await res.json();
+    } catch (e) {
+      clearTimeout(timer);
+      throw e;
+    }
+  }
+
   onSessionChange(cb: (s: OneAmSession) => void): () => void {
     this.listeners.push(cb);
     return () => {

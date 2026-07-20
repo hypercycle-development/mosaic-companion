@@ -99,7 +99,31 @@ const BRIDGE_HTML = `
       }
     }
 
-    // --- Transaction Signing ---
+    // --- Dust Generation ---
+    async function generateDust() {
+      if (!api) {
+        postToParent('generate-dust-error', { error: 'Not connected' });
+        return;
+      }
+      try {
+        // Try native 1AM generateDust API first
+        let result;
+        if (typeof api.generateDust === 'function') {
+          result = await api.generateDust();
+        } else if (window.oneam?.generateDust) {
+          result = await window.oneam.generateDust();
+        } else {
+          postToParent('generate-dust-error', { error: 'generateDust() not available in this wallet version' });
+          return;
+        }
+        postToParent('generate-dust', {
+          dustAmount: result?.dustAmount || 0,
+          txHash: result?.txHash || null,
+        });
+      } catch (err) {
+        postToParent('generate-dust-error', { error: err.message || 'Dust generation failed' });
+      }
+    }
     async function signTx(txHex, partialSign) {
       if (!api) {
         postToParent('sign-error', { error: 'Not connected' });
@@ -136,6 +160,7 @@ const BRIDGE_HTML = `
         case 'connect': connectWallet(); break;
         case 'disconnect': api = null; postToParent('disconnected', {}); break;
         case 'fetchData': fetchData(); break;
+        case 'generateDust': generateDust(); break;
         case 'signTx': signTx(data.txHex, data.partialSign); break;
         case 'submitTx': submitTx(data.txHex); break;
       }
