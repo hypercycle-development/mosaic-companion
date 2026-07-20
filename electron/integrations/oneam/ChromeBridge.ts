@@ -89,7 +89,7 @@ function startOneAmCallbackServer(preferredPort: number = 9877): Promise<{
         try {
           const payload = JSON.parse(body);
           result = payload as OneAmBridgeResult;
-          console.log('[OneAmChrome] Callback received:', result?.success ? 'success' : 'error');
+          console.log('[OneAmChrome] Callback received:', result?.success ? 'success' : 'error', result?.error || '');
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ received: true }));
         } catch {
@@ -119,7 +119,8 @@ function startOneAmCallbackServer(preferredPort: number = 9877): Promise<{
       }
     });
 
-    server.listen(preferredPort, '127.0.0.1', () => {
+    // Bind to the loopback hostname so both 127.0.0.1 and ::1 reach us.
+    server.listen(preferredPort, 'localhost', () => {
       const addr = server.address();
       if (addr && typeof addr === 'object') {
         resolve({
@@ -261,6 +262,23 @@ function getBridgePage(port: number): string {
         found.push('window.midnight');
         providers.push({ key: 'midnight', wallet: window.midnight });
       }
+      // Some extensions expose themselves under window.cardano but with a
+      // different key. Inspect all window.cardano.* objects again and look
+      // for nested 1AM providers.
+      if (cardano) {
+        for (const [key, wallet] of Object.entries(cardano)) {
+          if (!wallet || typeof wallet !== 'object') continue;
+          for (const [nestedKey, nestedWallet] of Object.entries(wallet)) {
+            if (nestedWallet && typeof nestedWallet.enable === 'function') {
+              const fullKey = key + '.' + nestedKey;
+              found.push(fullKey + ' (' + (nestedWallet.name || nestedKey) + ')');
+              if (!providers.find(p => p.wallet === nestedWallet)) {
+                providers.push({ key: fullKey, wallet: nestedWallet });
+              }
+            }
+          }
+        }
+      }
       return { found, providers };
     }
 
@@ -268,7 +286,7 @@ function getBridgePage(port: number): string {
       // Trust the CIP-30 key, not the display name. The real 1AM extension
       // registers under key '1am'. Other providers (app, lace, nufi, eternl)
       // may claim a similar name but are not 1AM.
-      return /^(oneam|midnight|1am)$/i.test(provider.key || '');
+      return /^(oneam|midnight|1am|app\.1am)$/i.test(provider.key || '');
     }
 
     function formatError(e) {
@@ -289,7 +307,7 @@ function getBridgePage(port: number): string {
 
     async function tryConnectCIP30(targetKey) {
       // Re-detect providers right before connecting so we don't use a stale
-      // provider object that the extension has re-initialized.
+      // provider object that the extension may have re-initialized.
       const { providers } = detectCIP30Providers();
       const relevant = providers.filter(p => isOneAmMidnight(p) && !isLace(p));
       if (!relevant.length) return null;
@@ -304,26 +322,41 @@ function getBridgePage(port: number): string {
       for (const { key, wallet } of candidates) {
         try {
           let api;
+          // If already enabled, many wallets return the API object on enable()
+          // without showing a popup. Try enable() first, then isEnabled().
           try {
             api = await wallet.enable();
           } catch (e) {
-            console.warn('First enable attempt failed for ' + key + ', retrying...', e);
-            await new Promise(r => setTimeout(r, 800));
-            api = await wallet.enable();
+            if (wallet.isEnabled) {
+              log('First enable attempt failed for ' + key + ', checking isEnabled...');
+              const alreadyEnabled = await wallet.isEnabled();
+              if (alreadyEnabled) {
+                // Some wallets expose the API directly when already enabled
+                api = wallet;
+              } else {
+                throw e;
+              }
+            } else {
+              throw e;
+            }
           }
 
-          const addresses = await api.getUsedAddresses();
+          if (!api) throw new Error('enable() returned no API');
+
+          const addresses = await api.getUsedAddresses ? api.getUsedAddresses() : [];
           const address = addresses?.[0] || null;
-          const networkId = await api.getNetworkId().catch(() => 0);
+          const networkId = await api.getNetworkId ? api.getNetworkId().catch(() => 0) : 0;
 
           let lovelace = 0, night = 0, dust = 0, assets = [];
           try {
-            const bal = await api.getBalance();
-            lovelace = bal.lovelace || 0;
-            assets = bal.tokens || [];
+            if (api.getBalance) {
+              const bal = await api.getBalance();
+              lovelace = bal.lovelace || 0;
+              assets = bal.tokens || [];
+            }
           } catch (e) {}
-          try { night = await api.getNightBalance(); } catch (e) {}
-          try { dust = await api.getDustBalance(); } catch (e) {}
+          try { if (api.getNightBalance) night = await api.getNightBalance(); } catch (e) {}
+          try { if (api.getDustBalance) dust = await api.getDustBalance(); } catch (e) {}
 
           return { success: true, walletName: wallet.name || key, address, networkId, lovelace, night, dust, assets };
         } catch (e) {
