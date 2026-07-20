@@ -48,56 +48,6 @@ export function getChromeCommand(): string | null {
   return null;
 }
 
-function discover1AMExtensionPath(): string {
-  const osMod = require('os');
-  const fsMod = require('fs');
-  const pathMod = require('path');
-  const home = osMod.homedir();
-  const platform = osMod.platform();
-  const candidates: string[] = [];
-  const knownIds = [
-    'bphnkdkcnfhompoegfpgnkidcjfbojjp', // local dev install
-    'pljbjmehgjnlccgbbhhffncgkfmkbmgl', // published 1AM
-  ];
-
-  if (platform === 'linux') {
-    candidates.push(
-      ...knownIds.flatMap(id => [
-        pathMod.join(home, '.config', 'google-chrome', 'Default', 'Extensions', id),
-        pathMod.join(home, '.config', 'chromium', 'Default', 'Extensions', id),
-        pathMod.join(home, '.config', 'BraveSoftware', 'Brave-Browser', 'Default', 'Extensions', id),
-      ])
-    );
-  } else if (platform === 'darwin') {
-    candidates.push(
-      ...knownIds.flatMap(id => [
-        pathMod.join(home, 'Library', 'Application Support', 'Google', 'Chrome', 'Default', 'Extensions', id),
-        pathMod.join(home, 'Library', 'Application Support', 'Chromium', 'Default', 'Extensions', id),
-        pathMod.join(home, 'Library', 'Application Support', 'BraveSoftware', 'Brave-Browser', 'Default', 'Extensions', id),
-      ])
-    );
-  } else if (platform === 'win32') {
-    const localAppData = process.env.LOCALAPPDATA || pathMod.join(home, 'AppData', 'Local');
-    candidates.push(
-      ...knownIds.flatMap(id => [
-        pathMod.join(localAppData, 'Google', 'Chrome', 'User Data', 'Default', 'Extensions', id),
-        pathMod.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'User Data', 'Default', 'Extensions', id),
-      ])
-    );
-  }
-
-  for (const extRoot of candidates) {
-    if (!fsMod.existsSync(extRoot)) continue;
-    const versions = fsMod.readdirSync(extRoot);
-    const latest = versions.sort().pop();
-    if (latest) {
-      const full = pathMod.join(extRoot, latest);
-      if (fsMod.existsSync(pathMod.join(full, 'manifest.json'))) return full;
-    }
-  }
-  throw new Error('1AM extension not found in any known Chrome profile');
-}
-
 // ─── Bridge Result Type ────────────────────────────────────────────────────
 
 export interface OneAmBridgeResult {
@@ -504,30 +454,20 @@ export async function connectOneAmChrome(): Promise<OneAmBridgeResult> {
   const { server, port, getResult } = await startOneAmCallbackServer(9877);
   const bridgeUrl = `http://127.0.0.1:${port}/`;
 
-  // Spawn Chrome in a dedicated temp profile and load ONLY the 1AM extension.
-  // Using the user's default profile loads all wallets (Lace, etc.) and causes
-  // the bridge to connect to the wrong wallet. A temp profile with a single
-  // extension forces the 1AM extension to inject and avoids cross-wallet
-  // contamination.
-  const os = await import('os');
-  const fs = await import('fs');
-  const tmpDir = path.join(os.tmpdir(), `mosaic-1am-bridge-${Date.now()}`);
-  const extSrc = discover1AMExtensionPath();
-  const chromeArgs = [
-    `--user-data-dir=${tmpDir}`,
+  // Spawn Chrome in a new window pointing to the bridge.
+  // We intentionally use the user's default profile so that installed
+  // extensions (1AM, Midnight, Lace, etc.) are already available. The bridge
+  // page then filters to 1AM/Midnight only and ignores other wallets.
+  const chromeProcess = spawn(chromeCmd, [
     '--new-window',
     '--no-first-run',
     '--no-default-browser-check',
-    '--disable-extensions-except=' + extSrc,
-    '--load-extension=' + extSrc,
     bridgeUrl,
-  ];
-
-  console.log('[OneAmChrome] Spawning Chrome with 1AM-only profile:', tmpDir);
-  const chromeProcess = spawn(chromeCmd, chromeArgs, {
+  ], {
     detached: false,
     stdio: 'ignore',
   });
+  console.log('[OneAmChrome] Spawning Chrome pointing to', bridgeUrl);
 
   // Poll for result with timeout
   const timeoutMs = 120000; // 2 minutes
