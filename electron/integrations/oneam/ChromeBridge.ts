@@ -343,8 +343,49 @@ function getBridgePage(port: number): string {
 
           if (!api) throw new Error('enable() returned no API');
 
-          const addresses = await api.getUsedAddresses ? api.getUsedAddresses() : [];
-          const address = addresses?.[0] || null;
+          // Try multiple CIP-30 address sources
+          let address = null;
+          let rewardAddress = null;
+          const addressAttempts = [];
+          try {
+            if (api.getUsedAddresses) {
+              const used = await api.getUsedAddresses();
+              if (used?.length) address = used[0];
+              addressAttempts.push('getUsedAddresses: ' + (address ? 'ok' : 'empty'));
+            }
+          } catch (e) { addressAttempts.push('getUsedAddresses: ' + formatError(e)); }
+          if (!address) try {
+            if (api.getUnusedAddresses) {
+              const unused = await api.getUnusedAddresses();
+              if (unused?.length) address = unused[0];
+              addressAttempts.push('getUnusedAddresses: ' + (address ? 'ok' : 'empty'));
+            }
+          } catch (e) { addressAttempts.push('getUnusedAddresses: ' + formatError(e)); }
+          if (!address) try {
+            if (api.getChangeAddress) {
+              const change = await api.getChangeAddress();
+              if (change) address = change;
+              addressAttempts.push('getChangeAddress: ' + (address ? 'ok' : 'empty'));
+            }
+          } catch (e) { addressAttempts.push('getChangeAddress: ' + formatError(e)); }
+          if (!address) try {
+            if (api.getAddresses) {
+              const addrs = await api.getAddresses();
+              if (addrs?.length) address = addrs[0];
+              addressAttempts.push('getAddresses: ' + (address ? 'ok' : 'empty'));
+            }
+          } catch (e) { addressAttempts.push('getAddresses: ' + formatError(e)); }
+
+          try {
+            if (api.getRewardAddresses) {
+              const rewards = await api.getRewardAddresses();
+              if (rewards?.length) rewardAddress = rewards[0];
+            }
+          } catch (e) {}
+
+          log('Address attempts: ' + addressAttempts.join(' | '));
+          if (!address) throw new Error('No address available from wallet API');
+
           const networkId = await api.getNetworkId ? api.getNetworkId().catch(() => 0) : 0;
 
           let lovelace = 0, night = 0, dust = 0, assets = [];
@@ -358,7 +399,7 @@ function getBridgePage(port: number): string {
           try { if (api.getNightBalance) night = await api.getNightBalance(); } catch (e) {}
           try { if (api.getDustBalance) dust = await api.getDustBalance(); } catch (e) {}
 
-          return { success: true, walletName: wallet.name || key, address, networkId, lovelace, night, dust, assets };
+          return { success: true, walletName: wallet.name || key, address, rewardAddress, networkId, lovelace, night, dust, assets };
         } catch (e) {
           console.warn('CIP-30 provider ' + key + ' failed:', e);
           // Return an error object for this provider so the caller can decide

@@ -1302,10 +1302,11 @@ ipcMain.handle("oneam:openExternal", async () => {
   console.log('[1AM] Falling back to isolated Chrome bridge with 1AM only');
   try {
     const result = await connectOneAmChrome();
-    if (result.success && result.address) {
+    console.log('[1AM] Chrome bridge result:', result);
+    if (result.success) {
       oneamCache = {
         connected: true,
-        address: result.address,
+        address: result.address || null,
         network: result.networkId === 1 ? 'mainnet' : 'preprod',
         balance: {
           lovelace: result.lovelace || 0,
@@ -1319,7 +1320,7 @@ ipcMain.handle("oneam:openExternal", async () => {
     }
     return {
       connected: result.success,
-      address: result.address,
+      address: result.address || null,
       network: result.networkId === 1 ? 'mainnet' : 'preprod',
       lovelace: result.lovelace || 0,
       night: result.night || 0,
