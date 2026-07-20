@@ -317,11 +317,14 @@ function startBridgeServer(preferredPort = 19666): Promise<{ server: http.Server
 
     server.listen(preferredPort, '127.0.0.1', () => {
       const addr = server.address();
-      const port = addr && typeof addr === 'object' ? addr.port : preferredPort;
-      bridgeServer = server;
-      bridgeUrl = `http://127.0.0.1:${port}/`;
-      console.log('[1AM WebView Bridge] Bridge server listening at', bridgeUrl);
-      resolve({ server, url: bridgeUrl });
+      if (addr && typeof addr === 'object') {
+        const port = addr.port;
+        bridgeUrl = `http://localhost:${port}/`;
+        console.log('[1AM WebView Bridge] Bridge server listening at', bridgeUrl);
+        resolve({ server, url: bridgeUrl });
+      } else {
+        reject(new Error('Could not determine server port'));
+      }
     });
   });
 }

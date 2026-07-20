@@ -188,7 +188,7 @@ function getBridgePage(port: number): string {
 
     async function postResult(payload) {
       try {
-        const resp = await fetch('http://127.0.0.1:' + PORT + '/callback', {
+        const resp = await fetch('http://localhost:' + PORT + '/callback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -198,7 +198,7 @@ function getBridgePage(port: number): string {
           // Retry once after 1s
           setTimeout(async () => {
             try {
-              await fetch('http://127.0.0.1:' + PORT + '/callback', {
+              await fetch('http://localhost:' + PORT + '/callback', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -221,7 +221,7 @@ function getBridgePage(port: number): string {
       if (cls === 'connected') {
         msg.textContent = 'Wallet connected successfully. You can close this tab.';
       } else if (cls === 'error') {
-        msg.textContent = 'Could not detect the 1AM extension. Try clicking the extension icon in Chrome, then click Retry.';
+        msg.textContent = 'Could not complete the wallet authorization. Check the details above, click the extension icon if needed, then click Retry.';
       } else if (cls === 'detecting') {
         msg.textContent = 'Scanning for wallet providers...';
       }
@@ -274,6 +274,7 @@ function getBridgePage(port: number): string {
     function formatError(e) {
       if (e === null || e === undefined) return 'unknown error';
       if (typeof e === 'string') return e;
+      if (e.message && e.code !== undefined) return e.message + ' (code ' + e.code + ')';
       if (e.message) return String(e.message);
       if (e.code !== undefined) return 'code ' + e.code;
       try { return JSON.stringify(e); } catch (_) {}
@@ -453,7 +454,7 @@ function getBridgePage(port: number): string {
             btn.disabled = false;
             btn.textContent = 'Connect ' + walletName + ' [' + key + ']';
             const errText = result?.error || 'unknown error';
-            setStatus('error', 'Connection failed for ' + walletName + ': ' + errText);
+            setStatus('error', 'Manual connect failed for ' + walletName + ': ' + errText);
             await postResult({ success: false, error: 'Failed to connect to ' + key + ' (' + walletName + '): ' + errText });
           }
         });
@@ -487,7 +488,7 @@ export async function connectOneAmChrome(): Promise<OneAmBridgeResult> {
   }
 
   const { server, port, getResult } = await startOneAmCallbackServer(9877);
-  const bridgeUrl = `http://127.0.0.1:${port}/`;
+  const bridgeUrl = `http://localhost:${port}/`;
 
   // Spawn Chrome in a new window pointing to the bridge.
   // We intentionally use the user's default profile so that installed
