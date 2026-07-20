@@ -94,30 +94,29 @@ class HyperInsightService {
       }
       console.log(`[AdaPortal] HyperInsight key ready (tier: ${ensure.tier || 'unknown'})`);
 
-      // Parallel fetch: catalog, discover, leaderboard, nodes, network status
-      const [catalogRes, discoverRes, leaderboardRes, nodesRes, statusRes] = await Promise.all([
-        api.getCatalog().catch((e: any) => ({ error: e.message })),
-        api.getDiscover({ alive_only: 'true', sort_by: 'liveness', limit: '50' }).catch((e: any) => ({ error: e.message })),
+      // Parallel fetch: aims catalog, leaderboard, nodes, network status
+      // NOTE: Using method names that match the IPC bridge in electron/preload.ts
+      const [catalogRes, leaderboardRes, nodesRes, statusRes] = await Promise.all([
+        api.getAims().catch((e: any) => ({ error: e.message })),
         api.getLeaderboard().catch((e: any) => ({ error: e.message })),
         api.getNodes({ gpuOnly: 'true', onlineOnly: 'true', sortBy: 'computeTflops', pageSize: '50' }).catch((e: any) => ({ error: e.message })),
-        api.getNetworkStatus().catch((e: any) => ({ error: e.message }))
+        api.getNetworkStats().catch((e: any) => ({ error: e.message }))
       ]);
 
       if (catalogRes.error) console.error('[AdaPortal] Catalog error:', catalogRes.error);
-      if (discoverRes.error) console.error('[AdaPortal] Discover error:', discoverRes.error);
       if (leaderboardRes.error) console.error('[AdaPortal] Leaderboard error:', leaderboardRes.error);
       if (nodesRes.error) console.error('[AdaPortal] Nodes error:', nodesRes.error);
       if (statusRes.error) console.error('[AdaPortal] Network status error:', statusRes.error);
 
-      // Process AIMs from /discover (results[]) or /aims/leaderboard (data[])
-      const discoverData = unwrapData<{ results?: any[] }>(discoverRes);
-      const discoverAims = Array.isArray(discoverData?.results) ? discoverData.results : [];
+      // Process AIMs from /aims catalog (results[]) or /aims/leaderboard (data[])
+      const catalogData = unwrapData<{ results?: any[] }>(catalogRes);
+      const catalogAims = Array.isArray(catalogData?.results) ? catalogData.results : [];
 
       const leaderboardData = unwrapData<any[]>(leaderboardRes);
       const leaderboardAims = Array.isArray(leaderboardData) ? leaderboardData : [];
 
-      // Prefer discover data; augment with leaderboard data
-      this.aims = this.processAIMs(discoverAims, leaderboardAims);
+      // Prefer catalog data; augment with leaderboard data
+      this.aims = this.processAIMs(catalogAims, leaderboardAims);
 
       // Process Nodes
       const nodesData = unwrapData<any[]>(nodesRes);

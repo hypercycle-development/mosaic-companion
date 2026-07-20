@@ -35,6 +35,7 @@ import {
 } from "./utils/index";
 import { mcpClient, setMainWindow as mcpSetMainWindow, initPlugins } from "./integrations/mcp/index";
 import { initializeTools, cleanupTools } from "./integrations/tools";
+import { connectOneAmChrome } from "./integrations/oneam/ChromeBridge";
 import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integrations/chat/index";
 import { initIDE, cleanupIDE } from "./integrations/ide/index";
@@ -1171,12 +1172,14 @@ ipcMain.handle("midnight:clearConfig", async () => {
 
 interface OneAMSessionCache {
   connected: boolean;
+  balance?: any;
+  connectedAt?: string;
   address: string | null;
   network: string | null;
   agentWallets: Array<{ agentId: string; agentName: string; address: string | null; delegated: boolean; permissions: string[] }>;
 }
 
-const oneamCache: OneAMSessionCache = {
+let oneamCache: OneAMSessionCache = {
   connected: false,
   address: null,
   network: null,
@@ -1277,17 +1280,32 @@ ipcMain.handle("oneam:listAgentWallets", async () => {
   return { wallets: oneamCache.agentWallets };
 });
 ipcMain.handle("oneam:openExternal", async () => {
-  // Opens Chrome externally with 1AM Wallet page
-  // In a real setup, this spawns a BrowserWindow or external Chrome process
+  // Spawn real Chrome with 1AM bridge page so the extension injects properly
+  const result = await connectOneAmChrome();
+  if (result.success && result.address) {
+    oneamCache = {
+      connected: true,
+      address: result.address,
+      network: result.networkId === 1 ? 'mainnet' : 'preprod',
+      balance: {
+        lovelace: result.lovelace || 0,
+        nightTokens: result.night || 0,
+        dustTokens: result.dust || 0,
+        assets: result.assets || [],
+      },
+      agentWallets: [],
+      connectedAt: new Date().toISOString(),
+    };
+  }
   return {
-    connected: oneamCache.connected,
-    address: oneamCache.address,
-    network: oneamCache.network,
-    lovelace: 0,
-    night: 0,
-    dust: 0,
-    assets: [],
-    error: oneamCache.connected ? undefined : "Not connected — please connect via the bridge first",
+    connected: result.success,
+    address: result.address,
+    network: result.networkId === 1 ? 'mainnet' : 'preprod',
+    lovelace: result.lovelace || 0,
+    night: result.night || 0,
+    dust: result.dust || 0,
+    assets: result.assets || [],
+    error: result.error,
   };
 });
 

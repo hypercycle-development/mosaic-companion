@@ -22,6 +22,11 @@ import type {
 export class ToolRegistry {
   private modules: Map<string, ToolModule> = new Map();
 
+  constructor() {
+    // Register IPC handlers immediately so they exist before renderer loads
+    this.registerIPCHandlers();
+  }
+
   // ===========================================================================
   // Module Registration
   // ===========================================================================
