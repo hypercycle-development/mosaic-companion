@@ -58,6 +58,10 @@ export class ToolManager {
     if (!existsSync(this.inputsDir)) {
       mkdirSync(this.inputsDir, { recursive: true });
     }
+
+    // Register IPC handlers immediately so they exist before renderer loads.
+    // Async initialization (loadInstalled + autoLaunch) happens later in initialize().
+    this.registerIPC();
   }
 
   // ---------------------------------------------------------------------------
@@ -84,9 +88,6 @@ export class ToolManager {
 
     // Auto-launch tools that were enabled when the app last closed
     await this.autoLaunchEnabled();
-
-    // Register IPC handlers
-    this.registerIPC();
 
     console.log(
       `[ToolManager] Ready. ${this.installed.size} tool(s) installed.`,
