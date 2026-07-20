@@ -1183,6 +1183,13 @@ interface OneAMSessionCache {
   connectedAt?: string;
   address: string | null;
   network: string | null;
+  addresses?: {
+    shielded: string[];
+    unshielded: string | null;
+    dust: string | null;
+    cardano: string | null;
+  };
+  txHistory?: any[];
   agentWallets: Array<{ agentId: string; agentName: string; address: string | null; delegated: boolean; permissions: string[] }>;
 }
 
@@ -1312,8 +1319,13 @@ ipcMain.handle("oneam:openExternal", async () => {
           lovelace: result.lovelace || 0,
           nightTokens: result.night || 0,
           dustTokens: result.dust || 0,
+          shieldedTokens: result.shieldedTokens || 0,
+          unshieldedTokens: result.unshieldedTokens || 0,
+          cardanoAda: result.cardanoAda || 0,
           assets: result.assets || [],
         },
+        addresses: result.addresses || { shielded: [], unshielded: null, dust: null, cardano: null },
+        txHistory: result.txHistory || [],
         agentWallets: [],
         connectedAt: new Date().toISOString(),
       };
@@ -1325,7 +1337,15 @@ ipcMain.handle("oneam:openExternal", async () => {
       lovelace: result.lovelace || 0,
       night: result.night || 0,
       dust: result.dust || 0,
+      shieldedTokens: result.shieldedTokens || 0,
+      unshieldedTokens: result.unshieldedTokens || 0,
+      cardanoAda: result.cardanoAda || 0,
+      oneamConnected: result.oneamConnected,
       assets: result.assets || [],
+      addresses: result.addresses || { shielded: [], unshielded: null, dust: null, cardano: null },
+      txHistory: result.txHistory || [],
+      rawOneAmResponses: result.rawOneAmResponses || [],
+      rawCaptures: result.rawCaptures || [],
       error: result.error,
     };
   } catch (e: any) {

@@ -292,8 +292,21 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
   const [oneamAddress, setOneamAddress] = useState<string | null>(null);
   const [oneamNetwork, setOneamNetwork] = useState<string | null>(null);
   const [oneamBalance, setOneamBalance] = useState<{
-    lovelace: number; nightTokens: number; dustTokens: number; assets: any[];
+    lovelace: number;
+    nightTokens: number;
+    dustTokens: number;
+    shieldedTokens: number;
+    unshieldedTokens: number;
+    cardanoAda: number;
+    assets: any[];
   } | null>(null);
+  const [oneamAddresses, setOneamAddresses] = useState<{
+    shielded: string[];
+    unshielded: string | null;
+    dust: string | null;
+    cardano: string | null;
+  }>({ shielded: [], unshielded: null, dust: null, cardano: null });
+  const [oneamTxHistory, setOneamTxHistory] = useState<any[]>([]);
   const [oneamAgentWallets, setOneamAgentWallets] = useState<any[]>([]);
   const [isConnectingOneam, setIsConnectingOneam] = useState(false);
   const [oneamAvailable, setOneamAvailable] = useState(false);
@@ -1136,6 +1149,8 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         address={oneamAddress}
         network={oneamNetwork}
         balance={oneamBalance}
+        addresses={oneamAddresses}
+        txHistory={oneamTxHistory}
         agentWallets={oneamAgentWallets}
         isConnecting={isConnectingOneam}
         onConnect={async () => {
@@ -1148,16 +1163,21 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             showNotification('info', 'Opening Chrome to connect 1AM Wallet...');
             const result = await window.electronAPI.oneam.openExternal();
 
-            if (result?.connected && result?.address) {
+            if (result?.connected) {
               setOneamConnected(true);
-              setOneamAddress(result.address);
+              setOneamAddress(result.address || null);
               setOneamNetwork(result.network || 'unknown');
               setOneamBalance({
                 lovelace: result.lovelace || 0,
                 nightTokens: result.night || 0,
                 dustTokens: result.dust || 0,
+                shieldedTokens: result.shieldedTokens || 0,
+                unshieldedTokens: result.unshieldedTokens || 0,
+                cardanoAda: result.cardanoAda || 0,
                 assets: result.assets || [],
               });
+              setOneamAddresses(result.addresses || { shielded: [], unshielded: null, dust: null, cardano: null });
+              setOneamTxHistory(result.txHistory || []);
 
               const agents = userAgents;
               if (agents.length > 0) {
@@ -1167,7 +1187,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
                 setOneamAgentWallets(oneAmWallet.getAgentWallets());
               }
 
-              showNotification('success', `1AM Wallet connected on ${result.network || 'unknown'}!`);
+              showNotification('success', `1AM Wallet connected on ${result.network || 'unknown'}${result.address ? '' : ' (no address read)'}!`);
             } else {
               showNotification('error', result?.error || 'Failed to connect 1AM Wallet');
             }
@@ -1183,6 +1203,8 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
           setOneamAddress(null);
           setOneamNetwork(null);
           setOneamBalance(null);
+          setOneamAddresses({ shielded: [], unshielded: null, dust: null, cardano: null });
+          setOneamTxHistory([]);
           setOneamAgentWallets([]);
           showNotification('info', '1AM Wallet disconnected');
         }}
@@ -1207,9 +1229,10 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
         }}
         onSend={() => showNotification('info', 'Send feature — use 1AM extension for now')}
         onReceive={() => {
-          if (oneamAddress) {
-            navigator.clipboard.writeText(oneamAddress);
-            showNotification('success', 'Address copied to clipboard');
+          if (oneamAddress || oneamAddresses.shielded.length || oneamAddresses.dust || oneamAddresses.cardano) {
+            // The receive modal is rendered inside OneAmWalletCard.
+          } else {
+            showNotification('info', 'No receiving addresses available yet');
           }
         }}
         onYourDust={() => showNotification('info', `Your DUST: ${oneamBalance?.dustTokens?.toLocaleString() || 0}`)}
@@ -4206,7 +4229,7 @@ export const AdaPortalPanel: React.FC<AdaPortalPanelProps> = ({
             <h2 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
               Stargate
             </h2>
-            <p className="text-xs text-gray-500">AI Workforce + Compute for Cardano</p>
+            <p className="text-xs text-gray-500">Decentralized AI Workforce</p>
           </div>
           {onClose && (
             <button 

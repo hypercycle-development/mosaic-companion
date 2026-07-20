@@ -473,7 +473,7 @@ declare global {
         delegateAgent: (agentId: string, permissions: string[]) => Promise<{ success: boolean; error?: string }>;
         revokeAgent: (agentId: string) => Promise<{ success: boolean; error?: string }>;
         listAgentWallets: () => Promise<{ wallets: any[] }>;
-        openExternal: () => Promise<{ connected: boolean; address?: string; network?: string; lovelace?: number; night?: number; dust?: number; assets?: any[]; error?: string }>;
+        openExternal: () => Promise<{ connected: boolean; address?: string; network?: string; lovelace?: number; night?: number; dust?: number; shieldedTokens?: number; unshieldedTokens?: number; cardanoAda?: number; oneamConnected?: boolean; rawOneAmResponses?: any[]; assets?: any[]; addresses?: { shielded: string[]; unshielded: string | null; dust: string | null; cardano: string | null }; txHistory?: any[]; error?: string }>;
         generateDust: () => Promise<{ success: boolean; dustAmount?: number; txHash?: string; error?: string }>;
       };
       midnightCity: {

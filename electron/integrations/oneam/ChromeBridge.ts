@@ -16,6 +16,7 @@
 import * as http from 'http';
 import { spawn, execSync } from 'child_process';
 import * as path from 'path';
+import WebSocket from 'ws';
 
 // ─── Known 1AM / Midnight Extension IDs ────────────────────────────────────
 const KNOWN_EXTENSION_IDS = [
@@ -53,12 +54,26 @@ export function getChromeCommand(): string | null {
 export interface OneAmBridgeResult {
   success: boolean;
   walletName?: string;
-  address?: string;
+  address?: string | null;
+  rewardAddress?: string | null;
   networkId?: number;
   lovelace?: number;
   night?: number;
   dust?: number;
-  assets?: Array<{ policyId: string; assetName: string; quantity: number }>;
+  shieldedTokens?: number;
+  unshieldedTokens?: number;
+  cardanoAda?: number;
+  oneamConnected?: boolean;
+  assets?: any[];
+  addresses?: {
+    shielded: string[];
+    unshielded: string | null;
+    dust: string | null;
+    cardano: string | null;
+  };
+  txHistory?: any[];
+  rawOneAmResponses?: any[];
+  rawCaptures?: any[];
   error?: string;
 }
 
@@ -328,7 +343,7 @@ function getBridgePage(port: number): string {
             api = await wallet.enable();
           } catch (e) {
             if (wallet.isEnabled) {
-              log('First enable attempt failed for ' + key + ', checking isEnabled...');
+              console.log('First enable attempt failed for ' + key + ', checking isEnabled...');
               const alreadyEnabled = await wallet.isEnabled();
               if (alreadyEnabled) {
                 // Some wallets expose the API directly when already enabled
@@ -342,6 +357,128 @@ function getBridgePage(port: number): string {
           }
 
           if (!api) throw new Error('enable() returned no API');
+
+          // Diagnostic: introspect the API object so we know what 1AM exposes
+          function introspectWalletAPI(walletApi) {
+            const names = [];
+            for (const name of Object.getOwnPropertyNames(walletApi)) {
+              names.push(name + ':' + typeof walletApi[name]);
+            }
+            try {
+              for (const name in walletApi) {
+                if (!names.some(n => n.startsWith(name + ':'))) {
+                  names.push(name + ':' + typeof walletApi[name]);
+                }
+              }
+            } catch (e) {}
+            return names;
+          }
+          const apiMethods = introspectWalletAPI(api);
+          console.log('1AM API methods/properties (' + apiMethods.length + '):', apiMethods.join(', '));
+
+          // Spy on ONEAM postMessage traffic so we can replicate the exact protocol.
+          const oneamMessages = [];
+          const spyHandler = (e) => {
+            if (e.data && typeof e.data === 'object' && (e.data.type || '').startsWith('ONEAM_')) {
+              oneamMessages.push({ dir: e.source === window ? 'outgoing' : 'incoming', data: e.data });
+              console.log('ONEAM MESSAGE ' + (e.source === window ? 'OUT' : 'IN') + ':', JSON.stringify(e.data));
+            }
+          };
+          window.addEventListener('message', spyHandler);
+
+          // Also try to discover the dapp source by probing the ONEAM direct API.
+          const ONEAM_SOURCE = '1am-injected';
+
+          // ONEAM requires a separate dApp authorization on top of CIP-30 enable().
+          // This helper sends a postMessage to the content script and waits for the
+          // response with a different source (1am-content / 1am-injected).
+          async function sendOneAmMessage(type, payload = {}, timeoutMs = 120000) {
+            const id = Math.random().toString(36).slice(2);
+            return new Promise((resolve) => {
+              const handler = (e) => {
+                const d = e.data;
+                if (d && d.id === id && d.source !== ONEAM_SOURCE) {
+                  window.removeEventListener('message', handler);
+                  // ONEAM content script replies with the response payload inside d.data as a JSON string.
+                  let parsed = d.data;
+                  if (typeof parsed === 'string') {
+                    try { parsed = JSON.parse(parsed); } catch {}
+                  }
+                  resolve({ success: d.success !== false, data: parsed, error: d.error });
+                }
+              };
+              window.addEventListener('message', handler);
+              window.postMessage({ source: ONEAM_SOURCE, type, id, payload }, window.location.origin);
+              setTimeout(() => {
+                window.removeEventListener('message', handler);
+                resolve({ success: false, error: { code: 'Timeout', reason: type + ' did not respond within ' + timeoutMs + 'ms' } });
+              }, timeoutMs);
+            });
+          }
+
+          // We do not parse or fix balances here — only surface the raw data to the terminal.
+          const rawCaptures = [];
+          async function captureRaw(methodName, getter) {
+            const entry = { method: methodName };
+            try {
+              const value = await getter();
+              entry.type = typeof value;
+              entry.constructor = (value && value.constructor && value.constructor.name) || null;
+              try { entry.json = JSON.stringify(value); } catch (e) { entry.json = '[json stringify error: ' + formatError(e) + ']'; }
+              entry.toString = null;
+              if (value != null) {
+                try {
+                  if (typeof value.toString === 'function') {
+                    entry.toString = value.toString();
+                  }
+                } catch (e) { entry.toString = '[toString error: ' + formatError(e) + ']'; }
+              }
+              console.log('RAW ' + methodName + ' => type=' + entry.type +
+                ', constructor=' + entry.constructor +
+                ', json=' + entry.json +
+                (entry.toString !== null ? ', toString=' + entry.toString : ''));
+            } catch (e) {
+              entry.error = formatError(e);
+              console.log('RAW ' + methodName + ' => THREW: ' + entry.error);
+            }
+            rawCaptures.push(entry);
+            return entry;
+          }
+
+          const rawMethods = [
+            ['getNetworkId', () => api.getNetworkId()],
+            ['getBalance', () => api.getBalance()],
+            ['getNightBalance', () => api.getNightBalance()],
+            ['getDustBalance', () => api.getDustBalance()],
+            ['getExtensions', () => api.getExtensions ? api.getExtensions() : Promise.reject(new Error('method not present'))],
+            ['getUsedAddresses', () => api.getUsedAddresses()],
+            ['getUnusedAddresses', () => api.getUnusedAddresses && api.getUnusedAddresses()],
+            ['getChangeAddress', () => api.getChangeAddress()],
+            ['getAddresses', () => api.getAddresses && api.getAddresses()],
+            ['getRewardAddresses', () => api.getRewardAddresses && api.getRewardAddresses()],
+            ['getUtxos', () => api.getUtxos && api.getUtxos()],
+            ['getCollateral', () => api.getCollateral && api.getCollateral()],
+            ['signTx', () => api.signTx && api.signTx('')],
+            ['signData', () => api.signData && api.signData('', '')],
+            ['submitTx', () => api.submitTx && api.submitTx('')],
+          ];
+          for (const [methodName, getter] of rawMethods) {
+            if (api[methodName] || (methodName === 'getExtensions')) {
+              await captureRaw(methodName, getter);
+            }
+          }
+
+          // Also dump any extra 1AM-specific-looking methods that exist on the API.
+          const extraOneAmMethods = apiMethods
+            .map(desc => desc.split(':')[0])
+            .filter(name =>
+              typeof api[name] === 'function' &&
+              !rawMethods.some(([m]) => m === name) &&
+              /oneam|midnight|night|dust|extension|account|identity|state|connect|wallet/i.test(name)
+            );
+          for (const name of extraOneAmMethods) {
+            await captureRaw(name, () => api[name]());
+          }
 
           // Try multiple CIP-30 address sources
           let address = null;
@@ -383,23 +520,238 @@ function getBridgePage(port: number): string {
             }
           } catch (e) {}
 
-          log('Address attempts: ' + addressAttempts.join(' | '));
-          if (!address) throw new Error('No address available from wallet API');
-
-          const networkId = await api.getNetworkId ? api.getNetworkId().catch(() => 0) : 0;
+          console.log('Address attempts: ' + addressAttempts.join(' | '));
+          // 1AM's CIP-30 address methods may fail with code -2 even after the user
+          // approved the connection. The popup still shows real balances, so the
+          // wallet IS connected. Do not fail the whole flow just because we can't
+          // read an address. We'll still return whatever balance/network we can get.
+          let networkId = await (api.getNetworkId ? api.getNetworkId().catch(() => 0) : Promise.resolve(0));
 
           let lovelace = 0, night = 0, dust = 0, assets = [];
           try {
             if (api.getBalance) {
               const bal = await api.getBalance();
-              lovelace = bal.lovelace || 0;
-              assets = bal.tokens || [];
+              if (bal && typeof bal === 'object') {
+                lovelace = bal.lovelace || 0;
+                assets = bal.tokens || [];
+              } else if (typeof bal === 'string') {
+                try { lovelace = parseInt(bal, 16) || 0; } catch (e) {}
+              }
             }
           } catch (e) {}
-          try { if (api.getNightBalance) night = await api.getNightBalance(); } catch (e) {}
-          try { if (api.getDustBalance) dust = await api.getDustBalance(); } catch (e) {}
+          try {
+            if (api.getUtxos) {
+              // CIP-30 getUtxos returns CBOR hex; skip parsing for now.
+            }
+          } catch (e) {}
+          // the connected wallet and balances from the popup.
+          if (!address) {
+            console.log('1AM connected but address methods returned code -2; attempting ONEAM address query');
+          }
 
-          return { success: true, walletName: wallet.name || key, address, rewardAddress, networkId, lovelace, night, dust, assets };
+          // ── ONEAM dApp authorization + native balance reads ─────────────
+          // CIP-30 enable() alone is not enough: 1AM keeps a separate dApp
+          // connection map. We must call ONEAM_CONNECT and wait for the user to
+          // approve the dApp popup before balance/address queries work.
+          let oneamConnected = false;
+          let shieldedTokens = 0;
+          let unshieldedTokens = 0;
+          let dustTokens = 0;
+          let nightTokens = 0;
+          let cardanoAda = 0;
+          const addresses = { shielded: [], unshielded: null, dust: null, cardano: null };
+          let txHistory = [];
+          const rawOneAmResponses = [];
+          function captureOneAm(label, res) {
+            try {
+              rawOneAmResponses.push({ label, success: res.success, data: JSON.stringify(res.data), error: res.error });
+            } catch (e) {}
+          }
+          function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+          try {
+            setStatus('authorizing', 'Requesting 1AM dApp authorization...');
+            const connectRes = await sendOneAmMessage('ONEAM_CONNECT', {}, 60000);
+            console.log('ONEAM_CONNECT response:', JSON.stringify(connectRes));
+            captureOneAm('ONEAM_CONNECT', connectRes);
+            if (!connectRes.success) {
+              console.log('ONEAM_CONNECT failed; continuing with CIP-30 data only');
+            } else {
+              oneamConnected = true;
+
+              // Query 1AM-specific balances
+              setStatus('reading', 'Reading 1AM balances...');
+              const shieldedResponse = await sendOneAmMessage('ONEAM_GET_SHIELDED_BALANCES', {}, 10000);
+              await sleep(400);
+              const unshieldedResponse = await sendOneAmMessage('ONEAM_GET_UNSHIELDED_BALANCES', {}, 10000);
+              await sleep(400);
+              const dustResponse = await sendOneAmMessage('ONEAM_GET_DUST_BALANCE', {}, 10000);
+              console.log('ONEAM SHIELDED response:', JSON.stringify(shieldedResponse));
+              console.log('ONEAM UNSHIELDED response:', JSON.stringify(unshieldedResponse));
+              console.log('ONEAM DUST response:', JSON.stringify(dustResponse));
+              captureOneAm('ONEAM_GET_SHIELDED_BALANCES', shieldedResponse);
+              captureOneAm('ONEAM_GET_UNSHIELDED_BALANCES', unshieldedResponse);
+              captureOneAm('ONEAM_GET_DUST_BALANCE', dustResponse);
+
+              function extractAmount(value, path = 'value') {
+                if (typeof value === 'number') return value;
+                if (typeof value === 'string') {
+                  const parsed = parseFloat(value);
+                  return isNaN(parsed) ? 0 : parsed;
+                }
+                if (value && typeof value === 'object') {
+                  // 1AM may return { balance, amount, value, total, lovelace, ada, cardano }
+                  const candidate = value[path] ?? value.balance ?? value.amount ?? value.value ?? value.total ?? value.lovelace ?? value.ada ?? value.cardano ?? value[Object.keys(value)[0]];
+                  return extractAmount(candidate, path);
+                }
+                return 0;
+              }
+
+              // Extract network from dApp connect when CIP-30 fails to provide it.
+              if (connectRes.success && connectRes.data?.networkId) {
+                const nw = connectRes.data.networkId;
+                if (nw === 'mainnet') networkId = 1;
+                else if (nw === 'preprod' || nw === 'testnet') networkId = 0;
+              }
+
+              if (shieldedResponse.success && shieldedResponse.data) {
+                shieldedTokens = extractAmount(shieldedResponse.data);
+              }
+              if (unshieldedResponse.success && unshieldedResponse.data) {
+                // ONEAM returns an object mapping policyId -> quantity string.
+                // Sum all entries as the unshielded token balance; individual
+                // assets are added to the assets list with unknown metadata.
+                const entries = Object.entries(unshieldedResponse.data);
+                let unshieldedSum = 0;
+                for (const [policyId, qty] of entries) {
+                  const q = typeof qty === 'string' ? parseFloat(qty) : Number(qty) || 0;
+                  unshieldedSum += q;
+                  assets.push({ policyId, assetName: '', quantity: q, source: 'unshielded' });
+                }
+                unshieldedTokens = unshieldedSum;
+              }
+              if (dustResponse.success && dustResponse.data) {
+                // DUST is returned as a string integer with 15 decimals.
+                const rawDust = dustResponse.data.balance ?? dustResponse.data;
+                const dustNum = extractAmount(rawDust);
+                dustTokens = dustNum / 1e15;
+              }
+
+              // Try ONEAM address query now that dApp auth is done
+              if (!address) {
+                await sleep(400);
+                const unshieldedAddr = await sendOneAmMessage('ONEAM_GET_UNSHIELDED_ADDRESS', {}, 5000);
+                console.log('ONEAM UNSHIELDED ADDRESS:', JSON.stringify(unshieldedAddr));
+                captureOneAm('ONEAM_GET_UNSHIELDED_ADDRESS', unshieldedAddr);
+                if (unshieldedAddr.success && unshieldedAddr.data) {
+                  addresses.unshielded = typeof unshieldedAddr.data === 'string'
+                    ? unshieldedAddr.data
+                    : (unshieldedAddr.data.unshieldedAddress || unshieldedAddr.data.address || unshieldedAddr.data[0] || null);
+                  address = addresses.unshielded;
+                }
+              }
+
+              await sleep(400);
+              const dustAddr = await sendOneAmMessage('ONEAM_GET_DUST_ADDRESS', {}, 5000);
+              console.log('ONEAM DUST ADDRESS:', JSON.stringify(dustAddr));
+              captureOneAm('ONEAM_GET_DUST_ADDRESS', dustAddr);
+              if (dustAddr.success && dustAddr.data) {
+                addresses.dust = typeof dustAddr.data === 'string'
+                  ? dustAddr.data
+                  : (dustAddr.data.dustAddress || dustAddr.data.address || dustAddr.data[0] || null);
+              }
+
+              await sleep(500);
+              const shieldedAddr = await sendOneAmMessage('ONEAM_GET_SHIELDED_ADDRESSES', {}, 5000);
+              console.log('ONEAM SHIELDED ADDRESSES:', JSON.stringify(shieldedAddr));
+              captureOneAm('ONEAM_GET_SHIELDED_ADDRESSES', shieldedAddr);
+              if (shieldedAddr.success && shieldedAddr.data) {
+                if (Array.isArray(shieldedAddr.data)) {
+                  addresses.shielded = shieldedAddr.data;
+                } else if (typeof shieldedAddr.data === 'string') {
+                  addresses.shielded = [shieldedAddr.data];
+                } else if (shieldedAddr.data.shieldedAddresses) {
+                  addresses.shielded = shieldedAddr.data.shieldedAddresses;
+                } else if (shieldedAddr.data.shieldedAddress) {
+                  addresses.shielded = [shieldedAddr.data.shieldedAddress];
+                } else {
+                  const vals = Object.values(shieldedAddr.data).filter(v => typeof v === 'string');
+                  if (vals.length) addresses.shielded = vals;
+                }
+              }
+
+              // ONEAM does not expose the Cardano L1 cNIGHT/ADA balance to dApps.
+              // The user must view it inside the 1AM extension popup.
+              addresses.cardano = null;
+
+              // Try to get 1AM transaction history for the connected account.
+              try {
+                await sleep(500);
+                const txRes = await sendOneAmMessage('ONEAM_GET_TX_HISTORY', { limit: 50 }, 10000);
+                console.log('ONEAM TX HISTORY:', JSON.stringify(txRes));
+                captureOneAm('ONEAM_GET_TX_HISTORY', txRes);
+                if (txRes.success && txRes.data) {
+                  if (Array.isArray(txRes.data)) txHistory = txRes.data;
+                  else if (Array.isArray(txRes.data.transactions)) txHistory = txRes.data.transactions;
+                  else if (Array.isArray(txRes.data.history)) txHistory = txRes.data.history;
+                  else if (Array.isArray(txRes.data.items)) txHistory = txRes.data.items;
+                }
+              } catch (e) { console.log('ONEAM TX HISTORY failed:', formatError(e)); }
+
+              // Retry CIP-30 data reads now that the dApp session is authorized.
+              // In 1AM, authorizing the dApp may also unlock the CIP-30 layer.
+              try {
+                const networkId2 = await api.getNetworkId();
+                if (typeof networkId2 === 'number') networkId = networkId2;
+                console.log('CIP-30 getNetworkId after connect:', networkId2);
+              } catch (e) { console.log('CIP-30 getNetworkId retry failed:', formatError(e)); }
+              try {
+                const bal2 = await api.getBalance();
+                console.log('CIP-30 getBalance after connect:', bal2);
+                if (bal2 && typeof bal2 === 'object') {
+                  lovelace = bal2.lovelace || 0;
+                  assets = bal2.tokens || [];
+                } else if (typeof bal2 === 'string') {
+                  try { lovelace = parseInt(bal2, 16) || 0; } catch (e) {}
+                }
+              } catch (e) { console.log('CIP-30 getBalance retry failed:', formatError(e)); }
+              try {
+                const used2 = await api.getUsedAddresses();
+                if (used2?.length && !address) address = used2[0];
+                console.log('CIP-30 getUsedAddresses after connect:', used2);
+              } catch (e) { console.log('CIP-30 getUsedAddresses retry failed:', formatError(e)); }
+            }
+          } catch (e) {
+            console.log('ONEAM dApp flow error:', formatError(e));
+          }
+
+          // Map extracted values to the result shape the renderer expects.
+          // 1AM 'unshielded' balance is the sum of policyId quantities. DUST has
+          // 15 decimals. cardanoAda stays 0 because the Cardano L1 cNIGHT balance
+          // is not exposed through the dApp API.
+          dust = dustTokens;
+          night = nightTokens;
+          if (!cardanoAda && lovelace) cardanoAda = lovelace / 1_000_000;
+
+          return {
+            success: true,
+            walletName: wallet.name || key,
+            address,
+            rewardAddress,
+            networkId,
+            lovelace,
+            night: nightTokens,
+            dust: dustTokens,
+            shieldedTokens,
+            unshieldedTokens,
+            cardanoAda,
+            assets,
+            addresses,
+            txHistory,
+            oneamConnected,
+            rawOneAmResponses,
+            rawCaptures
+          };
         } catch (e) {
           console.warn('CIP-30 provider ' + key + ' failed:', e);
           // Return an error object for this provider so the caller can decide
@@ -572,12 +924,15 @@ export async function connectOneAmChrome(): Promise<OneAmBridgeResult> {
     '--new-window',
     '--no-first-run',
     '--no-default-browser-check',
+    '--remote-debugging-port=9223',
     bridgeUrl,
   ], {
     detached: false,
     stdio: 'ignore',
   });
   console.log('[OneAmChrome] Spawning Chrome pointing to', bridgeUrl);
+
+  pipeChromeConsole(9223, bridgeUrl);
 
   // Poll for result with timeout
   const timeoutMs = 120000; // 2 minutes
@@ -602,4 +957,54 @@ export async function connectOneAmChrome(): Promise<OneAmBridgeResult> {
       }
     }, pollInterval);
   });
+}
+
+/** Poll Chrome DevTools Protocol for console messages from the bridge page. */
+async function pipeChromeConsole(debugPort: number, pageUrlPrefix: string, stopAfterMs = 120000) {
+  const fetchJson = async (url: string) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch { return null; }
+  };
+
+  const start = Date.now();
+  let wsUrl: string | null = null;
+  while (!wsUrl && Date.now() - start < 10000) {
+    const list = await fetchJson(`http://localhost:${debugPort}/json/list`);
+    if (Array.isArray(list)) {
+      const page = list.find((p: any) => p.type === 'page' && p.url && p.url.startsWith(pageUrlPrefix));
+      if (page && page.webSocketDebuggerUrl) {
+        wsUrl = page.webSocketDebuggerUrl;
+        break;
+      }
+    }
+    await new Promise(r => setTimeout(r, 500));
+  }
+  if (!wsUrl) {
+    console.log('[OneAmChrome] DevTools page not found for console piping');
+    return;
+  }
+
+  const ws = new WebSocket(wsUrl);
+  let consoleEnabled = false;
+  ws.on('open', () => {
+    ws.send(JSON.stringify({ id: 1, method: 'Runtime.enable' }));
+  });
+  ws.on('message', (data: any) => {
+    const msg = JSON.parse(data.toString());
+    if (msg.method === 'Runtime.consoleAPICalled') {
+      const args = (msg.params.args || []).map((a: any) => {
+        if (a.value !== undefined) return String(a.value);
+        if (a.description) return a.description;
+        return a.type;
+      }).join(' ');
+      console.log('[ChromeBridgePage]', msg.params.type, args);
+    }
+  });
+  ws.on('error', (err: any) => console.log('[OneAmChrome] DevTools pipe error:', err.message));
+  setTimeout(() => {
+    try { ws.close(); } catch {}
+  }, stopAfterMs);
 }

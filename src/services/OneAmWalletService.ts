@@ -37,6 +37,9 @@ export interface OneAmBalance {
   lovelace: number;
   nightTokens: number;
   dustTokens: number;
+  shieldedTokens: number;
+  unshieldedTokens: number;
+  cardanoAda: number;
   assets: OneAmAsset[];
 }
 
@@ -81,9 +84,14 @@ async function cmdConnect() {
     const provider = window.oneam || window.midnight;
     if (!provider) { post('connect-error',{error:'Wallet not detected'}); return; }
     api = await provider.enable();
-    const addrs = await api.getUsedAddresses();
+    let address = null;
+    let addressError = null;
+    try {
+      const addrs = await api.getUsedAddresses();
+      address = addrs?.[0] || null;
+    } catch (e) { addressError = e.message || String(e); }
     const network = await api.getNetworkId().catch(()=>'unknown');
-    post('connected',{address:addrs?.[0]||null,network});
+    post('connected',{address,network,addressError});
   } catch(err) { post('connect-error',{error:err.message||'Failed'}); }
 }
 async function cmdFetch() {
@@ -219,20 +227,19 @@ class OneAmWalletService {
   async connect(): Promise<{ success: boolean; error?: string; session?: OneAmSession }> {
     try {
       const result = await this.sendCommand('connect');
-      if (result?.address) {
-        this.session = {
-          connected: true,
-          address: result.address,
-          network: this.parseNetwork(result.network),
-          balance: null,
-          assets: [],
-          connectedAt: Date.now(),
-        };
-        await this.fetchWalletData();
-        this.notifyListeners();
-        return { success: true, session: this.session };
-      }
-      return { success: false, error: result?.error || 'Connection failed' };
+      // 1AM may connect successfully but refuse to expose addresses (code -2).
+      // We still treat it as connected so the UI reflects the real wallet state.
+      this.session = {
+        connected: true,
+        address: result?.address || null,
+        network: this.parseNetwork(result?.network),
+        balance: null,
+        assets: [],
+        connectedAt: Date.now(),
+      };
+      await this.fetchWalletData();
+      this.notifyListeners();
+      return { success: true, session: this.session };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -259,6 +266,9 @@ class OneAmWalletService {
         lovelace: data.lovelace || 0,
         nightTokens: data.night || 0,
         dustTokens: data.dust || 0,
+        shieldedTokens: data.shieldedTokens || 0,
+        unshieldedTokens: data.unshieldedTokens || 0,
+        cardanoAda: data.cardanoAda || 0,
         assets: (data.assets || []).map((a: any) => ({
           policyId: a.policyId,
           assetName: a.assetName,

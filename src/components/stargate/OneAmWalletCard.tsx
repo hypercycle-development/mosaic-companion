@@ -46,6 +46,13 @@ interface OneAmWalletCardProps {
   address: string | null;
   network: string | null;
   balance: OneAmBalance | null;
+  addresses?: {
+    shielded: string[];
+    unshielded: string | null;
+    dust: string | null;
+    cardano: string | null;
+  };
+  txHistory?: any[];
   agentWallets: OneAmAgentWallet[];
   isConnecting: boolean;
   onConnect: () => void;
@@ -125,7 +132,8 @@ const formatAda = (lovelace: number) => {
 // ─── Component ───────────────────────────────────────────────────
 
 export const OneAmWalletCard: React.FC<OneAmWalletCardProps> = ({
-  connected, address, network, balance, agentWallets,
+  connected, address, network, balance, addresses = { shielded: [], unshielded: null, dust: null, cardano: null }, txHistory: propTxHistory,
+  agentWallets,
   isConnecting, onConnect, onDisconnect, onGenerateDust,
   onSend, onReceive, onYourDust, onCreateAgentWallet,
   showNotification,
@@ -138,16 +146,34 @@ export const OneAmWalletCard: React.FC<OneAmWalletCardProps> = ({
   const [txLoading, setTxLoading] = useState(false);
   const [txSearch, setTxSearch] = useState('');
   const [showAgentModal, setShowAgentModal] = useState(false);
+  const [showReceiveModal, setShowReceiveModal] = useState(false);
   const [agentForm, setAgentForm] = useState({ id: '', name: '' });
 
   // Fetch tx history when connected
   useEffect(() => {
     if (!connected || !address) { setTxHistory([]); return; }
+    if (propTxHistory && propTxHistory.length > 0) {
+      const mapped = propTxHistory.map((tx: any, idx: number) => {
+        const date = tx.timestamp || tx.blockTime || tx.createdAt || 'Unknown';
+        return {
+          txHash: tx.txHash || tx.hash || `tx-${idx}`,
+          timestamp: typeof date === 'number' ? new Date(date * 1000).toLocaleString() : String(date),
+          method: tx.method || tx.type || 'Transfer',
+          chain: tx.chain || 'MIDNIGHT',
+          token: tx.token || tx.assetName || 'NIGHT',
+          amount: tx.amount || '-',
+          fee: tx.fee || '0',
+          status: tx.status || 'CONFIRMED',
+        };
+      });
+      setTxHistory(mapped);
+      return;
+    }
     setTxLoading(true);
     fetchTxHistory(address)
       .then(setTxHistory)
       .finally(() => setTxLoading(false));
-  }, [connected, address]);
+  }, [connected, address, propTxHistory]);
 
   const copyAddress = useCallback(() => {
     if (!address) return;
@@ -220,7 +246,7 @@ export const OneAmWalletCard: React.FC<OneAmWalletCardProps> = ({
               </span>
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-[10px] text-gray-500">DUST: {(balance?.dustTokens || 0).toLocaleString()}</span>
+              <span className="text-[10px] text-gray-500">DUST: {(balance?.dustTokens >= 0 ? balance.dustTokens.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0')}</span>
               <span className="text-[10px] text-green-400">● DUST SPONSORED</span>
             </div>
           </div>
@@ -293,10 +319,12 @@ export const OneAmWalletCard: React.FC<OneAmWalletCardProps> = ({
             </button>
           </div>
           <div className="text-3xl font-bold text-white tracking-tight">
-            {hideCardano ? '****' : formatAda(balance?.lovelace || 0)}
+            {hideCardano ? '****' : (balance?.cardanoAda && balance.cardanoAda > 0 ? formatAda(balance.cardanoAda * 1_000_000) : '0.00')}
           </div>
           <div className="text-xs text-gray-500 mt-1">
-            ADA: {((balance?.lovelace || 0) / 1_000_000).toFixed(2)}
+            {balance?.cardanoAda && balance.cardanoAda > 0
+              ? `ADA: ${balance.cardanoAda.toFixed(2)}`
+              : 'Cardano L1 cNIGHT/ADA is only visible inside the 1AM extension'}
           </div>
           {/* Generate Dust button */}
           <button
@@ -315,7 +343,7 @@ export const OneAmWalletCard: React.FC<OneAmWalletCardProps> = ({
           <ArrowUpRight size={20} className="text-gray-400 group-hover:text-indigo-400" />
           <span className="text-xs text-gray-400 group-hover:text-white font-medium">SEND</span>
         </button>
-        <button onClick={onReceive} className="py-4 flex flex-col items-center gap-1.5 hover:bg-gray-800/50 transition-colors group">
+        <button onClick={() => setShowReceiveModal(true)} className="py-4 flex flex-col items-center gap-1.5 hover:bg-gray-800/50 transition-colors group">
           <ArrowDownLeft size={20} className="text-gray-400 group-hover:text-green-400" />
           <span className="text-xs text-gray-400 group-hover:text-white font-medium">RECEIVE</span>
         </button>
@@ -577,6 +605,51 @@ export const OneAmWalletCard: React.FC<OneAmWalletCardProps> = ({
               >
                 Create
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ RECEIVE ADDRESSES MODAL ═══ */}
+      {showReceiveModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-white">Receive</h3>
+              <button onClick={() => setShowReceiveModal(false)} className="text-gray-400 hover:text-white text-xs">✕</button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">Select an address to copy. Cardano L1 balance is only visible inside the 1AM extension.</p>
+            <div className="space-y-3">
+              {[
+                { key: 'shielded', label: 'Shielded', icon: Shield, value: addresses.shielded[0] || null, extra: addresses.shielded.length > 1 ? `+${addresses.shielded.length - 1} more` : null },
+                { key: 'unshielded', label: 'Unshielded', icon: Unlink, value: addresses.unshielded || address },
+                { key: 'dust', label: 'DUST', icon: Zap, value: addresses.dust },
+                { key: 'cardano', label: 'Cardano', icon: Wallet, value: addresses.cardano },
+              ].map((entry) => {
+                if (!entry.value) return null;
+                const Icon = entry.icon;
+                return (
+                  <div key={entry.key} className="p-3 rounded bg-gray-800/50 border border-gray-700">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Icon size={14} className="text-indigo-400" />
+                      <span className="text-xs font-semibold text-gray-300">{entry.label}</span>
+                      {entry.extra && <span className="text-[10px] text-gray-500">{entry.extra}</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 text-[10px] font-mono text-gray-400 break-all">{entry.value}</div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(entry.value!);
+                          showNotification('success', `${entry.label} address copied`);
+                        }}
+                        className="p-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300"
+                      >
+                        <Copy size={12} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
