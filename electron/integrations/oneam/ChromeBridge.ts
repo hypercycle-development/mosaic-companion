@@ -265,9 +265,19 @@ function getBridgePage(port: number): string {
     }
 
     function isOneAmMidnight(provider) {
-      const key = provider.key || '';
-      const name = (provider.wallet && provider.wallet.name) || key || '';
-      return /oneam|midnight|1am/i.test(key) || /oneam|midnight|1am/i.test(name);
+      // Trust the CIP-30 key, not the display name. The real 1AM extension
+      // registers under key '1am'. Other providers (app, lace, nufi, eternl)
+      // may claim a similar name but are not 1AM.
+      return /^(oneam|midnight|1am)$/i.test(provider.key || '');
+    }
+
+    function formatError(e) {
+      if (e === null || e === undefined) return 'unknown error';
+      if (typeof e === 'string') return e;
+      if (e.message) return String(e.message);
+      if (e.code !== undefined) return 'code ' + e.code;
+      try { return JSON.stringify(e); } catch (_) {}
+      return String(e);
     }
 
     function isLace(provider) {
@@ -318,7 +328,7 @@ function getBridgePage(port: number): string {
         } catch (e) {
           console.warn('CIP-30 provider ' + key + ' failed:', e);
           // Return an error object for this provider so the caller can decide
-          return { success: false, walletName: wallet.name || key, error: String(e?.message || e) };
+          return { success: false, walletName: wallet.name || key, error: formatError(e) };
         }
       }
       return null;
