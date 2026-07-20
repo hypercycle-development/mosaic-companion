@@ -49,6 +49,7 @@ import { registerHyperInsightIpc, stopScorePolling } from "../plugins/hyperinsig
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
 import { registerPaymentsJitIpc } from "../plugins/payments-jit/main/index.ts";
 import { registerOneAmExternalBridge } from "./integrations/oneam-external-bridge";
+import { registerCardanoIpc } from "./integrations/cardano/ipcHandlers";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
@@ -368,6 +369,7 @@ app.whenReady().then(() => {
   registerAimNodesIpc(ipcMain);
   registerPaymentsJitIpc(ipcMain);
   registerOneAmExternalBridge(ipcMain);
+  registerCardanoIpc();
 
   // Now auto-connect MCP plugins (with correct env already set)
   initPlugins().catch((e) => console.error("[MCP] Plugin init failed:", e));
