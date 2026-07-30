@@ -26,6 +26,7 @@ import {
   PROVIDER_INFO,
 } from "../types/ai";
 import { AIService } from "../services/AIService";
+import { explainAIError } from "../services/aiErrorHelp";
 import { HypercycleBalancePanel } from "./HypercycleBalancePanel";
 import {
   getHypercycleAimIndex,
@@ -421,7 +422,9 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
         ...prev,
         [agent.id]: {
           status: result.success ? "success" : "error",
-          message: result.message,
+          message: result.success
+            ? result.message
+            : explainAIError(agent.provider, result.message, agent.baseUrl),
         },
       }));
     } catch (e) {
@@ -429,14 +432,18 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
         ...prev,
         [agent.id]: {
           status: "error",
-          message: e instanceof Error ? e.message : String(e),
+          message: explainAIError(
+            agent.provider,
+            e instanceof Error ? e.message : String(e),
+            agent.baseUrl,
+          ),
         },
       }));
     }
 
     setTimeout(() => {
       setTestResults((prev) => ({ ...prev, [agent.id]: { status: "idle" } }));
-    }, 15000);
+    }, 30000);
   };
 
   const handleProviderChange = (agentId: string, provider: AIProvider) => {
@@ -713,6 +720,12 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                             )}
                           </button>
                         </div>
+                        {agent.apiKeyUnavailable && !agent.apiKey?.trim() && (
+                          <span className="text-xs text-amber-500 mt-1 block">
+                            Stored key can't be decrypted on this machine —
+                            re-enter it.
+                          </span>
+                        )}
                       </label>
                     )}
 

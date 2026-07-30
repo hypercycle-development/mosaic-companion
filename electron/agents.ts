@@ -6,6 +6,11 @@
  * without `electron/addons/*` reaching back into `main.ts` — mirrors the
  * Phase 2 precedent of moving theme settings into `electron/settings.ts`
  * for the same reason.
+ *
+ * API keys are encrypted at rest via safeStorage (see agentKeyCrypto.ts).
+ * `readAgentsStored()` returns agents with keys in stored (encrypted) form —
+ * use it when merging partial updates back into the file so undecryptable
+ * blobs are preserved verbatim. `readAgents()` returns decrypted keys for use.
  */
 
 import { app } from "electron";
@@ -15,6 +20,7 @@ import { getWalletKey } from "./integrations/web3/index";
 import { hasTodaConfig } from "./integrations/web3/toda";
 import { mergeBuiltinAgents } from "./defaultAiAgents";
 import { getErrorMessage } from "./utils";
+import { canEncrypt, decryptKey, encryptKey, isEncryptedKey } from "./agentKeyCrypto";
 
 export interface AIAgent {
   id: string | number;
@@ -47,7 +53,11 @@ export function validateAgentsListForActivation(agents: AIAgent[]): string | nul
   return null;
 }
 
-export function readAgents(): AIAgent[] {
+/**
+ * Read agents with API keys in stored (encrypted) form. Also migrates any
+ * plaintext keys on disk to encrypted form once encryption is available.
+ */
+export function readAgentsStored(): AIAgent[] {
   let raw: AIAgent[] = [];
   try {
     if (fs.existsSync(aiAgentsPath)) {
@@ -58,15 +68,43 @@ export function readAgents(): AIAgent[] {
     console.error("Failed to read AI agents:", getErrorMessage(error));
   }
   const { agents, changed } = mergeBuiltinAgents(raw);
-  if (changed) {
+  const needsMigration =
+    canEncrypt() &&
+    agents.some(
+      (a) => typeof a.apiKey === "string" && a.apiKey !== "" && !isEncryptedKey(a.apiKey),
+    );
+  if (changed || needsMigration) {
     writeAgents(agents);
   }
   return agents;
 }
 
+/**
+ * Read agents with API keys decrypted for use. When a stored key cannot be
+ * decrypted on this machine, `apiKey` is emptied and the transient
+ * `apiKeyUnavailable` flag is set (stripped again on write).
+ */
+export function readAgents(): AIAgent[] {
+  return readAgentsStored().map((agent) => {
+    if (typeof agent.apiKey !== "string") return agent;
+    const { value, failed } = decryptKey(agent.apiKey);
+    if (failed) return { ...agent, apiKey: "", apiKeyUnavailable: true };
+    return { ...agent, apiKey: value };
+  });
+}
+
+/**
+ * Persist agents, encrypting API keys at rest. encryptKey is idempotent, so
+ * both stored-form (already encrypted) and plaintext keys are safe inputs.
+ */
 export function writeAgents(agents: AIAgent[]): boolean {
+  const stored = agents.map((agent) => {
+    const { apiKeyUnavailable: _apiKeyUnavailable, ...rest } = agent;
+    if (typeof rest.apiKey !== "string") return rest;
+    return { ...rest, apiKey: encryptKey(rest.apiKey) };
+  });
   try {
-    fs.writeFileSync(aiAgentsPath, JSON.stringify(agents, null, 2), "utf8");
+    fs.writeFileSync(aiAgentsPath, JSON.stringify(stored, null, 2), "utf8");
     return true;
   } catch (error) {
     console.error("Failed to write AI agents:", getErrorMessage(error));

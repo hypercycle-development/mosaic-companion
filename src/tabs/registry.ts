@@ -42,23 +42,25 @@ export interface CoreTabDef {
   toggleable: boolean;
   /** Sort key within the sidebar. */
   order: number;
+  /** One-line tooltip explaining what this page is for (shown on hover). */
+  description: string;
 }
 
 export const CORE_TABS: CoreTabDef[] = [
-  { id: "home", label: "Home", icon: "Home", url: INTERNAL_HOME_URL, toggleable: false, order: 0 },
-  { id: "chat", label: "AI Chat", icon: "Bot", url: INTERNAL_CHAT_URL, toggleable: false, order: 10 },
-  { id: "mosaicbot", label: "Mosaic Bot", icon: "BrainCircuit", url: INTERNAL_MOSAICBOT_URL, toggleable: false, order: 20 },
-  { id: "mcp", label: "MCP Servers", icon: "Plug", url: INTERNAL_MCP_URL, toggleable: false, order: 30 },
-  { id: "multi-chat", label: "Chat Rooms", icon: "MessageSquare", url: INTERNAL_MULTI_CHAT_URL, toggleable: false, order: 40 },
-  { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL, toggleable: false, order: 50 },
-  { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL, toggleable: false, order: 60 },
+  { id: "home", label: "Home", icon: "Home", url: INTERNAL_HOME_URL, toggleable: false, order: 0, description: "Your start page with quick access to everything" },
+  { id: "chat", label: "AI Chat", icon: "Bot", url: INTERNAL_CHAT_URL, toggleable: false, order: 10, description: "Chat one-on-one with your AI agents" },
+  { id: "mosaicbot", label: "Mosaic Bot", icon: "BrainCircuit", url: INTERNAL_MOSAICBOT_URL, toggleable: false, order: 20, description: "Built-in background assistant with memory and skills" },
+  { id: "mcp", label: "MCP Servers", icon: "Plug", url: INTERNAL_MCP_URL, toggleable: false, order: 30, description: "Connect external tool servers (Model Context Protocol) for your agents" },
+  { id: "multi-chat", label: "Chat Rooms", icon: "MessageSquare", url: INTERNAL_MULTI_CHAT_URL, toggleable: false, order: 40, description: "Multi-user rooms — invite agents with @mentions" },
+  { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL, toggleable: false, order: 50, description: "Built-in Web3 wallet for on-chain interactions" },
+  { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL, toggleable: false, order: 60, description: "Encrypted boxes for secrets — you choose which agents can read them" },
   // §9.2/Phase 7: HyperInsight is no longer a core tab — it's an addon tab
   // now (mosaic-addons/addons/hyperinsight, mounted via the generic addon
   // tab mechanism, §6.3). See ContentArea.tsx for the old
   // browser://hyperinsight URL's redirect handling.
-  { id: "ide", label: "IDE", icon: "Code2", url: INTERNAL_IDE_URL, toggleable: false, order: 80 },
-  { id: "sandbox", label: "Tool Sandbox", icon: "Cpu", url: INTERNAL_SANDBOX_URL, toggleable: false, order: 90 },
-  { id: "settings", label: "Configuration", icon: "Settings", url: INTERNAL_SETTINGS_URL, toggleable: false, order: 100 },
+  { id: "ide", label: "IDE", icon: "Code2", url: INTERNAL_IDE_URL, toggleable: false, order: 80, description: "Built-in code editor with an integrated terminal" },
+  { id: "sandbox", label: "Tool Sandbox", icon: "Cpu", url: INTERNAL_SANDBOX_URL, toggleable: false, order: 90, description: "Install and run sandboxed WASM tools" },
+  { id: "settings", label: "Configuration", icon: "Settings", url: INTERNAL_SETTINGS_URL, toggleable: false, order: 100, description: "App settings — AI agents, nodes, appearance, and more" },
 ];
 
 /**

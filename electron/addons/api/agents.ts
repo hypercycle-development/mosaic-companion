@@ -6,7 +6,14 @@
  * read, and `update` cannot touch credential fields.
  */
 
-import { readAgents, writeAgents, validateActiveHypercycleAgent, ensureAgentHistoryDir, type AIAgent } from "../../agents";
+import {
+  readAgents,
+  readAgentsStored,
+  writeAgents,
+  validateActiveHypercycleAgent,
+  ensureAgentHistoryDir,
+  type AIAgent,
+} from "../../agents";
 import { assertPlainObject, ApiValidationError, type ApiNamespace } from "./types";
 
 interface AgentSummary {
@@ -58,7 +65,10 @@ export const methods: ApiNamespace = {
       const validationError = validateActiveHypercycleAgent(agent);
       if (validationError) throw new Error(validationError);
 
-      const agents = readAgents();
+      // Stored form on the read-modify-write path (same as main.ts's
+      // `ai-agents:*` handlers) so a key this machine can't decrypt is
+      // preserved verbatim rather than blanked on write.
+      const agents = readAgentsStored();
       agents.push(agent);
       writeAgents(agents);
       ensureAgentHistoryDir(id);
@@ -73,7 +83,7 @@ export const methods: ApiNamespace = {
       // field on AIAgentConfig; id is also protected so identity can't drift.
       const { apiKey: _apiKey, id: _id, ...safePatch } = patchObj;
 
-      const agents = readAgents();
+      const agents = readAgentsStored();
       const index = findIndexById(agents, id);
       if (index === -1) throw new ApiValidationError(`Agent "${id}" not found`);
 

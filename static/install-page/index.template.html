@@ -5,414 +5,555 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Download and install MosAIc Core for macOS, Linux, and Windows. My Own Secure AI Companion."
+      content="Download and install MOSAIC for Windows, macOS, and Linux. My Own Secure AI Companion."
     />
-    <title>Install MosAIc Core</title>
+    <title>Install MOSAIC</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div class="bg-glow"></div>
+    <div class="bg-glow" aria-hidden="true"></div>
 
-    <header>
+    <div id="view-download">
+    <header class="hero">
       <div class="container">
-        <h1 class="logo"><span class="logo-icon">M</span> MosAIc Core</h1>
+        <a
+          class="release-pill"
+          href="https://github.com/hypercycle-development/mosaic-companion/releases"
+        >
+          <span class="pill-dot" aria-hidden="true"></span>
+          latest release&nbsp;<strong>v{{VERSION}}</strong>
+        </a>
+        <h1 class="headline">
+          Install Mos<span class="gradient-text">AI</span>c
+        </h1>
         <p class="subtitle">My Own Secure AI Companion</p>
         <p class="tagline">
-          MosAIc is an Open Platform For Developers That Aren't Necessarily
-          Coders But Are Necessarily Intelligent Beings Including Humans
+          MosAIc is an Open Platform Enabling Integration of Any Human
+          Centric App Into The Internet Of AI
         </p>
       </div>
     </header>
 
     <main class="container">
-      <!-- Specialized Releases -->
-      <div class="specialized-releases" id="specialized-section">
-        <span class="specialized-label">Specialized releases:</span>
-        <span id="specialized-links" class="specialized-links"></span>
+      <!-- OS cards -->
+      <div class="os-grid" role="list" aria-label="Choose your operating system">
+        <button
+          type="button"
+          class="os-card"
+          data-os="windows"
+          aria-controls="windows"
+          role="listitem"
+        >
+          <span class="official-badge">OFFICIAL</span>
+          <span class="os-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"
+              />
+            </svg>
+          </span>
+          <span class="os-name">Windows</span>
+          <span class="os-sub">Windows 10 / 11</span>
+          <span class="detected-label" hidden>Detected: your system</span>
+          <span class="os-cta">View install steps ↓</span>
+        </button>
+
+        <button
+          type="button"
+          class="os-card"
+          data-os="mac"
+          aria-controls="mac"
+          role="listitem"
+        >
+          <span class="official-badge">OFFICIAL</span>
+          <span class="os-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"
+              />
+            </svg>
+          </span>
+          <span class="os-name">macOS</span>
+          <span class="os-sub">Apple Silicon &amp; Intel</span>
+          <span class="detected-label" hidden>Detected: your system</span>
+          <span class="os-cta">View install steps ↓</span>
+        </button>
+
+        <button
+          type="button"
+          class="os-card"
+          data-os="linux"
+          aria-controls="linux"
+          role="listitem"
+        >
+          <span class="official-badge">OFFICIAL</span>
+          <span class="os-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.067-.188-.135a.357.357 0 00-.19-.064c.431-1.278.264-2.55-.173-3.694-.533-1.41-1.465-2.638-2.175-3.483-.796-1.005-1.576-1.957-1.56-3.368.026-2.152.236-6.133-3.544-6.139z"
+              />
+            </svg>
+          </span>
+          <span class="os-name">Linux</span>
+          <span class="os-sub">deb &amp; AppImage</span>
+          <span class="detected-label" hidden>Detected: your system</span>
+          <span class="os-cta">View install steps ↓</span>
+        </button>
       </div>
 
-      <!-- Platform Tabs -->
-      <div class="platform-tabs">
-        <button class="tab-btn mac active" data-platform="mac">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"
-            />
-          </svg>
-          macOS
-        </button>
-        <button class="tab-btn linux" data-platform="linux">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.067-.188-.135a.357.357 0 00-.19-.064c.431-1.278.264-2.55-.173-3.694-.533-1.41-1.465-2.638-2.175-3.483-.796-1.005-1.576-1.957-1.56-3.368.026-2.152.236-6.133-3.544-6.139z"
-            />
-          </svg>
-          Linux
-        </button>
-        <button class="tab-btn windows" data-platform="windows">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"
-            />
-          </svg>
-          Windows
-        </button>
-      </div>
+      <p class="all-releases">
+        Looking for older builds?
+        <a href="https://github.com/hypercycle-development/mosaic-companion/releases"
+          >All releases on GitHub →</a
+        >
+      </p>
 
-      <!-- Install Sections -->
-      <h2 class="section-title">Install <span>Steps</span></h2>
+      <!-- Install sections -->
       <div class="install-sections">
+        <!-- Windows Section -->
+        <section id="windows" class="install-section">
+          <button
+            type="button"
+            class="section-head"
+            data-os="windows"
+            aria-expanded="false"
+            aria-controls="windows-body"
+          >
+            <span class="section-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"
+                />
+              </svg>
+            </span>
+            <span class="section-name"
+              >Windows <span class="section-sub">Windows 10 / 11 · x64</span></span
+            >
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M6 9l6 6 6-6"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+
+          <div class="section-body" id="windows-body">
+            <div class="step-card">
+              <h3><span class="step-number">1</span> Download Mosaic</h3>
+              <p>Choose the correct version for your system:</p>
+              <div class="download-grid">
+                <a
+                  href="https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion-{{VERSION}}-Setup.exe"
+                  class="download-btn"
+                  data-arch="x64"
+                >
+                  <span class="dl-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                    </svg>
+                  </span>
+                  <span class="dl-info">
+                    <span class="dl-name">Installer (.exe) — x64</span>
+                    <span class="dl-arch">For 64-bit Windows (most common)</span>
+                  </span>
+                  <span class="rec-tag" hidden>recommended</span>
+                </a>
+              </div>
+
+              <div class="notice">
+                <span class="notice-icon" aria-hidden="true">💡</span>
+                <p>
+                  <strong>Edge browser users:</strong> Edge may flag the download
+                  as uncommon. Click the <strong>"···"</strong> (More actions)
+                  icon next to the file → <strong>"Keep"</strong> → then expand
+                  the <strong>"···"</strong> dropdown beside "Delete" and select
+                  <strong>"Keep anyway"</strong>. Chrome and Firefox download
+                  without issues.
+                </p>
+              </div>
+            </div>
+
+            <div class="step-card">
+              <h3><span class="step-number">2</span> Install</h3>
+              <p><strong>Installer (.exe):</strong> Standard installation:</p>
+              <ul class="steps-list">
+                <li>Double-click the downloaded <strong>.exe</strong> file</li>
+                <li>
+                  If Windows Defender SmartScreen appears, click
+                  <strong>"More info"</strong>
+                </li>
+                <li>Then click <strong>"Run anyway"</strong></li>
+                <li>The app will install and launch automatically</li>
+              </ul>
+
+              <div class="notice warning">
+                <span class="notice-icon" aria-hidden="true">⚠️</span>
+                <p>
+                  Windows may show a warning because the app is not code-signed.
+                  This is normal for open-source software.
+                </p>
+              </div>
+            </div>
+
+            <div class="step-card">
+              <h3><span class="step-number">3</span> Launch Mosaic</h3>
+              <ul class="steps-list">
+                <li>Find <strong>Mosaic Companion</strong> in your Start Menu</li>
+                <li>Or look for the desktop shortcut</li>
+                <li>The app will launch and you're ready to go!</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
         <!-- macOS Section -->
-        <section id="mac" class="install-section active">
-          <div class="card">
-            <h3><span class="step-number">1</span> Download Mosaic</h3>
-            <p>Choose the correct version for your Mac's processor:</p>
-            <div class="download-grid">
-              <a
-                href="https://licenses.aimarkets.ai/releases/darwin/x64/mosaic-companion-{{VERSION}}-x64.dmg"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (Intel)</div>
-                  <div class="arch">For Intel Macs (x64)</div>
-                </div>
-              </a>
-              <a
-                href="https://licenses.aimarkets.ai/releases/darwin/arm64/mosaic-companion-{{VERSION}}-arm64.dmg"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (Apple Silicon)</div>
-                  <div class="arch">For M-series Macs (arm64)</div>
-                </div>
-              </a>
+        <section id="mac" class="install-section">
+          <button
+            type="button"
+            class="section-head"
+            data-os="mac"
+            aria-expanded="false"
+            aria-controls="mac-body"
+          >
+            <span class="section-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"
+                />
+              </svg>
+            </span>
+            <span class="section-name"
+              >macOS
+              <span class="section-sub">Apple Silicon &amp; Intel</span></span
+            >
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M6 9l6 6 6-6"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+
+          <div class="section-body" id="mac-body">
+            <div class="step-card">
+              <h3><span class="step-number">1</span> Download Mosaic</h3>
+              <p>Choose the correct version for your Mac's processor:</p>
+              <div class="download-grid">
+                <a
+                  href="https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion-{{VERSION}}-arm64.dmg"
+                  class="download-btn"
+                  data-arch="arm64"
+                >
+                  <span class="dl-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                    </svg>
+                  </span>
+                  <span class="dl-info">
+                    <span class="dl-name">Apple Silicon (.dmg)</span>
+                    <span class="dl-arch">For M-series Macs (arm64)</span>
+                  </span>
+                  <span class="rec-tag" hidden>recommended</span>
+                </a>
+                <a
+                  href="https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion-{{VERSION}}-x64.dmg"
+                  class="download-btn"
+                  data-arch="x64"
+                >
+                  <span class="dl-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                    </svg>
+                  </span>
+                  <span class="dl-info">
+                    <span class="dl-name">Intel (.dmg)</span>
+                    <span class="dl-arch">For Intel Macs (x64)</span>
+                  </span>
+                  <span class="rec-tag" hidden>recommended</span>
+                </a>
+              </div>
+
+              <div class="notice">
+                <span class="notice-icon" aria-hidden="true">💡</span>
+                <p>
+                  Not sure which version? Click the Apple menu → "About This Mac"
+                  → Look for "Chip" (Apple Silicon) or "Processor" (Intel).
+                </p>
+              </div>
             </div>
 
-            <div class="notice">
-              <span class="notice-icon">💡</span>
+            <div class="step-card">
+              <h3><span class="step-number">2</span> Install the Application</h3>
+              <p><strong>DMG:</strong> Standard installation:</p>
+              <ul class="steps-list">
+                <li>Open the downloaded <strong>.dmg</strong> file</li>
+                <li>
+                  Drag Mosaic Companion to your
+                  <strong>Applications</strong> folder
+                </li>
+                <li>Eject the disk image when done</li>
+              </ul>
+            </div>
+
+            <div class="step-card">
+              <h3><span class="step-number">3</span> First Launch</h3>
               <p>
-                Not sure which version? Click the Apple menu → "About This Mac"
-                → Look for "Chip" (Apple Silicon) or "Processor" (Intel).
+                Since Mosaic is not notarized by Apple, you'll need to allow it
+                manually:
+              </p>
+              <ul class="steps-list">
+                <li>
+                  Open <strong>Applications</strong> and right-click on Mosaic
+                  Companion
+                </li>
+                <li>Click <strong>"Open"</strong> from the context menu</li>
+                <li>
+                  Click <strong>"Open"</strong> again in the security dialog
+                </li>
+              </ul>
+              <div class="notice warning">
+                <span class="notice-icon" aria-hidden="true">⚠️</span>
+                <p>
+                  If you double-click directly, macOS may block the app. Always
+                  right-click → Open for the first launch.
+                </p>
+              </div>
+            </div>
+
+            <div class="step-card">
+              <h3>
+                <span class="step-number">4</span> Troubleshooting (Temporary for
+                macOS)
+              </h3>
+              <p>
+                Since Mosaic Companion is not yet code-signed, you may encounter
+                additional security warnings. Here are temporary workarounds:
+              </p>
+
+              <h4>Option 1: Terminal Command (Immediate Fix)</h4>
+              <p>
+                If you trust the Mosaic's source, you can bypass this security
+                check using the Terminal:
+              </p>
+              <ol class="steps-list">
+                <li>
+                  Open Terminal from Applications &gt; Utilities or via Spotlight
+                  search.
+                </li>
+                <li>
+                  Run the following command, replacing
+                  <code>~/MosaicCompanion/Mosaic\ Companion.app</code> with the
+                  actual path to your application (you can type the command and
+                  then drag the application icon into the Terminal window to
+                  auto-fill the path):
+                </li>
+              </ol>
+              <div class="code-block">
+                <code>xattr -cr /Applications/mosaic-companion.app</code>
+                <button type="button" class="copy-btn" onclick="copyCode(this)">
+                  copy
+                </button>
+              </div>
+              <p>
+                (Note: the -cr flags remove all extended attributes recursively).
+              </p>
+              <p>
+                Press Enter to execute the command. You may need to enter your
+                administrator password.
+              </p>
+              <p>
+                Attempt to open the app again. It should now launch without the
+                error.
+              </p>
+
+              <h4>Option 2: Override Security Settings</h4>
+              <p>
+                Go to System Settings &gt; Privacy &amp; Security, look for a
+                message about Mosaic Companion (recently blocked) and click the
+                "Open Anyway" button.
+              </p>
+
+              <p>
+                <strong>Note:</strong> This is a temporary measure while we
+                obtain proper code signing. These steps will not be needed in
+                future releases.
               </p>
             </div>
-          </div>
-
-          <div class="card">
-            <h3><span class="step-number">2</span> Install the Application</h3>
-            <p><strong>DMG:</strong> Standard installation:</p>
-            <ul class="steps-list">
-              <li>Open the downloaded <strong>.dmg</strong> file</li>
-              <li>
-                Drag Mosaic Companion to your
-                <strong>Applications</strong> folder
-              </li>
-              <li>Eject the disk image when done</li>
-            </ul>
-          </div>
-
-          <div class="card">
-            <h3><span class="step-number">3</span> First Launch</h3>
-            <p>
-              Since Mosaic is not notarized by Apple, you'll need to allow it
-              manually:
-            </p>
-            <ul class="steps-list">
-              <li>
-                Open <strong>Applications</strong> and right-click on Mosaic
-                Companion
-              </li>
-              <li>Click <strong>"Open"</strong> from the context menu</li>
-              <li>
-                Click <strong>"Open"</strong> again in the security dialog
-              </li>
-            </ul>
-            <div class="notice warning">
-              <span class="notice-icon">⚠️</span>
-              <p>
-                If you double-click directly, macOS may block the app. Always
-                right-click → Open for the first launch.
-              </p>
-            </div>
-          </div>
-
-          <div class="card">
-            <h3>
-              <span class="step-number">4</span> Troubleshooting (Temporary for
-              macOS)
-            </h3>
-            <p>
-              Since Mosaic Companion is not yet code-signed, you may encounter
-              additional security warnings. Here are temporary workarounds:
-            </p>
-
-            <h4>Option 1: Terminal Command (Immediate Fix)</h4>
-            <p>
-              If you trust the Mosaic's source, you can bypass this security
-              check using the Terminal:
-            </p>
-            <ol class="steps-list">
-              <li>
-                Open Terminal from Applications > Utilities or via Spotlight
-                search.
-              </li>
-              <li>
-                Run the following command, replacing
-                <code>~/MosaicCompanion/Mosaic\ Companion.app</code> with the
-                actual path to your application (you can type the command and
-                then drag the application icon into the Terminal window to
-                auto-fill the path):
-              </li>
-            </ol>
-            <div class="code-block">
-              <code>xattr -cr /Applications/mosaic-companion.app</code>
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            </div>
-            <p>
-              (Note: the -cr flags remove all extended attributes recursively).
-            </p>
-            <p>
-              Press Enter to execute the command. You may need to enter your
-              administrator password.
-            </p>
-            <p>
-              Attempt to open the app again. It should now launch without the
-              error.
-            </p>
-
-            <h4>Option 2: Override Security Settings</h4>
-            <p>
-              Go to System Settings > Privacy & Security, look for a message
-              about Mosaic Companion (recently blocked) and click the "Open
-              Anyway" button.
-            </p>
-
-            <p>
-              <strong>Note:</strong> This is a temporary measure while we obtain
-              proper code signing. These steps will not be needed in future
-              releases.
-            </p>
           </div>
         </section>
 
         <!-- Linux Section -->
         <section id="linux" class="install-section">
-          <div class="card">
-            <h3><span class="step-number">1</span> Download Mosaic</h3>
-            <p>Choose the format that works best for your system:</p>
+          <button
+            type="button"
+            class="section-head"
+            data-os="linux"
+            aria-expanded="false"
+            aria-controls="linux-body"
+          >
+            <span class="section-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.067-.188-.135a.357.357 0 00-.19-.064c.431-1.278.264-2.55-.173-3.694-.533-1.41-1.465-2.638-2.175-3.483-.796-1.005-1.576-1.957-1.56-3.368.026-2.152.236-6.133-3.544-6.139z"
+                />
+              </svg>
+            </span>
+            <span class="section-name"
+              >Linux
+              <span class="section-sub">deb &amp; AppImage · x64 / arm64</span></span
+            >
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M6 9l6 6 6-6"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
 
-            <p style="margin-top: 20px; margin-bottom: 8px">
-              <strong>Debian / Ubuntu (.deb) - Recommended:</strong>
-            </p>
-            <div class="download-grid">
-              <a
-                href="https://licenses.aimarkets.ai/releases/linux/x64/mosaic-companion_{{VERSION}}_amd64.deb"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (x64)</div>
-                  <div class="arch">For 64-bit Intel/AMD</div>
-                </div>
-              </a>
-              <a
-                href="https://licenses.aimarkets.ai/releases/linux/arm64/mosaic-companion_{{VERSION}}_arm64.deb"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (ARM64)</div>
-                  <div class="arch">For ARM 64-bit (Raspberry Pi 4+, etc.)</div>
-                </div>
-              </a>
+          <div class="section-body" id="linux-body">
+            <div class="step-card">
+              <h3><span class="step-number">1</span> Download Mosaic</h3>
+              <p>Choose the format that works best for your system:</p>
+
+              <p class="dl-group-label">
+                <strong>Debian / Ubuntu (.deb) - Recommended:</strong>
+              </p>
+              <div class="download-grid">
+                <a
+                  href="https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion_{{VERSION}}_amd64.deb"
+                  class="download-btn"
+                  data-arch="x64"
+                >
+                  <span class="dl-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                    </svg>
+                  </span>
+                  <span class="dl-info">
+                    <span class="dl-name">deb — x64</span>
+                    <span class="dl-arch">For 64-bit Intel/AMD</span>
+                  </span>
+                  <span class="rec-tag" hidden>recommended</span>
+                </a>
+                <a
+                  href="https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion_{{VERSION}}_arm64.deb"
+                  class="download-btn"
+                  data-arch="arm64"
+                >
+                  <span class="dl-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                    </svg>
+                  </span>
+                  <span class="dl-info">
+                    <span class="dl-name">deb — ARM64</span>
+                    <span class="dl-arch">For ARM 64-bit (Raspberry Pi 4+, etc.)</span>
+                  </span>
+                  <span class="rec-tag" hidden>recommended</span>
+                </a>
+              </div>
+
+              <p class="dl-group-label">
+                <strong>AppImage (Universal, Portable):</strong>
+              </p>
+              <div class="download-grid">
+                <a
+                  href="https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion-{{VERSION}}-x64.AppImage"
+                  class="download-btn"
+                  data-arch="x64"
+                >
+                  <span class="dl-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                    </svg>
+                  </span>
+                  <span class="dl-info">
+                    <span class="dl-name">AppImage — x64</span>
+                    <span class="dl-arch">For 64-bit Intel/AMD (x86_64)</span>
+                  </span>
+                  <span class="rec-tag" hidden>recommended</span>
+                </a>
+                <a
+                  href="https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion-{{VERSION}}-arm64.AppImage"
+                  class="download-btn"
+                  data-arch="arm64"
+                >
+                  <span class="dl-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                    </svg>
+                  </span>
+                  <span class="dl-info">
+                    <span class="dl-name">AppImage — ARM64</span>
+                    <span class="dl-arch">For ARM 64-bit (aarch64)</span>
+                  </span>
+                  <span class="rec-tag" hidden>recommended</span>
+                </a>
+              </div>
             </div>
 
-            <p style="margin-top: 24px; margin-bottom: 8px">
-              <strong>AppImage (Universal, Portable):</strong>
-            </p>
-            <div class="download-grid">
-              <a
-                href="https://licenses.aimarkets.ai/releases/linux/x64/mosaic-companion-{{VERSION}}-x64.AppImage"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (x64)</div>
-                  <div class="arch">For 64-bit Intel/AMD (x86_64)</div>
-                </div>
-              </a>
-              <a
-                href="https://licenses.aimarkets.ai/releases/linux/arm64/mosaic-companion-{{VERSION}}-arm64.AppImage"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (ARM64)</div>
-                  <div class="arch">For ARM 64-bit (aarch64)</div>
-                </div>
-              </a>
-            </div>
-          </div>
+            <div class="step-card">
+              <h3><span class="step-number">2</span> Install</h3>
+              <p><strong>AppImage:</strong> Make it executable and run:</p>
+              <div class="code-block">
+                <code>chmod +x ~/Downloads/mosaic-companion*.AppImage &amp;&amp; ~/Downloads/mosaic-companion*.AppImage</code>
+                <button type="button" class="copy-btn" onclick="copyCode(this)">
+                  copy
+                </button>
+              </div>
+              <p class="dl-group-label">
+                <strong>Debian/Ubuntu (.deb):</strong> Install with dpkg (or
+                double-click the file to open your package installer):
+              </p>
+              <div class="code-block">
+                <code>sudo dpkg -i ~/Downloads/mosaic-companion*.deb</code>
+                <button type="button" class="copy-btn" onclick="copyCode(this)">
+                  copy
+                </button>
+              </div>
 
-          <div class="card">
-            <h3><span class="step-number">2</span> Install</h3>
-            <p><strong>AppImage:</strong> Make it executable and run:</p>
-            <div class="code-block">
-              <code
-                >chmod +x ~/Downloads/mosaic-companion*.AppImage &&
-                ~/Downloads/mosaic-companion*.AppImage</code
-              >
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            </div>
-            <p style="margin-top: 16px">
-              <strong>Debian/Ubuntu (.deb):</strong> Install with dpkg:
-            </p>
-            <div class="code-block">
-              <code>sudo dpkg -i ~/Downloads/mosaic-companion*.deb</code>
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            </div>
-
-            <div class="notice">
-              <span class="notice-icon">💡</span>
-              <p>
-                On some newer distros, you might need FUSE for AppImage:
+              <div class="notice">
+                <span class="notice-icon" aria-hidden="true">💡</span>
+                <p>
+                  On some newer distros, you might need FUSE for AppImage:
+                </p>
+              </div>
+              <div class="code-block">
                 <code>sudo apt install libfuse2</code>
-              </p>
-            </div>
-          </div>
-
-          <div class="card">
-            <h3><span class="step-number">3</span> Run Mosaic</h3>
-            <ul class="steps-list">
-              <li>
-                <strong>AppImage:</strong> Double-click the file or run from
-                terminal
-              </li>
-              <li>
-                <strong>Deb:</strong> Find "Mosaic Companion" in your
-                application menu
-              </li>
-            </ul>
-          </div>
-        </section>
-
-        <!-- Windows Section -->
-        <section id="windows" class="install-section">
-          <div class="card">
-            <h3><span class="step-number">1</span> Download Mosaic</h3>
-            <p>Choose the correct version for your system:</p>
-            <div class="download-grid">
-              <a
-                href="https://licenses.aimarkets.ai/releases/win32/x64/mosaic-companion-{{VERSION}}%20Setup.exe"
-                class="download-btn"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (x64)</div>
-                  <div class="arch">For 64-bit Windows (most common)</div>
-                </div>
-              </a>
-              <!-- <a
-                href="https://licenses.aimarkets.ai/releases/win32/arm64/mosaic-companion-{{VERSION}}%20Setup.exe"
-                class="download-btn disabled"
-              >
-                <div class="icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                </div>
-                <div class="info">
-                  <div>Mosaic Companion (ARM64) - Not Available Yet</div>
-                  <div class="arch">For ARM Windows (Coming Soon)</div>
-                </div>
-              </a> -->
+                <button type="button" class="copy-btn" onclick="copyCode(this)">
+                  copy
+                </button>
+              </div>
             </div>
 
-            <!-- <div class="notice">
-              <span class="notice-icon">💡</span>
-              <p>
-                Not sure which version? Most Windows PCs use x64. ARM is mainly
-                for newer Surface devices with Snapdragon chips.
-              </p>
-            </div> -->
-
-            <div class="notice">
-              <span class="notice-icon">💡</span>
-              <p>
-                <strong>Edge browser users:</strong> Edge may flag the download
-                as uncommon. Click the <strong>"···"</strong> (More actions)
-                icon next to the file → <strong>"Keep"</strong> →
-                then expand the <strong>"···"</strong> dropdown beside
-                "Delete" and select <strong>"Keep anyway"</strong>.
-                Chrome and Firefox download without issues.
-              </p>
+            <div class="step-card">
+              <h3><span class="step-number">3</span> Run Mosaic</h3>
+              <ul class="steps-list">
+                <li>
+                  <strong>AppImage:</strong> Double-click the file or run from
+                  terminal
+                </li>
+                <li>
+                  <strong>Deb:</strong> Find "Mosaic Companion" in your
+                  application menu
+                </li>
+              </ul>
             </div>
-          </div>
-
-          <div class="card">
-            <h3><span class="step-number">2</span> Install</h3>
-            <p><strong>Installer (.exe):</strong> Standard installation:</p>
-            <ul class="steps-list">
-              <li>Double-click the downloaded <strong>.exe</strong> file</li>
-              <li>
-                If Windows Defender SmartScreen appears, click
-                <strong>"More info"</strong>
-              </li>
-              <li>Then click <strong>"Run anyway"</strong></li>
-              <li>The app will install and launch automatically</li>
-            </ul>
-
-            <div class="notice warning">
-              <span class="notice-icon">⚠️</span>
-              <p>
-                Windows may show a warning because the app is not code-signed.
-                This is normal for open-source software.
-              </p>
-            </div>
-          </div>
-
-          <div class="card">
-            <h3><span class="step-number">3</span> Launch Mosaic</h3>
-            <ul class="steps-list">
-              <li>Find <strong>Mosaic Companion</strong> in your Start Menu</li>
-              <li>Or look for the desktop shortcut</li>
-              <li>The app will launch and you're ready to go!</li>
-            </ul>
           </div>
         </section>
       </div>
@@ -421,92 +562,508 @@
     <footer>
       <div class="container">
         <p>
-          Need help? Contact us at
-          <a href="mailto:admin@aimarkets.ai">admin@aimarkets.ai</a>
+          New to Mosaic? Read the
+          <a href="#getting-started" data-view-link="getting-started"
+            >getting-started guide</a
+          >.
         </p>
-        <p style="margin-top: 8px; font-size: 0.9rem">
-          © 2026 Mosaic Companion. Built with ❤️ by AIMarkets.
+        <p class="footer-meta">
+          © 2026 Mosaic Directory ·
+          <a href="https://github.com/hypercycle-development/mosaic-companion"
+            >Open source on GitHub</a
+          >
         </p>
       </div>
     </footer>
+    </div>
+    <!-- /#view-download -->
+
+    <div id="view-getting-started" hidden>
+      <header class="gs-header">
+        <div class="container">
+          <div class="badge">
+            <span aria-hidden="true">✦</span> Getting Started Guide
+          </div>
+          <h1 class="headline" style="font-size: clamp(2rem, 5vw, 3rem)">
+            Get Started with Mos<span class="gradient-text">AI</span>c
+          </h1>
+          <p class="subtitle" style="font-size: 1.05rem">
+            Install Mosaic, connect a free AI model, and find your way
+            around — no technical background needed. About 15 minutes,
+            start to finish.
+          </p>
+        </div>
+      </header>
+
+      <main class="container gs-main">
+        <!-- PHASE 1 -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">⬇</div>
+            <h2>Phase 1 — Install Mosaic</h2>
+          </div>
+          <div class="glass">
+            <p>
+              Grab the installer for your system from the
+              <a href="#" data-view-link="download">download page</a> — it
+              has step-by-step instructions for Windows, macOS, and Linux,
+              including how to get past the "unsigned app" warnings you'll
+              see on first launch (normal for open-source software that
+              isn't code-signed yet).
+            </p>
+            <a class="btn" href="#" data-view-link="download"
+              >Go to the download page →</a
+            >
+          </div>
+        </section>
+
+        <!-- PHASE 2 -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">✨</div>
+            <h2>Phase 2 — The Setup Wizard</h2>
+          </div>
+          <div class="cards c2">
+            <div class="glass">
+              <span class="stepnum">What you'll see</span>
+              <h3>A short welcome tour</h3>
+              <p>The first time Mosaic opens, a wizard walks you through:</p>
+              <ol>
+                <li><span class="hl">Welcome</span> — click <span class="hl">Get Started</span></li>
+                <li><span class="hl">Features</span> — a quick overview of what Mosaic can do</li>
+                <li>
+                  <span class="hl">Add your first AI agent</span> — this is
+                  where your AI model gets connected. Keep this screen open
+                  and get your free key in Phase 3 →
+                </li>
+              </ol>
+            </div>
+            <div class="glass">
+              <span class="stepnum">Good to know</span>
+              <h3>You can't get this wrong</h3>
+              <ul>
+                <li>
+                  Clicked <span class="hl">Skip for now</span>? No problem —
+                  you can add an agent anytime under
+                  <span class="hl">Configuration → AI Agents → Add Agent</span>
+                  (same fields as the wizard).
+                </li>
+                <li>
+                  Want to see the wizard again?
+                  <span class="hl">Configuration → Replay Onboarding</span>.
+                </li>
+                <li>
+                  An "agent" is just an AI model plus your key for it. You
+                  can add several and switch between them.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- PHASE 3 -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">🔑</div>
+            <h2>Phase 3 — Get a Free Gemini API Key</h2>
+          </div>
+          <p style="color: var(--muted); margin-bottom: 24px">
+            Google's AI Studio gives you a free key for the Gemini models —
+            no credit card needed.
+          </p>
+          <div class="cards c4">
+            <div class="glass">
+              <span class="stepnum">Step 01</span>
+              <h3>Sign in</h3>
+              <p>Go to AI Studio and log in with your Google account.</p>
+              <a class="btn ghost" href="https://aistudio.google.com" target="_blank" rel="noopener">Open AI Studio ↗</a>
+            </div>
+            <div class="glass">
+              <span class="stepnum">Step 02</span>
+              <h3>Find the API menu</h3>
+              <p>
+                Look for <span class="hl">"Get API key"</span> in the
+                bottom-left sidebar, then the
+                <span class="hl">"Create API key"</span> button in the top
+                right.
+              </p>
+            </div>
+            <div class="glass">
+              <span class="stepnum">Step 03</span>
+              <h3>Create a project</h3>
+              <p>
+                In the popup, choose <span class="hl">"Create Project"</span>,
+                name it something like <span class="hl">Mosaic</span>, click
+                Create, then the final <span class="hl">"Create Key"</span>
+                button.
+              </p>
+            </div>
+            <div class="glass">
+              <span class="stepnum">Step 04</span>
+              <h3>Copy the key</h3>
+              <p>
+                Click the partial key text (e.g.
+                <code>...kJsY</code>) to reveal the full key, and copy it.
+              </p>
+              <p style="margin-top: 8px">
+                <span class="hl">Treat it like a password</span> — don't
+                share or post it.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- PHASE 4 -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">🔌</div>
+            <h2>Phase 4 — Connect Gemini to Mosaic</h2>
+          </div>
+          <div class="cards c2">
+            <div class="glass">
+              <span class="stepnum">Enter these details</span>
+              <h3>In the wizard's agent screen</h3>
+              <p>
+                (or Configuration → AI Agents →
+                <span class="hl">Add Agent</span> if you skipped the wizard)
+              </p>
+              <table>
+                <tr><td>Provider</td><td>Select <span class="hl">Custom Endpoint</span></td></tr>
+                <tr><td>Name</td><td>Anything you like — e.g. <span class="hl">Gemini</span></td></tr>
+                <tr><td>Model</td><td><span class="copy" onclick="cp(this)">gemini-3-flash-preview</span></td></tr>
+                <tr><td>Base URL</td><td><span class="copy" onclick="cp(this)">https://generativelanguage.googleapis.com/v1beta/openai</span></td></tr>
+                <tr><td>API Key</td><td>Paste the key from Phase 3</td></tr>
+              </table>
+            </div>
+            <div class="glass">
+              <span class="stepnum">Verify &amp; save</span>
+              <h3>Test the connection</h3>
+              <ol>
+                <li>Switch the <span class="hl">Active</span> toggle ON (green)</li>
+                <li>Click <span class="hl">Test Connection</span></li>
+                <li>Look for <span style="color: var(--good); font-weight: 600">"Connection established successfully!"</span></li>
+                <li>Click <span class="hl">Save</span> (or <span class="hl">Continue</span> in the wizard)</li>
+              </ol>
+              <p style="margin-top: 10px">
+                Your key is stored on this device only, encrypted with your
+                computer's built-in keychain.
+              </p>
+              <div class="note warn">
+                <div>
+                  <span class="hl">Test failed?</span><br />
+                  • <span class="hl">"Quota exceeded"</span> — free keys have
+                  small daily limits and occasionally start rate-limited.
+                  Your key is fine; wait a few minutes (or up to a day) and
+                  test again.<br />
+                  • <span class="hl">"Invalid key / unauthorized"</span> —
+                  re-paste the entire key with no extra spaces or line
+                  breaks.<br />
+                  • <span class="hl">"Model not found"</span> — Google
+                  renames models over time; check the current model list at
+                  <a style="color: var(--cyan)" href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noopener">ai.google.dev</a>
+                  and use the newest "flash" model name.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PHASE 5 -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">🧭</div>
+            <h2>Phase 5 — Say Hello &amp; Find Your Way Around</h2>
+          </div>
+          <div class="note good" style="margin-bottom: 20px">
+            <div>
+              <span class="hl">First stop: AI Chat.</span> After finishing the
+              wizard Mosaic drops you straight into
+              <span class="hl">AI Chat</span> — say hello to your new agent.
+              You can always get back to it from the left sidebar (open it
+              with the ☰ button, top-left).
+            </div>
+          </div>
+          <div class="glass">
+            <span class="stepnum">The sidebar, decoded</span>
+            <h3>What each section is for</h3>
+            <table>
+              <tr><td>AI Chat</td><td>One-on-one chat with your AI agents — <span class="hl">this is the main chat</span>, where you'll spend most of your time.</td></tr>
+              <tr><td>Mosaic Bot</td><td>A built-in background assistant with long-term memory. Different from AI Chat — think of it as Mosaic's own helper.</td></tr>
+              <tr><td>Chat Rooms</td><td>Shared rooms where several people and agents can talk together. Needs a chat server — safe to ignore at first.</td></tr>
+              <tr><td>MCP Servers</td><td>Optional plug-ins that give your agents extra tools. Ignore until you need them.</td></tr>
+              <tr><td>Web 3</td><td>Connect a crypto wallet, set transfer limits, and control what agents may spend. Only relevant if you use crypto.</td></tr>
+              <tr><td>Vault</td><td>Encrypted boxes for your own notes and secrets — you choose which agents can read each box. Try it: create a box, put something in, and ask your agent what's in your vault.</td></tr>
+              <tr><td>Addons</td><td>Optional installable tabs (Settings → Addons) that add functionality beyond the core app — analytics, marketplaces, and more, added as they become available.</td></tr>
+              <tr><td>IDE</td><td>A built-in code editor. For programmers — everyone else can skip it.</td></tr>
+              <tr><td>Tool Sandbox</td><td>Install small, safely-sandboxed tools that agents can run. Optional.</td></tr>
+              <tr><td>Configuration</td><td>Settings — including <span class="hl">AI Agents</span>, where keys and models live.</td></tr>
+            </table>
+            <div class="note" style="margin-top: 16px">
+              <div>
+                💡 <span class="hl">Mosaic works like a browser:</span> the
+                <span class="kbd">+</span> button at the top opens everything
+                in tabs, exactly like the browser you already know.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PHASE 6 -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">🔄</div>
+            <h2>Phase 6 — Staying Up to Date</h2>
+          </div>
+          <div class="cards c2">
+            <div class="glass">
+              <span class="stepnum">Automatic</span>
+              <h3>Mosaic tells you</h3>
+              <p>
+                When a new version is out, Mosaic shows an
+                <span class="hl">"Update Available"</span> message when it
+                starts, pointing you to the download page. Grab the new
+                file and install it the same way you did in Phase 1. Your
+                settings, agents, and vault stay put.
+              </p>
+            </div>
+            <div class="glass">
+              <span class="stepnum">Manual</span>
+              <h3>Check anytime</h3>
+              <p>
+                Open <span class="hl">Configuration</span> and click
+                <span class="hl">Check for Updates</span>.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- TROUBLESHOOTING -->
+        <section class="phase">
+          <div class="phase-head">
+            <div class="phase-icon" aria-hidden="true">🛟</div>
+            <h2>Troubleshooting</h2>
+          </div>
+          <div class="glass">
+            <table>
+              <tr><td>Agent doesn't answer</td><td>Mosaic shows the reason right in the chat (e.g. missing key, quota) with a pointer to fix it. Check <span class="hl">Configuration → AI Agents</span>: is your agent's <span class="hl">Active</span> toggle green, and does <span class="hl">Test Connection</span> pass?</td></tr>
+              <tr><td>"Quota exceeded"</td><td>Free Gemini keys have small daily limits. Wait and retry — the key itself is fine. If you hit this often, create a second key in a new AI Studio project, or enable billing with Google.</td></tr>
+              <tr><td>"Connection failed"</td><td>Re-copy the Model and Base URL from Phase 4 exactly (no extra spaces), and re-paste the full API key.</td></tr>
+              <tr><td>Mac: "app is damaged"</td><td>Run <code>xattr -cr /Applications/mosaic-companion.app</code> in Terminal, or System Settings → Privacy &amp; Security → <span class="hl">Open Anyway</span>. Full steps on the download page.</td></tr>
+              <tr><td>AppImage won't start</td><td>Make it executable (<code>chmod +x</code> or right-click → Properties), and on newer Ubuntu install FUSE: <code>sudo apt install libfuse2</code>.</td></tr>
+              <tr><td>Something else</td><td>Open an issue at <a style="color: var(--cyan)" href="https://github.com/hypercycle-development/mosaic-companion/issues" target="_blank" rel="noopener">github.com/hypercycle-development/mosaic-companion</a>.</td></tr>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <a href="https://github.com/hypercycle-development/mosaic-companion" target="_blank" rel="noopener">Mosaic on GitHub</a>
+        · <a href="#" data-view-link="download">Back to downloads</a>
+      </footer>
+    </div>
+    <!-- /#view-getting-started -->
 
     <script>
-      // Tab switching
-      document.querySelectorAll(".tab-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          // Remove active from all tabs and sections
-          document
-            .querySelectorAll(".tab-btn")
-            .forEach((b) => b.classList.remove("active"));
-          document
-            .querySelectorAll(".install-section")
-            .forEach((s) => s.classList.remove("active"));
+      // ---- OS detection ------------------------------------------------
+      function detectOS() {
+        var ua = navigator.userAgent || "";
+        var platform =
+          (navigator.userAgentData && navigator.userAgentData.platform) ||
+          navigator.platform ||
+          "";
+        var probe = platform + " " + ua;
+        if (/Android/i.test(ua)) return null;
+        if (/Mac/i.test(probe)) return "mac";
+        if (/Win/i.test(probe)) return "windows";
+        if (/Linux|X11|CrOS/i.test(probe)) return "linux";
+        return null;
+      }
 
-          // Add active to clicked tab and corresponding section
-          btn.classList.add("active");
-          document.getElementById(btn.dataset.platform).classList.add("active");
+      // ---- Arch detection (best effort) --------------------------------
+      function detectArch(os) {
+        // Chromium: high-entropy client hint
+        if (
+          navigator.userAgentData &&
+          navigator.userAgentData.getHighEntropyValues
+        ) {
+          return navigator.userAgentData
+            .getHighEntropyValues(["architecture"])
+            .then(function (values) {
+              if (!values.architecture) return null;
+              return /arm/i.test(values.architecture) ? "arm64" : "x64";
+            })
+            .catch(function () {
+              return null;
+            });
+        }
+        // macOS Safari/Firefox: WebGL renderer hint for Apple Silicon
+        if (os === "mac") {
+          try {
+            var canvas = document.createElement("canvas");
+            var gl =
+              canvas.getContext("webgl") ||
+              canvas.getContext("experimental-webgl");
+            if (gl) {
+              var ext = gl.getExtension("WEBGL_debug_renderer_info");
+              var renderer = ext
+                ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
+                : "";
+              if (/Apple M\d/i.test(renderer)) {
+                return Promise.resolve("arm64");
+              }
+            }
+          } catch (e) {
+            /* ignore */
+          }
+        }
+        return Promise.resolve(null);
+      }
+
+      // ---- Section open/close ------------------------------------------
+      function setSectionOpen(os, open) {
+        var section = document.getElementById(os);
+        if (!section) return;
+        section.classList.toggle("open", open);
+        var head = section.querySelector(".section-head");
+        if (head) head.setAttribute("aria-expanded", open ? "true" : "false");
+      }
+
+      function openAndScroll(os) {
+        setSectionOpen(os, true);
+        var section = document.getElementById(os);
+        if (section) {
+          section.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }
+
+      // OS cards: open the matching section and scroll to it
+      document.querySelectorAll(".os-card").forEach(function (card) {
+        card.addEventListener("click", function () {
+          openAndScroll(card.dataset.os);
         });
       });
 
-      // Copy code functionality
-      function copyCode(button) {
-        const codeBlock = button.previousElementSibling;
-        navigator.clipboard.writeText(codeBlock.textContent).then(() => {
-          button.textContent = "Copied!";
-          setTimeout(() => (button.textContent = "Copy"), 2000);
+      // Section headers: toggle their own section
+      document.querySelectorAll(".section-head").forEach(function (head) {
+        head.addEventListener("click", function () {
+          var section = document.getElementById(head.dataset.os);
+          setSectionOpen(head.dataset.os, !section.classList.contains("open"));
         });
-      }
+      });
 
-      // Specialized releases logic
-      async function fetchSpecializedReleases() {
-        // Only run on main index page (not in experimental subfolders)
-        if (window.location.pathname.includes("/experimental/")) {
+      // ---- Apply detection on load --------------------------------------
+      (function () {
+        var os = detectOS();
+        if (!os) {
+          // Unknown platform: leave everything reachable, open nothing.
           return;
         }
-
-        try {
-          const response = await fetch(
-            "https://mosaic-release.s3.us-east-2.amazonaws.com/?list-type=2&prefix=releases/experimental/&delimiter=/",
-          );
-          const text = await response.text();
-          const parser = new DOMParser();
-          const xml = parser.parseFromString(text, "text/xml");
-          const prefixes = xml.querySelectorAll("CommonPrefixes Prefix");
-          const linksContainer = document.getElementById("specialized-links");
-          const section = document.getElementById("specialized-section");
-
-          const names = [];
-          const hidden = ["hyperinsight"];
-          prefixes.forEach((prefixNode) => {
-            const prefix = prefixNode.textContent;
-            // Prefix is like "releases/experimental/screenpipe/"
-            const parts = prefix.split("/");
-            const name = parts[parts.length - 2];
-            if (name && name !== "experimental" && !hidden.includes(name)) {
-              names.push({ name, prefix });
-            }
-          });
-
-          if (names.length > 0) {
-            names.forEach((item, index) => {
-              const link = document.createElement("a");
-              link.href = `https://licenses.aimarkets.ai/${item.prefix}`;
-              link.textContent = item.name;
-              link.className = "specialized-link";
-              linksContainer.appendChild(link);
-              if (index < names.length - 1) {
-                const separator = document.createTextNode(", ");
-                linksContainer.appendChild(separator);
-              }
-            });
-            section.style.display = "flex";
-          }
-        } catch (error) {
-          console.error("Error fetching specialized releases:", error);
+        var card = document.querySelector('.os-card[data-os="' + os + '"]');
+        if (card) {
+          card.classList.add("detected");
+          var label = card.querySelector(".detected-label");
+          if (label) label.hidden = false;
         }
+        setSectionOpen(os, true);
+
+        detectArch(os).then(function (arch) {
+          if (!arch) return;
+          var section = document.getElementById(os);
+          if (!section) return;
+          section
+            .querySelectorAll('.download-btn[data-arch="' + arch + '"]')
+            .forEach(function (btn) {
+              btn.classList.add("recommended");
+              var tag = btn.querySelector(".rec-tag");
+              if (tag) tag.hidden = false;
+            });
+        });
+      })();
+
+      // ---- Click-to-copy -------------------------------------------------
+      function copyCode(button) {
+        var block = button.closest(".code-block");
+        var code = block ? block.querySelector("code") : null;
+        if (!code) return;
+        var text = code.textContent.replace(/\s+/g, " ").trim();
+        navigator.clipboard.writeText(text).then(
+          function () {
+            button.textContent = "copied ✓";
+            button.classList.add("copied");
+            setTimeout(function () {
+              button.textContent = "copy";
+              button.classList.remove("copied");
+            }, 2000);
+          },
+          function () {
+            button.textContent = "press ⌘/Ctrl+C";
+            setTimeout(function () {
+              button.textContent = "copy";
+            }, 2000);
+          },
+        );
       }
 
-      fetchSpecializedReleases();
+      // ---- Getting-started guide: click-to-copy on inline .copy spans ----
+      function cp(el) {
+        var t = el.textContent.trim();
+        (navigator.clipboard
+          ? navigator.clipboard.writeText(t)
+          : Promise.reject()
+        )
+          .then(function () {
+            el.classList.add("copied");
+            setTimeout(function () {
+              el.classList.remove("copied");
+            }, 1600);
+          })
+          .catch(function () {
+            var r = document.createRange();
+            r.selectNodeContents(el);
+            var s = getSelection();
+            s.removeAllRanges();
+            s.addRange(r);
+            document.execCommand("copy");
+            s.removeAllRanges();
+            el.classList.add("copied");
+            setTimeout(function () {
+              el.classList.remove("copied");
+            }, 1600);
+          });
+      }
+
+      // ---- Same-page view toggle (download ⇄ getting-started) -----------
+      // Two views live in one file so there's only ever one page to deploy;
+      // switching between them is a same-page show/hide, not a navigation.
+      (function () {
+        var downloadView = document.getElementById("view-download");
+        var gsView = document.getElementById("view-getting-started");
+
+        function showView(name) {
+          var toGs = name === "getting-started";
+          downloadView.hidden = toGs;
+          gsView.hidden = !toGs;
+          window.scrollTo(0, 0);
+        }
+
+        function applyHash() {
+          showView(
+            location.hash === "#getting-started" ? "getting-started" : "download",
+          );
+        }
+
+        document.querySelectorAll("[data-view-link]").forEach(function (link) {
+          link.addEventListener("click", function (e) {
+            e.preventDefault();
+            var target = link.dataset.viewLink;
+            location.hash = target === "getting-started" ? "getting-started" : "";
+            showView(target);
+          });
+        });
+
+        window.addEventListener("hashchange", applyHash);
+        applyHash();
+      })();
     </script>
   </body>
 </html>

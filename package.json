@@ -1,7 +1,7 @@
 {
   "name": "mosaic-companion",
   "description": "Mosaic Companion Application",
-  "version": "0.1.7",
+  "version": "0.1.9",
   "main": "dist/main/main.js",
   "author": "hypercycle",
   "scripts": {
@@ -80,6 +80,7 @@
     "@electron-forge/maker-deb": "^7.11.1",
     "@electron-forge/maker-dmg": "^7.11.1",
     "@electron-forge/maker-squirrel": "^7.11.1",
+    "@electron-forge/publisher-github": "^7.11.2",
     "@electron-forge/publisher-s3": "^7.11.1",
     "@playwright/test": "^1.58.2",
     "@reforged/maker-appimage": "^5.1.1",

@@ -1,5 +1,7 @@
 # Linux Update Metadata (S3)
 
+> **DEPRECATED / LEGACY:** this describes the retired S3 release channel. Main releases now ship via GitHub Releases + GitHub Pages — see [release-process.md](./release-process.md).
+
 To allow the Mosaic Companion application on Linux to detect new versions, a `latest.json` file must exist in the appropriate folder in the S3 bucket.
 
 ## Why is this needed?

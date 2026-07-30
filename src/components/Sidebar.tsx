@@ -43,6 +43,7 @@ import {
   INTERNAL_CHAT_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
   ADDON_URL_PREFIX,
+  type SidebarItem,
 } from "../types/types";
 import { CORE_TABS } from "../tabs/registry";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
@@ -309,7 +310,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     .filter((tab) => tab.visible)
     .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
 
-  const navItems: { id: string; label: string; icon: string; url: string }[] = [
+  // SidebarItem (not a narrower inline shape) so core tabs keep the
+  // hover-tooltip `description` the registry carries. Addon tabs have none —
+  // the render site falls back to the label.
+  const navItems: SidebarItem[] = [
     ...coreTabsBeforeSettings,
     ...visibleAddonTabs.map((tab) => ({
       id: tab.tabId,
@@ -322,9 +326,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // --- UI State for New Sections ---
   const [aiContexts, setAiContexts] = useState([
-    { id: "rag", label: "Local Neural Index", icon: Database, active: true },
-    { id: "files", label: "File System Bridge", icon: FileText, active: false },
-    { id: "screen", label: "Visual Cortex", icon: Monitor, active: false },
+    {
+      id: "rag",
+      label: "Local Neural Index",
+      icon: Database,
+      active: true,
+      description:
+        "Local Neural Index — local document memory for agents (preview)",
+    },
+    {
+      id: "files",
+      label: "File System Bridge",
+      icon: FileText,
+      active: false,
+      description: "File System Bridge — let agents read local files (preview)",
+    },
+    {
+      id: "screen",
+      label: "Visual Cortex",
+      icon: Monitor,
+      active: false,
+      description: "Visual Cortex — let agents see your screen (preview)",
+    },
   ]);
 
   const toggleContext = (id: string) => {
@@ -432,6 +455,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.url)}
+                title={item.description ?? item.label}
                 className={`
                   w-full flex items-center px-3 py-3 rounded-lg transition-all relative group
                   ${
@@ -557,7 +581,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* 3. AI Context / Neural Bridges */}
         <div className="space-y-2 px-3">
           <div className="px-3 mb-2 flex items-center justify-between text-[10px] font-bold text-gray-600 uppercase tracking-widest">
-            <span>Neural Bridges</span>
+            <span>
+              Neural Bridges{" "}
+              <span className="normal-case font-medium text-gray-700">
+                (preview)
+              </span>
+            </span>
             <Cpu size={12} />
           </div>
 
@@ -566,6 +595,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={ctx.id}
               className="w-full flex items-center px-3 py-2.5 rounded-lg relative group cursor-pointer hover-surface-accent transition-colors"
               onClick={() => toggleContext(ctx.id)}
+              title={ctx.description}
             >
               <ctx.icon
                 className={`size-4 transition-colors mr-3 ${
@@ -659,7 +689,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   >
                     {/* Header row: status dot + name + toggle */}
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
+                      <div
+                        className="flex items-center gap-2"
+                        title={
+                          node.isActive && !isLive
+                            ? "This Hypercycle node is configured but not reachable right now — it doesn't affect regular AI agents"
+                            : undefined
+                        }
+                      >
                         <div
                           className="w-2 h-2 rounded-full"
                           style={{
