@@ -86,6 +86,9 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
   const [catalogue, setCatalogue] = useState<CatalogueEntry[] | null>(null);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
   const [catalogueError, setCatalogueError] = useState<string | null>(null);
+  // "Nothing published yet" is a normal state, not a failure — kept separate
+  // from catalogueError so it doesn't render as a red error with a Retry.
+  const [catalogueUnavailable, setCatalogueUnavailable] = useState(false);
 
   const isDevBuild = true; // §7.4 gate is really !app.isPackaged / MOSAIC_ADDON_DEV — enforced main-side; UI just always offers the entry point and lets the main process reject if not a dev build.
   const [devPathInput, setDevPathInput] = useState<string | null>(null);
@@ -200,9 +203,13 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
   const browseAddons = async () => {
     setCatalogueLoading(true);
     setCatalogueError(null);
+    setCatalogueUnavailable(false);
     try {
       const result = await window.electronAPI.addons.fetchCatalogue();
-      if (!result.success) {
+      if (result.unavailable) {
+        setCatalogueUnavailable(true);
+        setCatalogue(null);
+      } else if (!result.success) {
         setCatalogueError(result.error || "Failed to fetch the addon catalogue");
         setCatalogue(null);
       } else {
@@ -471,6 +478,16 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
             <button onClick={browseAddons} className="text-red-300 hover:underline">
               Retry
             </button>
+          </div>
+        )}
+
+        {catalogueUnavailable && (
+          <div className="text-sm text-gray-400 bg-gray-800/40 border border-gray-700/50 rounded-lg p-3 mb-3">
+            <p className="mb-1 text-gray-300">No addon catalogue is published yet.</p>
+            <p className="text-gray-500">
+              One-click install arrives with the signed catalogue. Until then, addons are installed
+              manually — see the Dev corner below, or the addon repository for what's available.
+            </p>
           </div>
         )}
 

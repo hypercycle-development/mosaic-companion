@@ -382,8 +382,10 @@ declare global {
         setEnabled: (id: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
         installDev: (devPath: string) => Promise<{ success: boolean; id?: string; error?: string }>;
         getPreloadPath: () => Promise<string>;
-        fetchCatalogue: (opts?: { registryUrl?: string; sigUrl?: string }) => Promise<{
+        fetchCatalogue: () => Promise<{
           success: boolean;
+          /** True when no signed catalogue is published yet — a normal state, not an error. */
+          unavailable?: boolean;
           addons?: Array<{
             id: string;
             name: string;

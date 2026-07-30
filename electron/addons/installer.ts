@@ -17,7 +17,7 @@ import crypto from "crypto";
 import semver from "semver";
 import * as tar from "tar";
 import { getErrorMessage } from "../utils";
-import { verifyRegistry, type RegistrySignatureEnvelope } from "./signing";
+import { verifyRegistry, trustedPublisherKeys, type RegistrySignatureEnvelope } from "./signing";
 import { validateManifest, type AddonManifest } from "./manifest";
 import {
   getAddonEntry,
@@ -32,9 +32,14 @@ import { activateAddon, deactivateAddon, isAddonActivated, getAddonRoot } from "
 import { dirSizeBytes } from "./api/files";
 
 // =============================================================================
-// Registry location — mosaic-addons is real now (private repo, pending
-// public release). Every function below also accepts an explicit URL
-// override, which is what tests use.
+// Registry location. Build constants, deliberately not renderer-overridable
+// (see the `addons:fetch-catalogue` handler in main.ts) — the `opts` params
+// below are for main-process callers and tests only.
+//
+// No signed catalogue is published yet: the production signing key doesn't
+// exist, so `trustedPublisherKeys()` is empty in a packaged build and
+// `fetchCatalogue` reports the catalogue as unavailable rather than failing
+// verification against a URL that may not even be serving a registry.
 // =============================================================================
 
 export const DEFAULT_REGISTRY_URL =
@@ -42,34 +47,11 @@ export const DEFAULT_REGISTRY_URL =
 export const DEFAULT_REGISTRY_SIG_URL =
   "https://raw.githubusercontent.com/hypercycle-development/mosaic-addons/main/addon-registry.json.sig";
 
-// =============================================================================
-// TEMPORARY pre-release testing shim — remove once mosaic-addons goes public.
-//
-// mosaic-addons is currently a *private* GitHub repo, so unauthenticated
-// fetches to raw.githubusercontent.com 404. `MOSAIC_ADDON_REGISTRY_TOKEN`
-// (a narrowly-scoped, read-only, repo-specific fine-grained PAT — set by a
-// human, never generated or persisted by this app) lets a dev build reach
-// it for testing. When the env var is unset — the only supported state for
-// any real user — every fetch below is byte-identical to a plain
-// unauthenticated `fetch(url)`, exactly as before this shim existed.
-//
-// Header scheme: fine-grained PATs use `Authorization: Bearer <token>`
-// (the current GitHub-documented scheme; also what api.github.com's own
-// `/user` endpoint accepts for this token, confirmed against the real repo).
-// The token is read fresh from `process.env` on every call — never cached,
-// never written to disk, never logged.
-// =============================================================================
-
-function registryFetchHeaders(): HeadersInit | undefined {
-  const token = process.env.MOSAIC_ADDON_REGISTRY_TOKEN;
-  if (!token) return undefined;
-  return { Authorization: `Bearer ${token}` };
-}
-
-function authedFetch(url: string): Promise<Response> {
-  const headers = registryFetchHeaders();
-  return headers ? fetch(url, { headers }) : fetch(url);
-}
+// The `MOSAIC_ADDON_REGISTRY_TOKEN` shim that used to live here existed only
+// because mosaic-addons was a private repo, so unauthenticated fetches to
+// raw.githubusercontent.com 404'd. The repo is public now, so registry
+// fetches are plain unauthenticated `fetch` again and the app carries no
+// credential for the catalogue at all.
 
 // =============================================================================
 // Types
@@ -110,14 +92,26 @@ export function getCachedCatalogueEntry(id: string): CatalogueEntry | undefined 
 export async function fetchCatalogue(opts?: {
   registryUrl?: string;
   sigUrl?: string;
-}): Promise<{ success: boolean; addons?: CatalogueEntry[]; error?: string }> {
+}): Promise<{ success: boolean; addons?: CatalogueEntry[]; error?: string; unavailable?: boolean }> {
+  // Distinguish "no catalogue is published yet" from "the catalogue is
+  // broken". With no trust anchor there is nothing a registry could say that
+  // we'd believe, so don't fetch at all — and let the UI say so plainly
+  // rather than showing a signature-verification failure.
+  if (trustedPublisherKeys().length === 0) {
+    return {
+      success: false,
+      unavailable: true,
+      error: "No addon catalogue is published yet — addons are installed manually for now.",
+    };
+  }
+
   const registryUrl = opts?.registryUrl ?? DEFAULT_REGISTRY_URL;
   const sigUrl = opts?.sigUrl ?? DEFAULT_REGISTRY_SIG_URL;
 
   let registryBytes: Buffer;
   let sigJson: unknown;
   try {
-    const [registryResp, sigResp] = await Promise.all([authedFetch(registryUrl), authedFetch(sigUrl)]);
+    const [registryResp, sigResp] = await Promise.all([fetch(registryUrl), fetch(sigUrl)]);
     if (!registryResp.ok) return { success: false, error: `Failed to fetch registry: HTTP ${registryResp.status}` };
     if (!sigResp.ok) return { success: false, error: `Failed to fetch registry signature: HTTP ${sigResp.status}` };
     registryBytes = Buffer.from(await registryResp.arrayBuffer());
@@ -172,7 +166,7 @@ interface StagedTarball {
 async function downloadVerifyUnpack(entry: CatalogueEntry): Promise<StagedTarball> {
   let tarballBuf: Buffer;
   try {
-    const resp = await authedFetch(entry.tarballUrl);
+    const resp = await fetch(entry.tarballUrl);
     if (!resp.ok) throw new Error(`Failed to download tarball: HTTP ${resp.status}`);
     tarballBuf = Buffer.from(await resp.arrayBuffer());
   } catch (error) {

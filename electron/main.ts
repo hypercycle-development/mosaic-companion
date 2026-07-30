@@ -421,10 +421,12 @@ app.whenReady().then(() => {
   ipcMain.handle("addons:get-preload-path", async () => ADDON_PRELOAD_PATH);
 
   // Phase 4 — registry/installer surface
-  ipcMain.handle(
-    "addons:fetch-catalogue",
-    async (_event: IpcMainInvokeEvent, opts?: { registryUrl?: string; sigUrl?: string }) => fetchCatalogue(opts),
-  );
+  // No renderer-supplied registry URL: the catalogue location is a build
+  // constant. A renderer-chosen URL would let anything running in the
+  // renderer point the installer at a registry of its choosing, and an
+  // accepted registry ends in `confirmInstall` running an addon's
+  // `main/index.js` in the main process.
+  ipcMain.handle("addons:fetch-catalogue", async () => fetchCatalogue());
   ipcMain.handle("addons:install", async (_event: IpcMainInvokeEvent, id: string) => beginInstall(id));
   ipcMain.handle(
     "addons:install-confirm",

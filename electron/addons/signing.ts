@@ -5,20 +5,28 @@
  * The app trusts a small pinned *list* of public keys, not one hardcoded
  * key, so a future rotation is additive (§6.7's rotation procedure).
  *
- * IMPORTANT: `TRUSTED_PUBLISHER_KEYS` currently holds two entries, **both
- * test-only placeholder keys**, not the real `mosaic-addons` production key
- * (that key does not exist yet — real key generation, GitHub Actions
- * secrets, and authenticated production distribution are all explicitly
- * deferred, see the `mosaic-addons` README's GO-LIVE TODO):
- *   - `4b7d6575` — this repo's own generic dev/test key
- *     (`tests/addons/fixtures/`), used by this repo's own test fixtures.
- *   - `78e2469a` — the `mosaic-addons` repo's own test key
- *     (`fixtures/test-signing-key.json` there), used to sign the real
- *     `addon-registry.json` currently committed into that (still-private)
- *     repo for pre-release testing of the real browse-catalogue flow. Not
- *     the production key — swap/extend this entry once one exists.
+ * IMPORTANT: there is **no production key yet** — real key generation,
+ * GitHub Actions secrets, and authenticated production distribution are all
+ * still deferred (see the `mosaic-addons` README's GO-LIVE TODO). So
+ * `PRODUCTION_PUBLISHER_KEYS` is deliberately empty and a packaged build
+ * trusts nothing: every registry signature fails to verify, which is the
+ * correct behaviour while no signed catalogue is published.
+ *
+ * The two keys below are **dev/test only and must never be trusted in a
+ * packaged build**, because the *private* half of each is committed to a
+ * repository:
+ *   - `4b7d6575` — this repo's own dev/test key. Its private half is in
+ *     `tests/addons/fixtures/test-signing-key.json`, in this public repo.
+ *   - `78e2469a` — the `mosaic-addons` repo's test key, private half in
+ *     `fixtures/test-signing-key.json` there (public once that repo is).
+ *
+ * Trusting either in a release build would mean anyone could sign a
+ * registry the app accepts — and an accepted registry leads, via
+ * `confirmInstall`, to running an addon's `main/index.js` in the main
+ * process. Hence the `app.isPackaged` gate, which fails closed.
  */
 
+import { app } from "electron";
 import { createPublicKey, createHash, verify as cryptoVerify } from "crypto";
 
 export interface TrustedPublisherKey {
@@ -32,7 +40,19 @@ export interface TrustedPublisherKey {
   retiredAt: string | null;
 }
 
-export const TRUSTED_PUBLISHER_KEYS: TrustedPublisherKey[] = [
+/**
+ * Real publisher keys. Empty until the production `mosaic-addons` key is
+ * generated under §6.7's custody procedure and pinned here as its own dated
+ * entry. Adding the first entry is what turns the signed catalogue on.
+ */
+export const PRODUCTION_PUBLISHER_KEYS: TrustedPublisherKey[] = [];
+
+/**
+ * Dev/test keys — trusted **only** in a non-packaged build. Both private
+ * halves are committed in repositories (see the file header), so these can
+ * never be trust anchors for a real user.
+ */
+export const DEV_ONLY_PUBLISHER_KEYS: TrustedPublisherKey[] = [
   {
     keyId: "4b7d6575",
     publicKey:
@@ -51,6 +71,17 @@ export const TRUSTED_PUBLISHER_KEYS: TrustedPublisherKey[] = [
     retiredAt: null,
   },
 ];
+
+/**
+ * The keys this build actually trusts. Fails closed: if `app` is somehow
+ * unavailable (imported outside Electron) `isPackaged` reads as `undefined`
+ * and we treat the build as packaged, so only production keys apply — and
+ * there are none yet.
+ */
+export function trustedPublisherKeys(): TrustedPublisherKey[] {
+  const packaged = app?.isPackaged ?? true;
+  return packaged ? PRODUCTION_PUBLISHER_KEYS : [...PRODUCTION_PUBLISHER_KEYS, ...DEV_ONLY_PUBLISHER_KEYS];
+}
 
 export interface RegistrySignatureEnvelope {
   keyId: string;
@@ -74,7 +105,7 @@ export function verifyRegistry(bytes: Buffer | string, envelope: RegistrySignatu
     return { verified: false, reason: "Malformed signature envelope" };
   }
 
-  const pinned = TRUSTED_PUBLISHER_KEYS.find((k) => k.keyId === envelope.keyId);
+  const pinned = trustedPublisherKeys().find((k) => k.keyId === envelope.keyId);
   if (!pinned) {
     return { verified: false, reason: `Unrecognized signing key "${envelope.keyId}"` };
   }
