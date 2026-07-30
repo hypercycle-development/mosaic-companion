@@ -548,10 +548,20 @@ export function registerAimNodesIpc(ipcMain) {
   const adapterName = 'AIM-Node-Tools';
   const legacyAdapterName = 'HyperInsight-AIMs';
   const existingByNewName = pluginManager.list().find(p => p.name === adapterName);
-  const existingLegacy = !existingByNewName
-    ? pluginManager.list().find(p => p.name === legacyAdapterName)
-    : null;
+  const legacyEntry = pluginManager.list().find(p => p.name === legacyAdapterName);
+  const existingLegacy = !existingByNewName ? legacyEntry : null;
   const existing = existingByNewName || existingLegacy;
+
+  // A profile can end up holding BOTH names — running the app from more than
+  // one checkout registers an entry per checkout, each baking in the
+  // executable path it saw at registration. The rename below adopts the
+  // new-name entry and would leave the legacy one orphaned, still pointing at
+  // a path that may no longer exist: it then fails to spawn on every launch
+  // and logs ENOENT. Drop it rather than leave a permanently broken adapter.
+  if (existingByNewName && legacyEntry) {
+    pluginManager.remove(legacyEntry.id);
+    console.log(`[AimNodes] Removed orphaned MCP adapter "${legacyAdapterName}" (superseded by "${adapterName}")`);
+  }
   const configPath = path.join(app.getPath('userData'), 'app-settings.json');
   const mediaStoragePath = path.join(app.getPath('userData'), 'mosaic-media');
   const serverArgs = [path.join(__dirname, 'mcp-server.js'), getAimsStoragePath(), configPath, mediaStoragePath];
