@@ -79,6 +79,7 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
     id: string;
     name: string;
     permissions: string[];
+    hasMainEntry?: boolean;
     mode: "install" | "upgrade";
   } | null>(null);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
@@ -226,7 +227,13 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
       toast.error(result.error || "Failed to start install");
       return;
     }
-    setConsentDialog({ id: entry.id, name: entry.name, permissions: result.needsConsent ?? [], mode: "install" });
+    setConsentDialog({
+      id: entry.id,
+      name: entry.name,
+      permissions: result.needsConsent ?? [],
+      hasMainEntry: result.hasMainEntry ?? false,
+      mode: "install",
+    });
   };
 
   const confirmInstallConsent = () =>
@@ -556,6 +563,22 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
                 ? `The updated version of ${consentDialog.name} requests additional permissions:`
                 : "This addon requests the following permissions:"}
             </p>
+            {/* Permissions describe what the addon's *page* may ask the app to
+                do. An addon that also ships main-process code is not bound by
+                them at all, so saying "no special permissions" without this
+                would be actively misleading. main.entry is restricted to
+                first-party addons (MAIN_ENTRY_ALLOWLIST), which is what makes
+                the sentence below true rather than reassuring. */}
+            {consentDialog.hasMainEntry && (
+              <div className="text-sm rounded-lg border border-amber-600/40 bg-amber-900/15 p-3 mb-4">
+                <p className="text-amber-200 font-medium mb-1">This addon runs privileged code.</p>
+                <p className="text-amber-200/70">
+                  It includes a main-process component, which runs with the same access as Mosaic
+                  itself — the permissions below do not restrict it. Only addons published by the
+                  Mosaic team are allowed to do this.
+                </p>
+              </div>
+            )}
             {consentDialog.permissions.length === 0 ? (
               <p className="text-sm text-gray-500 mb-4">No special permissions requested.</p>
             ) : (

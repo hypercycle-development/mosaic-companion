@@ -107,6 +107,29 @@ export const RESERVED_IPC_NAMESPACES: readonly string[] = [
   "tab-prefs",
 ];
 
+/**
+ * Addons permitted to ship a `main.entry`.
+ *
+ * An addon's `main/index.js` is imported straight into the **main process**
+ * (`loader.ts` → `await import(pathToFileURL(...))`), with full Node and
+ * Electron access. Nothing about it is sandboxed, and — this is the part that
+ * matters — **the manifest permission model does not apply to it**. An addon
+ * declaring zero permissions but shipping a main entry can still read the
+ * vault off disk, read decrypted agent API keys, spawn processes and open
+ * sockets. The permissions a user consents to describe the renderer only.
+ *
+ * Until addon main code is genuinely contained (utilityProcess or equivalent),
+ * shipping one is a trust decision, not a permission grant. So it's restricted
+ * to addons we author and review ourselves.
+ *
+ * This is an INTERIM control keyed on addon id, which is weak on its own — id
+ * is self-declared, and only the id/directory-name match constrains it. It
+ * must become signature-based (the publisher key that signed the tarball) once
+ * real signing exists; see `signing.ts`'s PRODUCTION_PUBLISHER_KEYS. It is not
+ * a substitute for real isolation.
+ */
+export const MAIN_ENTRY_ALLOWLIST: readonly string[] = ["hyperinsight"];
+
 /** Permissions grantable to addons in v1 (§5.2). */
 export const PERMISSION_VOCABULARY: readonly string[] = [
   "wallet:read",
@@ -262,6 +285,12 @@ export function validateManifest(json: unknown, dirName: string): ManifestValida
       errors.push('Invalid "main" block (must be { entry: string } if present)');
     } else if (hasPathTraversal(m.main.entry)) {
       errors.push('main.entry must not escape the addon directory ("..")');
+    } else if (typeof m.id === "string" && !MAIN_ENTRY_ALLOWLIST.includes(m.id)) {
+      errors.push(
+        `Addon "${m.id}" declares main.entry, which is restricted. Main-process code runs ` +
+          `with full Node access and is not covered by the permission model — see ` +
+          `MAIN_ENTRY_ALLOWLIST in electron/addons/manifest.ts.`,
+      );
     } else {
       mainConfig = { entry: m.main.entry };
     }

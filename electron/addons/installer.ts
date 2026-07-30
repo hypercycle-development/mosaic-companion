@@ -18,7 +18,7 @@ import semver from "semver";
 import * as tar from "tar";
 import { getErrorMessage } from "../utils";
 import { verifyRegistry, trustedPublisherKeys, type RegistrySignatureEnvelope } from "./signing";
-import { validateManifest, type AddonManifest } from "./manifest";
+import { validateManifest, MAIN_ENTRY_ALLOWLIST, type AddonManifest } from "./manifest";
 import {
   getAddonEntry,
   listAddonEntries,
@@ -241,11 +241,25 @@ function sourceFor(entry: CatalogueEntry): AddonSource {
 // Install (needsConsent → confirm, §6.2)
 // =============================================================================
 
-export function beginInstall(id: string): { success: boolean; needsConsent?: string[]; error?: string } {
+export function beginInstall(id: string): {
+  success: boolean;
+  needsConsent?: string[];
+  hasMainEntry?: boolean;
+  error?: string;
+} {
   const catalogueEntry = cachedCatalogue[id];
   if (!catalogueEntry) return { success: false, error: `Addon "${id}" not found in catalogue — fetch it first` };
   if (getAddonEntry(id)) return { success: false, error: `Addon "${id}" is already installed` };
-  return { success: true, needsConsent: catalogueEntry.permissions };
+  // Consent is asked before the tarball is downloaded, so the real manifest
+  // isn't available yet. MAIN_ENTRY_ALLOWLIST is the upper bound on who may
+  // ship main-process code at all, which is what the user needs warning about
+  // — validateManifest rejects a main entry from anyone else at unpack time.
+  // Replace this with a registry-declared field once the registry carries one.
+  return {
+    success: true,
+    needsConsent: catalogueEntry.permissions,
+    hasMainEntry: MAIN_ENTRY_ALLOWLIST.includes(id),
+  };
 }
 
 export async function confirmInstall(

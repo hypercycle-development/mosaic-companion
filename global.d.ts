@@ -400,7 +400,8 @@ declare global {
           }>;
           error?: string;
         }>;
-        install: (id: string) => Promise<{ success: boolean; needsConsent?: string[]; error?: string }>;
+        /** `hasMainEntry`: addon may ship main-process code, which the permission model does not restrict (see MAIN_ENTRY_ALLOWLIST). */
+        install: (id: string) => Promise<{ success: boolean; needsConsent?: string[]; hasMainEntry?: boolean; error?: string }>;
         installConfirm: (id: string, acceptedPermissions: string[]) => Promise<{ success: boolean; error?: string }>;
         uninstall: (id: string, opts: { keepSettings: boolean; keepData: boolean }) => Promise<{ success: boolean; error?: string }>;
         getDataSize: (id: string) => Promise<number>;
