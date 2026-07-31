@@ -791,6 +791,18 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
 
                               return (
                                 <>
+                                  {agent.provider === "gemini" && (
+                                    <p className="text-xs text-gray-500 mb-2">
+                                      This list comes from Google and includes
+                                      models a free API key can't use. If you're
+                                      on the free tier, stay with a{" "}
+                                      <span className="text-gray-400">
+                                        flash-lite
+                                      </span>{" "}
+                                      model — the others need billing enabled
+                                      and will fail with a quota error.
+                                    </p>
+                                  )}
                                   <select
                                     value={selectedValue}
                                     onChange={(e) => {

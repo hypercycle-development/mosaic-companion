@@ -721,6 +721,12 @@ export const MCPPage: React.FC = () => {
               Mosaic starts them for you and passes requests through. Connect
               one, then select it to see the tools, resources and prompts it
               offers.
+              <br />
+              <br />
+              <strong>AIM-Node-Tools</strong> is set up by Mosaic itself and
+              connects on start — it's how your agents reach the AIMs on your
+              HyperCycle nodes. An empty tool list just means you haven't added
+              any nodes yet, so there's no need to remove it.
             </p>
           </div>
         ) : (
