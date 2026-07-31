@@ -61,7 +61,11 @@ jobs:
             echo "✗ asar not found at $ASAR"
             exit 1
           fi
-          CONTENTS=$(npx asar list "$ASAR")
+          # Listing goes to a file, not a pipe: this step's shell runs with
+          # `-o pipefail`, and `grep -q` closes the pipe on its first match,
+          # which SIGPIPEs the writer and makes the whole pipeline report
+          # failure — every file then reads as missing.
+          npx asar list "$ASAR" > asar-contents.txt
           MISSING=0
           for f in \
             dist/main/main.js \
@@ -72,7 +76,7 @@ jobs:
             dist/renderer/index.html \
             bundled-addons/hyperinsight/manifest.json
           do
-            if printf '%s\n' "$CONTENTS" | grep -qxF "/$f"; then
+            if grep -qxF "/$f" asar-contents.txt; then
               echo "✓ $f"
             else
               echo "✗ MISSING: $f"
