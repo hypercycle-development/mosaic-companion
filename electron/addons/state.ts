@@ -68,6 +68,13 @@ export interface AddonStateEntry {
 interface AddonStateFile {
   schemaVersion: 1;
   addons: Record<string, AddonStateEntry>;
+  /**
+   * Addon id → app version that first auto-installed it from the bundled
+   * payload. Separate from `addons` because it must survive uninstall: it is
+   * what stops a bundled addon reappearing on the next launch after the user
+   * deliberately removed it.
+   */
+  bundledInstalled?: Record<string, string>;
 }
 
 // =============================================================================
@@ -86,6 +93,10 @@ export function loadAddonState(): AddonStateFile {
       state = {
         schemaVersion: 1,
         addons: parsed && typeof parsed.addons === "object" && parsed.addons !== null ? parsed.addons : {},
+        bundledInstalled:
+          parsed && typeof parsed.bundledInstalled === "object" && parsed.bundledInstalled !== null
+            ? parsed.bundledInstalled
+            : {},
       };
     } else {
       state = { schemaVersion: 1, addons: {} };
@@ -254,3 +265,19 @@ export function recordUpgrade(id: string, version: string, source: AddonSource):
 
 // Load on module initialization, mirroring electron/settings.ts.
 loadAddonState();
+
+// =============================================================================
+// Bundled auto-install bookkeeping
+// =============================================================================
+
+/** Has this addon ever been auto-installed from the app's bundled payload?
+ * True keeps it uninstalled once the user removes it — without this the
+ * startup auto-install would put it back on the next launch. */
+export function hasBundledBeenInstalled(id: string): boolean {
+  return Boolean(state.bundledInstalled?.[id]);
+}
+
+export function markBundledInstalled(id: string, appVersion: string): void {
+  state.bundledInstalled = { ...(state.bundledInstalled ?? {}), [id]: appVersion };
+  saveAddonState();
+}

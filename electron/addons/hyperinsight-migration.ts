@@ -1,42 +1,39 @@
 /**
- * §9.2 / §10 Phase 7 — one-time "auto-install HyperInsight for upgrading
- * profiles" migration.
+ * Startup auto-install of HyperInsight from the bundled payload.
  *
- * Runs once at startup, before `initAddons()`'s regular activation
- * convergence (§8) — that ordering is what makes the newly-installed addon
- * activate in the very same pass as everything else, not a separate later
- * step.
+ * HyperInsight used to be part of core; on this branch it is an addon. Until
+ * a signed catalogue exists there is no way for a user to install an addon
+ * themselves, so shipping it as an addon without installing it would simply
+ * remove the feature — from upgrading users who never happened to open the
+ * tab (the old in-core state file was only written on first registration),
+ * and from every fresh install.
  *
- * This is NOT the distribution channel (`installer.ts`'s
+ * So it is installed for everyone, once per profile. **When the addon
+ * repository is public and HyperInsight can be installed from the catalogue,
+ * this should stop running for fresh profiles** — at that point not
+ * installing it is a choice the user can reverse, which today it isn't.
+ *
+ * This is not the distribution channel (`installer.ts`'s
  * fetchCatalogue/confirmInstall, which needs a live signed registry over the
- * network) — mosaic-addons has no real published registry yet, and even
- * once it does, an upgrading user must get continuity offline, on the very
- * first launch after the app update, with zero network dependency and zero
- * consent dialog (decision 1). Instead this calls the install/activate
- * *pipeline* directly: `recordInstall()` (state.ts) + `activateAddon()`
- * (loader.ts), the same two calls `confirmInstall()` makes internally,
- * skipping only the download/sha256/signature-verification steps — because
- * the content isn't downloaded at all, it's copied from
- * `bundled-addons/hyperinsight/`, which ships inside this app release and
- * is therefore already trusted by the app's own code-signing, the same way
- * every other file in the app bundle is.
+ * network). It calls the install/activate pipeline directly —
+ * `recordInstall()` + `activateAddon()`, the same two calls `confirmInstall()`
+ * makes internally — skipping download and signature verification because the
+ * content isn't downloaded at all: it is copied out of the app bundle, which
+ * the app's own code signing already covers.
  *
- * Detection: legacy core files (`userData/hyperinsight.json` and/or
- * `userData/hyperinsight-tool-scores.json`) existing is exactly the signal
- * that this profile pre-dates Phase 7 — the same signal the addon's own
- * `main/index.js` uses (on its first `activate()`) to migrate the
- * encrypted key/clientId and score cache into its own storage and remove
- * those legacy files. A fresh profile at or above the Phase-7 app version
- * never had those files, so it never triggers this path — it sees
- * HyperInsight in the addon catalogue like any other addon (once
- * mosaic-addons has a real published registry to list it in).
+ * Runs before `initAddons()`'s activation convergence so the newly installed
+ * addon activates in the same pass as everything else.
+ *
+ * The install is recorded in `bundledInstalled` (state.ts) rather than
+ * inferred from `addons`, so that uninstalling HyperInsight keeps it
+ * uninstalled instead of resurrecting it on the next launch.
  */
 
 import { app } from "electron";
 import fs from "fs";
 import path from "path";
 import { getErrorMessage } from "../utils";
-import { getAddonEntry, recordInstall } from "./state";
+import { getAddonEntry, recordInstall, hasBundledBeenInstalled, markBundledInstalled } from "./state";
 import { activateAddon } from "./loader";
 import { validateManifest } from "./manifest";
 
@@ -78,6 +75,8 @@ function copyOutOfAsar(srcDir: string, destDir: string): void {
   }
 }
 
+/** Only used to distinguish "carried across from the in-core version" from
+ * "installed fresh" in the log line — no longer gates the install. */
 function legacyFilesPresent(): boolean {
   const userData = app.getPath("userData");
   return (
@@ -100,8 +99,11 @@ export function wasHyperInsightJustAutoInstalled(): boolean {
 export async function runHyperInsightAutoInstallMigration(): Promise<void> {
   justAutoInstalled = false;
 
-  if (getAddonEntry(ADDON_ID)) return; // already installed — nothing to do, every launch after the first
-  if (!legacyFilesPresent()) return; // fresh profile — no prior HyperInsight experience to preserve
+  if (getAddonEntry(ADDON_ID)) return; // already installed — every launch after the first
+  // Once per profile, not once per launch: this is what makes a deliberate
+  // uninstall stick. Without it, removing HyperInsight would simply reinstall
+  // it on the next start.
+  if (hasBundledBeenInstalled(ADDON_ID)) return;
 
   const root = bundledAddonRoot();
   const manifestPath = path.join(root, "manifest.json");
@@ -159,6 +161,11 @@ export async function runHyperInsightAutoInstallMigration(): Promise<void> {
     console.error("[hyperinsight-migration] Auto-activation failed:", activateResult.error);
   }
 
-  console.log("[hyperinsight-migration] Auto-installed HyperInsight for an upgrading profile");
+  markBundledInstalled(ADDON_ID, app.getVersion());
+  console.log(
+    legacyFilesPresent()
+      ? "[hyperinsight] Auto-installed from the bundled payload, carrying across in-core HyperInsight state"
+      : "[hyperinsight] Auto-installed from the bundled payload (no prior in-core state)",
+  );
   justAutoInstalled = true;
 }
