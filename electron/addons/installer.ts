@@ -304,7 +304,14 @@ export async function confirmInstall(
     fs.renameSync(retainedDataDir, targetDataDir);
   }
 
-  const installResult = recordInstall(staged.manifest, sourceFor(catalogueEntry), acceptedPermissions);
+  // Grant the manifest's permissions, not the renderer's list. The check above
+  // only proves `accepted` covers the manifest; it says nothing about extras.
+  // Since `getGrantedPermissions` — not the manifest — is what the API
+  // dispatcher enforces against, persisting the renderer's array verbatim
+  // would let anything running in the renderer grant an addon permissions its
+  // manifest never declared and the user never saw on the consent screen.
+  const grantedPermissions = staged.manifest.permissions.filter((p) => acceptedPermissions.includes(p));
+  const installResult = recordInstall(staged.manifest, sourceFor(catalogueEntry), grantedPermissions);
   if (!installResult.success) {
     return { success: false, error: installResult.error };
   }

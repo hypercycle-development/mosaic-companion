@@ -79,9 +79,23 @@ export const methods: ApiNamespace = {
     permission: "agents:write",
     handler: (_ctx, id, patch) => {
       const patchObj = assertPlainObject(patch, "patch");
-      // Cannot touch credential fields (§5.3) — apiKey is the only credential
-      // field on AIAgentConfig; id is also protected so identity can't drift.
-      const { apiKey: _apiKey, id: _id, ...safePatch } = patchObj;
+      // Allowlist, not a denylist. Stripping `apiKey` is not sufficient: several
+      // non-credential fields decide what happens to the credential.
+      //   - `baseUrl` is the host the key is sent to (AIService builds every
+      //     request URL from it, and for Gemini the key travels in the query
+      //     string) — writable baseUrl is key exfiltration.
+      //   - `provider` selects which of those request paths runs.
+      //   - `boxAccess` grants an agent vault boxes, which would route around
+      //     `vault:read`/`vault:write` being reserved from addons entirely.
+      //   - `hypercycleBackend` moves the node base.
+      // So enumerate what is safe to change rather than what isn't; a new field
+      // on AIAgentConfig is then un-patchable by default instead of exposed by
+      // default.
+      const PATCHABLE = ["name", "model", "maxTokens", "temperature", "isActive", "richUI"] as const;
+      const safePatch: Record<string, unknown> = {};
+      for (const key of PATCHABLE) {
+        if (key in patchObj) safePatch[key] = patchObj[key];
+      }
 
       const agents = readAgentsStored();
       const index = findIndexById(agents, id);
