@@ -305,61 +305,52 @@
                 </li>
                 <li>Eject the disk image when done</li>
               </ul>
-            </div>
 
-            <div class="step-card">
-              <h3><span class="step-number">3</span> First Launch</h3>
-              <p>
-                Since Mosaic is not notarized by Apple, you'll need to allow it
-                manually:
-              </p>
-              <ul class="steps-list">
-                <li>
-                  Open <strong>Applications</strong> and right-click on Mosaic
-                  Companion
-                </li>
-                <li>Click <strong>"Open"</strong> from the context menu</li>
-                <li>
-                  Click <strong>"Open"</strong> again in the security dialog
-                </li>
-              </ul>
               <div class="notice warning">
                 <span class="notice-icon" aria-hidden="true">⚠️</span>
                 <p>
-                  If you double-click directly, macOS may block the app. Always
-                  right-click → Open for the first launch.
+                  macOS will block the app the first time you open it, because
+                  it isn't code-signed by Apple yet. This is normal for
+                  open-source software and expected — step 3 is how everyone
+                  gets past it. It only needs doing once.
                 </p>
               </div>
             </div>
 
             <div class="step-card">
-              <h3>
-                <span class="step-number">4</span> Troubleshooting (Temporary for
-                macOS)
-              </h3>
+              <h3><span class="step-number">3</span> Allow Mosaic to open</h3>
               <p>
-                Since Mosaic Companion is not yet code-signed, you may encounter
-                additional security warnings. Here are temporary workarounds:
+                Everyone installing on macOS needs this step — it isn't an
+                error, and nothing has gone wrong. macOS shows a warning like
+                <em>"Mosaic Companion is damaged"</em> or <em>"cannot be
+                opened because Apple cannot check it"</em> for any app that
+                isn't notarized. Mosaic isn't yet; that's being sorted.
               </p>
 
-              <h4>Option 1: Terminal Command (Immediate Fix)</h4>
-              <p>
-                If you trust the Mosaic's source, you can bypass this security
-                check using the Terminal:
-              </p>
+              <h4>Do this</h4>
               <ol class="steps-list">
+                <li>Open <strong>Applications</strong> and double-click Mosaic Companion</li>
+                <li>macOS blocks it — click <strong>Done</strong> or <strong>OK</strong></li>
                 <li>
-                  Open Terminal from Applications &gt; Utilities or via Spotlight
-                  search.
+                  Open <strong>System Settings → Privacy &amp; Security</strong>
+                  and scroll down. You'll see a line saying Mosaic Companion was
+                  blocked, with an <strong>Open Anyway</strong> button
                 </li>
-                <li>
-                  Run the following command, replacing
-                  <code>~/MosaicCompanion/Mosaic\ Companion.app</code> with the
-                  actual path to your application (you can type the command and
-                  then drag the application icon into the Terminal window to
-                  auto-fill the path):
-                </li>
+                <li>Click <strong>Open Anyway</strong>, then confirm</li>
               </ol>
+              <p>
+                That's it — Mosaic opens normally from then on, and you won't
+                see this again.
+              </p>
+
+              <h4>If you don't see "Open Anyway"</h4>
+              <p>
+                On older versions of macOS you can instead right-click Mosaic
+                Companion in Applications, choose <strong>Open</strong>, and
+                click <strong>Open</strong> again in the dialog. If neither
+                route works, this Terminal command clears the quarantine flag
+                that causes the block:
+              </p>
               <div class="code-block">
                 <code>xattr -cr /Applications/mosaic-companion.app</code>
                 <button type="button" class="copy-btn" onclick="copyCode(this)">
@@ -367,29 +358,19 @@
                 </button>
               </div>
               <p>
-                (Note: the -cr flags remove all extended attributes recursively).
-              </p>
-              <p>
-                Press Enter to execute the command. You may need to enter your
-                administrator password.
-              </p>
-              <p>
-                Attempt to open the app again. It should now launch without the
-                error.
+                Open Terminal from Applications → Utilities, paste the command,
+                press Enter, then open Mosaic again.
               </p>
 
-              <h4>Option 2: Override Security Settings</h4>
-              <p>
-                Go to System Settings &gt; Privacy &amp; Security, look for a
-                message about Mosaic Companion (recently blocked) and click the
-                "Open Anyway" button.
-              </p>
-
-              <p>
-                <strong>Note:</strong> This is a temporary measure while we
-                obtain proper code signing. These steps will not be needed in
-                future releases.
-              </p>
+              <div class="notice">
+                <span class="notice-icon" aria-hidden="true">🔏</span>
+                <p>
+                  Why this happens: Apple charges for the developer certificate
+                  that removes this warning, and we haven't set that up yet.
+                  Once we do, these steps disappear and Mosaic will open like
+                  any other app.
+                </p>
+              </div>
             </div>
           </div>
         </section>
