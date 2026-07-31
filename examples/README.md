@@ -20,9 +20,8 @@ its `NodeManagerClient` pattern for calling AIMs, authentication and signing.
 **Addon** — you want a new page in Mosaic, shipped and installed separately
 from the app. Your addon is its own directory with a manifest, loaded into an
 isolated webview, talking to the app through the permission-gated
-`window.addonAPI`. This is how Stargate and HyperInsight are built, and it's
-the right default for anything user-facing. Start with
-[`tab-plugin/`](tab-plugin/).
+`window.addonAPI`. This is how HyperInsight is built, and it's the right
+default for anything user-facing. Start with [`tab-plugin/`](tab-plugin/).
 
 **MCP server** — you want to expose tools or resources to the AI assistant.
 Your server runs as a local process; Mosaic connects to it over stdio or HTTP.
@@ -48,10 +47,9 @@ any of the three.
 
 ## Publishing
 
-Addons live in
-[`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons) —
-fork it, add yours under `addons/<your-id>/`, open a PR. One-click install
-from a signed catalogue isn't live yet; for now addons are installed unpacked
-through the Dev corner (see [`tab-plugin/`](tab-plugin/)).
+Addons will be distributed from a dedicated `mosaic-addons` repository, one
+directory per addon. It isn't open for contributions yet, and one-click install
+from a signed catalogue isn't live — so for now addons are built and installed
+unpacked through the Dev corner (see [`tab-plugin/`](tab-plugin/)).
 
 MCP servers and WASM tools are distributed by you, however you like.

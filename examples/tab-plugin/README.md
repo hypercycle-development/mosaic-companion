@@ -67,13 +67,15 @@ than routing around it.
 
 ## Going further
 
-- A **main-process half** (`main/index.js`) is optional and gives you
-  privileged code — but it also raises the review bar considerably. Start
-  without it.
-- **Real, larger addons** to read: `stargate` and `hyperinsight` in the
-  [`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons)
-  repository.
-- **Publishing**: addons are distributed from `mosaic-addons`. Fork it, add
-  yours under `addons/<your-id>/`, and open a PR. Note that one-click install
-  from a signed catalogue isn't live yet — for now, addons are installed
-  unpacked as above.
+- A **main-process half** (`main/index.js`) is **not currently available to
+  third-party addons.** Main-process code runs with the same access as Mosaic
+  itself and isn't covered by the permission model, so an addon declaring it is
+  rejected at install. Everything in this example, and most of what an addon
+  needs, works from the renderer.
+- **Larger worked examples** will live in the `mosaic-addons` repository.
+  It isn't public yet, so there's nothing to link to today — this example plus
+  the notes above are the current reference.
+- **Publishing**: addons will be distributed from `mosaic-addons`, one
+  directory per addon. That repository isn't open for contributions yet and
+  one-click install from a signed catalogue isn't live, so for now addons are
+  built and installed unpacked as above.
