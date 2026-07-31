@@ -13,7 +13,7 @@ export const DEFAULT_MODELS = {
         "o1-preview",
         "o1-mini",
     ],
-    gemini: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
+    gemini: ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-pro"],
     ollama: ["llama3.2", "mistral", "codellama", "deepseek-coder"],
     custom: [],
     hypercycle: ["claude-sonnet-4-5-20250929"],

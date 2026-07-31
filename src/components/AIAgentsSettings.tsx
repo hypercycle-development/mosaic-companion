@@ -791,6 +791,20 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
 
                               return (
                                 <>
+                                  {agent.provider === "gemini" && (
+                                    <p className="text-xs text-gray-500 mb-2">
+                                      Some Gemini models need billing enabled on
+                                      your Google account — the{" "}
+                                      <span className="text-gray-400">pro</span>{" "}
+                                      models in particular, which fail with a
+                                      quota error on a free key. If you're on the
+                                      free tier,{" "}
+                                      <span className="text-gray-400">
+                                        flash-lite
+                                      </span>{" "}
+                                      has the most headroom.
+                                    </p>
+                                  )}
                                   <select
                                     value={selectedValue}
                                     onChange={(e) => {
