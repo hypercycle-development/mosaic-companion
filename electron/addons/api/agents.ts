@@ -74,8 +74,20 @@ export const methods: ApiNamespace = {
       // where an API key is sent and `boxAccess` grants vault boxes, so a
       // spread of caller input would let an addon plant an agent that
       // exfiltrates keys or reaches vault content that `vault:read` is
-      // reserved to prevent. Credentials are never accepted from an addon —
-      // the user supplies those in Configuration.
+      // reserved to prevent.
+      //
+      // The property being protected is "an addon cannot choose where the
+      // user's credentials go" — NOT "addons may not create useful agents".
+      // What an addon can create today is a stub the user completes in
+      // Configuration, which is the cheapest way to hold that property, not
+      // the intended end state. An addon that spawns agents as its core
+      // purpose needs better, and this filter is deliberately additive so it
+      // can get better without a schema change or a migration. Options, when
+      // that conversation happens: user-consented creation showing the
+      // destination (same shape as the install consent dialog); a reference
+      // to a provider the user has already configured, so the addon picks the
+      // model and prompt but never the endpoint or key; or agents that run on
+      // the addon's own credentials rather than the user's.
       const agent = {
         id,
         name: input.name,
