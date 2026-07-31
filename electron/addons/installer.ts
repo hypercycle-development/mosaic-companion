@@ -415,10 +415,6 @@ export async function upgradeAddon(
   const catalogueEntry = cachedCatalogue[id];
   if (!catalogueEntry) return { success: false, error: `Addon "${id}" not found in catalogue — fetch it first` };
 
-  if (acceptedPermissions) {
-    setGrantedPermissions(id, acceptedPermissions);
-  }
-
   let staged: StagedTarball;
   try {
     staged = await downloadVerifyUnpack(catalogueEntry);
@@ -426,10 +422,27 @@ export async function upgradeAddon(
     return { success: false, error: getErrorMessage(error) };
   }
 
-  // Re-read the entry — setGrantedPermissions above (if called) already
-  // landed; grantedPermissions is the enforcement source, not the manifest.
-  const currentEntry = getAddonEntry(id);
-  const grantedNow = currentEntry?.grantedPermissions ?? [];
+  // Grants are written only after the new version is downloaded and its
+  // manifest validated, and only ever as (existing ∪ newly accepted) ∩ new
+  // manifest:
+  //   - union, because the renderer sends back just the *newly required*
+  //     permissions, so replacing would drop everything already granted —
+  //     and then re-report those as missing on the next pass, forever;
+  //   - intersected with the manifest for the same reason confirmInstall
+  //     does it: `grantedPermissions` is what the API dispatcher enforces
+  //     against, so an unbounded write would grant permissions the addon
+  //     never declared and the user never saw;
+  //   - after the download, so a failed upgrade leaves grants untouched.
+  const grantedNow = acceptedPermissions
+    ? (() => {
+        const existing = entry.grantedPermissions ?? [];
+        const union = new Set([...existing, ...acceptedPermissions]);
+        const bounded = staged.manifest.permissions.filter((p) => union.has(p));
+        setGrantedPermissions(id, bounded);
+        return bounded;
+      })()
+    : (getAddonEntry(id)?.grantedPermissions ?? []);
+
   const missing = staged.manifest.permissions.filter((p) => !grantedNow.includes(p));
   if (missing.length > 0) {
     fs.rmSync(staged.stagingDir, { recursive: true, force: true });

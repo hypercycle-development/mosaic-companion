@@ -58,9 +58,35 @@ export const methods: ApiNamespace = {
       if (typeof input.name !== "string" || input.name.length === 0) {
         throw new ApiValidationError("agent.name is required and must be a non-empty string");
       }
-      const id =
-        typeof input.id === "string" || typeof input.id === "number" ? input.id : `addon-agent-${Date.now()}`;
-      const agent = { ...input, id } as AIAgent;
+      // The id reaches path.join via ensureAgentHistoryDir below, so an
+      // addon-supplied "../.." would create directories outside the history
+      // root. Constrain it to the same shape the app generates.
+      const requestedId = typeof input.id === "string" || typeof input.id === "number" ? String(input.id) : "";
+      if (requestedId && !/^[A-Za-z0-9._-]{1,64}$/.test(requestedId)) {
+        throw new ApiValidationError("agent.id may only contain letters, numbers, dot, underscore or hyphen");
+      }
+      const id = requestedId || `addon-agent-${Date.now()}`;
+      if (readAgentsStored().some((a) => String(a.id) === id)) {
+        throw new ApiValidationError(`Agent "${id}" already exists`);
+      }
+
+      // Same allowlist as `update`, for the same reason: `baseUrl` decides
+      // where an API key is sent and `boxAccess` grants vault boxes, so a
+      // spread of caller input would let an addon plant an agent that
+      // exfiltrates keys or reaches vault content that `vault:read` is
+      // reserved to prevent. Credentials are never accepted from an addon —
+      // the user supplies those in Configuration.
+      const agent = {
+        id,
+        name: input.name,
+        provider: "custom",
+        model: typeof input.model === "string" ? input.model : "",
+        isActive: false,
+        createdAt: Date.now(),
+        ...(typeof input.maxTokens === "number" ? { maxTokens: input.maxTokens } : {}),
+        ...(typeof input.temperature === "number" ? { temperature: input.temperature } : {}),
+        ...(typeof input.richUI === "boolean" ? { richUI: input.richUI } : {}),
+      } as AIAgent;
 
       const validationError = validateActiveHypercycleAgent(agent);
       if (validationError) throw new Error(validationError);
