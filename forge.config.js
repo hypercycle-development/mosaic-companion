@@ -67,7 +67,7 @@ export default {
             /\.sh$/,
             /tsconfig.*\.json$/,
             /vite\.config\.ts$/,
-            /esbuild\.config\.js$/,
+            /esbuild\.config\.(js|mjs)$/,   // .mjs was shipping inside the asar
             /forge\.config\.js$/,
             /package-lock\.json/,
             /\.antigravityignore/,
@@ -191,8 +191,11 @@ export default {
             const { execSync } = await import('child_process');
             
             // 1. Build Electron TypeScript with esbuild
+            // MUST stay in sync with `npm run build:electron` — see the header
+            // comment in esbuild.config.mjs for what shipped broken when this
+            // pointed at a second, stale config instead.
             console.log('🔨 Building Electron with esbuild...');
-            execSync('node esbuild.config.js', { stdio: 'inherit' });
+            execSync('node esbuild.config.mjs', { stdio: 'inherit' });
             
             // 2. Build frontend with Vite
             console.log('🔨 Building frontend with Vite...');

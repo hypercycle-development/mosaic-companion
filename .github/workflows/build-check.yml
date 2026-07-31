@@ -46,6 +46,45 @@ jobs:
       - name: Build Electron (${{ matrix.platform }}/${{ matrix.arch }})
         run: npm run make -- --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
 
+      # v0.1.10 shipped an asar with no addon-preload.js, because the Forge
+      # generateAssets hook ran a stale esbuild config that never emitted it.
+      # Every addon broke, and nothing here caught it: the app still launched
+      # (the preload fails silently) and the .deb still built. Assert the
+      # payload directly — every file the main process resolves at runtime must
+      # actually be inside the package.
+      - name: Verify asar contains every runtime-resolved file
+        shell: bash
+        run: |
+          APP_NAME=$(node -p "require('./package.json').name")
+          ASAR="out/${APP_NAME}-linux-${{ matrix.arch }}/resources/app.asar"
+          if [ ! -f "$ASAR" ]; then
+            echo "✗ asar not found at $ASAR"
+            exit 1
+          fi
+          # Listing goes to a file, not a pipe: this step's shell runs with
+          # `-o pipefail`, and `grep -q` closes the pipe on its first match,
+          # which SIGPIPEs the writer and makes the whole pipeline report
+          # failure — every file then reads as missing.
+          npx asar list "$ASAR" > asar-contents.txt
+          MISSING=0
+          for f in \
+            dist/main/main.js \
+            dist/main/preload.js \
+            dist/main/addon-preload.js \
+            dist/main/secure-wallet-import-preload.js \
+            dist/main/mcp-server.js \
+            dist/renderer/index.html \
+            bundled-addons/hyperinsight/manifest.json
+          do
+            if grep -qxF "/$f" asar-contents.txt; then
+              echo "✓ $f"
+            else
+              echo "✗ MISSING: $f"
+              MISSING=1
+            fi
+          done
+          exit $MISSING
+
       # Launch test: verify the app actually starts without crashing (x64 only)
       - name: Smoke test - verify app launches (x64 only)
         if: matrix.arch == 'x64'
