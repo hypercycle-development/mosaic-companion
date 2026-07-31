@@ -793,14 +793,16 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                                 <>
                                   {agent.provider === "gemini" && (
                                     <p className="text-xs text-gray-500 mb-2">
-                                      This list comes from Google and includes
-                                      models a free API key can't use. If you're
-                                      on the free tier, stay with a{" "}
+                                      Some Gemini models need billing enabled on
+                                      your Google account — the{" "}
+                                      <span className="text-gray-400">pro</span>{" "}
+                                      models in particular, which fail with a
+                                      quota error on a free key. If you're on the
+                                      free tier,{" "}
                                       <span className="text-gray-400">
                                         flash-lite
                                       </span>{" "}
-                                      model — the others need billing enabled
-                                      and will fail with a quota error.
+                                      has the most headroom.
                                     </p>
                                   )}
                                   <select
