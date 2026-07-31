@@ -724,12 +724,17 @@
                 <span class="hl">Add Agent</span> if you skipped the wizard)
               </p>
               <table>
-                <tr><td>Provider</td><td>Select <span class="hl">Custom Endpoint</span></td></tr>
+                <tr><td>Provider</td><td>Select <span class="hl">Google Gemini</span></td></tr>
                 <tr><td>Name</td><td>Anything you like — e.g. <span class="hl">Gemini</span></td></tr>
-                <tr><td>Model</td><td><span class="copy" onclick="cp(this)">gemini-3-flash-preview</span></td></tr>
-                <tr><td>Base URL</td><td><span class="copy" onclick="cp(this)">https://generativelanguage.googleapis.com/v1beta/openai</span></td></tr>
+                <tr><td>Model</td><td>Leave it on <span class="hl">gemini-2.5-flash-lite</span> — it's already selected, and it's the one that suits the free tier</td></tr>
                 <tr><td>API Key</td><td>Paste the key from Phase 3</td></tr>
               </table>
+              <p style="margin-top: 10px">
+                There's no address to type in — choosing
+                <span class="hl">Google Gemini</span> fills that in for you, and
+                the Model box is a dropdown, so there's nothing to copy or spell
+                correctly.
+              </p>
             </div>
             <div class="glass">
               <span class="stepnum">Verify &amp; save</span>
@@ -754,10 +759,11 @@
                   • <span class="hl">"Invalid key / unauthorized"</span> —
                   re-paste the entire key with no extra spaces or line
                   breaks.<br />
-                  • <span class="hl">"Model not found"</span> — Google
-                  renames models over time; check the current model list at
+                  • <span class="hl">"Model not found"</span> — Google retires
+                  models over time. Try another entry in the Model dropdown; if
+                  none of them work, check the current list at
                   <a style="color: var(--cyan)" href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noopener">ai.google.dev</a>
-                  and use the newest "flash" model name.
+                  and let us know, since it means Mosaic's list needs updating.
                 </div>
               </div>
             </div>
@@ -844,7 +850,7 @@
             <table>
               <tr><td>Agent doesn't answer</td><td>Mosaic shows the reason right in the chat (e.g. missing key, quota) with a pointer to fix it. Check <span class="hl">Configuration → AI Agents</span>: is your agent's <span class="hl">Active</span> toggle green, and does <span class="hl">Test Connection</span> pass?</td></tr>
               <tr><td>"Quota exceeded"</td><td>Free Gemini keys have small daily limits. Wait and retry — the key itself is fine. If you hit this often, create a second key in a new AI Studio project, or enable billing with Google.</td></tr>
-              <tr><td>"Connection failed"</td><td>Re-copy the Model and Base URL from Phase 4 exactly (no extra spaces), and re-paste the full API key.</td></tr>
+              <tr><td>"Connection failed"</td><td>Re-paste the full API key with no extra spaces or line breaks, and check the Provider is <span class="hl">Google Gemini</span> (not Custom Endpoint).</td></tr>
               <tr><td>Mac: "app is damaged"</td><td>Run <code>xattr -cr /Applications/mosaic-companion.app</code> in Terminal, or System Settings → Privacy &amp; Security → <span class="hl">Open Anyway</span>. Full steps on the download page.</td></tr>
               <tr><td>AppImage won't start</td><td>Make it executable (<code>chmod +x</code> or right-click → Properties), and on newer Ubuntu install FUSE: <code>sudo apt install libfuse2</code>.</td></tr>
               <tr><td>Something else</td><td>Open an issue at <a style="color: var(--cyan)" href="https://github.com/hypercycle-development/mosaic-companion/issues" target="_blank" rel="noopener">github.com/hypercycle-development/mosaic-companion</a>.</td></tr>
