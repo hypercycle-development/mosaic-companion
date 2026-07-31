@@ -328,7 +328,22 @@ export async function activateAddon(id: string): Promise<{ success: boolean; err
  * teardown and live-registry removal regardless of whether `deactivate()`
  * succeeded.
  */
-export async function deactivateAddon(id: string): Promise<{ success: boolean; error?: string }> {
+/**
+ * `persist: false` tears the addon down in-process without recording the
+ * change as the user's desired state. Shutdown must use it: `activated` in
+ * `addon-state.json` is the *desired* state that `initAddons()` converges to
+ * on the next launch, so writing `false` during quit teardown makes a clean
+ * exit indistinguishable from the user deliberately switching the addon off —
+ * the addon then never activates again, and (since `listAddonTabs()` only
+ * emits tabs for live addons) its tab silently disappears from the sidebar.
+ * It presented as "the addon toggled itself invisible when I closed the app",
+ * and it was intermittent because `before-quit` doesn't await `deactivateAll`,
+ * so the write only landed when the process outlived it.
+ */
+export async function deactivateAddon(
+  id: string,
+  opts?: { persist?: boolean },
+): Promise<{ success: boolean; error?: string }> {
   const live = liveAddons.get(id);
   if (!live) {
     return { success: false, error: `Addon "${id}" is not active` };
@@ -349,14 +364,16 @@ export async function deactivateAddon(id: string): Promise<{ success: boolean; e
 
   teardownChannels(live.channels);
   liveAddons.delete(id);
-  setActivated(id, false);
+  if (opts?.persist !== false) setActivated(id, false);
   return { success: true };
 }
 
+/** Shutdown teardown only — deliberately does not persist, so a clean quit
+ * leaves every addon's desired state exactly as the user left it. */
 export async function deactivateAll(): Promise<void> {
   const ids = Array.from(liveAddons.keys());
   for (const id of ids) {
-    await deactivateAddon(id);
+    await deactivateAddon(id, { persist: false });
   }
 }
 
