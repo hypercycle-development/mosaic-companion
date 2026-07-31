@@ -335,7 +335,7 @@
                 line, and press Enter:
               </p>
               <div class="code-block">
-                <code>xattr -dr com.apple.quarantine /Applications/mosaic-companion.app</code>
+                <code>xattr -cr /Applications/mosaic-companion.app</code>
                 <button type="button" class="copy-btn" onclick="copyCode(this)">
                   copy
                 </button>
@@ -352,11 +352,13 @@
                 code-signed.
               </p>
               <p>
-                <strong>What that command does:</strong> macOS puts a hidden
-                "downloaded from the internet" tag on files you download, and
-                refuses to run unsigned apps that carry it. The command removes
-                that tag from Mosaic and nothing else. It doesn't change any of
-                your security settings, and it doesn't affect any other app.
+                <strong>What that command does:</strong> macOS attaches hidden
+                labels to anything you download — including one marking it as
+                "from the internet", which is what makes macOS refuse to open
+                an app it can't check with Apple. The command clears those
+                labels from Mosaic. It changes none of your security settings
+                and affects no other app; it just tells macOS to stop treating
+                this one file as a stranger.
               </p>
 
               <h4>Already saw the warning?</h4>
