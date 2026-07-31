@@ -50,6 +50,34 @@ function bundledAddonRoot(): string {
   return path.join(__dirname, "..", "..", "bundled-addons", ADDON_ID);
 }
 
+/**
+ * Recursive copy that works when the source is inside `app.asar`.
+ *
+ * `fs.cpSync` is NOT asar-aware: Electron's shim patches the read family
+ * (readdirSync, readFileSync, statSync...) but not `cp`/`cpSync`, which
+ * lstats the archive itself and fails with ENOTDIR. Verified against a real
+ * packaged build — readdirSync and readFileSync on `bundled-addons/` both
+ * succeed while cpSync throws, so the migration would create `addons/` and
+ * then abort, and an upgrading user would silently lose HyperInsight.
+ *
+ * Built from the patched primitives instead, so it works whether the payload
+ * is packed in the archive or sitting unpacked in a dev tree. Deliberately
+ * not solved with `asarUnpack`, which would fix it only for packaged builds
+ * and only while the copy relies on Electron's unpacked-path redirection.
+ */
+function copyOutOfAsar(srcDir: string, destDir: string): void {
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    const from = path.join(srcDir, entry.name);
+    const to = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      copyOutOfAsar(from, to);
+    } else {
+      fs.writeFileSync(to, fs.readFileSync(from));
+    }
+  }
+}
+
 function legacyFilesPresent(): boolean {
   const userData = app.getPath("userData");
   return (
@@ -106,7 +134,7 @@ export async function runHyperInsightAutoInstallMigration(): Promise<void> {
       fs.rmSync(targetRoot, { recursive: true, force: true });
     }
     fs.mkdirSync(path.dirname(targetRoot), { recursive: true });
-    fs.cpSync(root, targetRoot, { recursive: true });
+    copyOutOfAsar(root, targetRoot);
   } catch (error) {
     console.error("[hyperinsight-migration] Failed to copy bundled addon into userData:", getErrorMessage(error));
     return;
