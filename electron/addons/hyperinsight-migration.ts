@@ -99,7 +99,16 @@ export function wasHyperInsightJustAutoInstalled(): boolean {
 export async function runHyperInsightAutoInstallMigration(): Promise<void> {
   justAutoInstalled = false;
 
-  if (getAddonEntry(ADDON_ID)) return; // already installed — every launch after the first
+  if (getAddonEntry(ADDON_ID)) {
+    // Installed already — but backfill the marker if it's missing, otherwise
+    // the "a deliberate uninstall sticks" guarantee below doesn't hold for
+    // profiles that got HyperInsight some other way: the legacy-gated
+    // migration this replaced, or a dev-corner install. Neither sets the
+    // marker, so without this the first uninstall would be undone on the
+    // next launch and only the second would stick.
+    if (!hasBundledBeenInstalled(ADDON_ID)) markBundledInstalled(ADDON_ID, app.getVersion());
+    return;
+  }
   // Once per profile, not once per launch: this is what makes a deliberate
   // uninstall stick. Without it, removing HyperInsight would simply reinstall
   // it on the next start.
@@ -108,7 +117,7 @@ export async function runHyperInsightAutoInstallMigration(): Promise<void> {
   const root = bundledAddonRoot();
   const manifestPath = path.join(root, "manifest.json");
   if (!fs.existsSync(manifestPath)) {
-    console.error(`[hyperinsight-migration] Legacy files present but ${manifestPath} is missing — cannot auto-install`);
+    console.error(`[hyperinsight] Bundled payload missing at ${manifestPath} — cannot auto-install`);
     return;
   }
 
@@ -157,7 +166,10 @@ export async function runHyperInsightAutoInstallMigration(): Promise<void> {
   if (!activateResult.success) {
     // Installed but not activated — the addon's own next activation attempt
     // (retry, or the user flipping it on in Settings → Addons) can still
-    // pick this up; lastError is already recorded by activateAddon itself.
+    // lastError is recorded by activateAddon itself and surfaces in
+    // Settings → Addons, where the user can toggle it on. There is no
+    // automatic retry: recordInstall left it activated:false, so initAddons
+    // skips it on subsequent launches.
     console.error("[hyperinsight-migration] Auto-activation failed:", activateResult.error);
   }
 
