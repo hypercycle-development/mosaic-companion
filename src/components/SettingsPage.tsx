@@ -967,6 +967,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </span>
                 <p className="text-sm text-gray-500">
                   Download new versions in the background without asking.
+                  Currently applies to Windows only — on macOS and Linux Mosaic
+                  tells you an update is available and opens the download page.
                 </p>
               </div>
               <button

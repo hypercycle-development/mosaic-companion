@@ -571,7 +571,12 @@ export const MCPPage: React.FC = () => {
           ) : osStatus.configured ? (
             <span>OS: <strong className="font-semibold">{osStatus.pluginName}</strong> not connected</span>
           ) : (
-            <span>No OS plugin configured — set role to "OS Access"</span>
+            <span>
+                No server is set up for OS access yet. To let an agent read
+                files or run commands on this machine, connect a server and set
+                its role to <strong>OS Access</strong> — until then, agents can
+                only use the tools each server offers.
+              </span>
           )}
         </div>
 
@@ -711,8 +716,11 @@ export const MCPPage: React.FC = () => {
           <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-600 px-8">
             <Wrench size={40} className="mb-4 text-gray-800" />
             <p className="text-sm">
-              Connect a server and select it to explore its tools, resources, and
-              prompts.
+              MCP servers are separate programs that give your agents extra
+              abilities — reading files, querying a database, calling an API.
+              Mosaic starts them for you and passes requests through. Connect
+              one, then select it to see the tools, resources and prompts it
+              offers.
             </p>
           </div>
         ) : (
