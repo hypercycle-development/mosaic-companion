@@ -1,23 +1,23 @@
 {
-  "version": "0.1.9",
-  "releaseDate": "2026-07-17",
+  "version": "0.1.10",
+  "releaseDate": "2026-07-31",
   "downloadUrl": "https://releases.hyperpg.site/mosaic/",
   "downloads": {
     "windows": {
-      "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.9/mosaic-companion-0.1.9-Setup.exe"
+      "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.10/mosaic-companion-0.1.10-Setup.exe"
     },
     "macos": {
-      "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.9/mosaic-companion-0.1.9-x64.dmg",
-      "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.9/mosaic-companion-0.1.9-arm64.dmg"
+      "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.10/mosaic-companion-0.1.10-x64.dmg",
+      "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.10/mosaic-companion-0.1.10-arm64.dmg"
     },
     "linux": {
       "deb": {
-        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.9/mosaic-companion_0.1.9_amd64.deb",
-        "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.9/mosaic-companion_0.1.9_arm64.deb"
+        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.10/mosaic-companion_0.1.10_amd64.deb",
+        "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.10/mosaic-companion_0.1.10_arm64.deb"
       },
       "appimage": {
-        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.9/mosaic-companion-0.1.9-x64.AppImage",
-        "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.9/mosaic-companion-0.1.9-arm64.AppImage"
+        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.10/mosaic-companion-0.1.10-x64.AppImage",
+        "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.10/mosaic-companion-0.1.10-arm64.AppImage"
       }
     }
   }
