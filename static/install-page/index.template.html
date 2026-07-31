@@ -305,61 +305,35 @@
                 </li>
                 <li>Eject the disk image when done</li>
               </ul>
-            </div>
 
-            <div class="step-card">
-              <h3><span class="step-number">3</span> First Launch</h3>
-              <p>
-                Since Mosaic is not notarized by Apple, you'll need to allow it
-                manually:
-              </p>
-              <ul class="steps-list">
-                <li>
-                  Open <strong>Applications</strong> and right-click on Mosaic
-                  Companion
-                </li>
-                <li>Click <strong>"Open"</strong> from the context menu</li>
-                <li>
-                  Click <strong>"Open"</strong> again in the security dialog
-                </li>
-              </ul>
               <div class="notice warning">
                 <span class="notice-icon" aria-hidden="true">⚠️</span>
                 <p>
-                  If you double-click directly, macOS may block the app. Always
-                  right-click → Open for the first launch.
+                  macOS will block the app the first time you open it, because
+                  it isn't code-signed by Apple yet. This is normal for
+                  open-source software and expected — step 3 is how everyone
+                  gets past it, and it takes a few seconds.
                 </p>
               </div>
             </div>
 
             <div class="step-card">
-              <h3>
-                <span class="step-number">4</span> Troubleshooting (Temporary for
-                macOS)
-              </h3>
+              <h3><span class="step-number">3</span> Let macOS know Mosaic is safe</h3>
               <p>
-                Since Mosaic Companion is not yet code-signed, you may encounter
-                additional security warnings. Here are temporary workarounds:
+                Everyone installing on macOS does this step. If you skip it,
+                macOS will tell you Mosaic Companion
+                <strong>"is damaged and can't be opened"</strong> and offer to
+                delete it. <strong>It isn't damaged — don't delete it.</strong>
+                That message is simply what macOS says about any app it can't
+                check with Apple.
               </p>
 
-              <h4>Option 1: Terminal Command (Immediate Fix)</h4>
+              <h4>Do this before you open Mosaic</h4>
               <p>
-                If you trust the Mosaic's source, you can bypass this security
-                check using the Terminal:
+                Open <strong>Terminal</strong> (Applications → Utilities, or
+                press <strong>⌘ Space</strong> and type "Terminal"), paste this
+                line, and press Enter:
               </p>
-              <ol class="steps-list">
-                <li>
-                  Open Terminal from Applications &gt; Utilities or via Spotlight
-                  search.
-                </li>
-                <li>
-                  Run the following command, replacing
-                  <code>~/MosaicCompanion/Mosaic\ Companion.app</code> with the
-                  actual path to your application (you can type the command and
-                  then drag the application icon into the Terminal window to
-                  auto-fill the path):
-                </li>
-              </ol>
               <div class="code-block">
                 <code>xattr -cr /Applications/mosaic-companion.app</code>
                 <button type="button" class="copy-btn" onclick="copyCode(this)">
@@ -367,29 +341,51 @@
                 </button>
               </div>
               <p>
-                (Note: the -cr flags remove all extended attributes recursively).
+                Then open Mosaic normally. This is the reliable route on every
+                Mac — if you only do one thing on this page, do this.
               </p>
               <p>
-                Press Enter to execute the command. You may need to enter your
-                administrator password.
+                <strong>You'll need this again after each update.</strong> The
+                tag is applied to whatever you download, so a new version
+                arrives with a new one. It's once per version installed, not
+                once per launch — and it goes away entirely once Mosaic is
+                code-signed.
               </p>
               <p>
-                Attempt to open the app again. It should now launch without the
-                error.
+                <strong>What that command does:</strong> macOS attaches hidden
+                labels to anything you download — including one marking it as
+                "from the internet", which is what makes macOS refuse to open
+                an app it can't check with Apple. The command clears those
+                labels from Mosaic. It changes none of your security settings
+                and affects no other app; it just tells macOS to stop treating
+                this one file as a stranger.
               </p>
 
-              <h4>Option 2: Override Security Settings</h4>
+              <h4>Already saw the warning?</h4>
               <p>
-                Go to System Settings &gt; Privacy &amp; Security, look for a
-                message about Mosaic Companion (recently blocked) and click the
-                "Open Anyway" button.
+                No harm done, as long as you didn't delete the app. Dismiss the
+                message and run the command above — it works from that point
+                just as well as before.
+              </p>
+              <p>
+                You may also see an <strong>Open Anyway</strong> button under
+                <strong>System Settings → Privacy &amp; Security</strong>, and
+                on older macOS you can sometimes right-click the app and choose
+                <strong>Open</strong>. Both are worth a try, but neither appears
+                on every Mac — which is why the command above is the one we
+                recommend.
               </p>
 
-              <p>
-                <strong>Note:</strong> This is a temporary measure while we
-                obtain proper code signing. These steps will not be needed in
-                future releases.
-              </p>
+              <div class="notice">
+                <span class="notice-icon" aria-hidden="true">🔏</span>
+                <p>
+                  Why this happens: apps distributed outside the App Store need
+                  a paid Apple developer certificate to avoid this warning, and
+                  we haven't set that up yet. It says nothing about whether the
+                  app is safe — only that Apple hasn't been paid to vouch for
+                  it. Once that's in place, this step disappears.
+                </p>
+              </div>
             </div>
           </div>
         </section>
@@ -787,16 +783,17 @@
             <span class="stepnum">The sidebar, decoded</span>
             <h3>What each section is for</h3>
             <table>
+              <tr><td>Home</td><td>Your start page — quick access to everything else. Where Mosaic opens.</td></tr>
               <tr><td>AI Chat</td><td>One-on-one chat with your AI agents — <span class="hl">this is the main chat</span>, where you'll spend most of your time.</td></tr>
               <tr><td>Mosaic Bot</td><td>A built-in background assistant with long-term memory. Different from AI Chat — think of it as Mosaic's own helper.</td></tr>
               <tr><td>Chat Rooms</td><td>Shared rooms where several people and agents can talk together. Needs a chat server — safe to ignore at first.</td></tr>
               <tr><td>MCP Servers</td><td>Optional plug-ins that give your agents extra tools. Ignore until you need them.</td></tr>
-              <tr><td>Web 3</td><td>Connect a crypto wallet, set transfer limits, and control what agents may spend. Only relevant if you use crypto.</td></tr>
+              <tr><td>Web3</td><td>Connect a crypto wallet, set transfer limits, and control what agents may spend. Only relevant if you use crypto.</td></tr>
               <tr><td>Vault</td><td>Encrypted boxes for your own notes and secrets — you choose which agents can read each box. Try it: create a box, put something in, and ask your agent what's in your vault.</td></tr>
-              <tr><td>Addons</td><td>Optional installable tabs (Settings → Addons) that add functionality beyond the core app — analytics, marketplaces, and more, added as they become available.</td></tr>
+              <tr><td>HyperInsight</td><td>Analytics for HyperCycle AIMs and nodes — leaderboards, node profiles and network stats. Installed for you; turn it on or off under <span class="hl">Configuration → Addons</span>.</td></tr>
               <tr><td>IDE</td><td>A built-in code editor. For programmers — everyone else can skip it.</td></tr>
               <tr><td>Tool Sandbox</td><td>Install small, safely-sandboxed tools that agents can run. Optional.</td></tr>
-              <tr><td>Configuration</td><td>Settings — including <span class="hl">AI Agents</span>, where keys and models live.</td></tr>
+              <tr><td>Configuration</td><td>Settings — including <span class="hl">AI Agents</span>, where keys and models live, and <span class="hl">Addons</span>, where extra tabs like HyperInsight are switched on and off. More addons become available as they're published.</td></tr>
             </table>
             <div class="note" style="margin-top: 16px">
               <div>
