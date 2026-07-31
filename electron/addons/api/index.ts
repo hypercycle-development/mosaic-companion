@@ -99,8 +99,13 @@ export function registerAddonApi(): void {
         }
       }
 
-      const namespace = NAMESPACES[ns];
-      const spec = namespace?.[method];
+      // hasOwn, not plain indexing: `ns: "constructor"` or
+      // `method: "toString"` otherwise resolve up the prototype chain to a
+      // truthy non-spec, whose `permission` is undefined — which skips the
+      // permission check below. It happens to fail closed today only because
+      // no prototype member carries a `handler`; that is luck, not a check.
+      const namespace = Object.hasOwn(NAMESPACES, ns) ? NAMESPACES[ns] : undefined;
+      const spec = namespace && Object.hasOwn(namespace, method) ? namespace[method] : undefined;
       if (!spec) return errorResponse("UNKNOWN_METHOD", `Unknown method "${ns}.${method}"`);
 
       if (spec.permission && !getGrantedPermissions(addonId).has(spec.permission)) {

@@ -25,7 +25,9 @@ const CHANNEL_PERMISSIONS: Record<string, string | null> = {
 };
 
 function isChannelKnown(channel: string): boolean {
-  return channel in CHANNEL_PERMISSIONS || channel.startsWith("self:");
+  // hasOwn rather than `in`, so a channel named e.g. "toString" can't match
+  // via the prototype chain.
+  return Object.hasOwn(CHANNEL_PERMISSIONS, channel) || channel.startsWith("self:");
 }
 
 /** `self:<name>` (an addon's own main pushing to its own webview via

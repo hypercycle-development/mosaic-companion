@@ -53,6 +53,15 @@ function addonProtocolHandler(request: Request): Response | Promise<Response> {
     return new Response("Not Found", { status: 404 });
   }
 
+  // Re-check after resolving symlinks: the prefix test above passes for a link
+  // that lives under renderer/ but points outside it, and serving that would
+  // hand the addon's own page an arbitrary file read over mosaic-addon://.
+  const realRendererDir = fs.realpathSync(rendererDir);
+  const realFilePath = fs.realpathSync(filePath);
+  if (!realFilePath.startsWith(realRendererDir + path.sep)) {
+    return new Response("Access Denied", { status: 403 });
+  }
+
   return net.fetch(pathToFileURL(filePath).href);
 }
 

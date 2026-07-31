@@ -61,9 +61,16 @@ export const methods: ApiNamespace = {
       // The id reaches path.join via ensureAgentHistoryDir below, so an
       // addon-supplied "../.." would create directories outside the history
       // root. Constrain it to the same shape the app generates.
+      // Must START with an alphanumeric: a character class containing "." also
+      // admits "." and "..", and the id is joined onto the history root by
+      // `ensureAgentHistoryDir` here and by `readAgentHistories` /
+      // `deleteAllAgentHistories` later — where ".." resolves to userData
+      // itself, and that last one is an `fs.rmSync(..., { recursive: true })`.
       const requestedId = typeof input.id === "string" || typeof input.id === "number" ? String(input.id) : "";
-      if (requestedId && !/^[A-Za-z0-9._-]{1,64}$/.test(requestedId)) {
-        throw new ApiValidationError("agent.id may only contain letters, numbers, dot, underscore or hyphen");
+      if (requestedId && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(requestedId)) {
+        throw new ApiValidationError(
+          "agent.id must start with a letter or number and contain only letters, numbers, dot, underscore or hyphen",
+        );
       }
       const id = requestedId || `addon-agent-${Date.now()}`;
       if (readAgentsStored().some((a) => String(a.id) === id)) {
@@ -92,6 +99,7 @@ export const methods: ApiNamespace = {
         id,
         name: input.name,
         provider: "custom",
+        apiKey: "",
         model: typeof input.model === "string" ? input.model : "",
         isActive: false,
         createdAt: Date.now(),

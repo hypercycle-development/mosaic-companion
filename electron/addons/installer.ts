@@ -433,15 +433,11 @@ export async function upgradeAddon(
   //     against, so an unbounded write would grant permissions the addon
   //     never declared and the user never saw;
   //   - after the download, so a failed upgrade leaves grants untouched.
-  const grantedNow = acceptedPermissions
-    ? (() => {
-        const existing = entry.grantedPermissions ?? [];
-        const union = new Set([...existing, ...acceptedPermissions]);
-        const bounded = staged.manifest.permissions.filter((p) => union.has(p));
-        setGrantedPermissions(id, bounded);
-        return bounded;
-      })()
-    : (getAddonEntry(id)?.grantedPermissions ?? []);
+  // Computed here, written after the swap succeeds (below) — an upgrade that
+  // fails partway must not leave the old version running on a narrowed grant.
+  const existingGrant = getAddonEntry(id)?.grantedPermissions ?? [];
+  const union = new Set([...existingGrant, ...(acceptedPermissions ?? [])]);
+  const grantedNow = staged.manifest.permissions.filter((p) => union.has(p));
 
   const missing = staged.manifest.permissions.filter((p) => !grantedNow.includes(p));
   if (missing.length > 0) {
@@ -477,6 +473,11 @@ export async function upgradeAddon(
   }
 
   recordUpgrade(id, staged.manifest.version, sourceFor(catalogueEntry));
+  // Only now, once the new version is actually in place. Writing this earlier
+  // would narrow the running addon's grant on a failed upgrade; writing it
+  // unconditionally (rather than only when new permissions were accepted) is
+  // what revokes permissions a version no longer declares.
+  setGrantedPermissions(id, grantedNow);
 
   const activateResult = await activateAddon(id);
   if (!activateResult.success) {

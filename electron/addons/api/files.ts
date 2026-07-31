@@ -13,11 +13,36 @@ import { assertString, ApiValidationError, type ApiNamespace } from "./types";
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_ADDON_BYTES = 200 * 1024 * 1024;
 
+/**
+ * A string-prefix check alone is not a jail: an addon ships whatever it likes
+ * inside its own directory, and a symlink at `data/escape -> /` resolves to a
+ * path that still *starts with* dataDir while pointing anywhere on disk. Tar
+ * extraction preserves symlink entries, so this is shippable in an addon
+ * tarball. Since the `files` namespace carries no permission at all, that
+ * would be unconsented arbitrary read/write.
+ *
+ * So resolve symlinks before deciding. For paths that don't exist yet (writes,
+ * mkdir) walk up to the nearest existing ancestor and realpath that instead —
+ * a link anywhere along the chain is what matters, not the leaf.
+ */
 function resolveJailedPath(addonId: string, relPath: string): string {
   const dataDir = getAddonDataDir(addonId);
   if (!dataDir) throw new ApiValidationError("Addon data directory unavailable");
+
+  const realDataDir = fs.existsSync(dataDir) ? fs.realpathSync(dataDir) : dataDir;
   const resolved = path.join(dataDir, relPath);
-  if (resolved !== dataDir && !resolved.startsWith(dataDir + path.sep)) {
+
+  let probe = resolved;
+  while (!fs.existsSync(probe)) {
+    const parent = path.dirname(probe);
+    if (parent === probe) break;
+    probe = parent;
+  }
+  const realProbe = fs.existsSync(probe) ? fs.realpathSync(probe) : probe;
+  const realResolved = path.join(realProbe, path.relative(probe, resolved));
+
+  const escapes = (p: string, root: string) => p !== root && !p.startsWith(root + path.sep);
+  if (escapes(resolved, dataDir) || escapes(realResolved, realDataDir)) {
     throw new ApiValidationError("Path escapes the addon's data directory");
   }
   return resolved;
