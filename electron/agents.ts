@@ -1,5 +1,11 @@
 /**
- * AI agent storage (userData/ai-agents.json).
+ * AI agent storage (`ai-agents.json`) and Hypercycle-agent activation
+ * validation. Moved here from `electron/main.ts` (Phase 3 of the addon
+ * architecture) so `electron/addons/api/agents.ts` can reuse the exact same
+ * read/write/validation path the core `ai-agents:*` IPC handlers use,
+ * without `electron/addons/*` reaching back into `main.ts` — mirrors the
+ * Phase 2 precedent of moving theme settings into `electron/settings.ts`
+ * for the same reason.
  *
  * API keys are encrypted at rest via safeStorage (see agentKeyCrypto.ts).
  * `readAgentsStored()` returns agents with keys in stored (encrypted) form —
@@ -8,11 +14,12 @@
  */
 
 import { app } from "electron";
-import path from "path";
 import fs from "fs";
-import { mergeBuiltinAgents } from "./defaultAiAgents";
+import path from "path";
 import { getWalletKey } from "./integrations/web3/index";
 import { hasTodaConfig } from "./integrations/web3/toda";
+import { mergeBuiltinAgents } from "./defaultAiAgents";
+import { getErrorMessage } from "./utils";
 import { canEncrypt, decryptKey, encryptKey, isEncryptedKey } from "./agentKeyCrypto";
 
 export interface AIAgent {
@@ -22,6 +29,7 @@ export interface AIAgent {
 }
 
 const aiAgentsPath = path.join(app.getPath("userData"), "ai-agents.json");
+export const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 
 export function validateActiveHypercycleAgent(agent: AIAgent): string | null {
   if (agent.provider !== "hypercycle") return null;
@@ -57,7 +65,7 @@ export function readAgentsStored(): AIAgent[] {
       raw = JSON.parse(data);
     }
   } catch (error) {
-    console.error("Failed to read AI agents:", error);
+    console.error("Failed to read AI agents:", getErrorMessage(error));
   }
   const { agents, changed } = mergeBuiltinAgents(raw);
   const needsMigration =
@@ -99,7 +107,13 @@ export function writeAgents(agents: AIAgent[]): boolean {
     fs.writeFileSync(aiAgentsPath, JSON.stringify(stored, null, 2), "utf8");
     return true;
   } catch (error) {
-    console.error("Failed to write AI agents:", error);
+    console.error("Failed to write AI agents:", getErrorMessage(error));
     return false;
   }
+}
+
+/** Same per-agent history directory `ai-agents:add` creates. */
+export function ensureAgentHistoryDir(agentId: string | number): void {
+  const agentPath = path.join(agentsHistoryPath, agentId.toString());
+  fs.mkdirSync(agentPath, { recursive: true });
 }

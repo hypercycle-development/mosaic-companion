@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 
 export interface HistoryState {
   past: string[];
@@ -43,6 +43,9 @@ export const INTERNAL_ONBOARDING_URL = "browser://onboarding";
 export const INTERNAL_IDE_URL = "browser://ide";
 /** Dynamic tool panel URL prefix: browser://tool-panel/{toolId} */
 export const INTERNAL_TOOL_PANEL_PREFIX = "browser://tool-panel/";
+/** Addon tab URL prefix: addon://{addonId} — one route in ContentArea.tsx
+ * dispatches to AddonHostView for every addon; no per-addon constants (§6.4). */
+export const ADDON_URL_PREFIX = "addon://";
 
 export interface AppSettings {
   homeUrl: string;

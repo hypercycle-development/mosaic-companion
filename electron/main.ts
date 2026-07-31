@@ -22,6 +22,10 @@ import {
   setGmailAutoMarkRead,
   getAutoDisplayMedia,
   setAutoDisplayMedia,
+  getTabVisibility,
+  setTabVisibility,
+  readThemeSettings,
+  writeThemeSettings,
 } from "./settings";
 import {
   getDirectoryStatus,
@@ -38,9 +42,40 @@ import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integrations/chat/index";
 import { initIDE, cleanupIDE } from "./integrations/ide/index";
 // Plugin IPC handler registrations
-import { registerHyperInsightIpc, stopScorePolling } from "../plugins/hyperinsight/main/index.js";
+// Phase 7 (§9.2): HyperInsight is no longer a static core plugin — it's
+// carried entirely by its own addon (mosaic-addons/addons/hyperinsight),
+// including registration and score polling. See ./addons/hyperinsight-migration
+// for the one-time auto-install that gives upgrading profiles continuity.
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";
 import { registerPaymentsJitIpc } from "../plugins/payments-jit/main/index.ts";
+// Addon system
+import {
+  initAddons,
+  deactivateAll,
+  activateAddon,
+  deactivateAddon,
+  installDevAddon,
+  listAddons,
+  listAddonTabs,
+  setAddonEnabled,
+  setLinkVisibilityToActivation,
+  setUpdateCheckMode,
+} from "./addons/loader";
+import { installWebviewAttachGuards, ADDON_PRELOAD_PATH, broadcastAddonEvent } from "./addons/webviews";
+import { ADDON_SCHEME_PRIVILEGE, registerAddonProtocolHandler } from "./addons/protocol";
+import { registerAddonApi } from "./addons/api/index";
+import { broadcastThemeToAddons } from "./addons/theme";
+import {
+  fetchCatalogue,
+  beginInstall,
+  confirmInstall,
+  uninstallAddon,
+  getDataSize,
+  upgradeAddon,
+  getAvailableUpdateVersion,
+  runAutomaticUpdateCheckPass,
+} from "./addons/installer";
+import { runHyperInsightAutoInstallMigration, wasHyperInsightJustAutoInstalled } from "./addons/hyperinsight-migration";
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
@@ -62,7 +97,7 @@ import {
   type NetworkConfig,
   clearTodaTwinInfoAddress,
 } from "./integrations/web3/config";
-import { saveWalletKey } from "./integrations/web3/index";
+import { saveWalletKey, getWalletAddress } from "./integrations/web3/index";
 import { signHypercycleNonceWithWallet } from "./integrations/web3/hypercycleSign";
 import {
   saveTodaApiKey,
@@ -84,12 +119,14 @@ import {
 } from "./integrations/vault";
 import type { VaultBox } from "./integrations/vault/types";
 import {
+  type AIAgent,
+  agentsHistoryPath,
   readAgents,
   readAgentsStored,
   writeAgents,
   validateActiveHypercycleAgent,
   validateAgentsListForActivation,
-  type AIAgent,
+  ensureAgentHistoryDir,
 } from "./agents";
 
 // =============================================================================
@@ -116,19 +153,14 @@ interface Node {
   adminHost: string;
   adminPort: string;
   isActive: boolean;
-  // Need licenseKey to connect to node manifests in hyperinsight-aims.json
+  // Need licenseKey to connect to node manifests in aim-nodes-data.json
   licenseKey?: string;
 }
-
 
 interface ChatSession {
   id: string;
   agentId: string;
   [key: string]: unknown;
-}
-
-interface ThemeSettings {
-  activeTheme: string;
 }
 
 // =============================================================================
@@ -168,11 +200,6 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 }
-
-// =============================================================================
-// App Paths
-// =============================================================================
-const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
 
 // =============================================================================
 // Window Management
@@ -244,6 +271,15 @@ function createWindow(urlToLoad: string | null = null): BrowserWindow {
     console.error(`Failed to load ${validatedURL}: ${errorCode} (${errorDescription})`);
   });
 
+  // Addon webview attach guards (§4.2) — main-process enforcement of
+  // contextIsolation/sandbox/nodeIntegration/preload for every
+  // mosaic-addon:// webview, and preload-stripping for every other one.
+  installWebviewAttachGuards(win);
+
+  // Pushed to addon webviews subscribed to "window:focus-changed" (§4.3).
+  win.on('focus', () => broadcastAddonEvent('window:focus-changed', { focused: true }));
+  win.on('blur', () => broadcastAddonEvent('window:focus-changed', { focused: false }));
+
   // Handle loss of CSS syles after hibernation (Mac)
   powerMonitor.on('resume', () => {
     if (win) {
@@ -282,12 +318,12 @@ function recreateWindow(): void {
 // App Lifecycle
 // =============================================================================
 app.on("before-quit", () => {
-  stopScorePolling();
   mcpClient.disconnectAll();
   cleanupTools().catch(console.error);
   if (mosaicBotStop) mosaicBotStop().catch(console.error);
   stopChat();
   cleanupIDE();
+  deactivateAll().catch((e) => console.error("[Addons] Deactivate-all failed:", e));
 });
 
 // Suppress ERR_ABORTED errors from webviews
@@ -301,7 +337,8 @@ app.on("web-contents-created", (_event, contents) => {
 
 // Must be called before app is ready
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'mosaic-media', privileges: { bypassCSP: true, supportFetchAPI: true, corsEnabled: true } }
+  { scheme: 'mosaic-media', privileges: { bypassCSP: true, supportFetchAPI: true, corsEnabled: true } },
+  ADDON_SCHEME_PRIVILEGE,
 ]);
 
 app.whenReady().then(() => {
@@ -326,6 +363,10 @@ app.whenReady().then(() => {
     return net.fetch(`file://${filePath}`);
   });
 
+  // Register mosaic-addon:// (§4.1) — serves each addon's renderer/ dir,
+  // 403 unless the addon is currently activated.
+  registerAddonProtocolHandler();
+
   // Ensure agents history directory exists
   const agentsHistoryPathExist = getDirectoryStatus(agentsHistoryPath);
   if (!agentsHistoryPathExist.exists) {
@@ -347,9 +388,115 @@ app.whenReady().then(() => {
   // process using that env, so the key is available from process start.
   // Reversing this order causes the MCP server to launch without WALLET_PRIVATE_KEY.
   // ==========================================================================
-  registerHyperInsightIpc(ipcMain);
   registerAimNodesIpc(ipcMain);
   registerPaymentsJitIpc(ipcMain);
+
+  // Addon system — registered after the static core plugins above so
+  // reserved-namespace collision checks see reality, and before the
+  // renderer subsystems below (§8).
+  ipcMain.handle("addons:list", async () =>
+    listAddons().map((summary) => ({
+      ...summary,
+      updateAvailable: getAvailableUpdateVersion(summary.id),
+    })),
+  );
+  ipcMain.handle("addons:list-tabs", async () => listAddonTabs());
+  ipcMain.handle("addons:activate", async (_event: IpcMainInvokeEvent, id: string) => {
+    const result = await activateAddon(id);
+    broadcastAddonsChanged();
+    return result;
+  });
+  ipcMain.handle("addons:deactivate", async (_event: IpcMainInvokeEvent, id: string) => {
+    const result = await deactivateAddon(id);
+    broadcastAddonsChanged();
+    return result;
+  });
+  ipcMain.handle("addons:set-enabled", async (_event: IpcMainInvokeEvent, id: string, enabled: boolean) => {
+    const result = await setAddonEnabled(id, enabled);
+    broadcastAddonsChanged();
+    broadcastTabPrefsChanged(getTabVisibility());
+    return result;
+  });
+  ipcMain.handle("addons:install-dev", async (_event: IpcMainInvokeEvent, devPath: string) => installDevAddon(devPath));
+  ipcMain.handle("addons:get-preload-path", async () => ADDON_PRELOAD_PATH);
+
+  // Phase 4 — registry/installer surface
+  // No renderer-supplied registry URL: the catalogue location is a build
+  // constant. A renderer-chosen URL would let anything running in the
+  // renderer point the installer at a registry of its choosing, and an
+  // accepted registry ends in `confirmInstall` running an addon's
+  // `main/index.js` in the main process.
+  ipcMain.handle("addons:fetch-catalogue", async () => fetchCatalogue());
+  ipcMain.handle("addons:install", async (_event: IpcMainInvokeEvent, id: string) => beginInstall(id));
+  ipcMain.handle(
+    "addons:install-confirm",
+    async (_event: IpcMainInvokeEvent, id: string, acceptedPermissions: string[]) => {
+      const result = await confirmInstall(id, acceptedPermissions);
+      broadcastAddonsChanged();
+      return result;
+    },
+  );
+  ipcMain.handle(
+    "addons:uninstall",
+    async (_event: IpcMainInvokeEvent, id: string, opts: { keepSettings: boolean; keepData: boolean }) => {
+      const result = await uninstallAddon(id, opts);
+      broadcastAddonsChanged();
+      broadcastTabPrefsChanged(getTabVisibility());
+      return result;
+    },
+  );
+  ipcMain.handle("addons:get-data-size", async (_event: IpcMainInvokeEvent, id: string) => getDataSize(id));
+  ipcMain.handle(
+    "addons:upgrade",
+    async (_event: IpcMainInvokeEvent, id: string, acceptedPermissions?: string[]) => {
+      const result = await upgradeAddon(id, acceptedPermissions);
+      broadcastAddonsChanged();
+      return result;
+    },
+  );
+  ipcMain.handle(
+    "addons:set-visibility-link",
+    async (_event: IpcMainInvokeEvent, id: string, linked: boolean) => {
+      setLinkVisibilityToActivation(id, linked);
+      broadcastAddonsChanged();
+      return { success: true };
+    },
+  );
+  ipcMain.handle(
+    "addons:set-update-check-mode",
+    async (_event: IpcMainInvokeEvent, id: string, mode: "manual" | "automatic") => {
+      setUpdateCheckMode(id, mode);
+      broadcastAddonsChanged();
+      return { success: true };
+    },
+  );
+  // §9.2/§10 Phase 7 — queried once by the renderer on startup to show the
+  // one-time "HyperInsight is now an addon" non-blocking notice. True only
+  // for the launch that actually performed the auto-install (see
+  // ./addons/hyperinsight-migration); false on every later launch.
+  ipcMain.handle("addons:was-hyperinsight-just-migrated", async () => wasHyperInsightJustAutoInstalled());
+
+  // The addonAPI dispatcher (§5.1) — one invoke channel + one event channel
+  // for every addon webview.
+  registerAddonApi();
+
+  // §8/§9.2: the one-time HyperInsight auto-install migration runs before
+  // initAddons()'s regular activation convergence, so — for an upgrading
+  // profile — the newly-installed addon activates in the very same pass as
+  // every other already-installed addon, not a separate later step.
+  runHyperInsightAutoInstallMigration()
+    .catch((e) => console.error("[Addons] HyperInsight auto-install migration failed:", e))
+    .then(() => initAddons())
+    .then(() => {
+      // Once-per-launch automatic-update-check pass (§7.2, decision 7) — not
+      // a recurring poll. Only addons opted into "Automatic" are checked,
+      // and only via a single registry fetch. Best-effort: failures (e.g.
+      // no network) just mean no "Update available" badge this session.
+      runAutomaticUpdateCheckPass()
+        .then(() => broadcastAddonsChanged())
+        .catch((e) => console.error("[Addons] Automatic update check failed:", e));
+    })
+    .catch((e) => console.error("[Addons] Init failed:", e));
 
   // Now auto-connect MCP plugins (with correct env already set)
   initPlugins().catch((e) => console.error("[MCP] Plugin init failed:", e));
@@ -455,6 +602,15 @@ ipcMain.handle("dialog:open-file", async (_event, options?: { filters?: Array<{ 
   return result.filePaths[0];
 });
 
+// Directory picker — used by Settings → Addons → Dev corner's "Load unpacked
+// addon…" (§7.4).
+ipcMain.handle("dialog:open-directory", async () => {
+  const { dialog } = await import("electron");
+  const result = await dialog.showOpenDialog(mainWindow!, { properties: ["openDirectory"] });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
 // CSV Logging
 const csvPath = path.join(app.getPath("userData"), "input_history.csv");
 
@@ -554,31 +710,8 @@ ipcMain.handle("nodes:delete", async (_event: IpcMainInvokeEvent, id: string) =>
 // Sandbox State
 ipcMain.handle("sandbox:get-state", async () => sandboxState);
 
-// AI Agents Storage (persistence + key encryption live in ./agents)
-const themesPath = path.join(app.getPath("userData"), "themes.json");
-
-function readThemeSettings(): ThemeSettings {
-  try {
-    if (fs.existsSync(themesPath)) {
-      const data = fs.readFileSync(themesPath, "utf8");
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error("Failed to read theme settings:", error);
-  }
-  return { activeTheme: "dark" };
-}
-
-function writeThemeSettings(settings: ThemeSettings): boolean {
-  try {
-    fs.writeFileSync(themesPath, JSON.stringify(settings, null, 2), "utf8");
-    return true;
-  } catch (error) {
-    console.error("Failed to write theme settings:", error);
-    return false;
-  }
-}
-
+// AI Agents Storage (persistence + key encryption live in ./agents;
+// theme settings moved to ./settings in Phase 2 of the addon architecture)
 ipcMain.handle("ai-agents:get", async () => {
   return readAgents();
 });
@@ -862,6 +995,9 @@ const SECURE_IMPORT_HTML = `<!DOCTYPE html><html lang="en"><head><meta charset="
 
 ipcMain.on("web3:wallet-imported", () => {
   mainWindow?.webContents.send("wallet:imported");
+  // addonAPI.wallet:changed (§5.2/§5.3, wallet:read) — same trigger point as
+  // the core-renderer "wallet:imported" notice above.
+  broadcastAddonEvent("wallet:changed", { address: getWalletAddress() });
 });
 
 ipcMain.handle("web3:open-secure-import-window", async () => {
@@ -889,8 +1025,10 @@ ipcMain.handle("themes:get", async () => {
 });
 
 ipcMain.handle("themes:set", async (_event: IpcMainInvokeEvent, activeTheme: string) => {
-  const settings: ThemeSettings = { activeTheme };
-  const success = writeThemeSettings(settings);
+  const success = writeThemeSettings({ activeTheme });
+  if (success) {
+    broadcastThemeToAddons(activeTheme);
+  }
   return { success };
 });
 
@@ -1041,3 +1179,41 @@ ipcMain.handle("media:set-auto-display", (_event, enabled: boolean) => {
   const result = setAutoDisplayMedia(enabled);
   return { ...result, enabled: getAutoDisplayMedia() };
 });
+
+// =============================================================================
+// Sidebar Tab Visibility
+// =============================================================================
+
+function broadcastTabPrefsChanged(visibility: Record<string, boolean>): void {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    win.webContents.send("tab-prefs:changed", visibility);
+  });
+}
+
+ipcMain.handle("tab-prefs:get", () => {
+  return getTabVisibility();
+});
+
+ipcMain.handle(
+  "tab-prefs:set-visibility",
+  (_event: IpcMainInvokeEvent, tabId: string, visible: boolean) => {
+    const result = setTabVisibility(tabId, visible);
+    if (result.success) {
+      broadcastTabPrefsChanged(getTabVisibility());
+    }
+    return result;
+  },
+);
+
+// =============================================================================
+// Addon lifecycle broadcast — tells the main app renderer (Sidebar,
+// AddonHostView), not addon webviews, that installed/activated/tab state may
+// have changed. Addon webviews get their own, differently-scoped pushes via
+// addon-api:event (webviews.ts's broadcastAddonEvent).
+// =============================================================================
+
+function broadcastAddonsChanged(): void {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    win.webContents.send("addons:changed", listAddonTabs());
+  });
+}

@@ -6,6 +6,7 @@ await esbuild.build({
     "electron/main.ts",
     "electron/preload.ts",
     "electron/secure-wallet-import-preload.ts",
+    "electron/addon-preload.ts",
   ],
   bundle: true,
   platform: "node",

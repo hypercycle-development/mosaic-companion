@@ -54,6 +54,7 @@ export default {
             /^\/electron$/,           // TypeScript source files
             /^\/\.git/,
             /^\/\.github/,
+            /^\/examples/,      // contributor examples + their build artifacts
             /^\/\.vscode/,
             /^\/docs$/,
             /^\/static$/,
