@@ -318,57 +318,70 @@
             </div>
 
             <div class="step-card">
-              <h3><span class="step-number">3</span> Allow Mosaic to open</h3>
+              <h3><span class="step-number">3</span> Let macOS know Mosaic is safe</h3>
               <p>
-                Everyone installing on macOS needs this step — it isn't an
-                error, and nothing has gone wrong. macOS shows a warning like
-                <em>"Mosaic Companion is damaged"</em> or <em>"cannot be
-                opened because Apple cannot check it"</em> for any app that
-                isn't notarized. Mosaic isn't yet; that's being sorted.
+                Everyone installing on macOS does this step. If you skip it,
+                macOS will tell you Mosaic Companion
+                <strong>"is damaged and can't be opened"</strong> and offer to
+                move it to the Bin. <strong>It isn't damaged, and you shouldn't
+                move it to the Bin</strong> — that message is simply what macOS
+                says about any app it can't check with Apple.
               </p>
 
-              <h4>Do this</h4>
-              <ol class="steps-list">
-                <li>Open <strong>Applications</strong> and double-click Mosaic Companion</li>
-                <li>macOS blocks it — click <strong>Done</strong> or <strong>OK</strong></li>
-                <li>
-                  Open <strong>System Settings → Privacy &amp; Security</strong>
-                  and scroll down. You'll see a line saying Mosaic Companion was
-                  blocked, with an <strong>Open Anyway</strong> button
-                </li>
-                <li>Click <strong>Open Anyway</strong>, then confirm</li>
-              </ol>
+              <h4>Do this before you open Mosaic</h4>
               <p>
-                That's it — Mosaic opens normally from then on, and you won't
-                see this again.
-              </p>
-
-              <h4>If you don't see "Open Anyway"</h4>
-              <p>
-                On older versions of macOS you can instead right-click Mosaic
-                Companion in Applications, choose <strong>Open</strong>, and
-                click <strong>Open</strong> again in the dialog. If neither
-                route works, this Terminal command clears the quarantine flag
-                that causes the block:
+                Open <strong>Terminal</strong> (Applications → Utilities, or
+                press <strong>⌘ Space</strong> and type "Terminal"), paste this
+                line, and press Enter:
               </p>
               <div class="code-block">
-                <code>xattr -cr /Applications/mosaic-companion.app</code>
+                <code>xattr -dr com.apple.quarantine /Applications/mosaic-companion.app</code>
                 <button type="button" class="copy-btn" onclick="copyCode(this)">
                   copy
                 </button>
               </div>
               <p>
-                Open Terminal from Applications → Utilities, paste the command,
-                press Enter, then open Mosaic again.
+                Then open Mosaic normally. If macOS still shows the warning,
+                use the steps just below — it takes a few seconds and gets you
+                to the same place.
+              </p>
+              <p>
+                <strong>What that command does:</strong> macOS puts a hidden
+                "downloaded from the internet" tag on files you download, and
+                refuses to run unsigned apps that carry it. The command removes
+                that tag from Mosaic and nothing else. It doesn't change any of
+                your security settings, and it doesn't affect any other app.
+              </p>
+
+              <h4>Already saw the warning?</h4>
+              <p>
+                No harm done — as long as you didn't move it to the Bin. Either
+                run the command above and try again, or:
+              </p>
+              <ol class="steps-list">
+                <li>Dismiss the message</li>
+                <li>
+                  Open <strong>System Settings → Privacy &amp; Security</strong>
+                  and scroll down
+                </li>
+                <li>
+                  Find the note about Mosaic Companion being blocked and click
+                  <strong>Open Anyway</strong>
+                </li>
+              </ol>
+              <p>
+                On older versions of macOS you can also right-click Mosaic
+                Companion in Applications and choose <strong>Open</strong>.
               </p>
 
               <div class="notice">
                 <span class="notice-icon" aria-hidden="true">🔏</span>
                 <p>
-                  Why this happens: Apple charges for the developer certificate
-                  that removes this warning, and we haven't set that up yet.
-                  Once we do, these steps disappear and Mosaic will open like
-                  any other app.
+                  Why this happens: apps distributed outside the App Store need
+                  a paid Apple developer certificate to avoid this warning, and
+                  we haven't set that up yet. It says nothing about whether the
+                  app is safe — only that Apple hasn't been paid to vouch for
+                  it. Once that's in place, this step disappears.
                 </p>
               </div>
             </div>
