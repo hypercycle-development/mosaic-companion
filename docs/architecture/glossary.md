@@ -1,5 +1,11 @@
 # Glossary
 
+> [!WARNING]
+> **Parts of this document describe a Docker-based runtime that was never built.**
+> The implemented runtime is WebAssembly via Extism. See
+> [STATUS.md](./STATUS.md) for what in this set is accurate and what is
+> superseded. Last verified 2026-08-20 against `2d920ce`.
+
 Canonical definitions of all architectural terms used across MosAIc documentation.
 
 ---

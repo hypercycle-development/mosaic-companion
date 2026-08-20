@@ -1,5 +1,11 @@
 # Phase 1 Execution Plan
 
+> [!WARNING]
+> **Parts of this document describe a Docker-based runtime that was never built.**
+> The implemented runtime is WebAssembly via Extism. See
+> [STATUS.md](./STATUS.md) for what in this set is accurate and what is
+> superseded. Last verified 2026-08-20 against `2d920ce`.
+
 > Ordered sequence of implementation phases for tool containerization.
 > Source: Execution plan document reviewed with Robert (2026-03-03), refined after Barry's input (2026-03-04).
 

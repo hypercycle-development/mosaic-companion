@@ -1,5 +1,11 @@
 # Data Model
 
+> [!WARNING]
+> **Parts of this document describe a Docker-based runtime that was never built.**
+> The implemented runtime is WebAssembly via Extism. See
+> [STATUS.md](./STATUS.md) for what in this set is accurate and what is
+> superseded. Last verified 2026-08-20 against `2d920ce`.
+
 How data flows between Core and Sandbox. Covers the Chronicle (tool output), Vault (structured storage), wallet model, and the reference/dereference model.
 
 ---
