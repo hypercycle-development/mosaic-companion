@@ -1,8 +1,8 @@
 /**
- * `addonAPI.wallet` (§5.3) — `wallet:read`. Calls the same underlying
+ * `addonAPI.wallet` — `wallet:read`. Calls the same underlying
  * functions the `tools:execute web3:*` path uses (`getWalletAddress`,
  * `fetchNativeBalance`, `fetchTokenBalance`, `getActiveNetwork`) — never the
- * raw wallet key itself. No signing surface in v1 (§5.2): when `wallet:sign`
+ * raw wallet key itself. No signing surface in v1: when `wallet:sign`
  * ships it must route through the payments-jit approval-modal path, not a
  * raw signing method added here.
  */

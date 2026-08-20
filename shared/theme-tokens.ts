@@ -1,6 +1,6 @@
 /**
  * Theme token maps — the single source of truth for every theme's color
- * palette. Extracted out of `src/themes.ts` (§4.3) so BOTH the renderer
+ * palette. Extracted out of `src/themes.ts` so BOTH the renderer
  * (`src/themes.ts` → `ThemeProvider.tsx`) and the main process
  * (`electron/addons/theme.ts`, which pushes `theme:changed` into addon
  * webviews) read the same data without the main process importing anything

@@ -1,5 +1,5 @@
 /**
- * Phase 1 test fixture — the addon-main contract's happy path (§5.4).
+ * Test fixture — the addon-main contract's happy path.
  * Registers a single `ping` handler (channel `addon:ping-addon:ping`) that
  * verifies ctx wiring end to end: ipc registration, settings round-trip, and
  * teardown on deactivate.

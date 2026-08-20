@@ -1,9 +1,9 @@
 /**
- * Pinned publisher public keys + registry signature verification (§6.7).
+ * Pinned publisher public keys + registry signature verification.
  * Ed25519, via Node's built-in `crypto` — no new dependency for signing.
  *
  * The app trusts a small pinned *list* of public keys, not one hardcoded
- * key, so a future rotation is additive (§6.7's rotation procedure).
+ * key, so a future rotation is additive.
  *
  * IMPORTANT: there is **no production key yet** — real key generation,
  * GitHub Actions secrets, and authenticated production distribution are all
@@ -42,7 +42,7 @@ export interface TrustedPublisherKey {
 
 /**
  * Real publisher keys. Empty until the production `mosaic-addons` key is
- * generated under §6.7's custody procedure and pinned here as its own dated
+ * generated under the offline custody procedure and pinned here as its own dated
  * entry. Adding the first entry is what turns the signed catalogue on.
  */
 export const PRODUCTION_PUBLISHER_KEYS: TrustedPublisherKey[] = [];
@@ -98,7 +98,7 @@ export interface VerifyRegistryResult {
  * Verify `bytes` (the raw `addon-registry.json` file contents) against
  * `envelope`. Looks up `envelope.keyId` in the pinned list — **not found →
  * reject immediately**, no fallback to trying every pinned key, no silent
- * accept (§6.7). Only a passing signature check trusts the registry.
+ * accept. Only a passing signature check trusts the registry.
  */
 export function verifyRegistry(bytes: Buffer | string, envelope: RegistrySignatureEnvelope): VerifyRegistryResult {
   if (!envelope || typeof envelope.keyId !== "string" || typeof envelope.signature !== "string") {

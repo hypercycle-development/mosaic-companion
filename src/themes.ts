@@ -1,6 +1,6 @@
 /**
  * Renderer-side theme API. The actual token data now lives in
- * `shared/theme-tokens.ts` (§4.3) so the main process can push the same
+ * `shared/theme-tokens.ts` so the main process can push the same
  * palettes into addon webviews without importing anything renderer-shaped —
  * this file just re-exports it under the names the rest of the renderer
  * already imports, so nothing else in `src/` needs to change.

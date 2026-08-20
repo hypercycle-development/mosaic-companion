@@ -42,7 +42,7 @@ import { initMosaicBot } from "./integrations/mosaicbot/src/main/index";
 import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integrations/chat/index";
 import { initIDE, cleanupIDE } from "./integrations/ide/index";
 // Plugin IPC handler registrations
-// Phase 7 (§9.2): HyperInsight is no longer a static core plugin — it's
+// HyperInsight is no longer a static core plugin — it's
 // carried entirely by its own addon (mosaic-addons/addons/hyperinsight),
 // including registration and score polling. See ./addons/hyperinsight-migration
 // for the one-time auto-install that gives upgrading profiles continuity.
@@ -271,12 +271,12 @@ function createWindow(urlToLoad: string | null = null): BrowserWindow {
     console.error(`Failed to load ${validatedURL}: ${errorCode} (${errorDescription})`);
   });
 
-  // Addon webview attach guards (§4.2) — main-process enforcement of
+  // Addon webview attach guards — main-process enforcement of
   // contextIsolation/sandbox/nodeIntegration/preload for every
   // mosaic-addon:// webview, and preload-stripping for every other one.
   installWebviewAttachGuards(win);
 
-  // Pushed to addon webviews subscribed to "window:focus-changed" (§4.3).
+  // Pushed to addon webviews subscribed to "window:focus-changed".
   win.on('focus', () => broadcastAddonEvent('window:focus-changed', { focused: true }));
   win.on('blur', () => broadcastAddonEvent('window:focus-changed', { focused: false }));
 
@@ -363,7 +363,7 @@ app.whenReady().then(() => {
     return net.fetch(`file://${filePath}`);
   });
 
-  // Register mosaic-addon:// (§4.1) — serves each addon's renderer/ dir,
+  // Register mosaic-addon:// — serves each addon's renderer/ dir,
   // 403 unless the addon is currently activated.
   registerAddonProtocolHandler();
 
@@ -393,7 +393,7 @@ app.whenReady().then(() => {
 
   // Addon system — registered after the static core plugins above so
   // reserved-namespace collision checks see reality, and before the
-  // renderer subsystems below (§8).
+  // renderer subsystems below.
   ipcMain.handle("addons:list", async () =>
     listAddons().map((summary) => ({
       ...summary,
@@ -420,7 +420,7 @@ app.whenReady().then(() => {
   ipcMain.handle("addons:install-dev", async (_event: IpcMainInvokeEvent, devPath: string) => installDevAddon(devPath));
   ipcMain.handle("addons:get-preload-path", async () => ADDON_PRELOAD_PATH);
 
-  // Phase 4 — registry/installer surface
+  // Registry/installer surface
   // No renderer-supplied registry URL: the catalogue location is a build
   // constant. A renderer-chosen URL would let anything running in the
   // renderer point the installer at a registry of its choosing, and an
@@ -470,17 +470,17 @@ app.whenReady().then(() => {
       return { success: true };
     },
   );
-  // §9.2/§10 Phase 7 — queried once by the renderer on startup to show the
+  // Queried once by the renderer on startup to show the
   // one-time "HyperInsight is now an addon" non-blocking notice. True only
   // for the launch that actually performed the auto-install (see
   // ./addons/hyperinsight-migration); false on every later launch.
   ipcMain.handle("addons:was-hyperinsight-just-migrated", async () => wasHyperInsightJustAutoInstalled());
 
-  // The addonAPI dispatcher (§5.1) — one invoke channel + one event channel
+  // The addonAPI dispatcher — one invoke channel + one event channel
   // for every addon webview.
   registerAddonApi();
 
-  // §8/§9.2: the one-time HyperInsight auto-install migration runs before
+  // The one-time HyperInsight auto-install migration runs before
   // initAddons()'s regular activation convergence, so — for an upgrading
   // profile — the newly-installed addon activates in the very same pass as
   // every other already-installed addon, not a separate later step.
@@ -488,7 +488,7 @@ app.whenReady().then(() => {
     .catch((e) => console.error("[Addons] HyperInsight auto-install migration failed:", e))
     .then(() => initAddons())
     .then(() => {
-      // Once-per-launch automatic-update-check pass (§7.2, decision 7) — not
+      // Once-per-launch automatic-update-check pass — not
       // a recurring poll. Only addons opted into "Automatic" are checked,
       // and only via a single registry fetch. Best-effort: failures (e.g.
       // no network) just mean no "Update available" badge this session.
@@ -603,7 +603,7 @@ ipcMain.handle("dialog:open-file", async (_event, options?: { filters?: Array<{ 
 });
 
 // Directory picker — used by Settings → Addons → Dev corner's "Load unpacked
-// addon…" (§7.4).
+// addon…".
 ipcMain.handle("dialog:open-directory", async () => {
   const { dialog } = await import("electron");
   const result = await dialog.showOpenDialog(mainWindow!, { properties: ["openDirectory"] });
@@ -711,7 +711,7 @@ ipcMain.handle("nodes:delete", async (_event: IpcMainInvokeEvent, id: string) =>
 ipcMain.handle("sandbox:get-state", async () => sandboxState);
 
 // AI Agents Storage (persistence + key encryption live in ./agents;
-// theme settings moved to ./settings in Phase 2 of the addon architecture)
+// theme settings moved to ./settings)
 ipcMain.handle("ai-agents:get", async () => {
   return readAgents();
 });
@@ -995,7 +995,7 @@ const SECURE_IMPORT_HTML = `<!DOCTYPE html><html lang="en"><head><meta charset="
 
 ipcMain.on("web3:wallet-imported", () => {
   mainWindow?.webContents.send("wallet:imported");
-  // addonAPI.wallet:changed (§5.2/§5.3, wallet:read) — same trigger point as
+  // addonAPI.wallet:changed (wallet:read) — same trigger point as
   // the core-renderer "wallet:imported" notice above.
   broadcastAddonEvent("wallet:changed", { address: getWalletAddress() });
 });

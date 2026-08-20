@@ -1,5 +1,5 @@
 /**
- * Theme push for addon webviews (§4.3). Reads the same token maps the
+ * Theme push for addon webviews. Reads the same token maps the
  * renderer uses (`shared/theme-tokens.ts`) and broadcasts `theme:changed` to
  * every registered addon webContents whenever `themes:set` runs in
  * `main.ts`. `cssVars` is the theme's raw, un-prefixed token map (matching

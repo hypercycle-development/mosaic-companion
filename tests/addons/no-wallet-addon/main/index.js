@@ -1,5 +1,5 @@
 /**
- * Phase 3 test fixture — declares zero permissions. Its own main doesn't
+ * Test fixture — declares zero permissions. Its own main doesn't
  * need to do anything; the point of this fixture is entirely in what its
  * *renderer* is denied.
  */

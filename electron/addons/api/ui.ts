@@ -1,5 +1,5 @@
 /**
- * `addonAPI.ui` (§5.3) — `setTitle` is implicit; `openExternal` requires
+ * `addonAPI.ui` — `setTitle` is implicit; `openExternal` requires
  * `shell:open-external`. https/http/mailto only, main-side validated, then
  * delegates to `shell.openExternal` — never lets the addon open an
  * arbitrary URL scheme (e.g. `file:`) via this path.

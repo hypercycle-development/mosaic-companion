@@ -16,15 +16,15 @@ interface NodeMiniDetailPanelProps {
 }
 
 /**
- * Core's minimal, addon-independent node view (§9.2's `NodeMiniDetailPanel`
- * instance of the generic "minimal core view + addon deep-link" pattern).
+ * Core's minimal, addon-independent node view (an instance of the generic
+ * "minimal core view + addon deep-link" pattern).
  * Deliberately limited to fields Sidebar already computes for the node
  * cards themselves — license/name, active/inactive, live/offline,
  * last-checked, latency — via the existing plain `/info` ping
  * (`checkNodeConnection`). No AIM zones, no scores, no leaderboard data,
  * nothing sourced from HyperInsight's API. Replaces the old, full
- * `NodeDetailPanel` import (§9.2's "Removed from core" list applies once
- * Phase 7 deletes `plugins/hyperinsight/` entirely; this component doesn't
+ * `NodeDetailPanel` import (removed from core when
+ * `plugins/hyperinsight/` was deleted entirely; this component doesn't
  * depend on it existing).
  */
 export const NodeMiniDetailPanel: React.FC<NodeMiniDetailPanelProps> = ({

@@ -1,11 +1,10 @@
 /**
  * Addon manifest.json schema, validation, and the fixed vocabularies
  * referenced throughout the addon system (reserved IPC namespaces, the
- * permission list). See docs/admin/tab-plugin-architecture-design.md §2.
+ * permission list).
  *
- * Validation is hand-rolled (no schema library dependency) per the design
- * doc: "implemented in electron/addons/manifest.ts, hand-rolled — no new
- * schema dependency". `semver` is already a project dependency and is used
+ * Validation is hand-rolled (no schema library dependency).
+ * `semver` is already a project dependency and is used
  * only for version-string validation, not schema validation itself.
  */
 
@@ -15,8 +14,8 @@ import semver from "semver";
 // Types
 // =============================================================================
 
-/** v1 only supports "tab" — the loader dispatches through a mount-handler
- * registry (added in a later phase) so future values are additive. */
+/** v1 only supports "tab" — kept as a one-member union so future mount
+ * points are additive schema changes. */
 export type MountPoint = "tab";
 
 export type UpdateCheckMode = "manual" | "automatic";
@@ -72,11 +71,11 @@ export type ManifestValidationResult =
 /**
  * Reserved IPC namespaces — every prefix currently registered in
  * `electron/main.ts`, `preload.ts`, and the plugin integrations, plus the
- * addon system's own namespaces (§2). An addon's `ipcNamespace` must not
+ * addon system's own namespaces. An addon's `ipcNamespace` must not
  * collide with any of these. This list shrinks as core migrates features to
- * addons (`hyperinsight` dropped out in Phase 7 — see the addon's own
+ * addons (`hyperinsight` dropped out — see the addon's own
  * manifest.json in mosaic-addons) — kept as a flat, hand-maintained
- * constant per the design doc, not derived dynamically.
+ * constant, not derived dynamically.
  */
 export const RESERVED_IPC_NAMESPACES: readonly string[] = [
   "nodes",
@@ -96,7 +95,7 @@ export const RESERVED_IPC_NAMESPACES: readonly string[] = [
   "mcp",
   "chat",
   "ide",
-  // "hyperinsight" removed (§10 Phase 7) — that's now the HyperInsight
+  // "hyperinsight" removed — that's now the HyperInsight
   // addon's own ipcNamespace (mosaic-addons/addons/hyperinsight), not a
   // core plugin's IPC prefix anymore.
   "aimnodes",
@@ -130,7 +129,7 @@ export const RESERVED_IPC_NAMESPACES: readonly string[] = [
  */
 export const MAIN_ENTRY_ALLOWLIST: readonly string[] = ["hyperinsight"];
 
-/** Permissions grantable to addons in v1 (§5.2). */
+/** Permissions grantable to addons in v1. */
 export const PERMISSION_VOCABULARY: readonly string[] = [
   "wallet:read",
   "agents:read",
@@ -143,7 +142,7 @@ export const PERMISSION_VOCABULARY: readonly string[] = [
 
 /**
  * Named in the vocabulary so the strings are stable when they eventually
- * ship, but rejected at install time in v1 (§5.2).
+ * ship, but rejected at install time in v1.
  */
 export const RESERVED_PERMISSIONS: readonly string[] = [
   "wallet:sign",
@@ -174,7 +173,7 @@ function hasPathTraversal(relPath: string): boolean {
 }
 
 /**
- * Validate a parsed manifest.json against the full v1 schema (§2).
+ * Validate a parsed manifest.json against the full v1 schema.
  * `dirName` is the addon's directory name — the manifest's `id` must equal it.
  */
 export function validateManifest(json: unknown, dirName: string): ManifestValidationResult {

@@ -1,7 +1,7 @@
 /**
- * `addonAPI.nodes` (§5.3) — `nodes:read`. The user's local node registry and
+ * `addonAPI.nodes` — `nodes:read`. The user's local node registry and
  * locally cached AIM data — unrelated to and unaffected by the HyperInsight
- * split (§9.1/§9.2). No write surface in v1.
+ * split. No write surface in v1.
  */
 
 import { getNodes } from "../../settings";

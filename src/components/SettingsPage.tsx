@@ -82,16 +82,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   // Sidebar tab visibility (absent key = visible). Only toggleable tabs render
   // a row here; at launch no core tab is toggleable, so only addon tabs
-  // (always toggleable, §3.3) populate this section until that changes.
+  // (always toggleable) populate this section until that changes.
   const [tabVisibility, setTabVisibilityState] = useState<Record<string, boolean>>({});
   const toggleableTabs = CORE_TABS.filter((tab) => tab.toggleable).sort(
     (a, b) => a.order - b.order,
   );
 
-  // Addon tabs for the Sidebar Tabs section (§7.1) — merged in alongside any
+  // Addon tabs for the Sidebar Tabs section — merged in alongside any
   // toggleable core tabs above. Linked addons show the same combined switch
-  // as Settings → Addons (§3.4: "same control, same state, not two things
-  // that can drift apart"); decoupled addons get the plain visibility toggle.
+  // as Settings → Addons (same control, same state, not two things
+  // that can drift apart); decoupled addons get the plain visibility toggle.
   interface AddonRowForTabsSection {
     id: string;
     label: string;
@@ -235,7 +235,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   };
 
-  // Combined switch for a linked addon's row in this section (§3.4) — same
+  // Combined switch for a linked addon's row in this section — same
   // control, same state, as the Addons list below; not a separate toggle.
   const handleAddonEnabledToggle = async (addonId: string, enabled: boolean) => {
     try {
@@ -425,7 +425,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 );
               })}
 
-              {/* Addon tabs (§7.1) — linked addons show the same combined
+              {/* Addon tabs — linked addons show the same combined
                   switch as Settings → Addons; decoupled addons get the plain
                   visibility-only toggle. */}
               {addonRows.map((addon) => {

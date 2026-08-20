@@ -1,5 +1,5 @@
 /**
- * `addonAPI.mcp` (§5.3) — `mcp:read` for listServers/listTools, `mcp:call`
+ * `addonAPI.mcp` — `mcp:read` for listServers/listTools, `mcp:call`
  * for callTool. `callTool` is the *same* execution path core chat tool calls
  * use (`mcpClient.callTool`), so payment interception applies unchanged:
  * when the AIM endpoint responds with a `__payment_required` signal (the

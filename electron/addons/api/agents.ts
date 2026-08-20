@@ -1,5 +1,5 @@
 /**
- * `addonAPI.agents` (§5.3) — `agents:read` for list/get, `agents:write` for
+ * `addonAPI.agents` — `agents:read` for list/get, `agents:write` for
  * add/update. Reuses the exact same storage + Hypercycle-activation
  * validation (`validateActiveHypercycleAgent`) the core `ai-agents:*` IPC
  * handlers use (`electron/agents.ts`). Credentials are stripped from every

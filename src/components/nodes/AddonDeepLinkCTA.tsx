@@ -17,15 +17,14 @@ interface AddonDeepLinkCTAProps {
 type AddonState = "loading" | "not-installed" | "inactive" | "hidden" | "ready";
 
 /**
- * Generic "minimal core view + addon deep-link" affordance (top of §9, used
- * concretely by NodeMiniDetailPanel per §9.2 — but not HyperInsight-specific:
+ * Generic "minimal core view + addon deep-link" affordance (used
+ * concretely by NodeMiniDetailPanel — but not HyperInsight-specific:
  * any future core-minimal/addon-rich pairing can reuse this unchanged).
  *
  * Reads real installed/activated/visible state via `electronAPI.addons.list()`
  * + `tabPrefs.get()` — never assumes the addon exists. Until the target addon
- * is actually installed (e.g. HyperInsight, which doesn't exist before
- * Phase 7), this always renders the "not installed" CTA — a deliberate,
- * acceptable interim UX dip during the build window, not a bug (§10 Phase 5).
+ * is actually installed (e.g. HyperInsight), this always renders the "not
+ * installed" CTA — a deliberate, acceptable interim UX dip, not a bug.
  */
 export const AddonDeepLinkCTA: React.FC<AddonDeepLinkCTAProps> = ({
   addonId,

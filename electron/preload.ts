@@ -231,14 +231,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     signHypercycleNonce: (nonce: string) =>
       ipcRenderer.invoke("web3:sign-hypercycle-nonce", nonce),
   },
-  // §9.2/Phase 7: HyperInsight is no longer a core plugin — it moved
+  // HyperInsight is no longer a core plugin — it moved
   // wholesale into its own addon (main + renderer), reached through
   // addonAPI.invoke from inside its own webview, not window.electronAPI.
   // There is no core handler left to back a `hyperinsight` group here.
   // AIM Nodes — core's own local node registry / AIM data cache and payment
-  // interception (§9.1). Moved out of the `hyperinsight` group: none of this
+  // interception. Moved out of the `hyperinsight` group: none of this
   // is HyperInsight-API-specific, and aim-nodes stays core permanently even
-  // after the HyperInsight addon migration (§9.2/Phase 7). IPC channel names
+  // after the HyperInsight addon migration. IPC channel names
   // (`aimnodes:*`) are unchanged — only which preload group exposes them.
   aimNodes: {
     saveNodeData: (license: string, data: any) => ipcRenderer.invoke("aimnodes:save-node-data", license, data),
@@ -252,7 +252,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getAutoDisplay: () => ipcRenderer.invoke("media:get-auto-display"),
     setAutoDisplay: (enabled: boolean) => ipcRenderer.invoke("media:set-auto-display", enabled),
   },
-  // Addon management (renderer-side management bridge — §6.2)
+  // Addon management (renderer-side management bridge)
   addons: {
     list: () => ipcRenderer.invoke("addons:list"),
     listTabs: () => ipcRenderer.invoke("addons:list-tabs"),
@@ -261,7 +261,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     setEnabled: (id: string, enabled: boolean) => ipcRenderer.invoke("addons:set-enabled", id, enabled),
     installDev: (devPath: string) => ipcRenderer.invoke("addons:install-dev", devPath),
     getPreloadPath: () => ipcRenderer.invoke("addons:get-preload-path"),
-    // Phase 4 — registry/installer surface
+    // Registry/installer surface
     fetchCatalogue: () => ipcRenderer.invoke("addons:fetch-catalogue"),
     install: (id: string) => ipcRenderer.invoke("addons:install", id),
     installConfirm: (id: string, acceptedPermissions: string[]) =>
@@ -274,7 +274,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     setVisibilityLink: (id: string, linked: boolean) => ipcRenderer.invoke("addons:set-visibility-link", id, linked),
     setUpdateCheckMode: (id: string, mode: "manual" | "automatic") =>
       ipcRenderer.invoke("addons:set-update-check-mode", id, mode),
-    // §9.2/Phase 7 — one-time notice after the HyperInsight auto-install
+    // One-time notice after the HyperInsight auto-install
     // migration; true only on the launch that actually performed it.
     wasHyperInsightJustMigrated: () => ipcRenderer.invoke("addons:was-hyperinsight-just-migrated"),
     onChanged: (callback: (tabs: unknown[]) => void) => {

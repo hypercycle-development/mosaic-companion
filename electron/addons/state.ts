@@ -1,5 +1,5 @@
 /**
- * `addon-state.json` — the install/activation registry (§3.1). Owned entirely
+ * `addon-state.json` — the install/activation registry. Owned entirely
  * by this module; atomic write-temp-then-rename (the same pattern the
  * HyperInsight addon's own main/index.js uses for its tool-scores cache).
  *
@@ -29,7 +29,7 @@ export type AddonSource =
   | { type: "dev"; path: string }
   | {
       /** Copied from mosaic-companion's own `bundled-addons/<id>/` at
-       * auto-install time (§9.2, §10 Phase 7) — never downloaded, never
+       * auto-install time — never downloaded, never
        * network-verified, trusted because it shipped inside this app
        * release. Root resolves the same as "registry" (a real copy under
        * userData/addons/<id>/, safe to delete on uninstall) — see
@@ -135,8 +135,8 @@ export function listAddonEntries(): Record<string, AddonStateEntry> {
 
 /**
  * Records a fresh install: seeds `linkVisibilityToActivation` and
- * `updateCheckMode` from the manifest's defaults (§2, §3.1), sets
- * `activated: false` (a separate `activate` call turns it on — §3.2), and
+ * `updateCheckMode` from the manifest's defaults, sets
+ * `activated: false` (a separate `activate` call turns it on), and
  * snapshots `grantedPermissions` as the enforcement source going forward.
  */
 export function recordInstall(
@@ -201,13 +201,13 @@ export function refreshManifestMeta(id: string, name: string, description: strin
 }
 
 /**
- * Overwrites the granted-permissions snapshot — the enforcement source
- * (§3.1), independent of whatever the manifest currently requests. This is
- * what a future Settings → Addons consent flow (Phase 4) will call after the
- * user approves a permission set; it's also what makes the
- * upgrade-escalation pause (§3.1: "if an upgrade's manifest requests
+ * Overwrites the granted-permissions snapshot — the enforcement source,
+ * independent of whatever the manifest currently requests. This is
+ * what the Settings → Addons consent flow calls after the user
+ * approves a permission set; it's also what makes the
+ * upgrade-escalation pause (if an upgrade's manifest requests
  * permissions beyond the granted snapshot, the addon stays deactivated
- * until the user re-consents") a real, testable state rather than an
+ * until the user re-consents) a real, testable state rather than an
  * aspirational note — `activateAddon` already refuses to activate when
  * `manifest.permissions ⊄ grantedPermissions`.
  */
@@ -224,7 +224,7 @@ export function removeAddonEntry(id: string): void {
   saveAddonState();
 }
 
-/** §3.4's per-addon "Advanced: control activation and visibility
+/** The per-addon "Advanced: control activation and visibility
  * independently" override — flipping it takes no action on current state,
  * it only changes how future `setAddonEnabled` toggles behave. */
 export function setLinkVisibilityToActivation(id: string, linked: boolean): void {
@@ -235,7 +235,7 @@ export function setLinkVisibilityToActivation(id: string, linked: boolean): void
   saveAddonState();
 }
 
-/** §7.2/decision 7 — per-addon manual/automatic update-*check* mode (never
+/** Per-addon manual/automatic update-*check* mode (never
  * auto-*install*). */
 export function setUpdateCheckMode(id: string, mode: UpdateCheckMode): void {
   const entry = state.addons[id];

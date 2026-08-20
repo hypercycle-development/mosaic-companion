@@ -1,5 +1,5 @@
 /**
- * Phase 1 test fixture — the addon-main contract's failure path (§5.4).
+ * Test fixture — the addon-main contract's failure path.
  * `activate()` throws synchronously; the loader must catch this, record
  * `lastError` in addon-state.json, and leave the rest of the app (including
  * other addons) unaffected.

@@ -17,13 +17,13 @@ interface AddonTabInfo {
 interface AddonHostViewProps {
   addonId: string;
   /** The incoming tab URL's query string (including "?"), if any — carries
-   * any deep-link param through unmodified (§6.5, §9's deep-link contract). */
+   * any deep-link param through unmodified. */
   deepLinkQuery?: string;
   onUpdateTab: (updates: Partial<Tab>) => void;
   onNavigate: (url: string) => void;
 }
 
-/** Fetched once and reused for every addon webview in this session (§6.5). */
+/** Fetched once and reused for every addon webview in this session. */
 let cachedPreloadPath: string | null = null;
 async function getPreloadPath(): Promise<string | null> {
   if (cachedPreloadPath) return cachedPreloadPath;
@@ -34,7 +34,7 @@ async function getPreloadPath(): Promise<string | null> {
 
 /**
  * Hosts one addon's `mosaic-addon://` webview, or a friendly panel when the
- * addon is unknown/deactivated. Rule 1 (§3.2): the sidebar only ever links
+ * addon is unknown/deactivated. The sidebar only ever links
  * here for an addon that's installed && activated && visible, so "not found
  * in listTabs()" is unambiguously the not-available case, including the
  * moment an open addon tab gets deactivated out from under it — `onChanged`
@@ -85,7 +85,7 @@ export const AddonHostView: React.FC<AddonHostViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabInfo?.tabId, tabInfo?.label]);
 
-  // Tab title pushed live via addonAPI.ui.setTitle (§5.3)
+  // Tab title pushed live via addonAPI.ui.setTitle
   useEffect(() => {
     if (!window.electronAPI?.addons?.onTitleChanged) return;
     return window.electronAPI.addons.onTitleChanged(({ addonId: fromId, title }) => {
@@ -102,7 +102,7 @@ export const AddonHostView: React.FC<AddonHostViewProps> = ({
     );
   }
 
-  // Unknown / not installed / deactivated / hidden — the friendly panel (§4.2, §6.5)
+  // Unknown / not installed / deactivated / hidden — the friendly panel
   if (!tabInfo) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-900">

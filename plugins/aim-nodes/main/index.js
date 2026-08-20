@@ -2,9 +2,9 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 
-// Renamed from 'hyperinsight-aims.json' (§9.1 decoupling) — this is the
+// Renamed from 'hyperinsight-aims.json' — this is the
 // user's local node registry / AIM data cache, unrelated to and unaffected
-// by the HyperInsight addon split (decision 4). getAimsStoragePath() below
+// by the HyperInsight addon split. getAimsStoragePath() below
 // migrates any pre-existing file under the old name, once, on first call.
 const AIMS_STORAGE_FILE = 'aim-nodes-data.json';
 const LEGACY_AIMS_STORAGE_FILE = 'hyperinsight-aims.json';
@@ -541,7 +541,7 @@ export async function handlePaymentRequired(paymentData) {
 
 // Exported Registration Function
 export function registerAimNodesIpc(ipcMain) {
-  // Auto-register MCP Adapter. Renamed from 'HyperInsight-AIMs' (§9.1) — this
+  // Auto-register MCP Adapter. Renamed from 'HyperInsight-AIMs' — this
   // adapter is core's own local AIM/MCP bridge, not HyperInsight-specific.
   // Startup migration below preserves the plugin's id (and therefore its MCP
   // connection state/config) across the rename for upgrading profiles.

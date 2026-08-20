@@ -1,5 +1,5 @@
 /**
- * Phase 3 test fixture — declares the full v1 permission set. Its own main
+ * Test fixture — declares the full v1 permission set. Its own main
  * doesn't need to do anything; this fixture is driven from the test harness
  * via direct executeJavaScript calls against its renderer's addonAPI.
  */

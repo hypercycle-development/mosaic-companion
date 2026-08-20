@@ -1,10 +1,10 @@
 /**
  * AI agent storage (`ai-agents.json`) and Hypercycle-agent activation
- * validation. Moved here from `electron/main.ts` (Phase 3 of the addon
- * architecture) so `electron/addons/api/agents.ts` can reuse the exact same
+ * validation. Moved here from `electron/main.ts` so
+ * `electron/addons/api/agents.ts` can reuse the exact same
  * read/write/validation path the core `ai-agents:*` IPC handlers use,
  * without `electron/addons/*` reaching back into `main.ts` — mirrors the
- * Phase 2 precedent of moving theme settings into `electron/settings.ts`
+ * earlier precedent of moving theme settings into `electron/settings.ts`
  * for the same reason.
  *
  * API keys are encrypted at rest via safeStorage (see agentKeyCrypto.ts).

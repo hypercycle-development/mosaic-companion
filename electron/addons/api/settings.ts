@@ -1,7 +1,7 @@
 /**
- * `addonAPI.settings` (§5.3) — implicit; the retained-on-uninstall store.
+ * `addonAPI.settings` — implicit; the retained-on-uninstall store.
  * Same backing file (`addon-settings/<id>.json`) as `ctx.settings` in
- * `main/index.js` (§5.4) — both read/write through the loader's helpers, so
+ * `main/index.js` — both read/write through the loader's helpers, so
  * a renderer write and a main write can never race past each other silently.
  */
 

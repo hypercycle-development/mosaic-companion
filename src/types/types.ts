@@ -44,7 +44,7 @@ export const INTERNAL_IDE_URL = "browser://ide";
 /** Dynamic tool panel URL prefix: browser://tool-panel/{toolId} */
 export const INTERNAL_TOOL_PANEL_PREFIX = "browser://tool-panel/";
 /** Addon tab URL prefix: addon://{addonId} — one route in ContentArea.tsx
- * dispatches to AddonHostView for every addon; no per-addon constants (§6.4). */
+ * dispatches to AddonHostView for every addon; no per-addon constants. */
 export const ADDON_URL_PREFIX = "addon://";
 
 export interface AppSettings {

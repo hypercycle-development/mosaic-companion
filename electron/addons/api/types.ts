@@ -1,5 +1,5 @@
 /**
- * Shared shapes for the addonAPI dispatcher (§5.1) and its namespace
+ * Shared shapes for the addonAPI dispatcher and its namespace
  * modules. Every `api/<namespace>.ts` file exports `methods: ApiNamespace`.
  */
 
@@ -12,8 +12,8 @@ export interface AddonApiContext {
 
 export interface ApiMethodSpec {
   /** Permission required to call this method, if any. Omit for implicit
-   * (unprivileged) methods — every Phase 2 namespace is implicit; Phase 3
-   * adds the first permission-gated ones (wallet, agents, mcp, nodes). */
+   * (unprivileged) methods — the permission-gated methods live in wallet,
+   * agents, mcp, nodes, and ui (`openExternal`). */
   permission?: string;
   handler: (ctx: AddonApiContext, ...args: unknown[]) => unknown | Promise<unknown>;
 }

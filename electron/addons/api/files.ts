@@ -1,5 +1,5 @@
 /**
- * `addonAPI.files` (§5.3) — implicit; jailed to `addons/<id>/data/`. Every
+ * `addonAPI.files` — implicit; jailed to `addons/<id>/data/`. Every
  * path is normalized and re-checked against the resolved data dir main-side;
  * any resolution that escapes it is rejected as `BAD_ARGS` — the renderer
  * never gets to touch the filesystem directly.
@@ -49,7 +49,7 @@ function resolveJailedPath(addonId: string, relPath: string): string {
 }
 
 /** Exported for installer.ts's uninstall-dialog data-size display
- * (`addons:get-data-size`, §3.1) — same recursive walk, one implementation. */
+ * (`addons:get-data-size`) — same recursive walk, one implementation. */
 export function dirSizeBytes(dir: string): number {
   if (!fs.existsSync(dir)) return 0;
   let total = 0;

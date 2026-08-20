@@ -1,5 +1,5 @@
 /**
- * Addon webview preload (§5.1, §4.3) — new esbuild entry point, compiled to
+ * Addon webview preload — new esbuild entry point, compiled to
  * `dist/main/addon-preload.js`. Deliberately dumb: every `window.addonAPI`
  * call funnels into the single `addon-api:invoke` channel; this file has no
  * business logic of its own beyond theme/env injection and the local event
@@ -84,16 +84,16 @@ ipcRenderer.on("addon-api:event", (_event: IpcRendererEvent, msg: { channel: str
   }
 });
 
-// ── Init: identity, manifest, theme, platform/appVersion/locale (§5.1) ─────
-// "used for DX/display only, never for auth" — identity for permission
-// purposes is resolved server-side from event.sender, never from this.
+// ── Init: identity, manifest, theme, platform/appVersion/locale ────────────
+// DX and display only, never for auth — identity for permission purposes
+// is resolved main-side from event.sender, never from this.
 let cachedInit: InitPayload | null = null;
 const initPromise: Promise<InitPayload | null> = ipcRenderer.invoke("addon-api:init").then(
   async (result: InitPayload | null) => {
     cachedInit = result;
     applyTheme(result?.theme);
     // Auto-subscribe to the always-on channels so theming/env stay live
-    // without the addon's own script having to ask (§4.3).
+    // without the addon's own script having to ask.
     try {
       await invoke("events", "subscribe", "theme:changed");
       await invoke("events", "subscribe", "window:focus-changed");
@@ -109,7 +109,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   applyTheme(payload?.theme);
 });
 
-// ── window.addonAPI surface (§5.3) ──────────────────────────────────────────
+// ── window.addonAPI surface ─────────────────────────────────────────────────
 const addonAPI = {
   /** Recovers `{ code, message }` from a rejected addonAPI call — e.g.
    * `catch (e) { const { code } = addonAPI.parseError(e); if (code === 'PERMISSION_DENIED') ... }`.
@@ -180,10 +180,10 @@ const addonAPI = {
     list: () => invoke("nodes", "list"),
     getSavedAims: (license?: string) => invoke("nodes", "getSavedAims", license),
   },
-  /** The addon-main bridge (§5.3) — calls the method the addon's own
+  /** The addon-main bridge — calls the method the addon's own
    * main/index.js registered via ctx.ipc.handle. */
   invoke: (method: string, ...args: unknown[]) => invoke("invoke", method, ...args),
-  /** DX/display only (§5.1) — resolves once, cached thereafter. */
+  /** DX/display only — resolves once, cached thereafter. */
   init: () => initPromise,
 };
 

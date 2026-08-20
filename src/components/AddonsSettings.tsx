@@ -91,7 +91,7 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
   // from catalogueError so it doesn't render as a red error with a Retry.
   const [catalogueUnavailable, setCatalogueUnavailable] = useState(false);
 
-  const isDevBuild = true; // §7.4 gate is really !app.isPackaged / MOSAIC_ADDON_DEV — enforced main-side; UI just always offers the entry point and lets the main process reject if not a dev build.
+  const isDevBuild = true; // The real gate is !app.isPackaged / MOSAIC_ADDON_DEV — enforced main-side; UI just always offers the entry point and lets the main process reject if not a dev build.
   const [devPathInput, setDevPathInput] = useState<string | null>(null);
 
   const loadAddons = useCallback(async () => {
@@ -122,7 +122,7 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
     }
   };
 
-  // ── Combined on/off (linked) vs decoupled controls (§3.4, §7.2) ─────────
+  // ── Combined on/off (linked) vs decoupled controls ───────────────────────
   const handleSetEnabled = (addon: AddonSummary, enabled: boolean) =>
     withBusy(addon.id, async () => {
       const result = await window.electronAPI.addons.setEnabled(addon.id, enabled);
@@ -184,7 +184,7 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
       await loadAddons();
     });
 
-  // ── Uninstall (§3.1, §7.2) ────────────────────────────────────────────
+  // ── Uninstall ─────────────────────────────────────────────────────────
   const openUninstallDialog = async (addon: AddonSummary) => {
     const dataSize = await window.electronAPI.addons.getDataSize(addon.id);
     setUninstallDialog({ id: addon.id, name: addon.name, dataSize, keepSettings: true, keepData: true });
@@ -200,7 +200,7 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
       await loadAddons();
     });
 
-  // ── Catalogue (§7.3) ───────────────────────────────────────────────────
+  // ── Catalogue ──────────────────────────────────────────────────────────
   const browseAddons = async () => {
     setCatalogueLoading(true);
     setCatalogueError(null);
@@ -246,7 +246,7 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
       await loadAddons();
     });
 
-  // ── Dev corner (§7.4) ──────────────────────────────────────────────────
+  // ── Dev corner ─────────────────────────────────────────────────────────
   const loadUnpackedAddon = async () => {
     const dirPath = await window.electronAPI.dialog.openDirectory();
     if (!dirPath) return;
@@ -292,7 +292,7 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
         Addons
       </h2>
 
-      {/* Installed list — §7.2 */}
+      {/* Installed list */}
       {addons.length === 0 ? (
         <div className="text-center py-8 border border-dashed border-gray-700 rounded-xl mb-6">
           <Puzzle className="mx-auto size-10 text-gray-600 mb-3" />
@@ -463,7 +463,7 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
         </div>
       )}
 
-      {/* Catalogue — §7.3 */}
+      {/* Catalogue */}
       <div className="border-t border-gray-800 pt-6">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
@@ -535,7 +535,7 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
         )}
       </div>
 
-      {/* Dev corner — §7.4 */}
+      {/* Dev corner */}
       {isDevBuild && (
         <div className="border-t border-gray-800 pt-6 mt-6">
           <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2 mb-3">

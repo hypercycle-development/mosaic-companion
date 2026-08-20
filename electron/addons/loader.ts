@@ -1,15 +1,15 @@
 /**
- * Addon loader core (§3.2, §5.4, §6). Main-process only in this phase — no
- * webview/protocol/renderer surface yet (that's Phase 2). This module owns:
+ * Addon loader core. Main-process only — no
+ * webview/protocol/renderer surface here. This module owns:
  *  - the in-memory live-addon registry (what's actually loaded right now)
  *  - the activate/deactivate state-machine transitions
  *  - the `ctx` object handed to an addon's `main/index.js`
- *  - the dev-unpacked install path (§6.7) — the only install mechanism that
- *    exists before Phase 4's registry/signing installer.
+ *  - the dev-unpacked install path — the only install mechanism besides
+ *    the registry/signing installer.
  *
  * `initAddons()` is called once at app startup; it converges the live
- * registry to whatever `addon-state.json` says is `activated: true` (§3.2
- * rule 3) — a failure to converge never crashes the app, it just leaves that
+ * registry to whatever `addon-state.json` says is `activated: true` —
+ * a failure to converge never crashes the app, it just leaves that
  * addon inactive with `lastError` set for the next attempt.
  */
 
@@ -44,7 +44,7 @@ export { setGrantedPermissions, setLinkVisibilityToActivation, setUpdateCheckMod
 import { broadcastAddonEvent } from "./webviews";
 
 // =============================================================================
-// ctx — the addon-main contract (§5.4)
+// ctx — the addon-main contract
 // =============================================================================
 
 export interface AddonCtx {
@@ -75,7 +75,7 @@ interface LiveAddon {
   mainModule?: AddonMainModule;
   /** Full ipcMain channel names this addon registered, e.g. "addon:ping-addon:ping" — tracked for teardown on deactivate/crash. */
   channels: Set<string>;
-  /** Method name -> raw handler fn, so addonAPI.invoke (§5.3) can call
+  /** Method name -> raw handler fn, so addonAPI.invoke can call
    * straight into an addon's own ctx.ipc.handle registration without a
    * second IPC round-trip (Electron has no main-to-main ipcMain.invoke). */
   handlersByMethod: Map<string, (...args: unknown[]) => unknown>;
@@ -88,8 +88,8 @@ const DEACTIVATE_TIMEOUT_MS = 5000;
 const ADDON_SETTINGS_MAX_BYTES = 64 * 1024;
 
 // =============================================================================
-// Retained-settings store (§5.3/§5.4's ctx.settings — the store the renderer
-// will also read from once addonAPI.settings exists in a later phase).
+// Retained-settings store (ctx.settings — the store the renderer
+// also reads from through addonAPI.settings).
 // =============================================================================
 
 function addonSettingsPath(id: string): string {
@@ -111,7 +111,7 @@ export function readAddonSettings(id: string): Record<string, unknown> {
  * (rather than a plain Error) so `electron/addons/api/settings.ts` can map
  * this specifically to `BAD_ARGS` (a caller-input problem) instead of the
  * dispatcher's generic `HANDLER_ERROR`. `ctx.settings.set` (addon-main
- * callers, §5.4) doesn't care about this distinction — it's still just an
+ * callers) doesn't care about this distinction — it's still just an
  * Error to them. */
 export class AddonSettingsSizeError extends Error {}
 
@@ -128,7 +128,7 @@ function writeAddonSettingsValue(id: string, value: Record<string, unknown>): vo
 }
 
 /** Shallow-merge write — the shape both `ctx.settings.set` and
- * `addonAPI.settings.set` use (§5.3, §5.4). */
+ * `addonAPI.settings.set` use. */
 export function writeAddonSettings(id: string, patch: Record<string, unknown>): void {
   writeAddonSettingsValue(id, { ...readAddonSettings(id), ...patch });
 }
@@ -155,7 +155,7 @@ export function getAddonRoot(id: string, entry: AddonStateEntry): string {
 }
 
 /** Always re-reads manifest.json from disk — dev addons are edited between
- * activations (§7.4's "Reload" dev loop), and this keeps that path honest. */
+ * activations (the "Reload" dev loop), and this keeps that path honest. */
 function loadAndValidateManifest(root: string, expectedId: string): { manifest?: AddonManifest; errors: string[] } {
   let json: unknown;
   try {
@@ -199,7 +199,7 @@ function buildCtx(
         ipcMain.handle(channel, (_event, ...args: unknown[]) => fn(...args));
         channels.add(channel);
         // Also reachable via addonAPI.invoke() from the addon's own webview
-        // (§5.3) — same handler, no second registration needed.
+        // — same handler, no second registration needed.
         handlersByMethod.set(name, fn);
       },
       removeHandler: (name) => {
@@ -210,7 +210,7 @@ function buildCtx(
       },
     },
     events: {
-      // Pushes to this addon's own live webview(s) as `self:<name>` (§5.4).
+      // Pushes to this addon's own live webview(s) as `self:<name>`.
       send: (name, payload) => broadcastAddonEvent(`self:${name}`, payload, { onlyAddonId: manifest.id }),
     },
     paths: { root, data: dataDir },
@@ -235,7 +235,7 @@ function teardownChannels(channels: Iterable<string>): void {
 }
 
 // =============================================================================
-// Transitions (§3.2)
+// Transitions
 // =============================================================================
 
 /**
@@ -245,7 +245,7 @@ function teardownChannels(channels: Iterable<string>): void {
  *
  * Note on `activated` in state: this function only ever sets it to `true`
  * (on success). It never sets it to `false` on failure — `activated` is the
- * *desired* state (§3.2 rule 3); a startup convergence failure just means
+ * *desired* state; a startup convergence failure just means
  * the next attempt (retry or restart) can pick it back up.
  */
 export async function activateAddon(id: string): Promise<{ success: boolean; error?: string }> {
@@ -293,7 +293,7 @@ export async function activateAddon(id: string): Promise<{ success: boolean; err
       const entryPath = path.join(root, manifest.main.entry);
       const fileUrl = pathToFileURL(entryPath).href;
       // `?v=` cache-busts Node's ESM module cache so a same-session reload
-      // after an upgrade (or a dev "Reload") picks up new code (§3.2).
+      // after an upgrade (or a dev "Reload") picks up new code.
       mainModule = (await import(`${fileUrl}?v=${encodeURIComponent(manifest.version)}`)) as AddonMainModule;
       if (typeof mainModule.activate === "function") {
         await mainModule.activate(built.ctx);
@@ -378,11 +378,11 @@ export async function deactivateAll(): Promise<void> {
 }
 
 /**
- * Dev-unpacked install (§6.7) — the only install path that exists before
- * Phase 4's registry/signing installer. No consent-dialog machinery exists
- * yet, so a dev install implicitly grants every permission the manifest
- * declares (a deliberate, documented Phase-1 stand-in — see the phase report).
- * Gated to dev builds, matching the design doc's `!app.isPackaged` /
+ * Dev-unpacked install — one of three install paths, alongside the
+ * registry/signing installer and the bundled auto-install. This path has
+ * no consent dialog, so a dev install implicitly grants every permission
+ * the manifest declares — a deliberate stand-in, not an oversight.
+ * Gated to dev builds via the `!app.isPackaged` /
  * `MOSAIC_ADDON_DEV=1` rule.
  */
 export async function installDevAddon(devPath: string): Promise<{ success: boolean; id?: string; error?: string }> {
@@ -424,7 +424,7 @@ export async function installDevAddon(devPath: string): Promise<{ success: boole
 
 /**
  * Converge the live registry to `addon-state.json`'s desired state. Called
- * once at app startup, after the static core plugin registrations (§8) so
+ * once at app startup, after the static core plugin registrations so
  * reserved-namespace collision checks see reality. A per-addon failure is
  * caught (never crashes the app) and left for `lastError` to surface.
  */
@@ -480,7 +480,7 @@ export function listAddons(): AddonSummary[] {
 }
 
 // =============================================================================
-// Live-registry accessors (Phase 2: protocol, webviews, addonAPI dispatcher)
+// Live-registry accessors (protocol, webviews, addonAPI dispatcher)
 // =============================================================================
 
 export function isAddonActivated(id: string): boolean {
@@ -489,7 +489,7 @@ export function isAddonActivated(id: string): boolean {
 
 /** Absolute addon root (dev path or `userData/addons/<id>`) — only returned
  * while the addon is actually live, which is what makes the protocol
- * handler's "deactivated ⇒ unreachable" guarantee (§4.1) hold. */
+ * handler's "deactivated ⇒ unreachable" guarantee hold. */
 export function getLiveAddonRoot(id: string): string | undefined {
   return liveAddons.get(id)?.root;
 }
@@ -508,7 +508,7 @@ export function getLiveManifest(id: string): AddonManifest | undefined {
 }
 
 /** Looks up a method the addon's own `main/index.js` registered via
- * `ctx.ipc.handle` — the routing target for `addonAPI.invoke()` (§5.3). */
+ * `ctx.ipc.handle` — the routing target for `addonAPI.invoke()`. */
 export function getAddonOwnHandler(
   id: string,
   method: string,
@@ -517,7 +517,7 @@ export function getAddonOwnHandler(
 }
 
 // =============================================================================
-// Sidebar tab list (§6.3) and combined enable/disable (§3.4)
+// Sidebar tab list and combined enable/disable
 // =============================================================================
 
 export interface AddonTabInfo {
@@ -536,8 +536,8 @@ export interface AddonTabInfo {
 }
 
 /**
- * Sidebar-ready addon tabs. Rule 1 (§3.2): "the sidebar shows an addon tab
- * iff installed && activated && visible" — an inactive addon contributes no
+ * Sidebar-ready addon tabs. Rule: the sidebar shows an addon tab
+ * iff installed && activated && visible — an inactive addon contributes no
  * row at all here (not merely a hidden one), so an unknown/inactive addonId
  * reaching `AddonHostView` is unambiguously the "not available" case.
  */
@@ -562,7 +562,7 @@ export function listAddonTabs(): AddonTabInfo[] {
 }
 
 /**
- * The default combined on/off switch (§3.4, decision 8). Turning off runs
+ * The default combined on/off switch. Turning off runs
  * `deactivate()` then hides the tab; turning on runs `activate()` then shows
  * it. These stay two separate primitive calls run back-to-back — nothing
  * about `activateAddon`/`deactivateAddon`/the tab-visibility store changes;

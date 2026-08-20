@@ -1,5 +1,5 @@
 /**
- * The `addonAPI` dispatcher (§5.1) — the security core of the whole addon
+ * The `addonAPI` dispatcher — the security core of the whole addon
  * system. Every `window.addonAPI` call, from any addon, funnels through the
  * single `addon-api:invoke` channel registered here.
  *
@@ -10,10 +10,10 @@
  * is nothing in `{ ns, method, args }` for a compromised addon webview to
  * forge its way into another addon's identity with.
  *
- * Dispatch order (exactly as specified): resolve sender → check activated →
+ * Dispatch order: resolve sender → check activated →
  * look up method → check permission → run handler. `ns === "invoke"` is the
  * one special case — it's not a static namespace module, it routes straight
- * into the calling addon's *own* `ctx.ipc.handle`-registered method (§5.3/§5.4).
+ * into the calling addon's *own* `ctx.ipc.handle`-registered method.
  */
 
 import { app, ipcMain, type IpcMainInvokeEvent } from "electron";
@@ -84,7 +84,7 @@ export function registerAddonApi(): void {
       const { ns, method, args } = payload;
       const ctx: AddonApiContext = { addonId, webContentsId: event.sender.id };
 
-      // Addon-main bridge (§5.3): route to the handler the addon's own
+      // Addon-main bridge: route to the handler the addon's own
       // main/index.js registered via ctx.ipc.handle. The target namespace is
       // resolved from the already-verified addonId — never from anything the
       // renderer supplied — so one addon can never reach another's handlers.
