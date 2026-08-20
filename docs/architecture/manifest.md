@@ -1,5 +1,11 @@
 # Tool Manifest Specification
 
+> [!WARNING]
+> **Parts of this document describe a Docker-based runtime that was never built.**
+> The implemented runtime is WebAssembly via Extism. See
+> [STATUS.md](./STATUS.md) for what in this set is accurate and what is
+> superseded. Last verified 2026-08-20 against `2d920ce`.
+
 > **Status:** Stable v1.0.0. Implemented and shipping.
 
 The manifest is the contract between a tool developer and MosAIc. It declares:
