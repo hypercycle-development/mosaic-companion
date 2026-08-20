@@ -3,7 +3,6 @@ description: Propose a WASM tool, MCP server, add-on, connector, or other extens
 title: "[Integration]: "
 labels:
   - integration
-  - needs-design
   - triage
 body:
   - type: dropdown

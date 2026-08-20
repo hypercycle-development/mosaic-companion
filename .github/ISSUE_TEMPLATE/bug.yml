@@ -40,6 +40,7 @@ body:
       label: Affected surface
       options:
         - Core desktop application
+        - AI agents, chat, or model providers
         - Sandboxed WASM tool
         - MCP server or connector
         - Renderer add-on
@@ -73,8 +74,8 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: Logs and screenshots
-      description: Remove API keys, tokens, wallet secrets, recovery phrases, credentials, and personal data.
+      label: Logs
+      description: Remove API keys, tokens, wallet secrets, recovery phrases, credentials, and personal data. Screenshots can be added in a comment once the issue is filed.
       render: shell
   - type: checkboxes
     id: checks

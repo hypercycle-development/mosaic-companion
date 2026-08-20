@@ -9,7 +9,7 @@ body:
     id: organization
     attributes:
       label: Organization or community
-      description: Optional if you are not ready to name it publicly.
+      description: Leave blank if you are not ready to name it publicly.
   - type: textarea
     id: user
     attributes:

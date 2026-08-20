@@ -3,7 +3,6 @@ description: Propose an outcome grounded in a user or operator need.
 title: "[Feature]: "
 labels:
   - enhancement
-  - needs-evidence
   - triage
 body:
   - type: markdown

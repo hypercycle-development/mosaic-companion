@@ -26,6 +26,7 @@ Select every affected surface:
 - [ ] Sandboxed WASM tool
 - [ ] MCP server or connector
 - [ ] Renderer add-on
+- [ ] IDE or developer tooling
 - [ ] Wallet or payment path
 - [ ] Vault, credentials, or user data
 - [ ] Build, packaging, or release
