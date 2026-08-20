@@ -121,6 +121,5 @@ preserves them.
 
 ## Related documentation
 
-- [Experimental Releases](./experimental-releases.md) — **deprecated** (S3-based)
 - [Linux Update Metadata](./linux-update-metadata.md) — legacy S3 details
 - [macOS Update Verification](./mac_update_verification.md) — applies once code signing lands
