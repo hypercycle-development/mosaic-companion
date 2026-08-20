@@ -84,11 +84,13 @@ In the wizard's agent screen (or **Configuration → AI Agents → Add Agent**):
 
 | Field    | Value |
 | -------- | ----- |
-| Provider | **Custom Endpoint** |
+| Provider | **Google Gemini** |
 | Name     | Anything you like — e.g. `Gemini` |
-| Model    | `gemini-3-flash-preview` |
-| Base URL | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| Model    | Leave it on `gemini-2.5-flash-lite` — it's already selected, and it's the one that suits the free tier |
 | API Key  | paste the key from step 3 |
+
+Selecting **Google Gemini** fills in the endpoint for you and turns the Model
+box into a dropdown, so there's nothing to copy or spell out.
 
 Then: switch **Active** ON (green) → **Test Connection** → look for
 *"Connection established successfully!"* → **Save** (or **Continue**).
@@ -102,9 +104,9 @@ built-in keychain.
   start rate-limited. Your key is fine; wait a bit and test again.
 - *"Invalid key / unauthorized"* — re-paste the entire key with no extra
   spaces or line breaks.
-- *"Model not found"* — Google renames models over time; check the current
-  list at [ai.google.dev](https://ai.google.dev/gemini-api/docs/models) and
-  use the newest "flash" model name.
+- *"Model not found"* — Google retires models over time. Try another entry in
+  the Model dropdown; the current list is at
+  [ai.google.dev](https://ai.google.dev/gemini-api/docs/models).
 
 ## 5. Say hello & find your way around
 
@@ -118,7 +120,7 @@ and say hello to your new agent.
 | **Chat Rooms** | Shared rooms for several people and agents. Needs a chat server — safe to ignore at first. |
 | **MCP Servers** | Optional plug-ins that give agents extra tools. |
 | **Web 3** | Connect a crypto wallet, set transfer limits. Only relevant if you use crypto. |
-| **Vault** | Encrypted boxes for notes and secrets — you choose which agents can read each box. |
+| **Vault** | Boxes for notes and secrets — you choose which agents can read each box. Not yet encrypted at rest, so don't put anything highly sensitive here. |
 | **HyperInsight** | Browse services and nodes on the HyperCycle network. |
 | **IDE** | Built-in code editor. For programmers. |
 | **Tool Sandbox** | Install small, safely-sandboxed tools agents can run. |
@@ -141,7 +143,7 @@ check manually: **Configuration → Check for Updates**.
 | ------- | --- |
 | Agent doesn't answer | Check **Configuration → AI Agents**: is the agent's **Active** toggle green, and does **Test Connection** pass? |
 | "Quota exceeded" | Free Gemini keys have small daily limits — wait and retry. The key itself is fine. |
-| "Connection failed" | Re-copy the Model and Base URL from step 4 exactly; re-paste the full key. |
+| "Connection failed" | Re-paste the full API key with no extra spaces or line breaks, and check the Provider is **Google Gemini** (not Custom Endpoint). |
 | Mac: "app is damaged" | See the macOS install note above (`xattr -cr …` or "Open Anyway"). |
-| AppImage won't start | `chmod +x` the file; on newer Ubuntu `sudo apt install libfuse2`. |
+| AppImage won't start | Run `chmod +x` on the file; on newer Ubuntu, install `libfuse2`. Linux builds aren't in a known-good state, so if that doesn't fix it, [open an issue](https://github.com/hypercycle-development/mosaic-companion/issues). |
 | Something else | [Open an issue](https://github.com/hypercycle-development/mosaic-companion/issues). |

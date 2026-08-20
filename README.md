@@ -2,7 +2,9 @@
 
 Mosaic Companion is an open-source AI companion browser by [HyperCycle](https://www.hypercycle.ai/). It lets you chat with AI agents from multiple providers — Claude, OpenAI, Gemini, Ollama, and HyperCycle — inside a familiar browser-style, tabbed desktop app.
 
-Beyond chat, Mosaic includes an encrypted Vault for secrets, support for MCP tool servers, a sandboxed WASM tool runtime, Web3 wallet features, and a built-in IDE.
+Beyond chat, Mosaic includes a Vault with per-agent access controls, support for MCP tool servers, a sandboxed WASM tool runtime, Web3 wallet features, and a built-in IDE.
+
+Mosaic Companion is pre-1.0 and under active development. Interfaces, data formats, and extension APIs may change between releases.
 
 ## Download & Install
 
@@ -11,11 +13,16 @@ The easiest way to get Mosaic Companion is the new download home:
 - **<https://releases.hyperpg.site/mosaic/>** — pick the installer for your platform
 - Alternatively, grab installers from the [GitHub releases page](https://github.com/hypercycle-development/mosaic-companion/releases)
 
-Installers are available for:
+Installers cover all three platforms, but support differs:
 
-- **Linux** — `.deb` and AppImage
-- **macOS** — `.dmg`
-- **Windows** — `Setup.exe`
+| Platform | Format | Status |
+| -------- | ------ | ------ |
+| **macOS** | `.dmg` | Works. macOS blocks the app the first time you open it. The [install page](https://releases.hyperpg.site/mosaic/) has the one-time step. |
+| **Windows** | `Setup.exe` | Works. SmartScreen warns on first run. The [install page](https://releases.hyperpg.site/mosaic/) has the step. |
+| **Linux** | `.deb`, AppImage | Published, but not in a known-good state. Expect problems, and [report what you hit](https://github.com/hypercycle-development/mosaic-companion/issues). |
+
+Releases aren't code-signed or notarized. The first-run warnings on macOS and
+Windows come from that, not from a problem with the download.
 
 For a full non-technical walkthrough (install, first launch, connecting your first AI provider), see the [Getting Started guide](./docs/getting-started.md).
 
@@ -68,4 +75,4 @@ There is no API-key file to set up: AI provider keys are configured inside the a
 
 ## License
 
-Mosaic Companion is open source — see [LICENSE](./LICENSE) and [NOTICE](./NOTICE) for details.
+Mosaic Companion is licensed under the [Apache License 2.0](./LICENSE). See [NOTICE](./NOTICE) for attribution details.
