@@ -1,6 +1,6 @@
 # Release Process Documentation
 
-Mosaic Companion releases are published to **GitHub Releases** (binaries) and
+MosAIc Companion releases are published to **GitHub Releases** (binaries) and
 **GitHub Pages** (download page + `latest.json`, served at
 `https://releases.hyperpg.site/mosaic/`).
 

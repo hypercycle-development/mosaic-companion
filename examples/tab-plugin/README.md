@@ -1,6 +1,6 @@
 # tab-plugin
 
-The smallest possible Mosaic addon: one sidebar tab, one page, no build step.
+The smallest possible MosAIc addon: one sidebar tab, one page, no build step.
 
 Copy this directory, rename it, and you have a working addon skeleton.
 
@@ -16,7 +16,7 @@ Copy this directory, rename it, and you have a working addon skeleton.
 Addons load from the app's addon host, which lives on the
 `feat/addon-architecture` branch (it is not on `main` yet).
 
-1. Run Mosaic from source (`npm start`), or a packaged build with
+1. Run MosAIc from source (`npm start`), or a packaged build with
    `MOSAIC_ADDON_DEV=1` set.
 2. **Configuration → Addons → Dev corner → Install unpacked**.
 3. Point it at this directory (the one containing `manifest.json`).
@@ -68,7 +68,7 @@ than routing around it.
 ## Going further
 
 - A **main-process half** (`main/index.js`) is **not currently available to
-  third-party addons.** Main-process code runs with the same access as Mosaic
+  third-party addons.** Main-process code runs with the same access as MosAIc
   itself and isn't covered by the permission model, so an addon declaring it is
   rejected at install. Everything in this example, and most of what an addon
   needs, works from the renderer.

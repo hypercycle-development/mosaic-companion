@@ -1,7 +1,7 @@
 {
   "name": "mcp-hello",
   "version": "1.0.0",
-  "description": "Minimal MCP server example for Mosaic Companion",
+  "description": "Minimal MCP server example for MosAIc Companion",
   "type": "module",
   "main": "server.js",
   "scripts": {

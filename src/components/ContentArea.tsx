@@ -369,7 +369,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   if (url === INTERNAL_HOME_URL) {
     useEffect(() => {
       onUpdateTab({
-        title: "Mosaic",
+        title: "MosAIc",
         isLoading: false,
         favicon: undefined,
       });
@@ -453,7 +453,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   if (url === INTERNAL_MOSAICBOT_URL) {
     useEffect(() => {
       onUpdateTab({
-        title: "Mosaic Bot",
+        title: "MosAIc Bot",
         isLoading: false,
         favicon: undefined,
       });

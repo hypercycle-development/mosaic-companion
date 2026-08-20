@@ -440,7 +440,7 @@ export class AIService {
         const testUserMsg: ChatMessage = {
           id: "hypercycle-test",
           role: "user",
-          content: "Connection test from Mosaic.",
+          content: "Connection test from MosAIc.",
           timestamp: Date.now(),
           agentId: config.id,
         };

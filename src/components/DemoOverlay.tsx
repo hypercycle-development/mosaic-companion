@@ -38,7 +38,7 @@ const SCRIPT: ScriptStep[] = [
   // Intro
   {
     speaker: "NARRATOR",
-    text: "Let's look at a few examples of how Mosaic works. Initially, it acts as a tool that helps humans connect to the Internet of AI.",
+    text: "Let's look at a few examples of how MosAIc works. Initially, it acts as a tool that helps humans connect to the Internet of AI.",
     duration: 6000,
   },
   {
@@ -50,7 +50,7 @@ const SCRIPT: ScriptStep[] = [
   // Scenario 1: Email/Text Command
   {
     speaker: "USER",
-    text: "Hey Mosaic check all my emails and messages and see if there is anything from Bill Gates, and show it to me here.",
+    text: "Hey MosAIc check all my emails and messages and see if there is anything from Bill Gates, and show it to me here.",
     duration: 6000,
   },
   {
@@ -89,7 +89,7 @@ const SCRIPT: ScriptStep[] = [
   },
   {
     speaker: "USER",
-    text: "Hey Mosaic, I want to brainstorm with you on that research we were working on yesterday and try to come up with some attack vector and how to prevent them. Use Gemini, Grok, Claude, ChatGPT but keep updating the local data as you learn more about these topics.",
+    text: "Hey MosAIc, I want to brainstorm with you on that research we were working on yesterday and try to come up with some attack vector and how to prevent them. Use Gemini, Grok, Claude, ChatGPT but keep updating the local data as you learn more about these topics.",
     duration: 11000,
   },
   {
@@ -202,7 +202,7 @@ export const DemoOverlay: React.FC<DemoOverlayProps> = ({ onClose }) => {
                 size={64}
                 className="mx-auto mb-4 text-indigo-500 animate-pulse"
               />
-              <h2 className="text-2xl font-light">Mosaic Neural Engine</h2>
+              <h2 className="text-2xl font-light">MosAIc Neural Engine</h2>
               <p className="text-sm text-gray-500 mt-2 font-mono">
                 STANDBY MODE
               </p>

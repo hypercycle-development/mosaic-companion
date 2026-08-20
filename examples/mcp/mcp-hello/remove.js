@@ -1,7 +1,7 @@
 /**
- * remove.js — unregister mcp-hello from Mosaic Companion
+ * remove.js — unregister mcp-hello from MosAIc Companion
  *
- * Removes the mcp-hello entry from mcp-plugins.json in the Mosaic userData directory.
+ * Removes the mcp-hello entry from mcp-plugins.json in the MosAIc userData directory.
  * Run this when you are done with the example.
  *
  * Usage:
@@ -44,5 +44,5 @@ if (plugins.length === before) {
 
 writeFileSync(pluginsFile, JSON.stringify(plugins, null, 2), "utf8");
 
-console.log("✓ Removed mcp-hello from Mosaic.");
+console.log("✓ Removed mcp-hello from MosAIc.");
 console.log("  Click Refresh (↻) in Settings → MCP Servers for the change to take effect.");

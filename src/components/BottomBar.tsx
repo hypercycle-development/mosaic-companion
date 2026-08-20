@@ -62,7 +62,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
     setIsListening(true);
     setInput("");
     const phrase =
-      "Hey Mosaic, analyze the current webpage for privacy leaks and summarize the key findings for me.";
+      "Hey MosAIc, analyze the current webpage for privacy leaks and summarize the key findings for me.";
     let i = 0;
 
     const interval = setInterval(() => {
@@ -110,7 +110,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
                         : "bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-105"
                     }
                 `}
-            title="Talk to Mosaic"
+            title="Talk to MosAIc"
           >
             {/* Ping animation behind mic */}
             {isListening && (
@@ -132,7 +132,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
       <div className="text-center mt-2 flex items-center justify-center gap-2 opacity-50">
         <Sparkles size={10} className="text-indigo-400" />
         <span className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">
-          Mosaic AI Engine Active
+          MosAIc AI Engine Active
         </span>
       </div>
     </div>

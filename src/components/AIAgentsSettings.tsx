@@ -1198,7 +1198,7 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                           {agent.hypercycleBackend === "basechain" ? (
                             <p className="text-xs text-gray-600 mb-1">
                               Default: EIP-191 signature of the nonce with your
-                              Mosaic wallet private key. Set this field only to
+                              MosAIc wallet private key. Set this field only to
                               override (e.g. debugging).
                             </p>
                           ) : (

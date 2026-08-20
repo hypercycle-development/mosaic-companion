@@ -40,7 +40,7 @@ export const HYPERCYCLE_BALANCE_PATH = '/balance';
 export const HYPERCYCLE_TX_DRIVER_DEFAULT = 'toda_micropay';
 
 /**
- * TODA DQ type hash for TDN (used by Mosaic Hypercycle funding `transfer_toda`, not the symbol).
+ * TODA DQ type hash for TDN (used by MosAIc Hypercycle funding `transfer_toda`, not the symbol).
  */
 export const HYPERCYCLE_TODA_TDN_TYPE_HASH =
     '412964f209c966234250eba05d1a118da128925084df9f5459eb9243157e452e73';
@@ -219,7 +219,7 @@ const ETH_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 async function resolveHypercycleBasechainSender(): Promise<string> {
     if (typeof window === 'undefined' || !window.electronAPI?.tools?.execute) {
         throw new Error(
-            'Cannot resolve Basechain sender outside the Mosaic app.'
+            'Cannot resolve Basechain sender outside the MosAIc app.'
         );
     }
     const r = await window.electronAPI.tools.execute(
@@ -274,7 +274,7 @@ export async function resolveHypercycleSender(
 
 async function resolveHypercycleTodaSender(): Promise<string> {
     if (typeof window === 'undefined' || !window.electronAPI?.tools?.execute) {
-        throw new Error('Cannot resolve TODA address outside the Mosaic app.');
+        throw new Error('Cannot resolve TODA address outside the MosAIc app.');
     }
 
     const fromTwinInfo = await getTwinInfoAddressFromWeb3Config();
@@ -377,7 +377,7 @@ export interface HypercycleAimMessage {
 }
 
 /**
- * Map Mosaic chat messages to AIM API `messages` (role + content only).
+ * Map MosAIc chat messages to AIM API `messages` (role + content only).
  */
 export function chatMessagesToHypercycleAimMessages(
     messages: ChatMessage[]
@@ -567,7 +567,7 @@ export interface HypercycleNodeInfoResult {
     status: number;
     /** Resolved `tx-sender` from `GET /info` (`tm` string or `tm.address`). */
     tm?: string;
-    /** `tm.host_address` — Twin URL for Mosaic TDN transfer. */
+    /** `tm.host_address` — Twin URL for MosAIc TDN transfer. */
     tmHostAddress?: string;
     /** `tm.address` when it is a `0x` address — USDC recipient hint for Basechain. */
     tmEvmRecipient?: string;
@@ -789,7 +789,7 @@ export async function resolveHypercycleTxSignature(
         const sign = window.electronAPI?.web3?.signHypercycleNonce;
         if (typeof window === 'undefined' || typeof sign !== 'function') {
             throw new Error(
-                'Basechain Hypercycle requires signing the nonce in the Mosaic app with your imported wallet.'
+                'Basechain Hypercycle requires signing the nonce in the MosAIc app with your imported wallet.'
             );
         }
         const r = (await sign(nonce)) as {

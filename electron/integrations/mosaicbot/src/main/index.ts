@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Mosaic Bot — wires heartbeat, channels, skills, and memory into the Electron
+// MosAIc Bot — wires heartbeat, channels, skills, and memory into the Electron
 // main process. Call initMosaicBot() after app.whenReady().
 // ─────────────────────────────────────────────────────────────────────────────
 

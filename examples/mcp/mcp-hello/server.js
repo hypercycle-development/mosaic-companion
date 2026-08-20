@@ -1,5 +1,5 @@
 /**
- * mcp-hello — minimal MCP server for Mosaic Companion
+ * mcp-hello — minimal MCP server for MosAIc Companion
  *
  * Demonstrates:
  *   - McpServer setup with named tools
@@ -7,7 +7,7 @@
  *   - Tools with optional arguments (time_now)
  *   - Returning structured markdown text the agent can summarise
  *
- * Setup:  node setup.js   (registers in Mosaic, restart app to activate)
+ * Setup:  node setup.js   (registers in MosAIc, restart app to activate)
  * Remove: node remove.js
  */
 

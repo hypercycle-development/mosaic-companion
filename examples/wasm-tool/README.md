@@ -41,7 +41,7 @@ Two exports, both communicating over Extism's host string I/O:
 
 - **`mosaic_manifest()`** — returns the `ToolManifest` JSON: identity,
   permissions, resource limits, and the tools you expose with their input
-  schemas. Mosaic calls this at install time to learn what your tool is.
+  schemas. MosAIc calls this at install time to learn what your tool is.
 - **`analyze()`** — one tool function. Reads its arguments with
   `Host.inputString()`, writes its result with `Host.outputString()`. Each
   entry under `tools` in the manifest maps to an export of the same name.

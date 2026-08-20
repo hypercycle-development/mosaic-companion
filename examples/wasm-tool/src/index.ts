@@ -6,7 +6,7 @@ const MANIFEST = {
   version: "1.0.0",
   displayName: "Text Stats",
   description: "Analyzes text and returns word count, character count, sentence count, and estimated reading time.",
-  author: "Mosaic Contributors",
+  author: "MosAIc Contributors",
   license: "MIT",
   runtime: { type: "wasm", entry: "text-stats.wasm" },
   permissions: {

@@ -329,7 +329,7 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
                       {isBundled && (
                         <span
                           className="text-[10px] px-2 py-0.5 rounded-full border border-sky-500/30 bg-sky-900/20 text-sky-300"
-                          title="Carried over automatically from your previous Mosaic version"
+                          title="Carried over automatically from your previous MosAIc version"
                         >
                           Built-in
                         </span>
@@ -573,9 +573,9 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
               <div className="text-sm rounded-lg border border-amber-600/40 bg-amber-900/15 p-3 mb-4">
                 <p className="text-amber-200 font-medium mb-1">This addon runs privileged code.</p>
                 <p className="text-amber-200/70">
-                  It includes a main-process component, which runs with the same access as Mosaic
+                  It includes a main-process component, which runs with the same access as MosAIc
                   itself — the permissions below do not restrict it. Only addons published by the
-                  Mosaic team are allowed to do this.
+                  MosAIc team are allowed to do this.
                 </p>
               </div>
             )}

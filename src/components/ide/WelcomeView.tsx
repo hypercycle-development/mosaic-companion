@@ -24,7 +24,7 @@ export default function WelcomeView({ onOpenFolder }: WelcomeViewProps) {
       <div className="max-w-md w-full px-8">
         <div className="text-center mb-8">
           <Code2 size={48} className="mx-auto mb-4 text-blue-500" />
-          <h1 className="text-2xl font-bold text-gray-100 mb-2">Mosaic IDE</h1>
+          <h1 className="text-2xl font-bold text-gray-100 mb-2">MosAIc IDE</h1>
           <p className="text-gray-500 text-sm">Open a folder to get started</p>
         </div>
 
