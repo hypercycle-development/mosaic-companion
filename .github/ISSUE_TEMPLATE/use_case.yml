@@ -1,0 +1,64 @@
+name: Company or community use case
+description: Share a real adoption scenario and the contribution it could unlock.
+title: "[Use case]: "
+labels:
+  - use-case
+  - triage
+body:
+  - type: input
+    id: organization
+    attributes:
+      label: Organization or community
+      description: Leave blank if you are not ready to name it publicly.
+  - type: textarea
+    id: user
+    attributes:
+      label: User and workflow
+      description: Who is doing what today, and where is the friction?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired measurable outcome
+    validations:
+      required: true
+  - type: textarea
+    id: scale
+    attributes:
+      label: Expected scale and environment
+      description: Devices, users, geographies, data sensitivity, networks, and deployment constraints.
+    validations:
+      required: true
+  - type: textarea
+    id: gaps
+    attributes:
+      label: Current MosAIc gaps or uncertainties
+    validations:
+      required: true
+  - type: textarea
+    id: contribution
+    attributes:
+      label: Contribution your organization can make
+      description: Code, integration, testing, documentation, network access, use-case evidence, funding, or maintenance.
+    validations:
+      required: true
+  - type: dropdown
+    id: timing
+    attributes:
+      label: Timing
+      options:
+        - Exploring now
+        - Ready to trial it soon
+        - Ready to run a pilot
+        - Longer-term interest
+    validations:
+      required: true
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Publication check
+      options:
+        - label: I am authorized to share the information included here publicly.
+          required: true
+
