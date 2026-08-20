@@ -507,7 +507,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   }
 
   if (url === INTERNAL_HYPERINSIGHT_URL) {
-    // §9.2: HyperInsight moved into an addon (Phase 7) — this URL now only
+    // HyperInsight moved into an addon — this URL now only
     // exists for old bookmarks/history entries, handled by a redirect.
     useEffect(() => {
       onUpdateTab({ title: "HyperInsight", isLoading: true, favicon: undefined });
@@ -533,12 +533,12 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     return wrap(<ToolPanelPage toolId={toolId} url={url} onUpdateTab={onUpdateTab} />);
   }
 
-  // Addon tabs (§6.4) — one generic route for every addon's "tab" mount
+  // Addon tabs — one generic route for every addon's "tab" mount
   // (the only mountPoint value v1's manifest schema accepts); no per-addon
   // call sites. addonId + any deep-link query string are parsed out of the
   // addon://<id>?<query> URL and handed to AddonHostView, which reads the
   // manifest's declared deepLink.param (if any) to build the mosaic-addon://
-  // src (§6.5, §9).
+  // src.
   if (url.startsWith(ADDON_URL_PREFIX)) {
     const rest = url.slice(ADDON_URL_PREFIX.length);
     const addonId = rest.split(/[/?#]/)[0];

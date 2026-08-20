@@ -1,10 +1,10 @@
 /**
- * Registry fetch/verify, install/uninstall/upgrade pipelines (§6.7, §3.1,
- * §3.2). This is the *only* module that talks to the network or unpacks a
+ * Registry fetch/verify, install/uninstall/upgrade pipelines.
+ * This is the *only* module that talks to the network or unpacks a
  * tarball — everything downstream (loader.ts) only ever deals with already-
  * validated, already-unpacked addon directories.
  *
- * Install pipeline (§6.7): fetch registry.json + .sig → verify signature →
+ * Install pipeline: fetch registry.json + .sig → verify signature →
  * download tarball → sha256 verify → unpack to staging → validate manifest →
  * cross-check id/version/permissions against the (now-trusted) registry
  * entry → consent → atomic move → state entry → activate.
@@ -76,8 +76,8 @@ interface RegistryFile {
 }
 
 // Cached from the last successful fetchCatalogue() — install/upgrade look
-// entries up here rather than re-fetching, matching "on-demand... no
-// background polling" (§6.7).
+// entries up here rather than re-fetching — on-demand only, no
+// background polling.
 let cachedCatalogue: Record<string, CatalogueEntry> = {};
 let cachedVerifiedKeyId: string | undefined;
 
@@ -121,7 +121,7 @@ export async function fetchCatalogue(opts?: {
   }
 
   // Unrecognized keyId or failed verification both reject outright — no
-  // unsigned fallback, no "try anyway" (§6.7).
+  // unsigned fallback, no "try anyway".
   const verifyResult = verifyRegistry(registryBytes, sigJson as RegistrySignatureEnvelope);
   if (!verifyResult.verified) {
     return { success: false, error: `Registry signature verification failed: ${verifyResult.reason}` };
@@ -206,7 +206,7 @@ async function downloadVerifyUnpack(entry: CatalogueEntry): Promise<StagedTarbal
     throw new Error(`Invalid manifest in tarball: ${result.errors.join("; ")}`);
   }
 
-  // Cross-check against the (now-trusted) registry entry — mismatch aborts (§6.7).
+  // Cross-check against the (now-trusted) registry entry — mismatch aborts.
   const manifest = result.manifest;
   if (manifest.id !== entry.id) {
     fs.rmSync(stagingDir, { recursive: true, force: true });
@@ -238,7 +238,7 @@ function sourceFor(entry: CatalogueEntry): AddonSource {
 }
 
 // =============================================================================
-// Install (needsConsent → confirm, §6.2)
+// Install (needsConsent → confirm)
 // =============================================================================
 
 export function beginInstall(id: string): {
@@ -296,7 +296,7 @@ export async function confirmInstall(
     return { success: false, error: getErrorMessage(error) };
   }
 
-  // Reinstall: restore any retained data left from a prior uninstall (§3.1).
+  // Reinstall: restore any retained data left from a prior uninstall.
   const retainedDataDir = path.join(app.getPath("userData"), "addon-data-retained", id);
   if (fs.existsSync(retainedDataDir)) {
     const targetDataDir = path.join(finalRoot, "data");
@@ -324,7 +324,7 @@ export async function confirmInstall(
 }
 
 // =============================================================================
-// Data size (uninstall dialog, §3.1)
+// Data size (uninstall dialog)
 // =============================================================================
 
 export function getDataSize(id: string): number {
@@ -335,7 +335,7 @@ export function getDataSize(id: string): number {
 }
 
 // =============================================================================
-// Uninstall (independently-selectable retention, §3.1)
+// Uninstall (independently-selectable retention)
 // =============================================================================
 
 export async function uninstallAddon(
@@ -377,8 +377,8 @@ export async function uninstallAddon(
 
   // Code is always deleted — but only for registry and bundled installs. A
   // dev addon's "root" is the addon author's own working directory; Mosaic
-  // must never delete that (§6.7's dev workflow — uninstall just forgets
-  // the state entry). "bundled" (§9.2) is a real copy under userData/addons/
+  // must never delete that (uninstall just forgets
+  // the state entry). "bundled" is a real copy under userData/addons/
   // just like "registry", safe to delete the same way.
   if (entry.source.type === "registry" || entry.source.type === "bundled") {
     try {
@@ -395,11 +395,11 @@ export async function uninstallAddon(
 }
 
 // =============================================================================
-// Upgrade (§3.2) — re-entrant: call once with no `acceptedPermissions` to
+// Upgrade — re-entrant: call once with no `acceptedPermissions` to
 // attempt the upgrade; if it pauses for a permission escalation, call again
 // with the user's `acceptedPermissions` to complete it. This mirrors
 // install's needsConsent/confirm split without inventing a second channel
-// name the design doc's §6.2 preload table doesn't list.
+// name.
 // =============================================================================
 
 export async function upgradeAddon(
@@ -442,7 +442,7 @@ export async function upgradeAddon(
   const missing = staged.manifest.permissions.filter((p) => !grantedNow.includes(p));
   if (missing.length > 0) {
     fs.rmSync(staged.stagingDir, { recursive: true, force: true });
-    // Pause for re-consent (§3.1) — old version is completely untouched.
+    // Pause for re-consent — old version is completely untouched.
     return { success: false, needsConsent: missing };
   }
 
@@ -487,7 +487,7 @@ export async function upgradeAddon(
 }
 
 // =============================================================================
-// Automatic update-check pass (§7.2, decision 7) — once per app launch, not
+// Automatic update-check pass — once per app launch, not
 // a recurring poll. Manual mode (default) only checks when the user opens
 // the catalogue or hits Refresh; this only runs for addons that opted into
 // "Automatic", and does one registry fetch total (not one per addon).

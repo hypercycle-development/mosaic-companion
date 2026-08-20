@@ -203,7 +203,7 @@ export function setAutoDisplayMedia(value: boolean): { success: boolean; error?:
 // =============================================================================
 // Theme Settings
 // =============================================================================
-// Moved here from electron/main.ts (Phase 2 of the addon architecture, §4.3):
+// Moved here from electron/main.ts:
 // electron/addons/api/system.ts and electron/addons/theme.ts both need to
 // read the currently active theme key (for `addonAPI.system.getTheme()` and
 // the `addon-api:init` payload) — this module is already a dependency of

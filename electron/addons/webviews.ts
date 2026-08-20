@@ -1,6 +1,6 @@
 /**
  * webContents ↔ addonId identity map, and the main-process attach guards
- * that make it trustworthy (§4.2, §5.1 — "the security core"). The renderer
+ * that make it trustworthy (the security core). The renderer
  * never states which addon it is; the only place an addonId is ever attached
  * to a webContents is here, at `did-attach-webview` time, driven by the
  * `mosaic-addon://<id>/...` URL the *main process* validated in
@@ -72,7 +72,7 @@ export function broadcastAddonEvent(channel: string, payload: unknown, opts?: { 
 }
 
 /**
- * Installs the `will-attach-webview` / `did-attach-webview` guards (§4.2) on
+ * Installs the `will-attach-webview` / `did-attach-webview` guards on
  * the main app window. Main-process enforcement — the renderer's webview
  * attributes (`preload`, `webpreferences`, …) are never trusted; every
  * addon webview gets contextIsolation/sandbox/nodeIntegration and the addon
@@ -107,7 +107,7 @@ export function installWebviewAttachGuards(win: BrowserWindow): void {
     // The addon webview's `persist:addon:<id>` partition is its own Session
     // object — protocol.handle() on the module-level `protocol` import only
     // ever reaches session.defaultSession, so without this the guest can
-    // never actually load `mosaic-addon://` content (§4.1's protocol is
+    // never actually load `mosaic-addon://` content (the protocol is
     // otherwise a no-op from inside the webview).
     registerAddonProtocolForSession(wc.session);
     registerAddonWebContents(wc, id);

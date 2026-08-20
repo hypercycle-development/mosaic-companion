@@ -78,9 +78,9 @@ function App() {
     checkAgents();
   }, []);
 
-  // §9.2/§10 Phase 7 — one-time non-blocking notice for profiles that just
-  // had HyperInsight auto-installed as part of this app update (decision 1:
-  // no consent dialog, just a heads-up with a link to Settings → Addons).
+  // One-time non-blocking notice for profiles that just
+  // had HyperInsight auto-installed as part of this app update (no consent
+  // dialog, just a heads-up with a link to Settings → Addons).
   // Queried once per launch; the main-process flag it reads is in-memory
   // only and false again on every subsequent launch.
   useEffect(() => {

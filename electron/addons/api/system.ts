@@ -1,5 +1,5 @@
 /**
- * `addonAPI.system` (§5.3) — implicit (no permission required).
+ * `addonAPI.system` — implicit (no permission required).
  */
 
 import { app } from "electron";

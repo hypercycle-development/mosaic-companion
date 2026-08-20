@@ -58,7 +58,7 @@ const TOOL_ICON_MAP: Record<string, React.FC<{ size?: number; className?: string
 };
 
 /**
- * Addon tab icons (§6.6) — manifest `tab.icon` uses Lucide PascalCase names
+ * Addon tab icons — manifest `tab.icon` uses Lucide PascalCase names
  * (unlike `TOOL_ICON_MAP`'s lowercase WASM-tool-manifest keys). Curated, not
  * a passthrough to all of lucide-react, to keep the bundle small; fallback
  * is LayoutGrid via `renderNavIcon`'s existing default case.
@@ -107,7 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // can ever be hidden; at launch no core tab is toggleable so this stays empty.
   const [tabVisibility, setTabVisibility] = useState<Record<string, boolean>>({});
 
-  // Addon-contributed tabs (§6.3) — installed && activated addons only;
+  // Addon-contributed tabs — installed && activated addons only;
   // listTabs() already excludes anything not currently live.
   const [addonTabs, setAddonTabs] = useState<AddonTabInfo[]>([]);
 
@@ -297,7 +297,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, []);
 
   // Navigation Items — sourced from the tab registry (single source of
-  // truth) merged with addon tabs (§6.3). Only toggleable tabs can ever be
+  // truth) merged with addon tabs. Only toggleable tabs can ever be
   // hidden; a non-toggleable core tab never has a `false` entry, so it
   // always shows. Ordering: core tabs in registry order, addon tabs after
   // IDE/Sandbox and before Configuration, sorted by (order, label).
@@ -411,7 +411,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       case "Code2":
         return <Code2 className={className} />;
       default: {
-        // Addon tab icons (§6.6) — curated PascalCase Lucide name lookup,
+        // Addon tab icons — curated PascalCase Lucide name lookup,
         // falling back to LayoutGrid for anything unrecognized.
         const AddonIcon = ADDON_ICON_MAP[iconName];
         if (AddonIcon) return <AddonIcon className={className} />;
@@ -789,7 +789,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Node Mini Detail Panel — slides in when a node card with a licenseKey
-          is clicked. Deliberately minimal (§9.2) — only what Sidebar already
+          is clicked. Deliberately minimal — only what Sidebar already
           computes for the node cards themselves; the deep-link CTA inside
           points to the HyperInsight addon for anything richer. */}
       {selectedNodeLicense &&

@@ -328,7 +328,7 @@ declare global {
         deleteEntry: (boxId: string, entryId: string) => Promise<{ success: boolean; error?: string }>;
       };
 
-      // §9.2/Phase 7: HyperInsight moved wholesale into its own addon — no
+      // HyperInsight moved wholesale into its own addon — no
       // more window.electronAPI.hyperinsight. Its renderer reaches its own
       // main/index.js through window.addonAPI.invoke() instead.
 
@@ -351,7 +351,7 @@ declare global {
         setAutoDisplay: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean; error?: string }>;
       };
 
-      // Addon management (renderer-side management bridge — §6.2)
+      // Addon management (renderer-side management bridge)
       addons: {
         list: () => Promise<Array<{
           id: string;

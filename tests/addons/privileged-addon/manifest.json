@@ -3,7 +3,7 @@
   "id": "privileged-addon",
   "version": "1.0.0",
   "name": "Privileged Fixture",
-  "description": "Phase 3 test fixture — declares the full v1 permission set, used to verify granted-permission enforcement, the wallet/agents/mcp/nodes namespaces, and the upgrade-escalation pause.",
+  "description": "Test fixture — declares the full v1 permission set, used to verify granted-permission enforcement, the wallet/agents/mcp/nodes namespaces, and the upgrade-escalation pause.",
   "ipcNamespace": "privileged-addon",
   "mountPoint": "tab",
   "tab": {

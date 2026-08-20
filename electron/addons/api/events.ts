@@ -1,8 +1,8 @@
 /**
- * `addonAPI.events` (§5.3) — implicit registration; per-channel permission.
+ * `addonAPI.events` — implicit registration; per-channel permission.
  * Subscriptions are tracked per-webContents in `webviews.ts` so a broadcast
- * only ever reaches webContents that actually asked for that channel (§5.1's
- * "push filtering, no broadcast leaks").
+ * only ever reaches webContents that actually asked for that channel —
+ * push filtering, no broadcast leaks.
  *
  * The permission requirement here depends on the *argument* (which channel),
  * not the method itself — `subscribe`/`unsubscribe` are always callable, but
@@ -15,7 +15,7 @@ import { getGrantedPermissions } from "../loader";
 import { subscribeChannel, unsubscribeChannel } from "../webviews";
 import { assertString, ApiPermissionError, type ApiNamespace } from "./types";
 
-/** null = unprivileged (§5.2's "implicit" row: theme:changed, window:focus-changed). */
+/** null = unprivileged (implicit: theme:changed, window:focus-changed). */
 const CHANNEL_PERMISSIONS: Record<string, string | null> = {
   "theme:changed": null,
   "window:focus-changed": null,

@@ -3,7 +3,7 @@
   "id": "no-wallet-addon",
   "version": "1.0.0",
   "name": "No-Wallet Fixture",
-  "description": "Phase 3 test fixture — declares zero permissions, used to verify wallet.getAddress is rejected with PERMISSION_DENIED when wallet:read was never granted.",
+  "description": "Test fixture — declares zero permissions, used to verify wallet.getAddress is rejected with PERMISSION_DENIED when wallet:read was never granted.",
   "ipcNamespace": "no-wallet-addon",
   "mountPoint": "tab",
   "tab": {

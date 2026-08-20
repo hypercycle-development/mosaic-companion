@@ -1,5 +1,5 @@
 /**
- * `mosaic-addon://` protocol handler (§4.1). `mosaic-addon://<id>/<path>`
+ * `mosaic-addon://` protocol handler. `mosaic-addon://<id>/<path>`
  * serves files from that addon's `renderer/` directory — but only while the
  * addon is currently activated (403 otherwise), which is what makes
  * "deactivated ⇒ unreachable" airtight regardless of any stale webview still

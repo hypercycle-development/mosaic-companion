@@ -1,5 +1,5 @@
 // =============================================================================
-// HyperInsight addon — main process module (§9.2, §5.4).
+// HyperInsight addon — main process module.
 //
 // Adapted wholesale from mosaic-companion's
 // plugins/hyperinsight/main/index.js (registerHyperInsightIpc + score
@@ -8,28 +8,28 @@
 //   - `loadKeyData`/`saveKeyData` previously read/wrote a bare
 //     `userData/hyperinsight.json`, with the API key safeStorage-encrypted
 //     inside it. That file is now `ctx.settings` (the retained-settings
-//     store, §5.3/§5.4) — still safeStorage-encrypted the same way, just
+//     store) — still safeStorage-encrypted the same way, just
 //     stored under this addon's own settings key instead of a loose core
 //     userData file, which is also what survives an uninstall-then-reinstall
-//     with "keep settings" checked (§3.1).
+//     with "keep settings" checked.
 //   - The tool-score cache previously lived at
 //     `userData/hyperinsight-tool-scores.json`. It now lives at
 //     `ctx.paths.data/tool-scores.json` — inside this addon's own
 //     `addons/hyperinsight/data/` jail, so it's subject to the
 //     data-retention checkboxes on uninstall like any other addon-owned
-//     data (§3.1), which is the correct behavior since it's
+//     data, which is the correct behavior since it's
 //     HyperInsight-specific.
 //   - `registerHyperInsightIpc(ipcMain)` (bare `hyperinsight:*` channels)
 //     becomes a set of `ctx.ipc.handle('get-aims', ...)` registrations
 //     (channel `addon:hyperinsight:get-aims`), reached from the addon's own
-//     renderer via `addonAPI.invoke('get-aims', ...)` (§5.3) — not a
+//     renderer via `addonAPI.invoke('get-aims', ...)` — not a
 //     bespoke per-addon addonAPI namespace.
 //   - `startScorePolling`/`stopScorePolling` become part of
 //     activate()/deactivate() — the interval is stopped and cleared on
 //     deactivate so a deactivated addon truly does nothing in the
-//     background, matching decision 4 ("core has zero dependency on
-//     api.hyperinsight.app when the addon isn't installed and activated" —
-//     the same must hold for "installed but deactivated").
+//     background — core must have zero dependency on
+//     api.hyperinsight.app when the addon isn't installed and activated,
+//     and the same must hold for "installed but deactivated".
 //   - `saveGeneratedImage` previously wrote into core's
 //     `userData/generated_images/` and returned a `mosaic-media://` URL —
 //     a core protocol this addon's webview has no access to serve or
@@ -246,7 +246,7 @@ function stopScorePolling() {
   }
 }
 
-// --- activate()/deactivate() (§5.4) -----------------------------------------
+// --- activate()/deactivate() ------------------------------------------------
 
 export async function activate(ctx) {
   migrateLegacyFilesIfPresent(ctx);

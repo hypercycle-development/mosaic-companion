@@ -1,9 +1,9 @@
 <!doctype html>
 <!--
-  Phase 2 test fixture renderer. Exercises the addonAPI surface end to end:
+  Test fixture renderer. Exercises the addonAPI surface end to end:
   theme vars (read via getComputedStyle, live-updated by theme:changed),
   settings round-trip, a jailed file write, and calling its own main via
-  addonAPI.invoke('ping') — the same handler the Phase 1 fixture registered.
+  addonAPI.invoke('ping') — the same handler this fixture's main registered.
 
   Results are written both to the visible DOM (for a human looking at a
   rendered window) and to `window.__addonVerify` (a plain JSON-able object)
