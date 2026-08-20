@@ -20,9 +20,10 @@ Closes #
 
 ## Trust and execution surface
 
-Select every affected surface:
+Tick every surface this change touches.
 
 - [ ] Core desktop application
+- [ ] AI agents, chat, or model providers
 - [ ] Sandboxed WASM tool
 - [ ] MCP server or connector
 - [ ] Renderer add-on
@@ -31,6 +32,7 @@ Select every affected surface:
 - [ ] Vault, credentials, or user data
 - [ ] Build, packaging, or release
 - [ ] None of the above
+- [ ] I am not sure which of these applies
 
 ## How it was tested
 
@@ -51,7 +53,18 @@ Select every affected surface:
 
 ## Security, privacy, and permissions
 
-<!-- New privileges, data access, network access, secrets, dependencies, or threat-model changes. Answer "None" only after considering them. Do not disclose an unpatched vulnerability here — see SECURITY.md. -->
+Tick anything this change does. If you are unsure, tick the last box — that is a useful answer, not a failure. Assessing the risk is the reviewer's job; this section is just the facts they need to do it.
+
+- [ ] Adds or changes a permission, or what a permission allows
+- [ ] Makes network requests, or changes where existing ones go
+- [ ] Reads or writes user data, credentials, wallet material, or the Vault
+- [ ] Adds or updates a dependency
+- [ ] Changes how an extension, tool, or MCP server is loaded or trusted
+- [ ] Runs code from outside the repository
+- [ ] None of the above
+- [ ] I am not sure — please check this during review
+
+<!-- Anything else worth flagging? Do not disclose an unpatched vulnerability here — see SECURITY.md. -->
 
 ## Documentation
 
