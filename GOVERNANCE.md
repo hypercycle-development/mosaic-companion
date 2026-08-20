@@ -97,8 +97,8 @@ work, which is the part that is actually scarce.
 
 Adding a maintainer requires the agreement of the current maintainers and the
 consent of the candidate, recorded in [MAINTAINERS.md](MAINTAINERS.md). Consent
-is required in writing because being listed as responsible for a project is a
-commitment, not an honour.
+is required because being listed as responsible for a project is a commitment,
+not an honour.
 
 ## Inactivity
 
@@ -140,7 +140,7 @@ state standing.
 
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) covers reporting and enforcement. Both
 maintainers receive mail sent to the shared conduct address, so a report about
-one of them goes to the other directly rather than to that address.
+one of them should go to the other directly rather than to that address.
 
 Where a report concerns both, there is no internal route. Conduct on GitHub can
 be raised with GitHub at <https://github.com/contact/report-abuse>, independently
@@ -180,11 +180,13 @@ meet them is a goal, not a present commitment.
 ## Amending this document
 
 Changes to this document are made the same way as changes to the code: a pull
-request, approved by a maintainer other than its author.
+request, subject to the same review requirement — and the same bypass — as
+anything else.
 
 Several parts of this document do not scale: the veto, the absence of an
-independent removal process, the absence of role tiers, and "consensus of active
-maintainers", which at five people would mean five vetoes rather than two.
+independent removal process, the absence of role tiers, and the rule that a
+decision is made when the active maintainers agree, which at five people would
+mean five vetoes rather than two.
 
 **At four maintainers, this document is revised rather than amended.** Until
 then, check twice a year that [MAINTAINERS.md](MAINTAINERS.md) is still accurate
