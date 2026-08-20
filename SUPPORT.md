@@ -1,7 +1,5 @@
 # Support and Help
 
-> **DRAFT FOR APPROVAL — NOT YET ADOPTED**
-
 MosAIc Companion is pre-1.0 open-source software. The community will try to help, but the project does not yet offer guaranteed response times, availability, or commercial support unless a separate written agreement says otherwise.
 
 ## Choose the right channel
@@ -10,7 +8,7 @@ MosAIc Companion is pre-1.0 open-source software. The community will try to help
 | --- | --- | --- |
 | Reproducible software defect | [GitHub Issues](https://github.com/hypercycle-development/mosaic-companion/issues/new/choose) | Yes |
 | Usage or design question | [GitHub Issues](https://github.com/hypercycle-development/mosaic-companion/issues/new/choose) | Yes |
-| Feature or integration proposal | Feature, integration, or RFC issue form | Yes |
+| Feature or integration proposal | [Feature or integration issue form](https://github.com/hypercycle-development/mosaic-companion/issues/new/choose) | Yes |
 | Security vulnerability | [Private vulnerability report](https://github.com/hypercycle-development/mosaic-companion/security/advisories/new) | No |
 | Conduct or harassment concern | conduct@hyperpg.site | No |
 
@@ -41,5 +39,5 @@ Maintainers can usually help with reproducible behavior in supported releases, d
 
 ## Company adopters
 
-Companies building on MosAIc should designate a technical contact, reproduce issues against an unmodified supported build when possible, contribute fixes or test evidence upstream, and avoid presenting the community support channel as a contractual service desk. A future partner program may offer structured onboarding and escalation after its terms are approved.
+Companies building on MosAIc should designate a technical contact, reproduce issues against an unmodified supported build when possible, contribute fixes or test evidence upstream, and avoid presenting the community support channel as a contractual service desk.
 

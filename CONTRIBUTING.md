@@ -9,10 +9,10 @@ This document describes the expected contribution workflow. For how decisions ar
 - Follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 - Search existing issues and pull requests before creating a duplicate.
 - Report suspected vulnerabilities privately according to [SECURITY.md](SECURITY.md).
-- For substantial work, open an issue or RFC before implementation. This
-  applies to maintainers as well — significant changes to manifests,
-  permissions, host functions, extension APIs, or security boundaries are
-  proposed as issues whoever is making them.
+- For substantial work, open an issue before implementation. This applies to
+  maintainers as well — significant changes to manifests, permissions, host
+  functions, extension APIs, security boundaries, persistent data formats, or
+  compatibility are proposed as issues whoever is making them.
 - Do not include credentials, personal data, proprietary customer data, or unlicensed material in issues, tests, examples, logs, or commits.
 
 ## Ways to contribute
@@ -52,15 +52,6 @@ Open an integration proposal for:
 - A new external service dependency.
 - An integration requiring new permissions.
 
-Open an RFC for:
-
-- Manifest or host ABI changes.
-- Permission-model changes.
-- New privileged APIs.
-- Changes affecting compatibility or security boundaries.
-- New persistent data formats.
-- Major architectural or governance changes.
-
 Maintainers may ask that a large pull request be paused until its proposal has been discussed.
 
 ## Development setup
@@ -98,7 +89,7 @@ A pull request should:
 
 - Address one coherent problem.
 - Explain the user or contributor impact.
-- Link its issue or RFC when applicable.
+- Link its issue when applicable.
 - Include a practical test plan and results.
 - Update documentation and examples when behavior changes.
 - Identify compatibility, migration, permission, privacy, and security effects.
@@ -116,7 +107,7 @@ Prefer concise, imperative commit messages. The existing history commonly uses p
 ```text
 feat(addons): validate publisher permissions
 fix(vault): prevent plaintext fallback on migration
-docs(governance): define reviewer promotion criteria
+docs(security): record the add-on trust boundary
 ```
 
 ## Developer Certificate of Origin
@@ -165,8 +156,4 @@ Review and merge authority is held by individuals, not by the organisations they
 ## Getting help
 
 See [SUPPORT.md](SUPPORT.md) for the correct channel. Ask publicly when the topic is not sensitive so the answer can help future contributors.
-
----
-
-**Approval note:** Confirm the DCO-only inbound contribution model, expected commands, and whether AI-assisted contribution disclosure needs a separate policy.
 
