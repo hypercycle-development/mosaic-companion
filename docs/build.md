@@ -29,7 +29,7 @@ knowing up front.
 stops partway through extracting the Electron archive and sits there at near-zero
 CPU until you kill it. Node 24 is untested.
 
-CI builds on Node 20 (`.github/workflows/build-check.yml`), and some native
+CI builds on Node 22 (`.github/workflows/build-check.yml`, matching `.nvmrc`), and some native
 dependencies declare narrower support than the app itself — `better-sqlite3`
 supports Node 20–25 and warns loudly on anything newer.
 
