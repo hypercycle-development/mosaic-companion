@@ -1,4 +1,4 @@
-# Mosaic IDE — User Guide
+# MosAIc IDE — User Guide
 
 ## Getting Started
 

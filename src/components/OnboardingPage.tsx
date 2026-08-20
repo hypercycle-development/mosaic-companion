@@ -107,7 +107,7 @@ const ORIENTATION = [
   },
   {
     icon: BrainCircuit,
-    title: "Mosaic Bot",
+    title: "MosAIc Bot",
     description:
       "A built-in background assistant with long-term memory and skills.",
     color: "text-indigo-400",
@@ -308,7 +308,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
               <Sparkles size={40} className="text-white" />
             </div>
             <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-              Welcome to Mosaic
+              Welcome to MosAIc
             </h1>
             <p className="text-lg text-gray-400 mb-8 max-w-lg mx-auto leading-relaxed">
               Your AI-powered companion browser. Let's get you set up in just a
@@ -328,7 +328,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
         {currentStep === "features" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-2xl font-bold text-center mb-2">
-              What Mosaic Can Do
+              What MosAIc Can Do
             </h2>
             <p className="text-gray-400 text-center mb-8">
               Here's a quick overview of the key features
@@ -722,7 +722,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                 onClick={handleFinish}
                 className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-medium transition-all flex items-center gap-2"
               >
-                {skipped ? "Explore Mosaic" : "Start Chatting"}
+                {skipped ? "Explore MosAIc" : "Start Chatting"}
                 <MessageSquare size={18} />
               </button>
             </div>

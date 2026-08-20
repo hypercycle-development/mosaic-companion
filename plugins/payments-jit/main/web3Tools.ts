@@ -25,7 +25,7 @@ export interface InternalWalletConfig {
 
 /**
  * Concrete implementation of IPaymentSigner AND INodeSigner 
- * wrapping viem for the Mosaic internal wallet context.
+ * wrapping viem for the MosAIc internal wallet context.
  */
 export class InternalWalletPaymentSigner implements IPaymentSigner, INodeSigner {
   private walletClient: any;

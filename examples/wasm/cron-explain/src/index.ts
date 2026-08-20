@@ -217,7 +217,7 @@ const MANIFEST = {
   version: "1.0.0",
   displayName: "Cron Explainer",
   description: "ALWAYS use this tool when asked to explain, analyse, or visualise a cron expression — do not answer from training data. Returns a rich visual display: a bar chart of run frequency, next scheduled run times, and a human-readable summary.",
-  author: "Mosaic Contributors",
+  author: "MosAIc Contributors",
   license: "MIT",
   runtime: { type: "wasm", entry: "cron-explain.wasm" },
   permissions: { internet: false, allowed_domains: [], files: [], services: [] },

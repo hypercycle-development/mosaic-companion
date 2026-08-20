@@ -1,10 +1,10 @@
-# Building Mosaic Companion
+# Building MosAIc Companion
 
-This explains how to build Mosaic Companion for different platforms and architectures using Electron Forge.
+This explains how to build MosAIc Companion for different platforms and architectures using Electron Forge.
 
 ## Overview
 
-Mosaic Companion uses **Electron Forge** to create distributable packages for Linux, macOS, and Windows. The build process varies depending on your host platform due to platform-specific tooling requirements and maker limitations.
+MosAIc Companion uses **Electron Forge** to create distributable packages for Linux, macOS, and Windows. The build process varies depending on your host platform due to platform-specific tooling requirements and maker limitations.
 
 ## Quick Reference
 
@@ -250,7 +250,7 @@ out/
 
 ## Native Modules
 
-Mosaic Companion uses native modules that must be compiled for each platform:
+MosAIc Companion uses native modules that must be compiled for each platform:
 
 - `onnxruntime-node` (AI/ML inference)
 - `sharp` (image processing)

@@ -1,6 +1,6 @@
-# Mosaic Browser — Agent System Documentation
+# MosAIc Browser — Agent System Documentation
 
-This document covers the full agent architecture of Mosaic Browser: how agents are configured, how they execute, how they interact with LLMs and tools, and how the various subsystems connect.
+This document covers the full agent architecture of MosAIc Browser: how agents are configured, how they execute, how they interact with LLMs and tools, and how the various subsystems connect.
 
 ---
 

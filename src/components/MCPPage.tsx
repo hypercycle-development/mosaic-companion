@@ -718,12 +718,12 @@ export const MCPPage: React.FC = () => {
             <p className="text-sm">
               MCP servers are separate programs that give your agents extra
               abilities — reading files, querying a database, calling an API.
-              Mosaic starts them for you and passes requests through. Connect
+              MosAIc starts them for you and passes requests through. Connect
               one, then select it to see the tools, resources and prompts it
               offers.
               <br />
               <br />
-              <strong>AIM-Node-Tools</strong> is set up by Mosaic itself and
+              <strong>AIM-Node-Tools</strong> is set up by MosAIc itself and
               connects on start — it's how your agents reach the AIMs on your
               HyperCycle nodes. An empty tool list just means you haven't added
               any nodes yet, so there's no need to remove it.

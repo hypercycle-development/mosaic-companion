@@ -1,6 +1,6 @@
-# Mosaic Companion — Extension Examples
+# MosAIc Companion — Extension Examples
 
-Each subdirectory is a self-contained example of one way to extend Mosaic.
+Each subdirectory is a self-contained example of one way to extend MosAIc.
 They are starting points: working, minimal, and commented to show exactly
 which contracts matter.
 
@@ -17,15 +17,15 @@ its `NodeManagerClient` pattern for calling AIMs, authentication and signing.
 
 ## Which surface do I need?
 
-**Addon** — you want a new page in Mosaic, shipped and installed separately
+**Addon** — you want a new page in MosAIc, shipped and installed separately
 from the app. Your addon is its own directory with a manifest, loaded into an
 isolated webview, talking to the app through the permission-gated
 `window.addonAPI`. This is how HyperInsight is built, and it's the right
 default for anything user-facing. Start with [`tab-plugin/`](tab-plugin/).
 
 **MCP server** — you want to expose tools or resources to the AI assistant.
-Your server runs as a local process; Mosaic connects to it over stdio or HTTP.
-Nothing about it is Mosaic-specific.
+Your server runs as a local process; MosAIc connects to it over stdio or HTTP.
+Nothing about it is MosAIc-specific.
 
 **WASM tool** — you want sandboxed computation users can invoke from the Tool
 Sandbox. Your tool compiles to `.wasm` and declares a manifest; permissions

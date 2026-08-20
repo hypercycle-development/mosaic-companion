@@ -49,7 +49,7 @@ export interface CoreTabDef {
 export const CORE_TABS: CoreTabDef[] = [
   { id: "home", label: "Home", icon: "Home", url: INTERNAL_HOME_URL, toggleable: false, order: 0, description: "Your start page with quick access to everything" },
   { id: "chat", label: "AI Chat", icon: "Bot", url: INTERNAL_CHAT_URL, toggleable: false, order: 10, description: "Chat one-on-one with your AI agents" },
-  { id: "mosaicbot", label: "Mosaic Bot", icon: "BrainCircuit", url: INTERNAL_MOSAICBOT_URL, toggleable: false, order: 20, description: "Built-in background assistant with memory and skills" },
+  { id: "mosaicbot", label: "MosAIc Bot", icon: "BrainCircuit", url: INTERNAL_MOSAICBOT_URL, toggleable: false, order: 20, description: "Built-in background assistant with memory and skills" },
   { id: "mcp", label: "MCP Servers", icon: "Plug", url: INTERNAL_MCP_URL, toggleable: false, order: 30, description: "Connect external tool servers (Model Context Protocol) for your agents" },
   { id: "multi-chat", label: "Chat Rooms", icon: "MessageSquare", url: INTERNAL_MULTI_CHAT_URL, toggleable: false, order: 40, description: "Multi-user rooms — invite agents with @mentions" },
   { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL, toggleable: false, order: 50, description: "Built-in Web3 wallet for on-chain interactions" },

@@ -266,7 +266,7 @@ async function checkForUpdatesViaJson(isManual = false) {
                 type: 'info',
                 title: 'No Updates',
                 message: "You're up to date!",
-                detail: `Mosaic Companion ${currentVersion} is the latest version.`
+                detail: `MosAIc Companion ${currentVersion} is the latest version.`
             });
         }
     } catch (err) {

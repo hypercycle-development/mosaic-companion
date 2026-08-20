@@ -1,5 +1,5 @@
 /**
- * EIP-191 sign a UTF-8 string with the Mosaic-stored EVM wallet (Base / Base Sepolia private key).
+ * EIP-191 sign a UTF-8 string with the MosAIc-stored EVM wallet (Base / Base Sepolia private key).
  * Used for Hypercycle Basechain `tx-signature` (signed nonce).
  */
 
@@ -25,7 +25,7 @@ export async function signHypercycleNonceWithWallet(
       return {
         success: false,
         error:
-          "No wallet private key in Mosaic. Import a Base wallet in Web3 settings to sign Hypercycle requests.",
+          "No wallet private key in MosAIc. Import a Base wallet in Web3 settings to sign Hypercycle requests.",
       };
     }
     return { success: false, error: msg };

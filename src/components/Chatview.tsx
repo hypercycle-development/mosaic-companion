@@ -852,7 +852,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         // Prepare context — strip any previously-persisted system context
         const messagesForAI = updatedMessages.filter(m => m.role !== "system" && !m.content.startsWith("[System Context]"));
         
-        // Inject System Prompts (Mosaic tool/MCP/vault context).
+        // Inject System Prompts (MosAIc tool/MCP/vault context).
         // Hypercycle agents talk to a remote gateway with plain chat — same as curl without our
         // prompts. If we inject Web3 + "must use tools / say if none" rules, the model refuses
         // general questions (e.g. weather) because no weather tool exists.

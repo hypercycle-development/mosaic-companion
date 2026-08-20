@@ -1,6 +1,6 @@
 # mcp-hello
 
-Minimal MCP server that exposes two tools to Mosaic via stdio transport.
+Minimal MCP server that exposes two tools to MosAIc via stdio transport.
 
 ## Tools
 
@@ -18,7 +18,7 @@ cd examples/mcp-hello
 npm install
 ```
 
-**Register in Mosaic** (writes to Mosaic's config — no app code changes):
+**Register in MosAIc** (writes to MosAIc's config — no app code changes):
 
 ```sh
 npm run setup
@@ -34,7 +34,7 @@ Then click the **Refresh** button (↻) in **Settings → MCP Servers**. The `wo
 
 Open **Settings → MCP Servers**, find `mcp-hello`, and click the trash icon. The entry is removed immediately.
 
-Alternatively, if Mosaic is not running:
+Alternatively, if MosAIc is not running:
 
 ```sh
 npm run remove
@@ -44,7 +44,7 @@ npm run remove
 
 ## How setup works
 
-`setup.js` finds Mosaic's `mcp-plugins.json` (in the Electron userData directory) and appends an entry pointing at the absolute path of `server.js`. `remove.js` deletes that entry. Neither script touches the Mosaic source code.
+`setup.js` finds MosAIc's `mcp-plugins.json` (in the Electron userData directory) and appends an entry pointing at the absolute path of `server.js`. `remove.js` deletes that entry. Neither script touches the MosAIc source code.
 
 The userData directory per platform:
 
@@ -56,9 +56,9 @@ The userData directory per platform:
 
 ---
 
-## Development testing (without Mosaic)
+## Development testing (without MosAIc)
 
-The MCP Inspector is an official tool for testing MCP servers interactively via a local web UI. Use it when you want to verify tool schemas and responses without wiring the server into Mosaic:
+The MCP Inspector is an official tool for testing MCP servers interactively via a local web UI. Use it when you want to verify tool schemas and responses without wiring the server into MosAIc:
 
 ```sh
 npx @modelcontextprotocol/inspector node server.js
@@ -70,7 +70,7 @@ This opens a browser tab (usually `http://localhost:5173`). From there:
 2. Go to **Tools** — you'll see `system_info` and `time_now` listed with their schemas
 3. Click a tool → fill in any arguments → **Call tool** — the raw response appears on the right
 
-The inspector is good for checking that your tool schema is correct and your handler returns the right shape before you register in Mosaic. It installs into npx's temp cache and leaves no trace in your project.
+The inspector is good for checking that your tool schema is correct and your handler returns the right shape before you register in MosAIc. It installs into npx's temp cache and leaves no trace in your project.
 
 ---
 
@@ -81,6 +81,6 @@ The inspector is good for checking that your tool schema is correct and your han
 - **Add a prompt** — use `server.prompt(...)` to expose reusable prompt templates.
 - **HTTP transport** — swap `StdioServerTransport` for an HTTP server; in `setup.js` set `transport: "http"` and `url` instead of `command`/`args`.
 
-## Contract with Mosaic
+## Contract with MosAIc
 
-Mosaic uses `@modelcontextprotocol/sdk ^1.27.0`. Your server must speak the same protocol version. The `MCPPlugin` interface Mosaic stores in `mcp-plugins.json` is defined in `electron/integrations/mcp/plugin.ts`.
+MosAIc uses `@modelcontextprotocol/sdk ^1.27.0`. Your server must speak the same protocol version. The `MCPPlugin` interface MosAIc stores in `mcp-plugins.json` is defined in `electron/integrations/mcp/plugin.ts`.

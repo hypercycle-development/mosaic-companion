@@ -138,7 +138,7 @@ export function HypercycleBalancePanel({ agent }: { agent: AIAgentConfig }) {
         const to = tmHostAddr?.trim();
         if (!to) {
           setMsg(
-            "Load Address first — the node must return tm.host_address to send TDN from Mosaic.",
+            "Load Address first — the node must return tm.host_address to send TDN from MosAIc.",
           );
           toast.error("Missing Twin URL (tm.host_address)");
           return;
@@ -326,7 +326,7 @@ export function HypercycleBalancePanel({ agent }: { agent: AIAgentConfig }) {
             )}
         </label>
 
-        <div className="text-xs text-gray-500 font-medium">Send from Mosaic</div>
+        <div className="text-xs text-gray-500 font-medium">Send from MosAIc</div>
         {agent.hypercycleBackend === "basechain" && (
           <label className="block">
             <span className="text-xs text-gray-500">USDC recipient (0x)</span>

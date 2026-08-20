@@ -1,6 +1,6 @@
 # Linux Sandbox Security
 
-This document explains the Chromium sandbox, why it may fail on certain Linux distributions, and how Mosaic Companion handles this automatically.
+This document explains the Chromium sandbox, why it may fail on certain Linux distributions, and how MosAIc Companion handles this automatically.
 
 ## What is the Sandbox?
 
@@ -21,9 +21,9 @@ The SUID sandbox helper binary was found, but is not configured correctly.
 2. **SUID cannot work on FUSE**: The SUID sandbox requires special file permissions that don't work on FUSE mounts
 3. **Ubuntu 24.04 blocks fallback**: The kernel parameter `kernel.apparmor_restrict_unprivileged_userns=1` prevents the fallback user namespace sandbox
 
-## How Mosaic Companion Handles This
+## How MosAIc Companion Handles This
 
-Mosaic Companion **automatically detects** this kernel restriction and handles it:
+MosAIc Companion **automatically detects** this kernel restriction and handles it:
 
 1. **On launch**, the wrapper script checks `/proc/sys/kernel/apparmor_restrict_unprivileged_userns`
 2. **If the restriction is enabled**, the app automatically starts with `--no-sandbox`

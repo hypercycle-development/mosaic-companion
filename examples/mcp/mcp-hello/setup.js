@@ -1,8 +1,8 @@
 /**
- * setup.js — register mcp-hello in Mosaic Companion
+ * setup.js — register mcp-hello in MosAIc Companion
  *
- * Writes an entry to mcp-plugins.json in the Mosaic userData directory.
- * Run this once from your terminal or IDE, then restart Mosaic.
+ * Writes an entry to mcp-plugins.json in the MosAIc userData directory.
+ * Run this once from your terminal or IDE, then restart MosAIc.
  *
  * Usage:
  *   node setup.js
@@ -40,7 +40,7 @@ if (existsSync(pluginsFile)) {
 const existing = plugins.find(p => p.args?.includes(SERVER_PATH));
 if (existing) {
   console.log(`Already registered as "${existing.name}" (id: ${existing.id})`);
-  console.log("Restart Mosaic if it is running to pick up any server changes.");
+  console.log("Restart MosAIc if it is running to pick up any server changes.");
   process.exit(0);
 }
 
@@ -56,6 +56,6 @@ plugins.push({
 
 writeFileSync(pluginsFile, JSON.stringify(plugins, null, 2), "utf8");
 
-console.log(`✓ Registered mcp-hello in Mosaic.`);
+console.log(`✓ Registered mcp-hello in MosAIc.`);
 console.log(`  Server: ${SERVER_PATH}`);
 console.log(`  Click Refresh (↻) in Settings → MCP Servers to activate.`);

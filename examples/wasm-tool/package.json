@@ -1,7 +1,7 @@
 {
   "name": "text-stats",
   "version": "1.0.0",
-  "description": "WASM tool example for Mosaic Companion",
+  "description": "WASM tool example for MosAIc Companion",
   "scripts": {
     "bundle": "esbuild src/index.ts --bundle --outfile=dist/bundle.js --platform=node --format=cjs --external:env",
     "build": "npm run bundle && extism-js dist/bundle.js -i node_modules/@extism/js-pdk/types/plugin-interface.d.ts -o text-stats.wasm",

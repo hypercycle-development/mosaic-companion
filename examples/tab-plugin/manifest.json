@@ -3,8 +3,8 @@
   "id": "tab-plugin",
   "version": "1.0.0",
   "name": "Example Tab",
-  "description": "Minimal addon example — one sidebar tab rendering a page that talks to Mosaic through window.addonAPI.",
-  "author": "Mosaic Contributors",
+  "description": "Minimal addon example — one sidebar tab rendering a page that talks to MosAIc through window.addonAPI.",
+  "author": "MosAIc Contributors",
   "minAppVersion": "0.1.9",
 
   "ipcNamespace": "tab-plugin",

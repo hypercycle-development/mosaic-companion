@@ -376,7 +376,7 @@ export async function uninstallAddon(
   }
 
   // Code is always deleted — but only for registry and bundled installs. A
-  // dev addon's "root" is the addon author's own working directory; Mosaic
+  // dev addon's "root" is the addon author's own working directory; MosAIc
   // must never delete that (uninstall just forgets
   // the state entry). "bundled" is a real copy under userData/addons/
   // just like "registry", safe to delete the same way.
