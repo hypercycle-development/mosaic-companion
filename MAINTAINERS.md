@@ -52,6 +52,6 @@ None yet. Former maintainers are listed here with the period they served.
 
 ## Keeping this accurate
 
-This list is a statement about who is actually responsible, so it is worth more
-current than long. If you are listed and no longer active, say so. If nobody has
+This list is a statement about who is actually responsible, so it is better short
+and current than long and stale. If you are listed and no longer active, say so. If nobody has
 checked this file in six months, check it.

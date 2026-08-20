@@ -38,7 +38,7 @@ Instances of abusive, harassing, or otherwise unacceptable behavior may be repor
 - **Email:** conduct@hyperpg.site
 - **Response team:** [@zephyrnova](https://github.com/zephyrnova) and [@dxnn](https://github.com/dxnn). Both read mail sent to that address.
 
-**If your report concerns one of them, send it to the other directly rather than to the shared address** — by GitHub direct message, or ask them for a personal address. Mail to the shared address reaches both people, including the person you are reporting.
+**If your report concerns one of them, send it to the other directly rather than to the shared address** — ask them for a personal address, or use the contact details on their GitHub profile. Mail to the shared address reaches both people, including the person you are reporting.
 
 Do not report conduct incidents in a public issue.
 
@@ -65,7 +65,7 @@ Where a decision was made by one responder alone, it may be appealed to the othe
 
 ## Scope
 
-This Code of Conduct applies in all MosAIc project spaces and when an individual is officially representing the project in public spaces. Examples include repositories, issue trackers, discussions, chat channels, events, working groups, partner programs, and official social media accounts.
+This Code of Conduct applies in all MosAIc project spaces and when an individual is officially representing the project in public spaces. Examples include repositories, issue trackers, discussions, chat channels, events, and official social media accounts.
 
 ## Attribution
 
