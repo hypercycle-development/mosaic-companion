@@ -258,7 +258,8 @@ export const ChatPage: React.FC = () => {
     await window.chatAPI?.leaveRoom(activeRoomId);
   };
 
-  const handleDeleteRoom = async (roomId: string) => {
+  const handleDeleteRoom = async (roomId: string, roomName: string) => {
+    if (!window.confirm(`Delete room "${roomName}"? This cannot be undone.`)) return;
     await window.chatAPI?.deleteRoom(roomId);
   };
 
@@ -423,7 +424,7 @@ export const ChatPage: React.FC = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteRoom(room.id);
+                        handleDeleteRoom(room.id, room.name);
                       }}
                       title="Delete room"
                       className="p-1 text-gray-600 hover:text-red-400 hover:bg-red-900/20 rounded transition-colors"
