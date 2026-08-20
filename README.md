@@ -146,6 +146,7 @@ Before contributing:
 2. Review the [roadmap](ROADMAP.md).
 3. Report vulnerabilities privately according to [SECURITY.md](SECURITY.md).
 4. Follow the [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+5. See [GOVERNANCE.md](GOVERNANCE.md) for how decisions are made.
 
 For substantial features, or changes to manifests, permissions, host functions, extension APIs, or security boundaries, begin with an issue before opening a large pull request. This applies to maintainers as well as to outside contributors.
 
@@ -155,9 +156,9 @@ For questions rather than contributions, [SUPPORT.md](SUPPORT.md) explains where
 
 Technical authority in MosAIc Companion is earned through sustained contribution and sound judgment. Company membership and financial sponsorship do not carry merge authority, and review rights are held by individuals rather than by the organisations they work for.
 
-The project has no formal governance document. One would describe how a group of maintainers makes decisions together, and MosAIc Companion currently has very few active maintainers — publishing a process nobody has used would describe an aspiration rather than the project.
+[GOVERNANCE.md](GOVERNANCE.md) describes how decisions are made and [MAINTAINERS.md](MAINTAINERS.md) records who makes them. Significant changes are proposed as issues before implementation, and every commit carries a Developer Certificate of Origin sign-off, which is an enforced check.
 
-How the project should be governed as it grows is under active discussion.
+The project has two maintainers, both affiliated with HyperCycle. There is no tiebreak when they disagree, no independent removal process, and a maintainer can merge their own change without a second review. Those are limits of the current size rather than settled positions, and growing past them is a goal.
 
 ## Security
 

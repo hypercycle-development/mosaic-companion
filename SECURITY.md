@@ -36,6 +36,8 @@ Do not include real credentials, private keys, customer data, or unnecessary per
 
 ## Response expectations
 
+Reports are received by both maintainers ([MAINTAINERS.md](MAINTAINERS.md)), so a report does not wait on one person being available.
+
 MosAIc Companion is currently maintained by a very small team. We do not publish response-time targets, because we would rather set targets when we can meet them than publish numbers we cannot. Expect responses to be best-effort and sometimes slow. Growing the project to the point where it can state service objectives and meet them is a goal, not a present commitment.
 
 Vulnerability reports are prioritized over ordinary issue and pull-request traffic, and actively exploited or critical vulnerabilities take priority within that. Disclosure and credit are coordinated with the reporter as described below.
