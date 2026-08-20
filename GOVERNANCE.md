@@ -184,9 +184,9 @@ request, subject to the same review requirement — and the same bypass — as
 anything else.
 
 Several parts of this document do not scale: the veto, the absence of an
-independent removal process, the absence of role tiers, and the rule that a decision is made when the
-active maintainers agree, which at five people would mean five vetoes rather
-than two.
+independent removal process, the absence of role tiers, and the rule that a
+decision is made when the active maintainers agree, which at five people would
+mean five vetoes rather than two.
 
 **At four maintainers, this document is revised rather than amended.** Until
 then, check twice a year that [MAINTAINERS.md](MAINTAINERS.md) is still accurate
