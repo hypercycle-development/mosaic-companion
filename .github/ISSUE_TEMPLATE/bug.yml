@@ -1,0 +1,90 @@
+name: Bug report
+description: Report reproducible behavior that appears incorrect.
+title: "[Bug]: "
+labels:
+  - bug
+  - triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve MosAIc. Do not disclose security vulnerabilities or include secrets here. Use private vulnerability reporting for security issues.
+  - type: input
+    id: version
+    attributes:
+      label: MosAIc version or commit
+      placeholder: v0.1.11 or commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: architecture
+    attributes:
+      label: Architecture and installation method
+      placeholder: x64, arm64; installer, packaged build, or source
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - Core desktop application
+        - Sandboxed WASM tool
+        - MCP server or connector
+        - Renderer add-on
+        - Vault or user data
+        - Wallet or payment path
+        - IDE or developer tooling
+        - Packaging or release
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the shortest reliable sequence and a minimal example when possible.
+      placeholder: "1. Open …\n2. Select …\n3. Observe …"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and screenshots
+      description: Remove API keys, tokens, wallet secrets, recovery phrases, credentials, and personal data.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: I removed secrets and private data from this report.
+          required: true
+        - label: This is not an undisclosed security vulnerability.
+          required: true
+

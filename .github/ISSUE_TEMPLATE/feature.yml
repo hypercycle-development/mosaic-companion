@@ -1,0 +1,53 @@
+name: Feature proposal
+description: Propose an outcome grounded in a user or operator need.
+title: "[Feature]: "
+labels:
+  - enhancement
+  - needs-evidence
+  - triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with the problem and the evidence for it. Significant changes to manifests, permissions, host functions, extension APIs, or security boundaries are agreed here before implementation — see CONTRIBUTING.md.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: Who experiences it, in what setting, and how often?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Link user research, support cases, operational data, prototypes, or prior discussion. Remove private data.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe success without prescribing an implementation too early.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Possible approach
+      description: Include alternatives and tradeoffs if known.
+  - type: textarea
+    id: contribution
+    attributes:
+      label: Contribution offered
+      description: Can you provide code, design, testing, documentation, deployment evidence, or ongoing maintenance?
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and the roadmap.
+          required: true
+        - label: I can discuss this without exposing confidential or personal information.
+          required: true
+

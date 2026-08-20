@@ -1,0 +1,72 @@
+name: Integration proposal
+description: Propose a WASM tool, MCP server, add-on, connector, or other extension.
+title: "[Integration]: "
+labels:
+  - integration
+  - needs-design
+  - triage
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Integration type
+      options:
+        - Sandboxed WASM tool
+        - MCP server or connector
+        - Renderer add-on
+        - Bundled or privileged component
+        - Agent or model provider
+        - Wallet or payment integration
+        - Other or unsure
+    validations:
+      required: true
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case and users
+    validations:
+      required: true
+  - type: textarea
+    id: interface
+    attributes:
+      label: Proposed interface
+      description: Describe commands, manifest fields, events, data formats, or APIs.
+    validations:
+      required: true
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Permissions and data access
+      description: List filesystem, network, process, credential, wallet, personal-data, and other privileges.
+    validations:
+      required: true
+  - type: textarea
+    id: lifecycle
+    attributes:
+      label: Installation, updates, compatibility, and removal
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security and abuse considerations
+      description: Identify trust boundaries, failure modes, isolation assumptions, and mitigations.
+    validations:
+      required: true
+  - type: textarea
+    id: ownership
+    attributes:
+      label: Proposed owner and contribution
+      description: Name the company or people prepared to build, test, document, and maintain it.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I understand that different extension classes have different trust and review requirements.
+          required: true
+        - label: This proposal does not contain credentials, private data, or an undisclosed vulnerability.
+          required: true
+

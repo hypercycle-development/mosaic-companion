@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/hypercycle-development/mosaic-companion/security/advisories/new
+    about: Never disclose a suspected vulnerability in a public issue.
+  - name: Code of conduct concern
+    url: https://github.com/hypercycle-development/mosaic-companion/blob/main/CODE_OF_CONDUCT.md
+    about: Conduct reports go to conduct@hyperpg.site, not to the issue tracker.
