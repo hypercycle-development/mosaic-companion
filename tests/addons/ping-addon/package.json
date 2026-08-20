@@ -1,0 +1,5 @@
+{
+  "name": "ping-addon",
+  "private": true,
+  "type": "module"
+}

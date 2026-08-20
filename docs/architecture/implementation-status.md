@@ -1,5 +1,10 @@
 # Implementation Status
 
+> [!NOTE]
+> This documentation set has known divergences from the implementation. See
+> [STATUS.md](./STATUS.md) before relying on it. Last verified 2026-08-20
+> against `2d920ce`.
+
 What's built today, what's in progress, and what's planned.
 
 > Last updated: 2026-03-17

@@ -328,48 +328,9 @@ declare global {
         deleteEntry: (boxId: string, entryId: string) => Promise<{ success: boolean; error?: string }>;
       };
 
-      // HyperInsight plugin
-      hyperinsight: {
-        getStatus: () => Promise<{ registered: boolean; tier?: string; clientId?: string }>;
-        ensureKey: () => Promise<{ success: boolean; clientId?: string; error?: string }>;
-        resetKey: () => Promise<{ success: boolean; error?: string }>;
-        getAims: () => Promise<any>;
-        getLeaderboard: () => Promise<any>;
-        getNodes: (params?: any) => Promise<any>;
-        getNodeDetail: (license: string) => Promise<any>;
-        getAimManifest: (license: string, aimName: string) => Promise<any>;
-        getNetworkStats: () => Promise<any>;
-        getNetworkHistory: () => Promise<any>;
-        getAimStats: (name: string, range?: string) => Promise<any>;
-        getAimStatsCurrent: (name: string) => Promise<any>;
-        getAimDetails: (name: string) => Promise<any>;
-        getAimReleases: (name: string) => Promise<any>;
-        getAimReleaseDetail: (name: string, tag: string) => Promise<any>;
-        saveGeneratedImage: (base64Data: string) => Promise<{ success: boolean; url?: string; error?: string }>;
-        // AIM Nodes data
-        saveNodeData: (license: string, data: any) => Promise<{ success: boolean; error?: string }>;
-        deleteNodeData: (license: string) => Promise<{ success: boolean; error?: string }>;
-        getSavedAims: (license?: string) => Promise<any>;
-        handlePayment: (paymentData: any) => Promise<{ success: boolean; error?: string; result?: any }>;
-        // Stage 7B: Node profile
-        getNodeProfile: (license: number | string) => Promise<any>;
-        // Stage 7C: Tool score cache
-        getToolScore: (endpointUrl: string) => Promise<any>;
-        getAllToolScores: () => Promise<any>;
-        getToolScoresLastUpdated: () => Promise<any>;
-        // Stage 8A: AIM profile / nodes
-        getAimProfile:  (name: string) => Promise<any>;
-        getAimNodes:    (name: string, opts?: { version?: string; userLat?: number; userLng?: number }) => Promise<any>;
-        getAimBestNode: (name: string, opts?: { version?: string; userLat?: number; userLng?: number }) => Promise<any>;
-        // Stage 8B / Stage 7 probe data
-        getAimDeployments: (aimId: number) => Promise<any[]>;
-        getToolStatus: (toolId: string) => Promise<any>;
-        subscribe: (payload: { endpointUrl: string; aimId?: number; nodeLicense?: number }) => Promise<any>;
-        getSubscriptions: () => Promise<any[]>;
-        unsubscribe: (subscriptionId: string) => Promise<any>;
-        getVerificationHistory: (subscriptionId: string) => Promise<any[]>;
-        clearCache: () => Promise<void>;
-      };
+      // §9.2/Phase 7: HyperInsight moved wholesale into its own addon — no
+      // more window.electronAPI.hyperinsight. Its renderer reaches its own
+      // main/index.js through window.addonAPI.invoke() instead.
 
       // AIM Nodes (separate namespace for new hooks/components)
       aimNodes: {
@@ -388,6 +349,79 @@ declare global {
         getAutoDisplay: () => Promise<{ enabled: boolean }>;
         /** Set the auto-display-media setting */
         setAutoDisplay: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean; error?: string }>;
+      };
+
+      // Addon management (renderer-side management bridge — §6.2)
+      addons: {
+        list: () => Promise<Array<{
+          id: string;
+          name: string;
+          description?: string;
+          version: string;
+          activated: boolean;
+          lastError?: string;
+          source: { type: "registry"; tarballUrl: string; sha256: string; registrySignatureVerified: boolean; verifiedKeyId: string } | { type: "dev"; path: string } | { type: "bundled"; bundledFromVersion: string };
+          permissions: string[];
+          linkVisibilityToActivation: boolean;
+          updateCheckMode: "manual" | "automatic";
+          updateAvailable?: string;
+        }>>;
+        listTabs: () => Promise<Array<{
+          tabId: string;
+          addonId: string;
+          label: string;
+          icon: string;
+          order: number;
+          activated: boolean;
+          visible: boolean;
+          rendererEntry: string;
+          deepLinkParam?: string;
+        }>>;
+        activate: (id: string) => Promise<{ success: boolean; error?: string }>;
+        deactivate: (id: string) => Promise<{ success: boolean; error?: string }>;
+        setEnabled: (id: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
+        installDev: (devPath: string) => Promise<{ success: boolean; id?: string; error?: string }>;
+        getPreloadPath: () => Promise<string>;
+        fetchCatalogue: () => Promise<{
+          success: boolean;
+          /** True when no signed catalogue is published yet — a normal state, not an error. */
+          unavailable?: boolean;
+          addons?: Array<{
+            id: string;
+            name: string;
+            description: string;
+            version: string;
+            minAppVersion?: string;
+            tarballUrl: string;
+            sha256: string;
+            permissions: string[];
+            icon?: string;
+            homepage?: string;
+          }>;
+          error?: string;
+        }>;
+        /** `hasMainEntry`: addon may ship main-process code, which the permission model does not restrict (see MAIN_ENTRY_ALLOWLIST). */
+        install: (id: string) => Promise<{ success: boolean; needsConsent?: string[]; hasMainEntry?: boolean; error?: string }>;
+        installConfirm: (id: string, acceptedPermissions: string[]) => Promise<{ success: boolean; error?: string }>;
+        uninstall: (id: string, opts: { keepSettings: boolean; keepData: boolean }) => Promise<{ success: boolean; error?: string }>;
+        getDataSize: (id: string) => Promise<number>;
+        upgrade: (id: string, acceptedPermissions?: string[]) => Promise<{ success: boolean; needsConsent?: string[]; error?: string }>;
+        setVisibilityLink: (id: string, linked: boolean) => Promise<{ success: boolean; error?: string }>;
+        setUpdateCheckMode: (id: string, mode: "manual" | "automatic") => Promise<{ success: boolean; error?: string }>;
+        wasHyperInsightJustMigrated: () => Promise<boolean>;
+        onChanged: (callback: (tabs: unknown[]) => void) => () => void;
+        onTitleChanged: (callback: (data: { addonId: string; title: string }) => void) => () => void;
+      };
+
+      // Sidebar tab visibility preferences (keyed by tab id; absent = visible)
+      tabPrefs: {
+        get: () => Promise<Record<string, boolean>>;
+        setVisibility: (tabId: string, visible: boolean) => Promise<{
+          success: boolean;
+          error?: string;
+          tabVisibility?: Record<string, boolean>;
+        }>;
+        onChanged: (callback: (visibility: Record<string, boolean>) => void) => () => void;
       };
 
       // JIT Payments plugin
@@ -433,6 +467,7 @@ declare global {
       // File dialog
       dialog: {
         openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string | null>;
+        openDirectory: () => Promise<string | null>;
       };
     };
 
@@ -441,20 +476,22 @@ declare global {
       saveSettings: (s: ChatSettings) => Promise<{ success: boolean; error?: string }>;
       connect: () => Promise<{ success: boolean; error?: string }>;
       disconnect: () => Promise<{ success: boolean }>;
-      status: () => Promise<{ status: string }>;
+      status: () => Promise<{ status: string; memberId?: string }>;
       listRooms: () => Promise<{ success: boolean; error?: string }>;
       createRoom: (name: string, visibility?: string) => Promise<{ success: boolean; error?: string }>;
       joinRoom: (roomId: string) => Promise<{ success: boolean; error?: string }>;
       leaveRoom: (roomId: string) => Promise<{ success: boolean; error?: string }>;
+      deleteRoom: (roomId: string) => Promise<{ success: boolean; error?: string }>;
       sendMessage: (roomId: string, text: string) => Promise<{ success: boolean; error?: string }>;
       assignAgent: (roomId: string, agentId: string, agentName: string) => Promise<{ success: boolean }>;
       removeAgent: (roomId: string, agentId: string) => Promise<{ success: boolean }>;
       listAssignedAgents: (roomId: string) => Promise<string[]>;
-      onConnectionChanged: (cb: (data: { status: string }) => void) => () => void;
+      onConnectionChanged: (cb: (data: { status: string; memberId?: string }) => void) => () => void;
       onRoomsUpdated: (cb: (rooms: Room[]) => void) => () => void;
       onRoomCreated: (cb: (room: Room) => void) => () => void;
       onJoined: (cb: (data: { room: Room; history: StoredMessage[] }) => void) => () => void;
       onLeft: (cb: (data: { roomId: string }) => void) => () => void;
+      onRoomDeleted: (cb: (data: { roomId: string }) => void) => () => void;
       onMessage: (cb: (message: StoredMessage) => void) => () => void;
       onMemberJoined: (cb: (data: { roomId: string; member: Member }) => void) => () => void;
       onMemberLeft: (cb: (data: { roomId: string; memberId: string; username: string }) => void) => () => void;

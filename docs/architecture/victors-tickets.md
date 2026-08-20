@@ -1,5 +1,11 @@
 # Victor's Linear Tickets — Implementation Guide
 
+> [!WARNING]
+> **Parts of this document describe a Docker-based runtime that was never built.**
+> The implemented runtime is WebAssembly via Extism. See
+> [STATUS.md](./STATUS.md) for what in this set is accurate and what is
+> superseded. Last verified 2026-08-20 against `2d920ce`.
+
 > Reference for implementing assigned tickets. Ordered by logical dependency, not ticket number.
 > We're going with Docker to ship fast. WASM is the right long-term choice — plan for migration.
 

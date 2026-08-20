@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Bot, Plus, Send, MessageSquare, Users, X, Lock, Globe } from "lucide-react";
+import { Bot, Plus, Send, MessageSquare, Users, X, Lock, Globe, Trash2 } from "lucide-react";
 import type { AIAgentConfig } from "../types/ai";
 import type {
   ChatSettings,
@@ -26,6 +26,7 @@ export const ChatPage: React.FC = () => {
   const [messages, setMessages] = useState<Record<string, StoredMessage[]>>({});
   const [assignedAgents, setAssignedAgents] = useState<Record<string, string[]>>({});
   const [allAgents, setAllAgents] = useState<AIAgentConfig[]>([]);
+  const [myMemberId, setMyMemberId] = useState<string | null>(null);
 
   // UI state
   const [newRoomName, setNewRoomName] = useState("");
@@ -50,9 +51,10 @@ export const ChatPage: React.FC = () => {
       settingsLoadedRef.current = true;
     });
     window.electronAPI.aiAgents.get().then(setAllAgents);
-    window.chatAPI?.status().then(({ status: s }) => {
+    window.chatAPI?.status().then(({ status: s, memberId }) => {
       setStatus(s as ConnectionStatus);
       if (s === "connected") {
+        if (memberId) setMyMemberId(memberId);
         autoJoinedRef.current = true;
         window.chatAPI?.listRooms();
       }
@@ -64,13 +66,17 @@ export const ChatPage: React.FC = () => {
     const cleanups: Array<() => void> = [];
 
     cleanups.push(
-      window.chatAPI?.onConnectionChanged(({ status: s }) => {
+      window.chatAPI?.onConnectionChanged(({ status: s, memberId }) => {
         setStatus(s as ConnectionStatus);
+        if (s === "disconnected" || s === "connecting") {
+          setMyMemberId(null);
+        }
         if (s === "disconnected") {
           setJoinedRoomIds(new Set());
           setActiveRoomId(null);
           autoJoinedRef.current = false;
         } else if (s === "connected") {
+          if (memberId) setMyMemberId(memberId);
           autoJoinedRef.current = false;
           window.chatAPI?.listRooms();
         }
@@ -129,6 +135,28 @@ export const ChatPage: React.FC = () => {
         setJoinedRoomIds((prev) => {
           const next = new Set(prev);
           next.delete(roomId);
+          return next;
+        });
+        setActiveRoomId((prev) => (prev === roomId ? null : prev));
+      }) ?? (() => {}),
+    );
+
+    cleanups.push(
+      window.chatAPI?.onRoomDeleted(({ roomId }) => {
+        setRooms((prev) => prev.filter((r) => r.id !== roomId));
+        setJoinedRoomIds((prev) => {
+          const next = new Set(prev);
+          next.delete(roomId);
+          return next;
+        });
+        setMessages((prev) => {
+          const next = { ...prev };
+          delete next[roomId];
+          return next;
+        });
+        setAssignedAgents((prev) => {
+          const next = { ...prev };
+          delete next[roomId];
           return next;
         });
         setActiveRoomId((prev) => (prev === roomId ? null : prev));
@@ -220,9 +248,19 @@ export const ChatPage: React.FC = () => {
     await window.chatAPI?.joinRoom(roomId);
   };
 
+  const handleDisconnect = async () => {
+    shouldAutoConnectRef.current = false;
+    await window.chatAPI?.disconnect();
+  };
+
   const handleLeave = async () => {
     if (!activeRoomId) return;
     await window.chatAPI?.leaveRoom(activeRoomId);
+  };
+
+  const handleDeleteRoom = async (roomId: string, roomName: string) => {
+    if (!window.confirm(`Delete room "${roomName}"? This cannot be undone.`)) return;
+    await window.chatAPI?.deleteRoom(roomId);
   };
 
   const handleCreateRoom = async () => {
@@ -315,16 +353,32 @@ export const ChatPage: React.FC = () => {
             className="w-full px-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-gray-200 placeholder-gray-600 disabled:opacity-50"
           />
           <div className="flex items-center gap-2 pt-1">
-            {/* <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusColor}`} />
-            <span className="text-xs text-gray-500 flex-1">{statusLabel}</span> */}
+            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusColor}`} />
+            <span className="text-xs text-gray-500 flex-1">{statusLabel}</span>
             {status === "disconnected" && (
               <button
-                  onClick={handleConnect}
-                  disabled={!settings.username.trim()}
-                  className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  Connect
-                </button>
+                onClick={handleConnect}
+                disabled={!settings.username.trim()}
+                className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Connect
+              </button>
+            )}
+            {status === "connecting" && (
+              <button
+                onClick={handleDisconnect}
+                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            )}
+            {status === "connected" && (
+              <button
+                onClick={handleDisconnect}
+                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded-lg transition-colors"
+              >
+                Disconnect
+              </button>
             )}
           </div>
         </div>
@@ -365,20 +419,34 @@ export const ChatPage: React.FC = () => {
                   </p>
                   <p className="text-xs text-gray-600">{room.members.length} members</p>
                 </div>
-                {!joined && status === "connected" && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleJoin(room.id);
-                    }}
-                    className="ml-2 px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex-shrink-0"
-                  >
-                    Join
-                  </button>
-                )}
-                {joined && isActive && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0 ml-2" />
-                )}
+                <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                  {myMemberId && room.creatorId === myMemberId && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteRoom(room.id, room.name);
+                      }}
+                      title="Delete room"
+                      className="p-1 text-gray-600 hover:text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  )}
+                  {!joined && status === "connected" && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleJoin(room.id);
+                      }}
+                      className="px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors"
+                    >
+                      Join
+                    </button>
+                  )}
+                  {joined && isActive && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                  )}
+                </div>
               </div>
             );
           })}

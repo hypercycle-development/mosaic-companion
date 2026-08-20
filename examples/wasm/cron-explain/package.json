@@ -1,0 +1,15 @@
+{
+  "name": "cron-explain",
+  "version": "1.0.0",
+  "description": "WASM tool: visualise cron schedules with a bar chart of when they fire",
+  "scripts": {
+    "bundle": "esbuild src/index.ts --bundle --outfile=dist/bundle.js --platform=node --format=cjs --external:env",
+    "build": "npm run bundle && extism-js dist/bundle.js -i src/index.d.ts -o cron-explain.wasm",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@extism/js-pdk": "^1.1.1",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.4.0"
+  }
+}

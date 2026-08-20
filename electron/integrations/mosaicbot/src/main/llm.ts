@@ -1,9 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Main-process LLM caller for MosaicBot
 //
-// Reads the active AI agent from userData/ai-agents.json and calls the
-// configured provider. Mirrors AIService (src/services/AIService.ts) but
-// runs in the Electron main process where API keys are safe and there is
+// Reads the active AI agent via the shared decrypting reader in
+// electron/agents.ts (keys are encrypted at rest in ai-agents.json) and
+// calls the configured provider. Mirrors AIService (src/services/AIService.ts)
+// but runs in the Electron main process where API keys are safe and there is
 // no renderer context.
 //
 // Usage:
@@ -11,9 +12,7 @@
 //   if (!reply) // no active agent configured
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { app } from "electron";
-import fs from "fs";
-import path from "path";
+import { readAgents } from "../../../../agents";
 
 // Mirrors AIAgentConfig from src/types/ai.ts
 interface AgentConfig {
@@ -32,23 +31,16 @@ type Message = { role: string; content: string };
 
 // ── Agent resolution ──────────────────────────────────────────────────────────
 
-function readAgents(): AgentConfig[] {
-  try {
-    const agentsPath = path.join(app.getPath("userData"), "ai-agents.json");
-    if (!fs.existsSync(agentsPath)) return [];
-    return JSON.parse(fs.readFileSync(agentsPath, "utf-8")) as AgentConfig[];
-  } catch (e) {
-    console.error("[MosaicBot/LLM] Failed to read ai-agents.json:", e);
-    return [];
-  }
+function readAgentConfigs(): AgentConfig[] {
+  return readAgents() as unknown as AgentConfig[];
 }
 
 function readActiveAgent(): AgentConfig | null {
-  return readAgents().find((a) => a.isActive) ?? null;
+  return readAgentConfigs().find((a) => a.isActive) ?? null;
 }
 
 function readAgentById(id: string): AgentConfig | null {
-  return readAgents().find((a) => a.id === id) ?? null;
+  return readAgentConfigs().find((a) => a.id === id) ?? null;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

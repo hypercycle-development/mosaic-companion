@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Bot,
+  BrainCircuit,
   MessageSquare,
   Shield,
   Cpu,
@@ -12,6 +13,7 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Lock,
   CheckCircle,
   XCircle,
   Sparkles,
@@ -23,7 +25,8 @@ import {
   PROVIDER_INFO,
 } from "../types/ai";
 import { AIService } from "../services/AIService";
-import { INTERNAL_MULTI_CHAT_URL } from "../types/types";
+import { explainAIError } from "../services/aiErrorHelp";
+import { INTERNAL_CHAT_URL } from "../types/types";
 
 interface OnboardingPageProps {
   onNavigate: (url: string) => void;
@@ -54,7 +57,7 @@ const FEATURES = [
     icon: Shield,
     title: "Vault Security",
     description:
-      "API keys are automatically stored in encrypted vault boxes, never saved in plain config files.",
+      "Keep secrets in encrypted vault boxes and control which agents can read them. Agent API keys are stored locally on this device.",
     color: "text-emerald-400",
     bg: "bg-emerald-400/10",
   },
@@ -84,16 +87,90 @@ const FEATURES = [
   },
 ];
 
+/** "Where everything lives" orientation cards for the ready step. */
+const ORIENTATION = [
+  {
+    icon: Bot,
+    title: "AI Chat",
+    description:
+      "One-on-one chat with your configured agents — this is the main chat.",
+    color: "text-amber-400",
+    bg: "bg-amber-400/10",
+  },
+  {
+    icon: MessageSquare,
+    title: "Chat Rooms",
+    description:
+      "Shared rooms where several people and agents talk together. Different from AI Chat.",
+    color: "text-blue-400",
+    bg: "bg-blue-400/10",
+  },
+  {
+    icon: BrainCircuit,
+    title: "Mosaic Bot",
+    description:
+      "A built-in background assistant with long-term memory and skills.",
+    color: "text-indigo-400",
+    bg: "bg-indigo-400/10",
+  },
+  {
+    icon: Plug,
+    title: "MCP Servers",
+    description:
+      "Optional plug-ins that give your agents extra tools. You can ignore this to start.",
+    color: "text-purple-400",
+    bg: "bg-purple-400/10",
+  },
+  {
+    icon: Lock,
+    title: "Vault",
+    description:
+      "Encrypted boxes for secrets; you choose which agents can read them.",
+    color: "text-emerald-400",
+    bg: "bg-emerald-400/10",
+  },
+  {
+    icon: Cpu,
+    title: "Tool Sandbox",
+    description:
+      "Install small sandboxed tools that agents can run. Optional.",
+    color: "text-rose-400",
+    bg: "bg-rose-400/10",
+  },
+];
+
 export const OnboardingPage: React.FC<OnboardingPageProps> = ({
   onNavigate,
   onComplete,
 }) => {
   const [currentStep, setCurrentStep] = useState<Step>("welcome");
   const [showApiKey, setShowApiKey] = useState(false);
+  /** User skipped agent setup — the ready step becomes an orientation-only page. */
+  const [skipped, setSkipped] = useState(false);
+  /** Non-builtin agents already configured (e.g. onboarding replayed). */
+  const [existingAgentCount, setExistingAgentCount] = useState(0);
   const [testStatus, setTestStatus] = useState<{
     status: "idle" | "testing" | "success" | "error";
     message?: string;
   }>({ status: "idle" });
+
+  // Replay guard: if onboarding is reopened after agents were already
+  // configured, let the user know they can skip the agent step.
+  useEffect(() => {
+    const checkExistingAgents = async () => {
+      try {
+        const agents = await window.electronAPI.aiAgents.get();
+        if (agents) {
+          setExistingAgentCount(
+            agents.filter((a) => !a.id.startsWith("mosaic-default-")).length,
+          );
+        }
+      } catch (error) {
+        console.warn("[Onboarding] Failed to check existing agents:", error);
+      }
+    };
+    checkExistingAgents();
+  }, []);
 
   const [agentConfig, setAgentConfig] = useState<Partial<AIAgentConfig>>({
     name: "My First Agent",
@@ -157,44 +234,54 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
       const result = await AIService.testConnection(config);
       setTestStatus({
         status: result.success ? "success" : "error",
-        message: result.message,
+        message: result.success
+          ? result.message
+          : explainAIError(config.provider, result.message, config.baseUrl),
       });
     } catch (error) {
       setTestStatus({
         status: "error",
-        message: (error as Error).message,
+        message: explainAIError(
+          agentConfig.provider as AIProvider,
+          (error as Error).message,
+          agentConfig.baseUrl,
+        ),
       });
     }
   };
 
   const handleFinish = async () => {
-    // Save agent
-    const agent: AIAgentConfig = {
-      id: `agent-${Date.now()}`,
-      name: agentConfig.name || "My First Agent",
-      provider: agentConfig.provider as AIProvider,
-      apiKey: agentConfig.apiKey || "",
-      baseUrl: agentConfig.baseUrl,
-      model: agentConfig.model || "",
-      maxTokens: agentConfig.maxTokens ?? 4096,
-      temperature: agentConfig.temperature ?? 0.7,
-      isActive: true,
-      createdAt: Date.now(),
-    };
+    if (!skipped) {
+      // Save agent
+      const agent: AIAgentConfig = {
+        id: `agent-${Date.now()}`,
+        name: agentConfig.name || "My First Agent",
+        provider: agentConfig.provider as AIProvider,
+        apiKey: agentConfig.apiKey || "",
+        baseUrl: agentConfig.baseUrl,
+        model: agentConfig.model || "",
+        maxTokens: agentConfig.maxTokens ?? 4096,
+        temperature: agentConfig.temperature ?? 0.7,
+        isActive: true,
+        createdAt: Date.now(),
+      };
 
-    try {
-      await window.electronAPI.aiAgents.add(agent);
-    } catch (error) {
-      console.error("Failed to save agent:", error);
+      try {
+        await window.electronAPI.aiAgents.add(agent);
+      } catch (error) {
+        console.error("Failed to save agent:", error);
+      }
     }
 
     onComplete();
-    onNavigate(INTERNAL_MULTI_CHAT_URL);
+    onNavigate(INTERNAL_CHAT_URL);
   };
 
+  // Skipping still lands on the orientation page — users who skip agent
+  // setup need the "where everything lives" overview the most.
   const handleSkipToChat = () => {
-    onComplete();
-    onNavigate(INTERNAL_MULTI_CHAT_URL);
+    setSkipped(true);
+    setCurrentStep("ready");
   };
 
   return (
@@ -289,10 +376,21 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
             <h2 className="text-2xl font-bold text-center mb-2">
               Set Up Your First AI Agent
             </h2>
-            <p className="text-gray-400 text-center mb-8">
-              Connect an AI provider to start chatting. Your API key will be
-              securely stored in the vault.
+            <p
+              className={`text-gray-400 text-center ${
+                existingAgentCount > 0 ? "mb-3" : "mb-8"
+              }`}
+            >
+              Connect an AI provider to start chatting. Your key stays on this
+              device and is only sent to the provider you choose.
             </p>
+            {existingAgentCount > 0 && (
+              <p className="text-xs text-indigo-300/80 text-center mb-8">
+                You already have {existingAgentCount} agent
+                {existingAgentCount === 1 ? "" : "s"} configured — you can skip
+                this step.
+              </p>
+            )}
 
             <div className="space-y-5 bg-gray-900/50 p-6 rounded-xl border border-gray-800">
               {/* Agent Name */}
@@ -382,8 +480,10 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                       {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
+                  {/* TODO: update copy to mention OS-keychain encryption once agent key encryption (safeStorage) lands */}
                   <p className="text-xs text-gray-600 mt-1">
-                    Stored securely in the vault, not in plain text
+                    Stored locally on this device — never sent anywhere except{" "}
+                    {PROVIDER_INFO[agentConfig.provider as AIProvider].name}.
                   </p>
                 </label>
               )}
@@ -478,7 +578,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
               )}
 
               {/* Test Connection */}
-              <div className="flex items-center gap-3">
+              <div>
                 <button
                   onClick={handleTestConnection}
                   disabled={
@@ -515,11 +615,11 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                   )}
                 </button>
                 {testStatus.message && testStatus.status !== "idle" && (
-                  <span
-                    className={`text-xs ${testStatus.status === "success" ? "text-emerald-400" : "text-red-400"}`}
+                  <p
+                    className={`text-xs mt-2 leading-relaxed ${testStatus.status === "success" ? "text-emerald-400" : "text-red-400"}`}
                   >
                     {testStatus.message}
-                  </span>
+                  </p>
                 )}
               </div>
             </div>
@@ -540,7 +640,10 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                   Skip for now
                 </button>
                 <button
-                  onClick={goNext}
+                  onClick={() => {
+                    setSkipped(false);
+                    goNext();
+                  }}
                   disabled={
                     !agentConfig.apiKey &&
                     agentConfig.provider !== "ollama" &&
@@ -559,18 +662,54 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
         {/* Step: Ready */}
         {currentStep === "ready" && (
           <div className="text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <CheckCircle size={40} className="text-white" />
+            <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <CheckCircle size={32} className="text-white" />
             </div>
-            <h2 className="text-3xl font-bold mb-4">You're All Set!</h2>
-            <p className="text-gray-400 mb-3 max-w-md mx-auto">
-              Your agent <strong className="text-white">{agentConfig.name}</strong> is
-              configured and ready to go.
+            <h2 className="text-3xl font-bold mb-4">
+              {skipped ? "You can set up an agent anytime" : "You're All Set!"}
+            </h2>
+            {skipped ? (
+              <p className="text-gray-400 mb-8 max-w-md mx-auto">
+                Add one later via the sidebar's Add AI Agent button or
+                Configuration → AI Agents
+              </p>
+            ) : (
+              <p className="text-gray-400 mb-8 max-w-md mx-auto">
+                Your agent{" "}
+                <strong className="text-white">{agentConfig.name}</strong> is
+                configured and ready to go.
+              </p>
+            )}
+
+            {/* Where everything lives */}
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">
+              Where everything lives
+            </h3>
+            <div className="grid grid-cols-2 gap-3 mb-4 text-left">
+              {ORIENTATION.map((item) => (
+                <div
+                  key={item.title}
+                  className="p-3 rounded-xl border border-gray-800 bg-gray-900/50 hover:border-gray-700 transition-colors"
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div
+                      className={`w-7 h-7 rounded-lg ${item.bg} flex items-center justify-center shrink-0`}
+                    >
+                      <item.icon size={14} className={item.color} />
+                    </div>
+                    <h4 className="font-semibold text-xs">{item.title}</h4>
+                  </div>
+                  <p className="text-[11px] text-gray-500 leading-relaxed">
+                    {item.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mb-8 max-w-md mx-auto">
+              Tip: everything opens in tabs — press + in the tab strip to open
+              a new one, just like a browser.
             </p>
-            <p className="text-gray-500 text-sm mb-8 max-w-md mx-auto">
-              You can always add more agents or change settings later from the
-              sidebar.
-            </p>
+
             <div className="flex items-center justify-center gap-4">
               <button
                 onClick={goBack}
@@ -583,7 +722,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                 onClick={handleFinish}
                 className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-medium transition-all flex items-center gap-2"
               >
-                Start Chatting
+                {skipped ? "Explore Mosaic" : "Start Chatting"}
                 <MessageSquare size={18} />
               </button>
             </div>

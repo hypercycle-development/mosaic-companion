@@ -1,5 +1,10 @@
 # Tool Lifecycle
 
+> [!NOTE]
+> This documentation set has known divergences from the implementation. See
+> [STATUS.md](./STATUS.md) before relying on it. Last verified 2026-08-20
+> against `2d920ce`.
+
 How tools are built, distributed, installed, and executed in MosAIc.
 
 > Last updated: 2026-03-17. WASM is the primary and only implemented runtime.

@@ -1,5 +1,10 @@
 # Tool UI Rendering — Architecture & Approach
 
+> [!NOTE]
+> This documentation set has known divergences from the implementation. See
+> [STATUS.md](./STATUS.md) before relying on it. Last verified 2026-08-20
+> against `2d920ce`.
+
 > **Status:** Design document. Defines how WASM tools render UI inside MosAIc.
 
 ---

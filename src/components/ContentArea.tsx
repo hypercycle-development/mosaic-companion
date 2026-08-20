@@ -13,8 +13,10 @@ import {
   INTERNAL_ONBOARDING_URL,
   INTERNAL_IDE_URL,
   INTERNAL_TOOL_PANEL_PREFIX,
+  ADDON_URL_PREFIX,
   Tab,
 } from "../types/types";
+import { AddonHostView } from "./AddonHostView";
 import { LandingPage } from "./LandingPage";
 import { SettingsPage } from "./SettingsPage";
 import { MosaicBotPanel } from "./MosaicBotPanel";
@@ -22,7 +24,7 @@ import { MCPPage } from "./MCPPage";
 import { ChatPage } from "./ChatPage";
 import { Web3Page } from "./Web3Page";
 import { VaultPage } from "./VaultPage";
-import { HyperInsightView } from "../../plugins/hyperinsight/renderer/HyperInsightView";
+import { HyperInsightRedirect } from "./HyperInsightRedirect";
 import { SandboxPage } from "./SandboxPage";
 import { ToolPanelView } from "./ToolPanelView";
 import { OnboardingPage } from "./OnboardingPage";
@@ -319,6 +321,38 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   onOnboardingComplete,
   tabId,
 }) => {
+  // ── IDE persistence ──────────────────────────────────────────────────────────
+  // IDEPage is kept mounted for the lifetime of this tab once first visited.
+  // Navigating away hides it with CSS (display:none); returning makes it visible
+  // again — the PTY sessions inside are never destroyed by a navigation event.
+  // Each tab has its own ContentArea instance, so each gets its own IDEPage.
+  const ideEverVisited = useRef(false);
+  const lastIdeUrl = useRef<string>(INTERNAL_IDE_URL);
+  const isIDEUrl = url === INTERNAL_IDE_URL || url.startsWith(INTERNAL_IDE_URL + "?");
+
+  if (isIDEUrl) {
+    ideEverVisited.current = true;
+    lastIdeUrl.current = url;
+  }
+
+  const ideLayer = ideEverVisited.current ? (
+    <div
+      className="absolute inset-0 h-full overflow-hidden bg-gray-950 text-gray-100"
+      style={{ display: isIDEUrl ? undefined : "none" }}
+    >
+      <IDEPage url={lastIdeUrl.current} onNavigate={onNavigate} />
+    </div>
+  ) : null;
+
+  // Wraps every page render so the persistent IDE layer is always present.
+  const wrap = (content: React.ReactNode) => (
+    <div className="relative w-full h-full">
+      {ideLayer}
+      {!isIDEUrl && content}
+    </div>
+  );
+  // ─────────────────────────────────────────────────────────────────────────────
+
   // Handle Demo Command
   if (url === "demo://start") {
     useEffect(() => {
@@ -328,7 +362,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       onNavigate(INTERNAL_HOME_URL);
     }, [url, onStartDemo, onNavigate]);
 
-    return <div className="bg-black w-full h-full" />;
+    return wrap(<div className="bg-black w-full h-full" />);
   }
 
   // Handle Internal Pages
@@ -341,7 +375,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       });
     }, [url]);
 
-    return (
+    return wrap(
       <LandingPage
         onNavigate={onNavigate}
         customGreeting={settings.customGreeting}
@@ -354,7 +388,6 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
     url === INTERNAL_SETTINGS_URL ||
     url.startsWith(INTERNAL_SETTINGS_URL + "#")
   ) {
-    // Extract hash for scroll section (e.g., #nodes -> "nodes")
     const scrollSection = url.includes("#") ? url.split("#")[1] : undefined;
 
     useEffect(() => {
@@ -365,7 +398,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       });
     }, [url]);
 
-    return (
+    return wrap(
       <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
         <SettingsPage
           homeUrl={settings.homeUrl}
@@ -380,6 +413,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       </div>
     );
   }
+
   if (url === INTERNAL_CHAT_URL) {
     useEffect(() => {
       onUpdateTab({
@@ -389,7 +423,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       });
     }, [url]);
 
-    return (
+    return wrap(
       <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
         <ChatView
           onNavigate={onNavigate}
@@ -409,7 +443,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       });
     }, [url]);
 
-    return (
+    return wrap(
       <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
         <MCPPage />
       </div>
@@ -425,7 +459,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       });
     }, [url]);
 
-    return (
+    return wrap(
       <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
         <MosaicBotPanel />
       </div>
@@ -440,18 +474,20 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
         favicon: undefined,
       });
     }, [url]);
-    return (
+
+    return wrap(
       <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
-        <ChatPage />{" "}
+        <ChatPage />
       </div>
     );
   }
+
   if (url === INTERNAL_WEB3_URL) {
     useEffect(() => {
       onUpdateTab({ title: "Web3", isLoading: false, favicon: undefined });
     }, [url]);
 
-    return (
+    return wrap(
       <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
         <Web3Page />
       </div>
@@ -463,7 +499,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       onUpdateTab({ title: "Vault", isLoading: false, favicon: undefined });
     }, [url]);
 
-    return (
+    return wrap(
       <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
         <VaultPage />
       </div>
@@ -471,15 +507,13 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   }
 
   if (url === INTERNAL_HYPERINSIGHT_URL) {
+    // §9.2: HyperInsight moved into an addon (Phase 7) — this URL now only
+    // exists for old bookmarks/history entries, handled by a redirect.
     useEffect(() => {
-      onUpdateTab({ title: "HyperInsight", isLoading: false, favicon: undefined });
+      onUpdateTab({ title: "HyperInsight", isLoading: true, favicon: undefined });
     }, [url]);
 
-    return (
-      <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
-        <HyperInsightView />
-      </div>
-    );
+    return wrap(<HyperInsightRedirect onNavigate={onNavigate} />);
   }
 
   if (url === INTERNAL_SANDBOX_URL) {
@@ -487,7 +521,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       onUpdateTab({ title: "Tool Sandbox", isLoading: false, favicon: undefined });
     }, [url]);
 
-    return (
+    return wrap(
       <div className="h-full overflow-y-auto bg-gray-950 text-gray-100">
         <SandboxPage onNavigate={onNavigate} />
       </div>
@@ -496,10 +530,40 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
 
   if (url.startsWith(INTERNAL_TOOL_PANEL_PREFIX)) {
     const toolId = url.slice(INTERNAL_TOOL_PANEL_PREFIX.length);
-    return <ToolPanelPage toolId={toolId} url={url} onUpdateTab={onUpdateTab} />;
+    return wrap(<ToolPanelPage toolId={toolId} url={url} onUpdateTab={onUpdateTab} />);
   }
 
-  if (url === INTERNAL_IDE_URL || url.startsWith(INTERNAL_IDE_URL + "?")) {
+  // Addon tabs (§6.4) — one generic route for every addon's "tab" mount
+  // (the only mountPoint value v1's manifest schema accepts); no per-addon
+  // call sites. addonId + any deep-link query string are parsed out of the
+  // addon://<id>?<query> URL and handed to AddonHostView, which reads the
+  // manifest's declared deepLink.param (if any) to build the mosaic-addon://
+  // src (§6.5, §9).
+  if (url.startsWith(ADDON_URL_PREFIX)) {
+    const rest = url.slice(ADDON_URL_PREFIX.length);
+    const addonId = rest.split(/[/?#]/)[0];
+    const queryIndex = rest.indexOf("?");
+    const deepLinkQuery = queryIndex >= 0 ? rest.slice(queryIndex) : "";
+
+    // AddonHostView owns the title/loading updates itself once it resolves
+    // the addon's tab info — this effect is a deliberate no-op that exists
+    // only to keep this branch's hook count aligned with every sibling
+    // branch above (each calls exactly one useEffect before returning),
+    // which React's hook-order invariant requires when the same
+    // ContentArea instance switches between branches across a navigation.
+    useEffect(() => {}, [url]);
+
+    return wrap(
+      <AddonHostView
+        addonId={addonId}
+        deepLinkQuery={deepLinkQuery}
+        onUpdateTab={onUpdateTab}
+        onNavigate={onNavigate}
+      />
+    );
+  }
+
+  if (isIDEUrl) {
     useEffect(() => {
       onUpdateTab({
         title: "IDE",
@@ -508,11 +572,8 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       });
     }, [url]);
 
-    return (
-      <div className="h-full overflow-hidden bg-gray-950 text-gray-100">
-        <IDEPage url={url} onNavigate={onNavigate} />
-      </div>
-    );
+    // IDEPage is rendered by ideLayer above; nothing else needed here.
+    return wrap(null);
   }
 
   if (url === INTERNAL_ONBOARDING_URL) {
@@ -524,7 +585,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       });
     }, [url]);
 
-    return (
+    return wrap(
       <OnboardingPage
         onNavigate={onNavigate}
         onComplete={() => onOnboardingComplete?.()}
@@ -541,7 +602,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
       });
     }, [url]);
 
-    return (
+    return wrap(
       <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-900">
         <Loader2 size={48} className="mb-4 text-gray-700" />
         <p>This internal page "{url}" is under construction.</p>
@@ -556,7 +617,7 @@ export const ContentArea: React.FC<ContentAreaProps> = ({
   }
 
   // Handle External Sites (Webview)
-  return (
+  return wrap(
     <BrowserView url={url} onNavigate={onNavigate} onUpdateTab={onUpdateTab} />
   );
 };

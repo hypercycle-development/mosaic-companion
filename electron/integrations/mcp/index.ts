@@ -220,6 +220,10 @@ ipcMain.handle("mcp:list-prompts", async (_event, serverName: string) => {
 // IPC Handlers — Plugin Management
 // =============================================================================
 
+ipcMain.handle("mcp:reload-plugins", () => {
+  pluginManager.reload();
+});
+
 ipcMain.handle("mcp:list-plugins", () => {
   return pluginManager.list();
 });

@@ -29,7 +29,7 @@ export const chatAPI = {
   disconnect: (): Promise<{ success: boolean }> =>
     ipcRenderer.invoke("chat:disconnect"),
 
-  status: (): Promise<{ status: string }> =>
+  status: (): Promise<{ status: string; memberId?: string }> =>
     ipcRenderer.invoke("chat:status"),
 
   // ===========================================================================
@@ -47,6 +47,9 @@ export const chatAPI = {
 
   leaveRoom: (roomId: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("chat:leave-room", roomId),
+
+  deleteRoom: (roomId: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke("chat:delete-room", roomId),
 
   sendMessage: (
     roomId: string,
@@ -78,8 +81,8 @@ export const chatAPI = {
   // Push events (server → renderer)
   // ===========================================================================
 
-  onConnectionChanged: (cb: (data: { status: string }) => void) => {
-    const listener = (_e: IpcRendererEvent, data: { status: string }) => cb(data);
+  onConnectionChanged: (cb: (data: { status: string; memberId?: string }) => void) => {
+    const listener = (_e: IpcRendererEvent, data: { status: string; memberId?: string }) => cb(data);
     ipcRenderer.on("chat:connection-changed", listener);
     return () => ipcRenderer.removeListener("chat:connection-changed", listener);
   },
@@ -109,6 +112,12 @@ export const chatAPI = {
     const listener = (_e: IpcRendererEvent, data: { roomId: string }) => cb(data);
     ipcRenderer.on("chat:left", listener);
     return () => ipcRenderer.removeListener("chat:left", listener);
+  },
+
+  onRoomDeleted: (cb: (data: { roomId: string }) => void) => {
+    const listener = (_e: IpcRendererEvent, data: { roomId: string }) => cb(data);
+    ipcRenderer.on("chat:room-deleted", listener);
+    return () => ipcRenderer.removeListener("chat:room-deleted", listener);
   },
 
   onMessage: (cb: (message: StoredMessage) => void) => {

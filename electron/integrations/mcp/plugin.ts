@@ -54,7 +54,9 @@ export class MCPPluginManager {
     try {
       if (fs.existsSync(this.filePath)) {
         const data = fs.readFileSync(this.filePath, "utf8");
-        this.plugins = JSON.parse(data);
+        const parsed = JSON.parse(data);
+        // Validate array format (handles corrupted files from previous bugs)
+        this.plugins = Array.isArray(parsed) ? parsed : [];
       }
     } catch (e) {
       console.error("[MCPPlugins] Failed to load:", e);
@@ -64,10 +66,16 @@ export class MCPPluginManager {
 
   private _save(): void {
     try {
-      fs.writeFileSync(this.filePath, JSON.stringify(this.plugins, null, 2), "utf8");
+      // Always ensure we write an array
+      const data = Array.isArray(this.plugins) ? this.plugins : [];
+      fs.writeFileSync(this.filePath, JSON.stringify(data, null, 2), "utf8");
     } catch (e) {
       console.error("[MCPPlugins] Failed to save:", e);
     }
+  }
+
+  reload(): void {
+    this._load();
   }
 
   list(): MCPPlugin[] {

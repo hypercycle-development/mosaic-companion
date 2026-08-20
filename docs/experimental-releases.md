@@ -1,5 +1,7 @@
 # Experimental Releases Guide
 
+> **DEPRECATED / LEGACY:** this describes the retired S3 release channel. Main releases now ship via GitHub Releases + GitHub Pages — see [release-process.md](./release-process.md).
+
 This guide explains how to create and manage independent experimental releases for Mosaic Companion. Each experimental release lives in its own isolated S3 folder with its own versioning, update checking, and distribution.
 
 ## Overview

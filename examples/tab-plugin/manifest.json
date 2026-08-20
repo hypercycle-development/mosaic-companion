@@ -1,0 +1,28 @@
+{
+  "manifestVersion": 1,
+  "id": "tab-plugin",
+  "version": "1.0.0",
+  "name": "Example Tab",
+  "description": "Minimal addon example — one sidebar tab rendering a page that talks to Mosaic through window.addonAPI.",
+  "author": "Mosaic Contributors",
+  "minAppVersion": "0.1.9",
+
+  "ipcNamespace": "tab-plugin",
+  "mountPoint": "tab",
+
+  "tab": {
+    "label": "Example",
+    "icon": "Star",
+    "order": 95
+  },
+
+  "renderer": {
+    "entry": "renderer/index.html"
+  },
+
+  "permissions": ["agents:read"],
+
+  "updates": {
+    "checkMode": "manual"
+  }
+}

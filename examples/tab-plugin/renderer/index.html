@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Example Tab</title>
+    <style>
+      /* The addon preload injects Mosaic's current theme as CSS custom
+         properties and updates them when the user switches theme. Use the
+         variables and your addon is themed for free; the fallbacks after the
+         comma are what you get if a variable isn't set. */
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, -apple-system, sans-serif;
+        background: var(--background, #0a0a0f);
+        color: var(--foreground, #e5e7eb);
+      }
+      h1 { font-size: 18px; margin: 0 0 4px; }
+      p.sub { margin: 0 0 20px; color: var(--muted-foreground, #9ca3af); font-size: 13px; }
+      section {
+        border: 1px solid var(--border, #27272a);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em;
+           color: var(--muted-foreground, #9ca3af); margin: 0 0 10px; }
+      pre { margin: 0; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+      .err { color: #f87171; }
+    </style>
+  </head>
+  <body>
+    <h1>Example Tab</h1>
+    <p class="sub">A minimal addon: one tab, one page, talking to Mosaic over <code>window.addonAPI</code>.</p>
+
+    <section>
+      <h2>Who am I</h2>
+      <pre id="identity">loading…</pre>
+    </section>
+
+    <section>
+      <h2>agents:read — the one permission this addon declares</h2>
+      <pre id="agents">loading…</pre>
+    </section>
+
+    <section>
+      <h2>A permission this addon did not declare</h2>
+      <pre id="denied">loading…</pre>
+    </section>
+
+    <script type="module">
+      const show = (id, value) => {
+        document.getElementById(id).textContent =
+          typeof value === "string" ? value : JSON.stringify(value, null, 2);
+      };
+
+      // init() resolves once the host has handed over identity, the manifest
+      // and the current theme. Every other call should wait for it.
+      const ctx = await window.addonAPI.init();
+
+      show("identity", {
+        addonId: ctx.addonId,
+        platform: ctx.platform,
+        appVersion: ctx.appVersion,
+      });
+
+      // Granted: the manifest asks for agents:read. Credentials are stripped
+      // host-side — an addon never sees an agent's API key.
+      try {
+        show("agents", await window.addonAPI.agents.list());
+      } catch (err) {
+        show("agents", `unexpected failure: ${err.message}`);
+      }
+
+      // Denied: nodes:read is a real permission, but this manifest doesn't
+      // declare it, so the host rejects the call. Permissions are enforced in
+      // the main process against the installed manifest — not here.
+      try {
+        const nodes = await window.addonAPI.nodes.list();
+        show("denied", `unexpectedly allowed: ${JSON.stringify(nodes)}`);
+      } catch (err) {
+        // A thrown Error loses custom properties crossing the isolation
+        // boundary, so parseError() is how you recover the machine-readable
+        // code (here: PERMISSION_DENIED).
+        const { code } = window.addonAPI.parseError(err);
+        document.getElementById("denied").className = "err";
+        show("denied", `rejected, as it should be — code: ${code}\n${err.message}`);
+      }
+    </script>
+  </body>
+</html>

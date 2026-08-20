@@ -1,0 +1,5 @@
+{
+  "name": "privileged-addon",
+  "private": true,
+  "type": "module"
+}

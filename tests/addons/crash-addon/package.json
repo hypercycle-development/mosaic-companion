@@ -1,0 +1,5 @@
+{
+  "name": "crash-addon",
+  "private": true,
+  "type": "module"
+}

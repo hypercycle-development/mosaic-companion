@@ -57,3 +57,8 @@ project_dump.txt
 
 # Local planning docs
 /plans/
+docs/admin/
+
+# Runtime output from addon dev fixtures (tests/addons/*/) — the
+# addonAPI.files jail (addons/<id>/data/) regenerates this on every test run.
+tests/addons/*/data/

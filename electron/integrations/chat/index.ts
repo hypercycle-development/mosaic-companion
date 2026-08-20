@@ -26,10 +26,16 @@ function readSettings(): ChatSettings {
   try {
     const p = getSettingsPath();
     if (fs.existsSync(p)) {
-      return JSON.parse(fs.readFileSync(p, "utf8")) as ChatSettings;
+      const s = JSON.parse(fs.readFileSync(p, "utf8")) as ChatSettings;
+      // Migrate stale localhost default to the real server
+      if (s.serverUrl === "ws://localhost:4242") {
+        s.serverUrl = "wss://agents-chat.hyperpg.site";
+        writeSettings(s);
+      }
+      return s;
     }
   } catch {}
-  return { serverUrl: "ws://localhost:4242", username: "" };
+  return { serverUrl: "wss://agents-chat.hyperpg.site", username: "" };
 }
 
 function writeSettings(s: ChatSettings): void {
@@ -57,6 +63,7 @@ function writeAssignments(a: RoomAgentAssignments): void {
 let mainWindow: BrowserWindow | null = null;
 let chatClient: ChatClient | null = null;
 let connectionStatus: "disconnected" | "connecting" | "connected" = "disconnected";
+let myMemberId: string | null = null;
 
 function push(channel: string, data?: unknown): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -65,13 +72,21 @@ function push(channel: string, data?: unknown): void {
 }
 
 function setupClientListeners(client: ChatClient): void {
-  client.on("auth-ok", () => {
+  client.on("auth-ok", (msg: { type: "auth-ok"; memberId: string; token?: string }) => {
+    myMemberId = msg.memberId;
     connectionStatus = "connected";
-    push("connection-changed", { status: "connected" });
+    if (msg.token) {
+      chatClient?.setToken(msg.token);
+      const s = readSettings();
+      s.token = msg.token;
+      writeSettings(s);
+    }
+    push("connection-changed", { status: "connected", memberId: msg.memberId });
   });
 
   client.on("disconnected", () => {
     if (connectionStatus !== "disconnected") {
+      myMemberId = null;
       connectionStatus = "connecting";
       push("connection-changed", { status: "connecting" });
     }
@@ -93,6 +108,9 @@ function setupClientListeners(client: ChatClient): void {
         break;
       case "left":
         push("left", { roomId: msg.roomId });
+        break;
+      case "room-deleted":
+        push("room-deleted", { roomId: msg.roomId });
         break;
       case "message":
         push("message", msg.message);
@@ -139,7 +157,7 @@ export function initChat(): void {
   );
 
   // Status
-  ipcMain.handle("chat:status", async () => ({ status: connectionStatus }));
+  ipcMain.handle("chat:status", async () => ({ status: connectionStatus, memberId: myMemberId }));
 
   // Connection
   ipcMain.handle("chat:connect", async () => {
@@ -157,6 +175,7 @@ export function initChat(): void {
     chatClient = new ChatClient({
       url: settings.serverUrl,
       username: settings.username,
+      token: settings.token,
     });
     setupClientListeners(chatClient);
     chatClient.connect();
@@ -168,6 +187,7 @@ export function initChat(): void {
       chatClient.destroy();
       chatClient = null;
     }
+    myMemberId = null;
     connectionStatus = "disconnected";
     push("connection-changed", { status: "disconnected" });
     return { success: true };
@@ -197,6 +217,12 @@ export function initChat(): void {
     if (!chatClient?.isConnected()) return { success: false, error: "Not connected" };
     chatClient.untrackRoom(roomId);
     chatClient.send({ type: "leave-room", roomId });
+    return { success: true };
+  });
+
+  ipcMain.handle("chat:delete-room", async (_e: IpcMainInvokeEvent, roomId: string) => {
+    if (!chatClient?.isConnected()) return { success: false, error: "Not connected" };
+    chatClient.send({ type: "delete-room", roomId });
     return { success: true };
   });
 

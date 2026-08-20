@@ -1,5 +1,10 @@
 # Tool Panels UI — Architecture & Implementation
 
+> [!NOTE]
+> This documentation set has known divergences from the implementation. See
+> [STATUS.md](./STATUS.md) before relying on it. Last verified 2026-08-20
+> against `2d920ce`.
+
 > **Branch:** `feat/tool-panels-ui`
 > **Scope:** WASM tool lifecycle (install → approve → launch → render UI) + rich panel rendering system
 

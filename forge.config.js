@@ -1,8 +1,11 @@
 // forge.config.js
 import dotenv from 'dotenv';
+import { readFileSync } from 'fs';
 
 dotenv.config({ path: '.env' });
 dotenv.config({ path: '.env.local', override: true });
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
 /**
  * Generates the Linux AppImage wrapper script for sandbox auto-detection.
@@ -51,6 +54,7 @@ export default {
             /^\/electron$/,           // TypeScript source files
             /^\/\.git/,
             /^\/\.github/,
+            /^\/examples/,      // contributor examples + their build artifacts
             /^\/\.vscode/,
             /^\/docs$/,
             /^\/static$/,
@@ -63,7 +67,7 @@ export default {
             /\.sh$/,
             /tsconfig.*\.json$/,
             /vite\.config\.ts$/,
-            /esbuild\.config\.js$/,
+            /esbuild\.config\.(js|mjs)$/,   // .mjs was shipping inside the asar
             /forge\.config\.js$/,
             /package-lock\.json/,
             /\.antigravityignore/,
@@ -96,7 +100,10 @@ export default {
                 authors: 'hypercycle',
                 description: 'Mosaic Companion Application',
                 loadingGif: 'assets/loading.gif',
-                setupIcon: 'assets/icon.ico'
+                setupIcon: 'assets/icon.ico',
+                // No spaces in the artifact name: GitHub Releases renames
+                // assets containing spaces, which would break download links.
+                setupExe: `mosaic-companion-${pkg.version}-Setup.exe`
             }
         },
         {
@@ -144,6 +151,23 @@ export default {
 
     publishers: [
         {
+            // Primary release channel: GitHub Releases. The release workflow
+            // selects publishers explicitly via `--target`; releases are
+            // created as drafts and published by the workflow's finalize job
+            // once every platform's assets are verified present.
+            name: '@electron-forge/publisher-github',
+            config: {
+                repository: {
+                    owner: 'hypercycle-development',
+                    name: 'mosaic-companion'
+                },
+                draft: true,
+                tagPrefix: 'v'
+            }
+        },
+        {
+            // Legacy channel: pre-0.1.8 installs check S3 for updates.
+            // Used only when the release workflow runs with also_publish_s3.
             name: '@electron-forge/publisher-s3',
             config: {
                 bucket: 'mosaic-release',
@@ -167,8 +191,11 @@ export default {
             const { execSync } = await import('child_process');
             
             // 1. Build Electron TypeScript with esbuild
+            // MUST stay in sync with `npm run build:electron` — see the header
+            // comment in esbuild.config.mjs for what shipped broken when this
+            // pointed at a second, stale config instead.
             console.log('🔨 Building Electron with esbuild...');
-            execSync('node esbuild.config.js', { stdio: 'inherit' });
+            execSync('node esbuild.config.mjs', { stdio: 'inherit' });
             
             // 2. Build frontend with Vite
             console.log('🔨 Building frontend with Vite...');
