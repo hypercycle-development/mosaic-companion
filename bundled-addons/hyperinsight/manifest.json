@@ -1,0 +1,36 @@
+{
+  "manifestVersion": 1,
+  "id": "hyperinsight",
+  "version": "1.0.0",
+  "name": "HyperInsight",
+  "description": "AIM analytics: leaderboard, node profiles, subscriptions, and network stats from HyperInsight",
+  "author": "HyperCycle",
+  "homepage": "https://github.com/hypercycle-development/mosaic-addons",
+  "minAppVersion": "0.1.7",
+
+  "ipcNamespace": "hyperinsight",
+  "mountPoint": "tab",
+
+  "tab": {
+    "label": "HyperInsight",
+    "icon": "Activity",
+    "order": 70,
+    "deepLink": { "param": "nodeId" }
+  },
+
+  "main": {
+    "entry": "main/index.js"
+  },
+
+  "renderer": {
+    "entry": "renderer/index.html"
+  },
+
+  "permissions": [
+    "nodes:read"
+  ],
+
+  "updates": {
+    "checkMode": "manual"
+  }
+}

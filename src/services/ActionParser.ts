@@ -134,7 +134,7 @@ export async function executeToolCall(action: ParsedAction, agentId?: string): P
           const paymentData = JSON.parse(resultText);
           if (paymentData.__payment_required) {
             console.log("[ActionParser] Intercepted __payment_required signal. Routing to payment handler...");
-            const paymentResult = await (window as any).electronAPI.hyperinsight.handlePayment(paymentData);
+            const paymentResult = await (window as any).electronAPI.aimNodes.handlePayment(paymentData);
             if (paymentResult.success && paymentResult.result) {
               const finalText = paymentResult.result.content?.[0]?.text ?? JSON.stringify(paymentResult.result, null, 2);
               const mediaUrls = extractMosaicMediaUrls(finalText);

@@ -43,7 +43,7 @@ if (!fs.existsSync(mediaStoragePath)) {
 
 const server = new Server(
   {
-    name: "hyperinsight-aims",
+    name: "aim-node-tools",
     version: "1.0.0",
   },
   {

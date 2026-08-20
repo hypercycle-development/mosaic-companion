@@ -17,7 +17,7 @@ interface Node {
   adminHost: string;
   adminPort: string;
   isActive: boolean;
-  // Need licenseKey to connect to node manifests in hyperinsight-aims.json
+  // Need licenseKey to connect to node manifests in aim-nodes-data.json
   licenseKey?: string;
 }
 
@@ -156,6 +156,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   dialog: {
     openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) =>
       ipcRenderer.invoke("dialog:open-file", options),
+    openDirectory: () => ipcRenderer.invoke("dialog:open-directory"),
   },
   // Window controls (for custom title bar)
   window: {
@@ -230,42 +231,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     signHypercycleNonce: (nonce: string) =>
       ipcRenderer.invoke("web3:sign-hypercycle-nonce", nonce),
   },
-  // HyperInsight plugin
-  hyperinsight: {
-    getStatus: () => ipcRenderer.invoke("hyperinsight:get-status"),
-    ensureKey: () => ipcRenderer.invoke("hyperinsight:ensure-key"),
-    resetKey: () => ipcRenderer.invoke("hyperinsight:reset-key"),
-    getAims: () => ipcRenderer.invoke("hyperinsight:get-aims"),
-    getLeaderboard: () => ipcRenderer.invoke("hyperinsight:get-leaderboard"),
-    getNodes: (params?: any) => ipcRenderer.invoke("hyperinsight:get-nodes", params),
-    getNodeDetail: (license: string) => ipcRenderer.invoke("hyperinsight:get-node-detail", license),
-    getNodeProfile: (license: number | string) => ipcRenderer.invoke("hyperinsight:get-node-profile", license),
-    getAimManifest: (license: string, aimName: string) => ipcRenderer.invoke("hyperinsight:get-node-aim-manifest", license, aimName),
-    getNetworkStats: () => ipcRenderer.invoke("hyperinsight:get-network-stats"),
-    getNetworkHistory: () => ipcRenderer.invoke("hyperinsight:get-network-history"),
-    getAimStats: (name: string, range?: string) => ipcRenderer.invoke("hyperinsight:get-aim-stats", name, range),
-    getAimStatsCurrent: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-stats-current", name),
-    getAimDetails: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-details", name),
-    getAimReleases: (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-releases", name),
-    getAimReleaseDetail: (name: string, tag: string) => ipcRenderer.invoke("hyperinsight:get-aim-release-detail", name, tag),
-    saveGeneratedImage: (base64Data: string) => ipcRenderer.invoke("hyperinsight:save-generated-image", base64Data),
-    // Stage 8A: AIM profile endpoints
-    getAimProfile:  (name: string) => ipcRenderer.invoke("hyperinsight:get-aim-profile", name),
-    getAimNodes:    (name: string, opts?: any) => ipcRenderer.invoke("hyperinsight:get-aim-nodes", name, opts),
-    getAimBestNode: (name: string, opts?: any) => ipcRenderer.invoke("hyperinsight:get-aim-best-node", name, opts),
-    // Stage 7C: score cache access
-    getToolScore: (endpointUrl: string) => ipcRenderer.invoke("hyperinsight:get-tool-score", endpointUrl),
-    getAllToolScores: () => ipcRenderer.invoke("hyperinsight:get-all-tool-scores"),
-    getToolScoresLastUpdated: () => ipcRenderer.invoke("hyperinsight:get-tool-scores-last-updated"),
-    // Stage 8B: new endpoint bridge
-    getAimDeployments:      (aimId: number) => ipcRenderer.invoke("hyperinsight:get-aim-deployments", aimId),
-    getToolStatus:          (toolId: string) => ipcRenderer.invoke("hyperinsight:get-tool-status", toolId),
-    subscribe:              (payload: any) => ipcRenderer.invoke("hyperinsight:subscribe", payload),
-    getSubscriptions:       () => ipcRenderer.invoke("hyperinsight:get-subscriptions"),
-    unsubscribe:            (subscriptionId: string) => ipcRenderer.invoke("hyperinsight:unsubscribe", subscriptionId),
-    getVerificationHistory: (subscriptionId: string) => ipcRenderer.invoke("hyperinsight:get-verification-history", subscriptionId),
-    clearCache:             () => ipcRenderer.invoke("hyperinsight:clear-cache"),
-    // AIM Nodes data
+  // §9.2/Phase 7: HyperInsight is no longer a core plugin — it moved
+  // wholesale into its own addon (main + renderer), reached through
+  // addonAPI.invoke from inside its own webview, not window.electronAPI.
+  // There is no core handler left to back a `hyperinsight` group here.
+  // AIM Nodes — core's own local node registry / AIM data cache and payment
+  // interception (§9.1). Moved out of the `hyperinsight` group: none of this
+  // is HyperInsight-API-specific, and aim-nodes stays core permanently even
+  // after the HyperInsight addon migration (§9.2/Phase 7). IPC channel names
+  // (`aimnodes:*`) are unchanged — only which preload group exposes them.
+  aimNodes: {
     saveNodeData: (license: string, data: any) => ipcRenderer.invoke("aimnodes:save-node-data", license, data),
     deleteNodeData: (license: string) => ipcRenderer.invoke("aimnodes:delete-node-data", license),
     getSavedAims: (license?: string) => ipcRenderer.invoke("aimnodes:get-saved-aims", license),
@@ -276,6 +251,56 @@ contextBridge.exposeInMainWorld("electronAPI", {
     readAsDataUri: (mediaUrl: string) => ipcRenderer.invoke("media:read-as-data-uri", mediaUrl),
     getAutoDisplay: () => ipcRenderer.invoke("media:get-auto-display"),
     setAutoDisplay: (enabled: boolean) => ipcRenderer.invoke("media:set-auto-display", enabled),
+  },
+  // Addon management (renderer-side management bridge — §6.2)
+  addons: {
+    list: () => ipcRenderer.invoke("addons:list"),
+    listTabs: () => ipcRenderer.invoke("addons:list-tabs"),
+    activate: (id: string) => ipcRenderer.invoke("addons:activate", id),
+    deactivate: (id: string) => ipcRenderer.invoke("addons:deactivate", id),
+    setEnabled: (id: string, enabled: boolean) => ipcRenderer.invoke("addons:set-enabled", id, enabled),
+    installDev: (devPath: string) => ipcRenderer.invoke("addons:install-dev", devPath),
+    getPreloadPath: () => ipcRenderer.invoke("addons:get-preload-path"),
+    // Phase 4 — registry/installer surface
+    fetchCatalogue: () => ipcRenderer.invoke("addons:fetch-catalogue"),
+    install: (id: string) => ipcRenderer.invoke("addons:install", id),
+    installConfirm: (id: string, acceptedPermissions: string[]) =>
+      ipcRenderer.invoke("addons:install-confirm", id, acceptedPermissions),
+    uninstall: (id: string, opts: { keepSettings: boolean; keepData: boolean }) =>
+      ipcRenderer.invoke("addons:uninstall", id, opts),
+    getDataSize: (id: string) => ipcRenderer.invoke("addons:get-data-size", id),
+    upgrade: (id: string, acceptedPermissions?: string[]) =>
+      ipcRenderer.invoke("addons:upgrade", id, acceptedPermissions),
+    setVisibilityLink: (id: string, linked: boolean) => ipcRenderer.invoke("addons:set-visibility-link", id, linked),
+    setUpdateCheckMode: (id: string, mode: "manual" | "automatic") =>
+      ipcRenderer.invoke("addons:set-update-check-mode", id, mode),
+    // §9.2/Phase 7 — one-time notice after the HyperInsight auto-install
+    // migration; true only on the launch that actually performed it.
+    wasHyperInsightJustMigrated: () => ipcRenderer.invoke("addons:was-hyperinsight-just-migrated"),
+    onChanged: (callback: (tabs: unknown[]) => void) => {
+      const handler = (_event: IpcRendererEvent, tabs: unknown[]) => callback(tabs);
+      ipcRenderer.on("addons:changed", handler);
+      return () => ipcRenderer.removeListener("addons:changed", handler);
+    },
+    onTitleChanged: (callback: (data: { addonId: string; title: string }) => void) => {
+      const handler = (_event: IpcRendererEvent, data: { addonId: string; title: string }) => callback(data);
+      ipcRenderer.on("addons:title-changed", handler);
+      return () => ipcRenderer.removeListener("addons:title-changed", handler);
+    },
+  },
+  // Sidebar tab visibility preferences
+  tabPrefs: {
+    get: () => ipcRenderer.invoke("tab-prefs:get"),
+    setVisibility: (tabId: string, visible: boolean) =>
+      ipcRenderer.invoke("tab-prefs:set-visibility", tabId, visible),
+    onChanged: (callback: (visibility: Record<string, boolean>) => void) => {
+      const handler = (
+        _event: IpcRendererEvent,
+        visibility: Record<string, boolean>,
+      ) => callback(visibility);
+      ipcRenderer.on("tab-prefs:changed", handler);
+      return () => ipcRenderer.removeListener("tab-prefs:changed", handler);
+    },
   },
   // JIT Payments plugin
   paymentsJit: {

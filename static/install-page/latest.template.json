@@ -1,5 +1,24 @@
 {
   "version": "{{VERSION}}",
   "releaseDate": "{{RELEASE_DATE}}",
-  "downloadUrl": "https://mosaic-release.s3.us-east-2.amazonaws.com/index.html"
+  "downloadUrl": "https://releases.hyperpg.site/mosaic/",
+  "downloads": {
+    "windows": {
+      "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion-{{VERSION}}-Setup.exe"
+    },
+    "macos": {
+      "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion-{{VERSION}}-x64.dmg",
+      "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion-{{VERSION}}-arm64.dmg"
+    },
+    "linux": {
+      "deb": {
+        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion_{{VERSION}}_amd64.deb",
+        "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion_{{VERSION}}_arm64.deb"
+      },
+      "appimage": {
+        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion-{{VERSION}}-x64.AppImage",
+        "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v{{VERSION}}/mosaic-companion-{{VERSION}}-arm64.AppImage"
+      }
+    }
+  }
 }

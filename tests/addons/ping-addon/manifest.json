@@ -1,0 +1,21 @@
+{
+  "manifestVersion": 1,
+  "id": "ping-addon",
+  "version": "1.0.0",
+  "name": "Ping Fixture",
+  "description": "Phase 1 test fixture — registers a ping handler to exercise the addon-main IPC contract end to end.",
+  "ipcNamespace": "ping-addon",
+  "mountPoint": "tab",
+  "tab": {
+    "label": "Ping",
+    "icon": "Zap",
+    "order": 100
+  },
+  "main": {
+    "entry": "main/index.js"
+  },
+  "renderer": {
+    "entry": "renderer/index.html"
+  },
+  "permissions": []
+}

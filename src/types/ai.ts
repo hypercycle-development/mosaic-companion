@@ -17,6 +17,11 @@ export interface AIAgentConfig {
   name: string;
   provider: AIProvider;
   apiKey: string;
+  /**
+   * Transient, set by the main process when the stored (encrypted) API key
+   * can't be decrypted on this machine. Never persisted.
+   */
+  apiKeyUnavailable?: boolean;
   baseUrl?: string; // Custom/Ollama endpoint, or Hypercycle node base (see hypercycleBackend)
   model: string;
   maxTokens?: number;
@@ -107,7 +112,7 @@ export const DEFAULT_MODELS: Record<AIProvider, string[]> = {
     "o1-preview",
     "o1-mini",
   ],
-  gemini: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
+  gemini: ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-pro"],
   ollama: ["llama3.2", "mistral", "codellama", "deepseek-coder"],
   custom: [],
   hypercycle: ["claude-sonnet-4-5-20250929"],

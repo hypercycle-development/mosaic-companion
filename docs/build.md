@@ -18,11 +18,60 @@ Mosaic Companion uses **Electron Forge** to create distributable packages for Li
 
 ---
 
+## Before your first build — two things that will bite you
+
+Both of these fail in ways that don't point at the cause, so they're worth
+knowing up front.
+
+### Use Node 20–22, not the latest
+
+`npm run package` **hangs indefinitely on Node 26** — no error, no timeout. It
+stops partway through extracting the Electron archive and sits there at near-zero
+CPU until you kill it. Node 24 is untested.
+
+CI builds on Node 20 (`.github/workflows/build-check.yml`), and some native
+dependencies declare narrower support than the app itself — `better-sqlite3`
+supports Node 20–25 and warns loudly on anything newer.
+
+```sh
+nvm use          # picks up .nvmrc
+node -v          # expect v22.x
+```
+
+If a native module fails to build after switching Node versions, allow the
+install scripts and reinstall:
+
+```sh
+npm approve-scripts --allow-scripts-pending    # review, then allow
+npm install
+```
+
+### `config/gmail-credentials.json` must exist
+
+Packaging fails on a fresh clone with:
+
+```
+Error: ENOENT: no such file or directory, lstat 'config/gmail-credentials.json'
+```
+
+`forge.config.js` lists that file as an `extraResource`, and it's gitignored
+because release builds inject the real one from a CI secret. Packaging only
+needs the file to be *present*, so for local builds copy the example:
+
+```sh
+cp config/gmail-credentials.example.json config/gmail-credentials.json
+```
+
+Gmail integration won't function in that build, which is fine for everything
+except testing Gmail itself.
+
+---
+
 ## Building on Linux
 
 ### Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 20–22 and npm (see the note above — newer versions hang packaging; `.nvmrc` pins 22)
 - Docker (recommended for Windows builds)
 - `fakeroot` and `dpkg` (if building Linux .deb packages on non-Debian systems)
 
@@ -103,7 +152,7 @@ npm run make:win:arm64
 
 ### Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 20–22 and npm (see the note above — newer versions hang packaging; `.nvmrc` pins 22)
 - Xcode Command Line Tools (`xcode-select --install`)
 
 ### macOS Builds
@@ -154,7 +203,7 @@ npm run make:win:arm64
 
 ### Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 20–22 and npm (see the note above — newer versions hang packaging; `.nvmrc` pins 22)
 - Windows 10/11
 
 ### Windows Builds

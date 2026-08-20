@@ -1,123 +1,162 @@
 name: Release
 
+# Releases are published to GitHub Releases (binaries) and GitHub Pages
+# (download page + latest.json at https://releases.hyperpg.site/mosaic/).
+#
+# To cut a release:
+#   1. Merge a PR that bumps the version in package.json (+ lockfile).
+#   2. Run this workflow via "Run workflow" (Actions tab).
+#   3. Optionally tick "dry run" first to smoke-test credentials.
+#
+# `also_publish_s3` additionally publishes to the legacy S3 bucket so that
+# installs of v0.1.7 and older (whose updaters point at S3) get notified
+# one last time. It can be dropped once the fleet has migrated.
+
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Smoke-test credentials only (no build, no publish)"
+        type: boolean
+        default: false
+      also_publish_s3:
+        description: "Also publish to legacy S3 (migrates pre-0.1.8 users)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  # Check if this commit should trigger a release
-  check-deploy:
+  # ---------------------------------------------------------------------------
+  # Dry run: validate credentials without building or publishing anything.
+  # ---------------------------------------------------------------------------
+  smoke-test:
+    if: ${{ inputs.dry_run && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    outputs:
-      should_deploy: ${{ steps.check.outputs.should_deploy }}
-      version_type: ${{ steps.check.outputs.version_type }}
     steps:
-      - name: Check for deploy trigger
-        id: check
+      - name: Check GitHub release permissions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          gh api "repos/${GITHUB_REPOSITORY}/releases" --jq 'length' > /dev/null
+          echo "✓ GITHUB_TOKEN can read releases" | tee -a "$GITHUB_STEP_SUMMARY"
 
-          if [[ "$COMMIT_MSG" == *"[DEPLOY]"* ]]; then
-            echo "should_deploy=true" >> $GITHUB_OUTPUT
-            
-            # Determine version type
-            if [[ "$COMMIT_MSG" == *"[MAJOR]"* ]]; then
-              echo "version_type=major" >> $GITHUB_OUTPUT
-            elif [[ "$COMMIT_MSG" == *"[MINOR]"* ]]; then
-              echo "version_type=minor" >> $GITHUB_OUTPUT
-            else
-              echo "version_type=patch" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "should_deploy=false" >> $GITHUB_OUTPUT
-          fi
+      - name: Configure AWS credentials (legacy S3)
+        id: aws-creds
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
 
-  # Bump version and commit
-  bump-version:
-    needs: check-deploy
-    if: needs.check-deploy.outputs.should_deploy == 'true'
+      - name: Check AWS S3 access (legacy S3)
+        id: aws-check
+        if: steps.aws-creds.outcome == 'success'
+        continue-on-error: true
+        run: |
+          aws sts get-caller-identity
+          aws s3 ls s3://mosaic-release/releases/ | head -5
+          echo "✓ AWS credentials valid — also_publish_s3 is usable" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: AWS summary
+        if: steps.aws-creds.outcome != 'success' || steps.aws-check.outcome != 'success'
+        run: |
+          echo "⚠ AWS credentials are NOT working — run the release with also_publish_s3: false (pre-0.1.8 users won't be auto-notified)" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Resolve and validate the version, then pre-create the draft release so the
+  # build matrix never races to create it.
+  # ---------------------------------------------------------------------------
+  resolve-version:
+    # workflow_dispatch can be run from any branch by anyone with write access
+    # — restrict actual releasing to main, so a feature branch with a bumped
+    # version can never accidentally get published as latest.
+    if: ${{ !inputs.dry_run && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     outputs:
-      new_version: ${{ steps.bump.outputs.new_version }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0 # need tags for the version guard
 
-      - name: Configure Git
+      - name: Validate version against latest tag
+        id: version
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          VERSION=$(node -p "require('./package.json').version")
+          LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          LATEST_TAG=${LATEST_TAG:-v0.0.0}
+          echo "package.json version: $VERSION (latest tag: $LATEST_TAG)"
 
-      - name: Bump version
-        id: bump
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag v$VERSION already exists — bump the version in package.json via a PR before releasing."
+            exit 1
+          fi
+
+          HIGHEST=$(printf '%s\n' "$LATEST_TAG" "v$VERSION" | sort -V | tail -1)
+          if [ "$HIGHEST" != "v$VERSION" ] || [ "$LATEST_TAG" = "v$VERSION" ]; then
+            echo "::error::package.json version ($VERSION) must be greater than the latest tag ($LATEST_TAG). Bump it via a PR."
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get current version
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
-          echo "Current version: $CURRENT_VERSION"
+          VERSION="${{ steps.version.outputs.version }}"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "Draft release v$VERSION already exists — reusing it."
+          else
+            gh release create "v$VERSION" \
+              --draft \
+              --target "$GITHUB_SHA" \
+              --title "v$VERSION" \
+              --notes "Mosaic Companion v$VERSION"
+          fi
 
-          # Bump version (npm version doesn't require npm install)
-          npm version ${{ needs.check-deploy.outputs.version_type }} --no-git-tag-version
-
-          # Get new version
-          NEW_VERSION=$(node -p "require('./package.json').version")
-          echo "New version: $NEW_VERSION"
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-
-          # Commit and push
-          git add package.json
-          git add package-lock.json
-          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
-          git push
-
-      - name: Create release tag
-        run: |
-          VERSION="${{ steps.bump.outputs.new_version }}"
-          VERSION_TYPE="${{ needs.check-deploy.outputs.version_type }}"
-
-          # Create tag message with download links
-          TAG_MESSAGE="Release v${VERSION} (${VERSION_TYPE})"
-
-          git tag -a "v${VERSION}" -m "$TAG_MESSAGE"
-          git push origin "v${VERSION}"
-
-  # Build for all platforms using Electron Forge
+  # ---------------------------------------------------------------------------
+  # Build and upload per platform/arch. Assets land on the draft release.
+  # ---------------------------------------------------------------------------
   build:
-    needs: [check-deploy, bump-version]
-    if: needs.check-deploy.outputs.should_deploy == 'true'
+    needs: resolve-version
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux x64
           - os: ubuntu-latest
             platform: linux
             arch: x64
-          # Linux arm64 (cross-compile)
           - os: ubuntu-latest
             platform: linux
             arch: arm64
-          # macOS x64
           - os: macos-latest
             platform: darwin
             arch: x64
-          # macOS arm64
           - os: macos-latest
             platform: darwin
             arch: arm64
-          # Windows x64
-          - os: windows-latest
+          # Pinned (not windows-latest): GitHub's windows-latest image ships a
+          # Visual Studio version @electron/node-gyp's Find-VisualStudio.cs
+          # doesn't recognize ("unsupported version: 18"), which breaks the
+          # native rebuild of node-pty. windows-2022 is a known-good image
+          # for this toolchain; revisit if/when @electron/node-gyp adds
+          # support for the newer VS version and windows-2022 is deprecated.
+          - os: windows-2022
             platform: win32
             arch: x64
     runs-on: ${{ matrix.os }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: main # Get the version-bumped code
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -128,7 +167,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Linux-specific: Install build dependencies for deb maker
       - name: Install Linux build dependencies
         if: matrix.platform == 'linux'
         run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot
@@ -139,40 +177,138 @@ jobs:
           echo '${{ secrets.GMAIL_CREDENTIALS }}' > config/gmail-credentials.json
         shell: bash
 
-      - name: Configure AWS credentials
+      - name: Publish to GitHub Releases (${{ matrix.platform }}/${{ matrix.arch }})
+        run: npm run deploy -- --arch ${{ matrix.arch }} --target @electron-forge/publisher-github
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Legacy S3 publishing (also_publish_s3) intentionally does NOT happen
+      # here. Publishing straight to the live S3 feed per-leg, before the
+      # release is verified complete, would let pre-0.1.8 clients pick up an
+      # update whose overall release could still fail and never go live on
+      # GitHub. It happens once, in `finalize`, only after verification —
+      # see that job for why and what it uploads.
+
+  # ---------------------------------------------------------------------------
+  # Fan-in: verify the complete asset set, publish the release, then update the
+  # download page + latest.json on gh-pages (and legacy S3 when requested).
+  # Publishing the draft creates the v{version} tag at the released commit.
+  # ---------------------------------------------------------------------------
+  finalize:
+    needs: [resolve-version, build]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.resolve-version.outputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify release assets
+        run: |
+          EXPECTED=(
+            "mosaic-companion_${VERSION}_amd64.deb"
+            "mosaic-companion_${VERSION}_arm64.deb"
+            "mosaic-companion-${VERSION}-x64.AppImage"
+            "mosaic-companion-${VERSION}-arm64.AppImage"
+            "mosaic-companion-${VERSION}-x64.dmg"
+            "mosaic-companion-${VERSION}-arm64.dmg"
+            "mosaic-companion-${VERSION}-Setup.exe"
+            "RELEASES"
+          )
+          # Only count fully-uploaded assets: a build job that died mid-upload can
+          # leave a truncated asset under its final name, which a re-run would skip.
+          ASSETS=$(gh release view "v$VERSION" --json assets --jq '.assets[] | select(.state == "uploaded") | .name')
+          echo "Assets on draft release:"
+          echo "$ASSETS"
+          MISSING=0
+          for f in "${EXPECTED[@]}"; do
+            if ! grep -qxF "$f" <<< "$ASSETS"; then
+              echo "::error::Missing expected asset: $f"
+              MISSING=1
+            fi
+          done
+          # Squirrel full package (exact name includes the version)
+          if ! grep -q "full.nupkg" <<< "$ASSETS"; then
+            echo "::error::Missing Squirrel .nupkg asset (Windows auto-update would break)"
+            MISSING=1
+          fi
+          [ "$MISSING" -eq 0 ] || exit 1
+
+      - name: Generate latest.json and download page
+        run: |
+          RELEASE_DATE=$(date -u +%Y-%m-%d)
+          mkdir -p out_static/mosaic
+          sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > out_static/mosaic/index.html
+          cp static/install-page/style.css out_static/mosaic/style.css
+          sed -e "s/{{VERSION}}/${VERSION}/g" -e "s/{{RELEASE_DATE}}/${RELEASE_DATE}/g" \
+            static/install-page/latest.template.json > out_static/mosaic/latest.json
+
+      - name: Attach latest.json to the release
+        run: gh release upload "v$VERSION" out_static/mosaic/latest.json --clobber
+
+      - name: Publish release (creates tag)
+        run: gh release edit "v$VERSION" --draft=false --latest
+
+      - name: Update gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages
+          git worktree add pages origin/gh-pages
+          # Only overwrite our own files — CNAME, .nojekyll and anything else
+          # on the branch are preserved.
+          mkdir -p pages/mosaic
+          cp out_static/mosaic/index.html pages/mosaic/index.html
+          cp out_static/mosaic/style.css pages/mosaic/style.css
+          cp out_static/mosaic/latest.json pages/mosaic/latest.json
+          cd pages
+          git add mosaic/
+          if git diff --cached --quiet; then
+            echo "gh-pages already up to date"
+          else
+            git commit -m "release: v${VERSION} download page and latest.json"
+            git push origin HEAD:gh-pages
+          fi
+
+      - name: Configure AWS credentials (legacy S3)
+        if: ${{ inputs.also_publish_s3 }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-2
 
-      # Make and publish using Electron Forge with specific arch
-      - name: Make and Publish (${{ matrix.platform }}/${{ matrix.arch }})
-        run: npm run deploy -- --arch ${{ matrix.arch }}
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-      # Upload static installation page and latest.json (Linux x64 only - just need to do it once)
-      # TODO: Add a check to ensure dependencies or artifacts for Linux were actually generated
-      - name: Upload static page and version info
-        if: matrix.platform == 'linux' && matrix.arch == 'x64'
+      - name: Update legacy S3 page and latest.json
+        if: ${{ inputs.also_publish_s3 }}
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          RELEASE_DATE=$(date -u +%Y-%m-%d)
-          echo "Updating static installation page and version info for version ${VERSION}..."
+          aws s3 cp out_static/mosaic/index.html s3://mosaic-release/index.html --content-type "text/html"
+          aws s3 cp out_static/mosaic/style.css s3://mosaic-release/style.css --content-type "text/css"
+          aws s3 cp out_static/mosaic/latest.json s3://mosaic-release/releases/latest.json --content-type "application/json"
 
-          mkdir -p tmp_static
+      # Legacy Windows (Squirrel) migration path — pre-0.1.8 Windows installs
+      # poll this exact S3 location directly (not latest.json) for updates.
+      # This is the ONLY also_publish_s3 step that touches live update
+      # binaries, and it deliberately runs here, not in `build`: by this
+      # point the release has already passed asset verification and been
+      # published, so what gets pushed to S3 is guaranteed to be the same,
+      # complete, matched set of files real GitHub Release users get — never
+      # a partial or mismatched RELEASES/nupkg pair from a failed run.
+      - name: Migrate pre-0.1.8 Windows installs (legacy S3)
+        if: ${{ inputs.also_publish_s3 }}
+        run: |
+          mkdir -p legacy-win
+          gh release download "v$VERSION" -D legacy-win \
+            --pattern "RELEASES" --pattern "*.nupkg" --pattern "*-Setup.exe"
+          for f in legacy-win/*; do
+            name=$(basename "$f")
+            aws s3 cp "$f" "s3://mosaic-release/releases/win32/x64/${name}"
+          done
 
-          # Update index.html
-          sed "s/{{VERSION}}/${VERSION}/g" static/install-page/index.template.html > tmp_static/index.html
-
-          # Generate latest.json from template
-          sed -e "s/{{VERSION}}/${VERSION}/g" -e "s/{{RELEASE_DATE}}/${RELEASE_DATE}/g" static/install-page/latest.template.json > tmp_static/latest.json
-
-          aws s3 cp tmp_static/index.html s3://mosaic-release/index.html --content-type "text/html"
-          aws s3 cp static/install-page/style.css s3://mosaic-release/style.css --content-type "text/css"
-          aws s3 cp tmp_static/latest.json s3://mosaic-release/releases/latest.json --content-type "application/json"
-
-          rm -rf tmp_static
-          echo "✓ Static page and latest.json uploaded"
+      - name: Summary
+        run: |
+          {
+            echo "## Release v$VERSION published"
+            echo "- GitHub release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/v$VERSION"
+            echo "- Download page: https://releases.hyperpg.site/mosaic/"
+            echo "- Legacy S3 updated: ${{ inputs.also_publish_s3 }}"
+          } >> "$GITHUB_STEP_SUMMARY"
