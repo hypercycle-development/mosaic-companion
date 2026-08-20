@@ -95,49 +95,25 @@ export function readLogFile() {
 // =============================================================================
 // Releases live on GitHub Releases; the download page and latest.json are
 // served from GitHub Pages at https://releases.hyperpg.site/mosaic/.
-//
-// Legacy: experimental releases (mosaic-companion-{experiment}) still resolve
-// to the old S3 bucket. That flow is DEPRECATED — the bucket is being retired.
 
 const GITHUB_REPO = 'hypercycle-development/mosaic-companion';
 const PAGES_BASE_URL = 'https://releases.hyperpg.site/mosaic';
 // Fallback that does not depend on Pages/DNS: latest.json is also attached to
 // every GitHub release as an asset.
 const LATEST_JSON_FALLBACK_URL = `https://github.com/${GITHUB_REPO}/releases/latest/download/latest.json`;
-const S3_BASE_URL = 'https://mosaic-release.s3.us-east-2.amazonaws.com'; // legacy (experimental only)
-
-function getExperimentName() {
-    const appName = app.getName(); // Returns packageJson.name or packagerConfig.name
-    const experimentMatch = appName.match(/^mosaic-companion-(.+)$/);
-    return experimentMatch ? experimentMatch[1] : null;
-}
 
 /**
- * Get the candidate latest.json URLs, in priority order.
- * - Main release: GitHub Pages, then the release-asset fallback.
- * - Experimental (deprecated): the experiment's S3 folder.
+ * Get the candidate latest.json URLs, in priority order: GitHub Pages, then
+ * the release-asset fallback.
  */
 function getLatestJsonUrls() {
-    const experimentName = getExperimentName();
-    if (experimentName) {
-        const url = `${S3_BASE_URL}/releases/experimental/${experimentName}/latest.json`;
-        log('INFO', `Experimental build detected: ${experimentName} (deprecated S3 update channel)`);
-        log('INFO', `Using latest.json URL: ${url}`);
-        return [url];
-    }
-
     return [`${PAGES_BASE_URL}/latest.json`, LATEST_JSON_FALLBACK_URL];
 }
 
 /**
- * Get the install page URL based on the app name.
+ * Get the install page URL.
  */
 function getInstallPageUrl() {
-    const experimentName = getExperimentName();
-    if (experimentName) {
-        return `${S3_BASE_URL}/releases/experimental/${experimentName}/index.html`;
-    }
-
     return `${PAGES_BASE_URL}/`;
 }
 

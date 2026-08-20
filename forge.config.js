@@ -164,25 +164,6 @@ export default {
                 draft: true,
                 tagPrefix: 'v'
             }
-        },
-        {
-            // Legacy channel: pre-0.1.8 installs check S3 for updates.
-            // Used only when the release workflow runs with also_publish_s3.
-            name: '@electron-forge/publisher-s3',
-            config: {
-                bucket: 'mosaic-release',
-                region: 'us-east-2',
-                accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-                keyResolver: (fileName, platform, arch) => {
-                    const experimentalPath = process.env.EXPERIMENTAL_S3_PATH;
-                    if (experimentalPath) {
-                        console.log(`📦 Experimental upload: ${experimentalPath}/${platform}/${arch}/${fileName}`);
-                        return `${experimentalPath}/${platform}/${arch}/${fileName}`;
-                    }
-                    return `releases/${platform}/${arch}/${fileName}`;
-                }
-            }
         }
     ],
 

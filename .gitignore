@@ -58,3 +58,6 @@ project_dump.txt
 # Runtime output from addon dev fixtures (tests/addons/*/) — the
 # addonAPI.files jail (addons/<id>/data/) regenerates this on every test run.
 tests/addons/*/data/
+
+# Local Claude Code settings
+.claude/
