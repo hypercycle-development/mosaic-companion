@@ -103,7 +103,6 @@ Use the official `electronuserland/builder:wine` Docker image to avoid installin
 
 ```bash
 docker run --rm -ti \
-  --env-file .env.local \
   -v ${PWD}:/project \
   -v ~/.cache/electron:/root/.cache/electron \
   -v ~/.cache/electron-builder:/root/.cache/electron-builder \
@@ -113,7 +112,6 @@ docker run --rm -ti \
 
 **What this does:**
 
-- `--env-file .env.local`: Passes AWS credentials for S3 publishing
 - `-v ${PWD}:/project`: Mounts your project directory
 - `-v ~/.cache/...`: Caches Electron binaries (speeds up subsequent builds)
 - `electronuserland/builder:wine-mono`: Pre-configured image with Wine and **Mono** (required by Squirrel.Windows)
@@ -123,8 +121,6 @@ docker run --rm -ti \
 - No Wine/Mono installation needed on your system
 - Clean, isolated build environment
 - Reproducible builds
-
-> 💡 **Tip:** The `scripts/upload-release.sh` script automates this Docker workflow and handles building, uploading to S3, and creating git tags. See [Release Process](release-process.md#using-the-release-script) for details.
 
 **Limitations:**
 
@@ -269,9 +265,10 @@ Mosaic Companion uses native modules that must be compiled for each platform:
 
 ---
 
-## Publishing to S3
+## Publishing
 
-Mosaic Companion is configured to publish releases to AWS S3:
+Releases are published by the `Release` GitHub Actions workflow, not from a
+developer machine. See [Release Process](release-process.md).
 
 ```bash
 # Publish for current platform and architecture
@@ -282,25 +279,8 @@ npm run deploy:x64
 npm run deploy:arm64
 ```
 
-**Requirements:**
-Ensure your `.env.local` contains AWS credentials:
-
-```env
-AWS_ACCESS_KEY_ID="your-id"
-AWS_SECRET_ACCESS_KEY="your-key"
-```
-
-**S3 Configuration** (from `forge.config.js`):
-
-- **Bucket:** `mosaic-release`
-- **Region:** `us-east-2`
-- **Path structure:** `releases/<platform>/<arch>/<filename>`
-
-**Example paths:**
-
-- `releases/linux/x64/mosaic-companion_0.0.31_amd64.deb`
-- `releases/darwin/arm64/mosaic-companion-0.0.31-arm64.dmg`
-- `releases/win32/x64/mosaic-companion-0.0.31-Setup.exe`
+These publish to GitHub Releases as a draft. The workflow is the supported
+route; running them locally is for debugging the publish step.
 
 ---
 

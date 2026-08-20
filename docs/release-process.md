@@ -5,11 +5,9 @@ Mosaic Companion releases are published to **GitHub Releases** (binaries) and
 `https://releases.hyperpg.site/mosaic/`).
 
 > **Legacy note:** releases up to and including v0.1.7 were hosted on an S3
-> bucket (`mosaic-release`). Installs of those versions check S3 for updates,
-> so the release workflow can optionally dual-publish to S3 (see
-> `also_publish_s3` below) until that fleet has migrated. The S3 channel and
-> the `scripts/upload-release.sh` / `scripts/upload-experimental-release.sh`
-> tooling are deprecated.
+> bucket (`mosaic-release`). That bucket no longer serves and its credentials
+> are gone, so installs of those versions can no longer update themselves and
+> must be reinstalled from the download page.
 
 ## How updates reach users
 
@@ -31,11 +29,12 @@ falling back to the copy attached to the latest GitHub release
    greater than the latest `v*` tag.
 2. **(First time / after credential changes) dry-run the workflow.** Actions →
    *Release* → *Run workflow* with **dry_run** ticked. This validates the
-   `GITHUB_TOKEN` release permissions and the legacy AWS credentials without
-   building anything.
+   `GITHUB_TOKEN` release permissions without building anything.
 3. **Run the release.** Actions → *Release* → *Run workflow* (leave dry_run
-   unticked). Tick **also_publish_s3** if pre-0.1.8 installs should still be
-   notified through the legacy S3 channel.
+   unticked). The workflow still shows a legacy **also_publish_s3** tickbox —
+   leave it unticked. The bucket it targets is gone, so ticking it fails the
+   finalize job after the release has already published. A follow-up removes the
+   input.
 
 The workflow then:
 
@@ -46,13 +45,10 @@ The workflow then:
 3. **Finalize:** verifies the complete asset set (including the Squirrel
    `RELEASES` file and `.nupkg` — required for Windows auto-update), attaches
    `latest.json`, publishes the release (this creates the `v{version}` git
-   tag), updates the download page + `latest.json` on the `gh-pages` branch,
-   and — only now, only once the release is confirmed complete and live —
-   migrates pre-0.1.8 Windows installs by copying the verified `RELEASES`/
-   `.nupkg`/`Setup.exe` to the legacy S3 path when `also_publish_s3` is set.
-   S3 publishing deliberately never happens before this point: publishing to
-   the live legacy feed per-platform, before the release is known to be
-   complete, could notify old clients about an update that then fails
+   tag), and updates the download page + `latest.json` on the `gh-pages`
+   branch. This happens only once the release is confirmed complete and live:
+   notifying clients per-platform, before the release is known to be
+   complete, could announce an update that then fails
    verification and never actually goes live on GitHub.
 
 If any platform build fails, the release stays in draft and nothing is
@@ -92,7 +88,6 @@ marked as a pre-release**, or it will hijack the update feed.
 | ------ | -------- |
 | `GITHUB_TOKEN` | (automatic) creating releases, uploading assets, pushing `gh-pages` |
 | `GMAIL_CREDENTIALS` | bundled Gmail OAuth client config |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | legacy S3 dual-publish only |
 
 ## Local builds (no publishing)
 
@@ -121,5 +116,4 @@ preserves them.
 
 ## Related documentation
 
-- [Linux Update Metadata](./linux-update-metadata.md) — legacy S3 details
-- [macOS Update Verification](./mac_update_verification.md) — applies once code signing lands
+- [Update Metadata](./update-metadata.md) — how `latest.json` is published and checked
