@@ -1,9 +1,5 @@
 # MosAIc Community Code of Conduct
 
-> **DRAFT FOR APPROVAL — NOT YET ADOPTED**
->
-> Before publication, approve the reporting address, the initial response team, and the legal entity or project body responsible for enforcement.
-
 ## Our pledge
 
 We as members, contributors, and leaders pledge to make participation in the MosAIc community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socioeconomic status, nationality, personal appearance, race, caste, color, religion, or sexual identity and orientation.
@@ -40,11 +36,13 @@ Participants must not abuse community infrastructure, impersonate others, evade 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be reported confidentially to:
 
 - **Email:** conduct@hyperpg.site
-- **Response team:** [@zephyrnova](https://github.com/zephyrnova) and [@dxnn](https://github.com/dxnn), who both receive mail sent to that address.
+- **Response team:** [@zephyrnova](https://github.com/zephyrnova) and [@dxnn](https://github.com/dxnn). Both read mail sent to that address.
+
+**If your report concerns one of them, send it to the other directly rather than to the shared address** — by GitHub direct message, or ask them for a personal address. Mail to the shared address reaches both people, including the person you are reporting.
 
 Do not report conduct incidents in a public issue.
 
-If a report concerns one member of the response team, the other handles it alone and the first is not shown the report. Anyone with a conflict of interest recuses themselves.
+If a report concerns one member of the response team, the other handles it alone, and the report is not shared with the person it concerns. This only works if the report is sent to that person directly, as above. Anyone with a conflict of interest recuses themselves.
 
 Reports are read by people, not a queue, and the project does not publish a response-time target it cannot currently guarantee. Reports are treated as a priority over ordinary project work. The privacy of the reporter and of anyone affected is respected as far as is possible while still acting on the report.
 
@@ -61,7 +59,9 @@ When deciding how to respond, the response team will consider the impact, contex
 3. **Temporary suspension.** A temporary ban from community participation for a defined period.
 4. **Permanent ban.** Permanent removal from project-controlled spaces when there is a sustained pattern, serious harm, harassment, or aggression.
 
-Where appropriate and safe, the response team may also ask for an acknowledgement of impact, apology, or other restorative action. Enforcement decisions should be documented confidentially, applied consistently, and made appealable to an uninvolved member of the Maintainer Council.
+Where appropriate and safe, the response team may also ask for an acknowledgement of impact, apology, or other restorative action. Enforcement decisions are documented confidentially and applied consistently.
+
+Where a decision was made by one responder alone, it may be appealed to the other. Where both were involved, there is no internal appeal and the project does not claim one. Conduct on GitHub can be raised with GitHub directly, as above, whatever this project decides; for conduct elsewhere there is currently no external route.
 
 ## Scope
 

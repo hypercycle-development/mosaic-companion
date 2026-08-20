@@ -2,7 +2,7 @@
 
 Thank you for helping build MosAIc. Contributions may include code, tools, add-ons, MCP integrations, network services, documentation, testing, design, accessibility, security improvements, translations, or reproducible use cases.
 
-This document describes the expected contribution workflow. For how decisions are made, see [Roles and decisions](#roles-and-decisions).
+This document describes the expected contribution workflow. For who makes decisions and how, see [GOVERNANCE.md](GOVERNANCE.md).
 
 ## Before you begin
 
@@ -145,11 +145,17 @@ Security and release incidents are prioritized over ordinary review.
 
 ## Roles and decisions
 
-Technical decisions rest with the maintainers — the people with merge access to the repository. There is no formal role structure, decision procedure or appeals process. If a decision affects you and you think it is wrong, say so in the issue or pull request where it was made.
+Technical decisions rest with the maintainers — the people with merge access to the repository, listed in [MAINTAINERS.md](MAINTAINERS.md). There are two, and there is no reviewer tier or per-subsystem ownership between them.
 
-## Becoming a reviewer or maintainer
+A decision is made when the active maintainers agree. Where they do not, the change does not happen and existing behaviour stands. There is no separate appeals procedure: if a decision affects you and you think it is wrong, say so in the issue or pull request where it was made.
 
-Leadership is earned through sustained contribution. There is no contributor ladder or nomination process to apply through; if you are contributing regularly and want more responsibility, say so in an issue or to a maintainer directly.
+[GOVERNANCE.md](GOVERNANCE.md) has the full picture, including what this structure cannot do.
+
+## Becoming a maintainer
+
+Leadership is earned through sustained contribution. There is no ladder to climb and no nomination process to apply through; if you are contributing regularly and want more responsibility, say so in an issue or to a maintainer directly.
+
+Adding a maintainer takes the agreement of the current maintainers and your own consent, recorded in [MAINTAINERS.md](MAINTAINERS.md). [GOVERNANCE.md](GOVERNANCE.md) describes what the role involves — including reviewing other people's work, which is the part that is actually scarce.
 
 Review and merge authority is held by individuals, not by the organisations they work for.
 
