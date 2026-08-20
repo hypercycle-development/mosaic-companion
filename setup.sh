@@ -48,20 +48,10 @@ section "Installing Dependencies"
 info "Installing project dependencies..."
 npm install
 
-section "Environment Configuration"
-if [ ! -f ".env.local" ]; then
-    warn ".env.local file not found."
-    echo "Creating .env.local template..."
-    cat > .env.local << EOF
-GEMINI_API_KEY=your-api-key-here
-EOF
-    warn "Please update .env.local with your GEMINI_API_KEY"
-else
-    info ".env.local file exists"
-fi
-
 section "Setup Complete!"
 info "You can now run:"
 echo "  npm run dev    - Start Mosaic development server"
 echo "  npm start      - Build and run Mosaic app"
-echo "  ./start.sh     - Quick start script"
+echo ""
+info "Configure your AI provider key inside the app:"
+echo "  use the onboarding wizard on first launch, or Configuration → AI Agents"
