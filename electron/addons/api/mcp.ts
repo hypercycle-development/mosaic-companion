@@ -45,7 +45,7 @@ export const methods: ApiNamespace = {
   },
   callTool: {
     permission: "mcp:call",
-    handler: async (_ctx, serverId, toolName, args) => {
+    handler: async (ctx, serverId, toolName, args) => {
       const sId = assertString(serverId, "serverId");
       const tName = assertString(toolName, "toolName");
       const callArgs = args && typeof args === "object" && !Array.isArray(args) ? (args as Record<string, unknown>) : {};
@@ -58,7 +58,16 @@ export const methods: ApiNamespace = {
       // Same function the core aimnodes:handle-payment IPC channel calls —
       // shows the real TransactionApprovalModal in the main app window,
       // regardless of which webview (core chat or an addon) triggered it.
-      const paymentResult = await handlePaymentRequired(paymentData);
+      //
+      // `requestedBy` is the addon's verified id, resolved by the dispatcher
+      // from the webContents map and never from anything the renderer
+      // supplied. It does two things downstream: the modal names who is asking
+      // (a user approving a transfer could not previously tell their own chat
+      // session from a third-party addon), and it forces the modal to appear
+      // even when the user has switched off "require confirmation" for their
+      // own agent work. That setting is consent for the user's own actions,
+      // not for a third party's.
+      const paymentResult = await handlePaymentRequired({ ...paymentData, requestedBy: ctx.addonId });
       if (paymentResult?.result) return paymentResult.result;
       throw new Error(paymentResult?.error || "Payment required but failed");
     },
