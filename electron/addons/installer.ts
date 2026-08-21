@@ -44,10 +44,11 @@ import { dirSizeBytes } from "./api/files";
 // (see the `addons:fetch-catalogue` handler in main.ts) — the `opts` params
 // below are for main-process callers and tests only.
 //
-// No signed catalogue is published yet: the production signing key doesn't
-// exist, so `trustedPublisherKeys()` is empty in a packaged build and
-// `fetchCatalogue` reports the catalogue as unavailable rather than failing
-// verification against a URL that may not even be serving a registry.
+// The production signing key was generated and pinned on 2026-08-21, so
+// `trustedPublisherKeys()` is no longer empty in a packaged build and this
+// path does now fetch. Until the first catalogue release exists at the URL
+// below, that fetch 404s — which is treated as "unavailable", not as an
+// error, so the UI keeps saying "no catalogue published yet".
 //
 // These point at a GitHub *release* asset, not at a path on a branch. The
 // registry is a build output, not source: `mosaic-addons/.gitignore` stops it
@@ -143,6 +144,7 @@ export async function fetchCatalogue(opts?: {
       error: "No addon catalogue is published yet — addons are installed manually for now.",
     };
   }
+  const UNAVAILABLE = "No addon catalogue is published yet — addons are installed manually for now.";
 
   const registryUrl = opts?.registryUrl ?? DEFAULT_REGISTRY_URL;
   const sigUrl = opts?.sigUrl ?? DEFAULT_REGISTRY_SIG_URL;
@@ -151,6 +153,15 @@ export async function fetchCatalogue(opts?: {
   let sigJson: unknown;
   try {
     const [registryResp, sigResp] = await Promise.all([fetch(registryUrl), fetch(sigUrl)]);
+    // 404 at the pinned location is not a failure — it is what "nothing has
+    // been published there yet" looks like once a key IS pinned. Before a key
+    // existed the check above short-circuited and the user saw a plain
+    // message; without this they would instead meet "HTTP 404" in the window
+    // between shipping the pinned key and publishing the first catalogue,
+    // which reads as a broken app rather than an empty one.
+    if (registryResp.status === 404 || sigResp.status === 404) {
+      return { success: false, unavailable: true, error: UNAVAILABLE };
+    }
     if (!registryResp.ok) return { success: false, error: `Failed to fetch registry: HTTP ${registryResp.status}` };
     if (!sigResp.ok) return { success: false, error: `Failed to fetch registry signature: HTTP ${sigResp.status}` };
     registryBytes = Buffer.from(await registryResp.arrayBuffer());

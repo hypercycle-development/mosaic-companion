@@ -5,12 +5,15 @@
  * The app trusts a small pinned *list* of public keys, not one hardcoded
  * key, so a future rotation is additive.
  *
- * IMPORTANT: there is **no production key yet** — real key generation,
- * GitHub Actions secrets, and authenticated production distribution are all
- * still deferred (see the `mosaic-addons` README's GO-LIVE TODO). So
- * `PRODUCTION_PUBLISHER_KEYS` is deliberately empty and a packaged build
- * trusts nothing: every registry signature fails to verify, which is the
- * correct behaviour while no signed catalogue is published.
+ * The production key was generated under the offline custody procedure and
+ * pinned on 2026-08-21 (`b7efa29a`). A packaged build therefore trusts exactly
+ * one key, and only a registry signed by it verifies.
+ *
+ * Pinning it changed behaviour: `installer.ts`'s `fetchCatalogue` used to
+ * short-circuit on an empty trust list and never touch the network. It now
+ * fetches. Until the first catalogue release exists, that fetch 404s, which
+ * `fetchCatalogue` maps to "unavailable" rather than an error — see the
+ * comment there. Publishing the catalogue is the remaining step.
  *
  * **No key material is committed to this repository, in any form.** Two
  * dev/test public keys (`4b7d6575`, `78e2469a`) used to be pinned here, with
@@ -49,11 +52,23 @@ export interface TrustedPublisherKey {
 }
 
 /**
- * Real publisher keys. Empty until the production `mosaic-addons` key is
- * generated under the offline custody procedure and pinned here as its own dated
- * entry. Adding the first entry is what turns the signed catalogue on.
+ * Real publisher keys. Must match `publisher-keys.json` in `mosaic-addons`
+ * exactly — release CI verifies against that list before publishing, and if
+ * the two disagree every installed app fails closed reporting only "no
+ * catalogue is published yet", with nothing in the logs to explain why.
+ *
+ * Rotation is additive: add the new key alongside the old, ship a release
+ * carrying both, switch CI to the new one, and only then set the old entry's
+ * `retiredAt`. Never remove an old key in the same release that adds a new
+ * one — a user who skips a release would be left trusting nothing.
  */
-export const PRODUCTION_PUBLISHER_KEYS: TrustedPublisherKey[] = [];
+export const PRODUCTION_PUBLISHER_KEYS: TrustedPublisherKey[] = [{
+    keyId: "b7efa29a",
+    publicKey:
+      "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQFMN/qcDB6XsW2ZwgV2ee/SYAnmaV2kav3HDLHc/MN4=\n-----END PUBLIC KEY-----\n",
+    introducedAt: "2026-08-21",
+    retiredAt: null,
+  }];
 
 /**
  * Dev/test trust anchors, supplied at runtime and **never committed**.
@@ -111,8 +126,8 @@ function devPublisherKeys(): TrustedPublisherKey[] {
 /**
  * The keys this build actually trusts. Fails closed: if `app` is somehow
  * unavailable (imported outside Electron) `isPackaged` reads as `undefined`
- * and we treat the build as packaged, so only production keys apply — and
- * there are none yet.
+ * and we treat the build as packaged, so only the pinned production keys
+ * apply and nothing supplied at runtime is honoured.
  */
 export function trustedPublisherKeys(): TrustedPublisherKey[] {
   const packaged = app?.isPackaged ?? true;
