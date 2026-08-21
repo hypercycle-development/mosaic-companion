@@ -26,8 +26,16 @@ import {
   recordUpgrade,
   removeAddonEntry,
   setGrantedPermissions,
+  getHighestRegistrySequence,
+  getRegistrySync,
+  recordRegistrySync,
+  replaceWithdrawals,
+  findWithdrawal,
+  getWithdrawals,
   type AddonSource,
+  type WithdrawalRecord,
 } from "./state";
+import { normalizeWithdrawals, readSequence } from "./withdrawal";
 import { activateAddon, deactivateAddon, isAddonActivated, getAddonRoot } from "./loader";
 import { dirSizeBytes } from "./api/files";
 
@@ -40,18 +48,34 @@ import { dirSizeBytes } from "./api/files";
 // exist, so `trustedPublisherKeys()` is empty in a packaged build and
 // `fetchCatalogue` reports the catalogue as unavailable rather than failing
 // verification against a URL that may not even be serving a registry.
+//
+// These point at a GitHub *release* asset, not at a path on a branch. The
+// registry is a build output, not source: `mosaic-addons/.gitignore` stops it
+// being committed, and its release workflow publishes it as an asset. An
+// earlier version of these constants pointed at
+// `raw.githubusercontent.com/.../main/addon-registry.json`, which no process
+// has ever written and which 404s regardless of signing key or repo
+// visibility.
+//
+// `releases/latest/download/` resolves to the newest non-prerelease release.
+// mosaic-addons tags one series only, `catalogue-v*`, and each such release
+// carries the whole catalogue plus every tarball it references — so "latest"
+// is unambiguous and a registry can never name an asset published elsewhere.
 // =============================================================================
 
-export const DEFAULT_REGISTRY_URL =
-  "https://raw.githubusercontent.com/hypercycle-development/mosaic-addons/main/addon-registry.json";
-export const DEFAULT_REGISTRY_SIG_URL =
-  "https://raw.githubusercontent.com/hypercycle-development/mosaic-addons/main/addon-registry.json.sig";
+const REGISTRY_RELEASE_BASE =
+  "https://github.com/hypercycle-development/mosaic-addons/releases/latest/download";
+
+export const DEFAULT_REGISTRY_URL = `${REGISTRY_RELEASE_BASE}/addon-registry.json`;
+export const DEFAULT_REGISTRY_SIG_URL = `${REGISTRY_RELEASE_BASE}/addon-registry.json.sig`;
 
 // The `MOSAIC_ADDON_REGISTRY_TOKEN` shim that used to live here existed only
-// because mosaic-addons was a private repo, so unauthenticated fetches to
-// raw.githubusercontent.com 404'd. The repo is public now, so registry
-// fetches are plain unauthenticated `fetch` again and the app carries no
-// credential for the catalogue at all.
+// because mosaic-addons was a private repo, so unauthenticated fetches 404'd.
+// The shim is gone and the app carries no credential for the catalogue at all
+// — which means **mosaic-addons must be public before any of this works**.
+// GitHub serves release assets of a private repo only to authenticated
+// callers, so a private repo fails exactly as a missing one does. As of
+// 2026-08-21 the repo is still private; that is tracked as part of #103.
 
 // =============================================================================
 // Types
@@ -70,9 +94,24 @@ export interface CatalogueEntry {
   homepage?: string;
 }
 
+interface RegistryEntryWithdrawn {
+  id: string;
+  /** semver range; "*" means every version. */
+  versions?: string;
+  reason?: string;
+  severity?: string;
+  withdrawnAt?: string;
+}
+
 interface RegistryFile {
   schemaVersion: number;
+  /** Strictly increasing across publishes. Absent in pre-withdrawal
+   * registries, which is why `fetchCatalogue` treats a missing sequence as 0
+   * rather than rejecting outright. */
+  sequence?: number;
+  publishedAt?: string;
   addons: CatalogueEntry[];
+  withdrawn?: RegistryEntryWithdrawn[];
 }
 
 // Cached from the last successful fetchCatalogue() — install/upgrade look
@@ -137,14 +176,93 @@ export async function fetchCatalogue(opts?: {
     return { success: false, error: "Malformed registry: addons must be an array" };
   }
 
+  // ---------------------------------------------------------------------------
+  // Freshness. A valid signature proves who wrote this registry, never when.
+  // Every registry ever signed verifies forever, so without a monotonic
+  // sequence an attacker who controls what we fetch (network position, a
+  // compromised host, a stale CDN edge) replays a pre-withdrawal registry and
+  // every withdrawal in it silently disappears. Reject anything older than the
+  // highest we have ever verified; equal is fine (a re-fetch of the same
+  // release).
+  // ---------------------------------------------------------------------------
+  const sequence = readSequence(registry.sequence);
+  const highest = getHighestRegistrySequence();
+  if (sequence < highest) {
+    return {
+      success: false,
+      error:
+        `Registry sequence ${sequence} is older than ${highest}, which this app has already verified — ` +
+        `refusing it as a possible rollback.`,
+    };
+  }
+
+  // Past the freshness gate, so this registry is at least as new as anything
+  // seen before and its withdrawal set is authoritative. Reconciling the whole
+  // set (rather than only adding) is what makes a withdrawal liftable: a later
+  // registry that omits an entry lifts it, and an older one cannot forge that
+  // lift because it never gets here.
+  const withdrawals = normalizeWithdrawals(registry.withdrawn, sequence);
+  replaceWithdrawals(withdrawals);
+  recordRegistrySync(sequence);
+
+  // Withdrawn beats listed. A publisher who withdraws an id but forgets to
+  // delete its listing must not still be offering it for install.
+  const offered = registry.addons.filter(
+    (entry) => !(entry && typeof entry.id === "string" && findWithdrawal(entry.id, entry.version)),
+  );
+
   const nextCache: Record<string, CatalogueEntry> = {};
-  for (const entry of registry.addons) {
+  for (const entry of offered) {
     if (entry && typeof entry.id === "string") nextCache[entry.id] = entry;
   }
   cachedCatalogue = nextCache;
   cachedVerifiedKeyId = verifyResult.keyId;
 
-  return { success: true, addons: registry.addons };
+  return { success: true, addons: offered };
+}
+
+/**
+ * Applies the persisted withdrawal set to what is currently installed:
+ * deactivates anything withdrawn at `security`, leaves `advisory` running.
+ * Safe to call at any time — it reads only persisted state, so it works with
+ * no network — and it is what turns a withdrawal into an effect for an addon
+ * that is *already live*. Steady-state enforcement is `activateAddon`'s job.
+ */
+export async function enforceWithdrawals(): Promise<{ deactivated: string[]; advisories: string[] }> {
+  const deactivated: string[] = [];
+  const advisories: string[] = [];
+  for (const [id, entry] of Object.entries(listAddonEntries())) {
+    // Dev installs are the author's own working copy; withdrawal warns there
+    // but must not block the one person who needs to load it to fix it.
+    if (entry.source.type === "dev") continue;
+    const record = findWithdrawal(id, entry.version);
+    if (!record) continue;
+    if (record.severity === "advisory") {
+      advisories.push(id);
+      continue;
+    }
+    if (isAddonActivated(id)) {
+      const result = await deactivateAddon(id);
+      if (!result.success) {
+        console.error(`[addons] Failed to deactivate withdrawn addon "${id}": ${result.error}`);
+        continue;
+      }
+    }
+    deactivated.push(id);
+    console.warn(`[addons] "${id}" ${entry.version} is withdrawn (${record.severity}): ${record.reason}`);
+  }
+  return { deactivated, advisories };
+}
+
+/** The withdrawal covering an installed addon, if any — for the Settings UI. */
+export function getWithdrawalFor(id: string): WithdrawalRecord | undefined {
+  const entry = getAddonEntry(id);
+  if (!entry || entry.source.type === "dev") return undefined;
+  return findWithdrawal(id, entry.version);
+}
+
+export function listWithdrawals(): Record<string, WithdrawalRecord> {
+  return getWithdrawals();
 }
 
 // =============================================================================
@@ -237,6 +355,18 @@ function sourceFor(entry: CatalogueEntry): AddonSource {
   };
 }
 
+/**
+ * Refuses an install/upgrade of a withdrawn version. `cachedCatalogue` holds
+ * whatever the last fetch returned and can be an entire session old, so
+ * filtering the catalogue at fetch time is not on its own enough — a user can
+ * reach a stale entry minutes after it was withdrawn.
+ */
+function withdrawalBlock(id: string, version: string): { success: false; error: string } | undefined {
+  const record = findWithdrawal(id, version);
+  if (!record || record.severity !== "security") return undefined;
+  return { success: false, error: `Addon "${id}" ${version} has been withdrawn: ${record.reason}` };
+}
+
 // =============================================================================
 // Install (needsConsent → confirm)
 // =============================================================================
@@ -250,6 +380,8 @@ export function beginInstall(id: string): {
   const catalogueEntry = cachedCatalogue[id];
   if (!catalogueEntry) return { success: false, error: `Addon "${id}" not found in catalogue — fetch it first` };
   if (getAddonEntry(id)) return { success: false, error: `Addon "${id}" is already installed` };
+  const blocked = withdrawalBlock(id, catalogueEntry.version);
+  if (blocked) return blocked;
   // Consent is asked before the tarball is downloaded, so the real manifest
   // isn't available yet. MAIN_ENTRY_ALLOWLIST is the upper bound on who may
   // ship main-process code at all, which is what the user needs warning about
@@ -269,6 +401,8 @@ export async function confirmInstall(
   const catalogueEntry = cachedCatalogue[id];
   if (!catalogueEntry) return { success: false, error: `Addon "${id}" not found in catalogue — fetch it first` };
   if (getAddonEntry(id)) return { success: false, error: `Addon "${id}" is already installed` };
+  const blockedInstall = withdrawalBlock(id, catalogueEntry.version);
+  if (blockedInstall) return blockedInstall;
 
   let staged: StagedTarball;
   try {
@@ -414,6 +548,8 @@ export async function upgradeAddon(
 
   const catalogueEntry = cachedCatalogue[id];
   if (!catalogueEntry) return { success: false, error: `Addon "${id}" not found in catalogue — fetch it first` };
+  const blockedUpgrade = withdrawalBlock(id, catalogueEntry.version);
+  if (blockedUpgrade) return blockedUpgrade;
 
   let staged: StagedTarball;
   try {
@@ -499,6 +635,51 @@ const updateAvailableCache: Record<string, string> = {};
 
 export function getAvailableUpdateVersion(id: string): string | undefined {
   return updateAvailableCache[id];
+}
+
+/**
+ * Fetch the catalogue and apply withdrawals. Runs unconditionally — unlike
+ * `runAutomaticUpdateCheckPass`, which returns early unless some addon is
+ * opted into automatic update *checks*. Withdrawal is not an update
+ * preference: a user who checks for updates manually still has to be able to
+ * receive a security withdrawal.
+ *
+ * Best-effort. A failure means no *new* withdrawal news this pass; anything
+ * already persisted keeps being enforced by `activateAddon`, offline and
+ * without this ever succeeding.
+ */
+export async function runCatalogueSyncPass(opts?: {
+  registryUrl?: string;
+  sigUrl?: string;
+}): Promise<{ deactivated: string[]; advisories: string[] }> {
+  const result = await fetchCatalogue(opts).catch((error) => ({
+    success: false as const,
+    error: getErrorMessage(error),
+  }));
+  if (!result.success) {
+    // `unavailable` is the ordinary "no catalogue published yet" case and is
+    // not worth a warning on every pass.
+    if (!("unavailable" in result && result.unavailable)) {
+      console.warn(`[addons] Catalogue sync failed: ${"error" in result ? result.error : "unknown"}`);
+    }
+  }
+  // Enforce regardless of fetch outcome — persisted withdrawals still apply.
+  return enforceWithdrawals();
+}
+
+/**
+ * How long since the last verified catalogue fetch, in days, or null if there
+ * has never been one. The UI uses this to warn that withdrawal notices cannot
+ * currently be received — deliberately a warning and not an auto-disable:
+ * bricking a legitimately offline user is disproportionate while every payment
+ * still needs a per-transaction approval.
+ */
+export function catalogueStalenessDays(): number | null {
+  const sync = getRegistrySync();
+  if (!sync?.lastSuccessAt) return null;
+  const then = Date.parse(sync.lastSuccessAt);
+  if (Number.isNaN(then)) return null;
+  return Math.max(0, (Date.now() - then) / 86_400_000);
 }
 
 export async function runAutomaticUpdateCheckPass(opts?: {

@@ -27,7 +27,8 @@
     "deploy:arm64": "electron-forge publish --arch arm64",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist release node_modules/.vite",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:addons": "npx esbuild tests/addons/withdrawal.test.ts --bundle --platform=node --outfile=dist/withdrawal.test.cjs --log-level=error && node dist/withdrawal.test.cjs"
   },
   "engines": {
     "node": ">=20.0.0",
