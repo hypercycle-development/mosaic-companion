@@ -24,17 +24,32 @@ export const userDataDir = fs.mkdtempSync(
   path.join(os.tmpdir(), "mosaic-vault-test-"),
 );
 
-export const app = {
-  getPath(name: string): string {
-    if (name === "userData") return userDataDir;
-    const dir = path.join(userDataDir, name);
-    fs.mkdirSync(dir, { recursive: true });
-    return dir;
-  },
-  getName(): string {
-    return "mosaic-companion";
-  },
-};
+export interface AppStub {
+  getPath(name: string): string;
+  getName(): string;
+  isReady(): boolean;
+}
+
+function defaultApp(): AppStub {
+  return {
+    getPath(name: string): string {
+      if (name === "userData") return userDataDir;
+      const dir = path.join(userDataDir, name);
+      fs.mkdirSync(dir, { recursive: true });
+      return dir;
+    },
+    getName: () => "mosaic-companion",
+    isReady: () => true,
+  };
+}
+
+/** Mutable on purpose, same as `safeStorage` below. */
+export const app: AppStub = defaultApp();
+
+/** Restore the default `app`. Called by `resetSafeStorage`. */
+export function resetApp(): void {
+  Object.assign(app, defaultApp());
+}
 
 /**
  * Empty `userDataDir` without replacing it — the paths the modules under test
@@ -104,4 +119,13 @@ export function decryptStub(encrypted: Buffer): string {
 /** Restore every default. Call between tests, alongside `resetUserData`. */
 export function resetSafeStorage(): void {
   Object.assign(safeStorage, defaultSafeStorage());
+  resetApp();
+}
+
+/**
+ * Make `encryptString`/`decryptString` a real round-trip for one test. Returns
+ * nothing — it mutates the stub, which `resetSafeStorage` undoes.
+ */
+export function enableStubRoundTrip(): void {
+  safeStorage.decryptString = decryptStub;
 }

@@ -28,7 +28,8 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist release node_modules/.vite",
     "test:e2e": "playwright test",
-    "test:vault": "npx esbuild tests/vault/encryption.test.ts --bundle --platform=node --alias:electron=./tests/stubs/electron.ts --outfile=dist/vault.test.cjs --log-level=error && node dist/vault.test.cjs"
+    "test:vault": "npx esbuild tests/vault/encryption.test.ts --bundle --platform=node --alias:electron=./tests/stubs/electron.ts --outfile=dist/vault.test.cjs --log-level=error && node dist/vault.test.cjs",
+    "test:vault-crypto": "npx esbuild tests/vault/crypto.test.ts --bundle --platform=node --alias:electron=./tests/stubs/electron.ts --outfile=dist/vault-crypto.test.cjs --log-level=error && node dist/vault-crypto.test.cjs && npx esbuild tests/vault/atomicWrite.test.ts --bundle --platform=node --alias:electron=./tests/stubs/electron.ts --outfile=dist/atomic-write.test.cjs --log-level=error && node dist/atomic-write.test.cjs"
   },
   "engines": {
     "node": ">=20.0.0",
