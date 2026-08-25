@@ -54,7 +54,9 @@ export function loadVault(): VaultConfig {
   } catch (error) {
     console.error("[Vault] Failed to load vault config:", error);
   }
-  return { ...DEFAULT_VAULT };
+  // Fresh array: a shallow spread would alias DEFAULT_VAULT.boxes, which the
+  // callers of addBox and deleteBox then mutate in place.
+  return { ...DEFAULT_VAULT, boxes: [] };
 }
 
 /** Save vault config to disk. */
@@ -162,6 +164,11 @@ export function deleteBox(id: string): { success: boolean; error?: string } {
 
   vault.boxes.splice(index, 1);
   const result = saveVault(vault);
+  if (!result.success) {
+    // The box is still listed on disk; deleting its content now would leave a
+    // box whose entries are gone.
+    return result;
+  }
 
   // Clean up associated content file if it exists
   try {
