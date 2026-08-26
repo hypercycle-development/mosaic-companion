@@ -18,7 +18,8 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             arch: x64
-          - os: ubuntu-latest
+          # Native arm64 — see the note in release.yml's matrix and #112.
+          - os: ubuntu-24.04-arm
             platform: linux
             arch: arm64
     runs-on: ${{ matrix.os }}
@@ -76,6 +77,10 @@ jobs:
       # (the preload fails silently) and the .deb still built. Assert the
       # payload directly — every file the main process resolves at runtime must
       # actually be inside the package.
+      #
+      # node-pty's pty.node is in that list for the same reason: on Linux there
+      # is no prebuild, so it must be compiled, and a cross-build silently
+      # omitted it — the app then died at startup with no window (#112).
       - name: Verify asar contains every runtime-resolved file
         shell: bash
         run: |
@@ -98,7 +103,8 @@ jobs:
             dist/main/secure-wallet-import-preload.js \
             dist/main/mcp-server.js \
             dist/renderer/index.html \
-            bundled-addons/hyperinsight/manifest.json
+            bundled-addons/hyperinsight/manifest.json \
+            node_modules/node-pty/build/Release/pty.node
           do
             if grep -qxF "/$f" asar-contents.txt; then
               echo "✓ $f"
@@ -109,14 +115,18 @@ jobs:
           done
           exit $MISSING
 
-      # Launch test: verify the app actually starts without crashing (x64 only)
-      - name: Smoke test - verify app launches (x64 only)
-        if: matrix.arch == 'x64'
+      # Launch test: verify the app actually starts without crashing.
+      #
+      # This used to be x64-only because a cross-built arm64 binary cannot run
+      # on an x64 runner. Now that the arm64 leg builds natively it can, and it
+      # is the check that would have caught #112 outright — the app died at
+      # startup on a missing native module while the .deb built perfectly.
+      - name: Smoke test - verify app launches
         run: |
           APP_NAME=$(node -p "require('./package.json').name")
           echo "Detected app name: $APP_NAME"
           sudo apt-get install -y xvfb
-          xvfb-run --auto-servernum "out/${APP_NAME}-linux-x64/${APP_NAME}" --no-sandbox &
+          xvfb-run --auto-servernum "out/${APP_NAME}-linux-${{ matrix.arch }}/${APP_NAME}" --no-sandbox &
           APP_PID=$!
           sleep 5
           if kill -0 $APP_PID 2>/dev/null; then
