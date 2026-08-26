@@ -164,7 +164,12 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             arch: x64
-          - os: ubuntu-latest
+          # Native arm64, not a cross-build on ubuntu-latest (x64). node-pty
+          # ships prebuilds for darwin and win32 only, so on Linux its native
+          # module must be COMPILED — which an x64 runner cannot do for arm64.
+          # The result shipped with no pty.node at all and died at startup
+          # before any window existed. See #112.
+          - os: ubuntu-24.04-arm
             platform: linux
             arch: arm64
           - os: macos-latest
