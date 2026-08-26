@@ -400,6 +400,10 @@ declare global {
           }>;
           error?: string;
         }>;
+        /** How long since a verified catalogue fetch, and whether that is long
+         * enough to tell the user withdrawal notices cannot be received.
+         * `days` is null when no fetch has ever succeeded, which does not warn. */
+        catalogueStaleness: () => Promise<{ days: number | null; stale: boolean }>;
         /** `hasMainEntry`: addon may ship main-process code, which the permission model does not restrict (see MAIN_ENTRY_ALLOWLIST). */
         install: (id: string) => Promise<{ success: boolean; needsConsent?: string[]; hasMainEntry?: boolean; error?: string }>;
         installConfirm: (id: string, acceptedPermissions: string[]) => Promise<{ success: boolean; error?: string }>;

@@ -19,6 +19,8 @@ import {
   findIn,
   DEFAULT_WITHDRAWAL_REASON,
   MAX_WITHDRAWAL_REASON,
+  isCatalogueStale,
+  CATALOGUE_STALE_AFTER_DAYS,
   type WithdrawalRecord,
 } from "../../electron/addons/withdrawal";
 
@@ -136,6 +138,28 @@ check("a later registry omitting an entry lifts it", () => {
 });
 check("an OLDER registry cannot forge a lift — it never passes the gate", () => {
   assert.equal(isRegistryFresh(9, 11), false);
+});
+
+console.log("\nCatalogue staleness");
+
+check("a never-fetched catalogue does NOT warn", () => {
+  // Until the first catalogue is published this is every user alive. Warning
+  // here would put a security banner in front of the whole install base on day
+  // one, about something none of them can do anything about.
+  assert.equal(isCatalogueStale(null), false);
+});
+
+check("a recent fetch does not warn", () => {
+  assert.equal(isCatalogueStale(0), false);
+  assert.equal(isCatalogueStale(CATALOGUE_STALE_AFTER_DAYS - 1), false);
+});
+
+check("the threshold itself warns", () => {
+  assert.equal(isCatalogueStale(CATALOGUE_STALE_AFTER_DAYS), true);
+});
+
+check("well past the threshold warns", () => {
+  assert.equal(isCatalogueStale(CATALOGUE_STALE_AFTER_DAYS + 90), true);
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ", WITH FAILURES" : ""}\n`);

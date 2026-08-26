@@ -21,6 +21,7 @@ import semver from "semver";
 import { getErrorMessage } from "../utils";
 import { getTabVisibility, setTabVisibility as setCoreTabVisibility } from "../settings";
 import { ADDON_TAB_ID_PREFIX } from "../../src/tabs/registry";
+import { WITHDRAWAL_ERROR_PREFIX } from "./withdrawal";
 import { validateManifest, type AddonManifest } from "./manifest";
 import {
   getAddonEntry,
@@ -296,7 +297,7 @@ export async function activateAddon(id: string): Promise<{ success: boolean; err
     if (entry.source.type !== "dev") {
       const withdrawal = findWithdrawal(id, entry.version);
       if (withdrawal && withdrawal.severity === "security") {
-        throw new Error(`Withdrawn by the catalogue publisher: ${withdrawal.reason}`);
+        throw new Error(`${WITHDRAWAL_ERROR_PREFIX}${withdrawal.reason}`);
       }
       if (withdrawal) {
         console.warn(`[addons] "${id}" has an advisory withdrawal: ${withdrawal.reason}`);

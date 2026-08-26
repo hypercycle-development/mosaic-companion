@@ -75,6 +75,7 @@ import {
   getAvailableUpdateVersion,
   runAutomaticUpdateCheckPass,
   runCatalogueSyncPass,
+  catalogueStaleness,
 } from "./addons/installer";
 import { runHyperInsightAutoInstallMigration, wasHyperInsightJustAutoInstalled } from "./addons/hyperinsight-migration";
 
@@ -434,6 +435,7 @@ app.whenReady().then(() => {
   // accepted registry ends in `confirmInstall` running an addon's
   // `main/index.js` in the main process.
   ipcMain.handle("addons:fetch-catalogue", async () => fetchCatalogue());
+  ipcMain.handle("addons:catalogue-staleness", async () => catalogueStaleness());
   ipcMain.handle("addons:install", async (_event: IpcMainInvokeEvent, id: string) => beginInstall(id));
   ipcMain.handle(
     "addons:install-confirm",

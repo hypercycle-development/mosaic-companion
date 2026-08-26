@@ -26,6 +26,7 @@ import {
   recordUpgrade,
   removeAddonEntry,
   setGrantedPermissions,
+  setLastError,
   getHighestRegistrySequence,
   getRegistrySync,
   recordRegistrySync,
@@ -35,7 +36,12 @@ import {
   type AddonSource,
   type WithdrawalRecord,
 } from "./state";
-import { normalizeWithdrawals, readSequence } from "./withdrawal";
+import {
+  normalizeWithdrawals,
+  readSequence,
+  isCatalogueStale,
+  WITHDRAWAL_ERROR_PREFIX,
+} from "./withdrawal";
 import { activateAddon, deactivateAddon, isAddonActivated, getAddonRoot } from "./loader";
 import { dirSizeBytes } from "./api/files";
 
@@ -70,13 +76,11 @@ const REGISTRY_RELEASE_BASE =
 export const DEFAULT_REGISTRY_URL = `${REGISTRY_RELEASE_BASE}/addon-registry.json`;
 export const DEFAULT_REGISTRY_SIG_URL = `${REGISTRY_RELEASE_BASE}/addon-registry.json.sig`;
 
-// The `MOSAIC_ADDON_REGISTRY_TOKEN` shim that used to live here existed only
-// because mosaic-addons was a private repo, so unauthenticated fetches 404'd.
-// The shim is gone and the app carries no credential for the catalogue at all
-// — which means **mosaic-addons must be public before any of this works**.
-// GitHub serves release assets of a private repo only to authenticated
-// callers, so a private repo fails exactly as a missing one does. As of
-// 2026-08-21 the repo is still private; that is tracked as part of #103.
+// The app carries no credential for the catalogue at all — which means
+// **mosaic-addons must be public for any of this to work**. GitHub serves
+// release assets of a private repo only to authenticated callers, so a private
+// repo fails exactly as a missing one does, and both are reported as
+// "no catalogue published yet" rather than as an error.
 
 // =============================================================================
 // Types
@@ -247,18 +251,35 @@ export async function enforceWithdrawals(): Promise<{ deactivated: string[]; adv
     // but must not block the one person who needs to load it to fix it.
     if (entry.source.type === "dev") continue;
     const record = findWithdrawal(id, entry.version);
-    if (!record) continue;
+    if (!record) {
+      // A lift: a later registry omitted this entry, so the message this loop
+      // wrote must go too. Only a withdrawal-shaped one — a real activation
+      // failure sitting in `lastError` has to survive.
+      if (entry.lastError?.startsWith(WITHDRAWAL_ERROR_PREFIX)) setLastError(id, undefined);
+      continue;
+    }
     if (record.severity === "advisory") {
       advisories.push(id);
       continue;
     }
     if (isAddonActivated(id)) {
-      const result = await deactivateAddon(id);
+      // `persist: false` deliberately. Writing `activated: false` would record
+      // the withdrawal as the user's own decision to switch the addon off, and
+      // `initAddons` skips anything so marked — so a later lift could never
+      // bring it back on its own. Stopping it here while leaving it *wanted* is
+      // what makes this path agree with the startup guard, which never flips
+      // the desired state either.
+      const result = await deactivateAddon(id, { persist: false });
       if (!result.success) {
         console.error(`[addons] Failed to deactivate withdrawn addon "${id}": ${result.error}`);
         continue;
       }
     }
+    // Say why, in the words the startup refusal uses. Set even when the addon
+    // was not running: an installed-but-inactive withdrawn addon should still
+    // explain itself rather than look like an ordinary disabled one.
+    const message = `${WITHDRAWAL_ERROR_PREFIX}${record.reason}`;
+    if (entry.lastError !== message) setLastError(id, message);
     deactivated.push(id);
     console.warn(`[addons] "${id}" ${entry.version} is withdrawn (${record.severity}): ${record.reason}`);
   }
@@ -685,6 +706,11 @@ export async function runCatalogueSyncPass(opts?: {
  * bricking a legitimately offline user is disproportionate while every payment
  * still needs a per-transaction approval.
  */
+export function catalogueStaleness(): { days: number | null; stale: boolean } {
+  const days = catalogueStalenessDays();
+  return { days, stale: isCatalogueStale(days) };
+}
+
 export function catalogueStalenessDays(): number | null {
   const sync = getRegistrySync();
   if (!sync?.lastSuccessAt) return null;

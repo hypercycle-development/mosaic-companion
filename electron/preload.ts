@@ -263,6 +263,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getPreloadPath: () => ipcRenderer.invoke("addons:get-preload-path"),
     // Registry/installer surface
     fetchCatalogue: () => ipcRenderer.invoke("addons:fetch-catalogue"),
+    catalogueStaleness: () => ipcRenderer.invoke("addons:catalogue-staleness"),
     install: (id: string) => ipcRenderer.invoke("addons:install", id),
     installConfirm: (id: string, acceptedPermissions: string[]) =>
       ipcRenderer.invoke("addons:install-confirm", id, acceptedPermissions),

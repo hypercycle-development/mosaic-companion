@@ -47,6 +47,35 @@ export const MAX_WITHDRAWAL_REASON = 300;
 export const DEFAULT_WITHDRAWAL_REASON = "Withdrawn by the catalogue publisher.";
 
 /**
+ * The prefix every withdrawal message carries, wherever it is produced.
+ *
+ * Two paths report the same fact — `activateAddon` refusing at startup, and
+ * `enforceWithdrawals` deactivating mid-session — and they must read
+ * identically, or the same withdrawal looks like two different faults. It is
+ * also how a withdrawal-shaped `lastError` is recognised when a withdrawal is
+ * lifted and the message has to be cleared, without clearing a real activation
+ * failure that happens to be sitting there.
+ */
+export const WITHDRAWAL_ERROR_PREFIX = "Withdrawn by the catalogue publisher: ";
+
+/** Days without a verified catalogue fetch before the UI says so. */
+export const CATALOGUE_STALE_AFTER_DAYS = 7;
+
+/**
+ * Whether to warn that withdrawal notices cannot currently be received.
+ *
+ * `null` means no catalogue fetch has ever succeeded, and it deliberately does
+ * NOT warn. Until the first catalogue is published that is every user alive, so
+ * warning on it would put a security banner in front of the entire install base
+ * on day one, about a risk none of them can act on. A null also cannot hide a
+ * withdrawal that was already received: withdrawals are only ever persisted by
+ * the same `fetchCatalogue` call that records the sync.
+ */
+export function isCatalogueStale(days: number | null): boolean {
+  return days !== null && days >= CATALOGUE_STALE_AFTER_DAYS;
+}
+
+/**
  * Is a freshly-fetched registry acceptable against the highest sequence this
  * app has ever verified? Equal is accepted — that is a re-fetch of the same
  * release, not a rollback.
