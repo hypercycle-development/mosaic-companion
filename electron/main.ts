@@ -125,6 +125,7 @@ import {
   updateEntry,
   deleteEntry,
   vaultConfigError,
+  lastObservedEncryptionStatus,
 } from "./integrations/vault";
 import type { VaultBox } from "./integrations/vault/types";
 import {
@@ -1131,6 +1132,11 @@ ipcMain.handle("vault:get-agent-boxes", async (_event: IpcMainInvokeEvent, agent
 });
 
 ipcMain.handle("vault:config-error", async () => vaultConfigError());
+
+// Deliberately serves the LAST OBSERVED status and never asks safeStorage
+// afresh: `isEncryptionAvailable()` can raise a modal OS password prompt, and
+// the renderer must not be able to trigger that by rendering a page.
+ipcMain.handle("vault:encryption-status", async () => lastObservedEncryptionStatus());
 
 ipcMain.handle("vault:get-box-content", async (_event: IpcMainInvokeEvent, boxId: string) => {
   return getBoxContent(boxId);

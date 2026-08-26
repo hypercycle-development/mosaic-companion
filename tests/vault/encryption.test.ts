@@ -19,7 +19,13 @@
 import assert from "assert";
 import fs from "fs";
 import path from "path";
-import { resetSafeStorage, resetUserData, userDataDir } from "../stubs/electron";
+import {
+  resetSafeStorage,
+  resetUserData,
+  userDataDir,
+  safeStorage,
+  enableStubRoundTrip,
+} from "../stubs/electron";
 import {
   addBox,
   addEntry,
@@ -400,6 +406,96 @@ check("updating and deleting a box under an unreadable config are refused", () =
   assert.equal(deleteBox(id).success, false);
   assert.equal(fs.readFileSync(vaultPath, "utf8"), "{ half a config");
   assert.equal(fs.existsSync(contentPath(id)), true, "content must survive a refused delete");
+});
+
+console.log("\nEncryption at rest (WP4)");
+
+/** Is the file on disk in encrypted form? */
+function onDiskIsEncrypted(boxId: string): boolean {
+  const raw = JSON.parse(fs.readFileSync(contentPath(boxId), "utf8"));
+  return typeof raw.enc === "string" && raw.entries === undefined;
+}
+
+check("a new entry is written encrypted when the backend works", () => {
+  enableStubRoundTrip();
+  const id = makeBox();
+  addEntry(id, { content: "hunter2" });
+  assert.equal(onDiskIsEncrypted(id), true, "plaintext reached the file");
+  assert.ok(
+    !fs.readFileSync(contentPath(id), "utf8").includes("hunter2"),
+    "the secret is readable in the file",
+  );
+  assert.equal(entriesOf(id)[0].content, "hunter2", "it must still read back");
+});
+
+check("opening a legacy box upgrades it in place", () => {
+  const id = makeBox();
+  addEntry(id, { content: "written before encryption" });   // stub cannot seal yet
+  assert.equal(onDiskIsEncrypted(id), false);
+
+  enableStubRoundTrip();
+  const loaded = getBoxContent(id);
+  assert.equal(loaded.state, "ok");
+  assert.equal((loaded as { encrypted: boolean }).encrypted, true, "not reported as upgraded");
+  assert.equal(onDiskIsEncrypted(id), true, "not upgraded on disk");
+  assert.equal(entriesOf(id)[0].content, "written before encryption");
+});
+
+check("a box with no file is not given one just by being opened", () => {
+  const id = makeBox();
+  enableStubRoundTrip();
+  getBoxContent(id);
+  assert.equal(fs.existsSync(contentPath(id)), false, "an empty box got a file it never had");
+});
+
+check("upgrade does NOT run when the backend cannot encrypt", () => {
+  // Without this gate a machine with no keychain rewrites every legacy box in
+  // plaintext on every open, forever — the file stays legacy-shaped so the
+  // condition never clears.
+  const id = makeBox();
+  addEntry(id, { content: "stays put" });
+  const before = fs.readFileSync(contentPath(id));
+
+  safeStorage.isEncryptionAvailable = () => false;
+  getBoxContent(id);
+  assert.deepEqual(fs.readFileSync(contentPath(id)), before, "the file was rewritten");
+});
+
+check("an encrypted box REFUSES a save that could not encrypt", () => {
+  // The macOS cancel case: the box is already encrypted, the user dismisses the
+  // keychain prompt, and the next save would otherwise write it back in clear.
+  enableStubRoundTrip();
+  const id = makeBox();
+  addEntry(id, { content: "secret" });
+  assert.equal(onDiskIsEncrypted(id), true);
+  const before = fs.readFileSync(contentPath(id));
+
+  safeStorage.isEncryptionAvailable = () => false;
+  const result = addEntry(id, { content: "added while locked" });
+  assert.equal(result.success, false, "the downgrade should have been refused");
+  assert.deepEqual(fs.readFileSync(contentPath(id)), before, "the file changed anyway");
+});
+
+check("a legacy box may still be saved when encryption is unavailable", () => {
+  // It was already plaintext, so writing plaintext is not a downgrade. Refusing
+  // here would lock a keychain-less user out of their own vault.
+  safeStorage.isEncryptionAvailable = () => false;
+  const id = makeBox();
+  const result = addEntry(id, { content: "no keychain here" });
+  assert.equal(result.success, true, result.error ?? "");
+  assert.equal(entriesOf(id)[0].content, "no keychain here");
+});
+
+check("updating and deleting an encrypted box keep it encrypted", () => {
+  enableStubRoundTrip();
+  const id = makeBox();
+  const first = addEntry(id, { content: "one" }).entry!;
+  addEntry(id, { content: "two" });
+  assert.equal(updateEntry(id, first.id, { content: "edited" }).success, true);
+  assert.equal(onDiskIsEncrypted(id), true, "update wrote plaintext");
+  assert.equal(deleteEntry(id, first.id).success, true);
+  assert.equal(onDiskIsEncrypted(id), true, "delete wrote plaintext");
+  assert.equal(entriesOf(id)[0].content, "two");
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ", WITH FAILURES" : ""}\n`);
