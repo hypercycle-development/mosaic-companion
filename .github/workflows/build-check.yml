@@ -38,11 +38,12 @@ jobs:
 
       # Node-side unit tests. Cheap, and they run before the ~minutes-long
       # packaging steps below so a broken vault fails the job in seconds.
-      # x64 only: the suite is architecture-independent and running it twice
-      # buys nothing. `npm run test:addons` belongs beside these and is left out
-      # only because it does not exist on this branch's base — it arrives with
-      # the add-on catalogue work, and whoever merges the two stacks must add
-      # the step, or the withdrawal tests gate nothing.
+      # x64 only: the suites are architecture-independent and running them
+      # twice buys nothing.
+      - name: Typecheck (x64 only)
+        if: matrix.arch == 'x64'
+        run: npm run typecheck
+
       - name: Vault persistence tests (x64 only)
         if: matrix.arch == 'x64'
         run: npm run test:vault
@@ -50,6 +51,14 @@ jobs:
       - name: Vault crypto and atomic-write tests (x64 only)
         if: matrix.arch == 'x64'
         run: npm run test:vault-crypto
+
+      # The withdrawal tests are the enforcement tests for a security
+      # mechanism — an addon the publisher has withdrawn must stop running on
+      # someone's machine. Until this step existed they ran nowhere in CI and
+      # gated nothing.
+      - name: Addon withdrawal tests (x64 only)
+        if: matrix.arch == 'x64'
+        run: npm run test:addons
 
       - name: Install Linux build dependencies
         run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot
