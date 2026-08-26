@@ -88,6 +88,46 @@ export function isRegistryFresh(sequence: number, highestSeen: number): boolean 
   return sequence >= highestSeen;
 }
 
+/**
+ * What a 404 at the pinned catalogue location actually means.
+ *
+ * Before the first catalogue is published, a 404 is the normal and expected
+ * state: a key is pinned, so the fetch genuinely happens, and there is simply
+ * nothing published there yet. Reporting that as an error makes an empty
+ * catalogue read as a broken app.
+ *
+ * That window closes the first time a catalogue verifies, and this is the
+ * distinction the first version of this check missed. Afterwards the app holds
+ * persisted proof that a catalogue exists, so a 404 is no longer "nothing is
+ * published" — it is the pinned location failing to serve what was there
+ * before. That is precisely the threat model `isRegistryFresh` defends
+ * against: a network position, a compromised host or a stale CDN edge, here
+ * suppressing withdrawals the publisher has since issued. Telling that user
+ * nothing is published is untrue, and telling them nothing at all leaves no
+ * signal until the staleness banner at CATALOGUE_STALE_AFTER_DAYS — a silent
+ * window measured in days.
+ *
+ * The registry and its signature are reported apart because a half-finished
+ * publish — the registry uploaded, its signature not — is a publisher-side
+ * fault that must not look like an empty catalogue either.
+ *
+ * Precondition: at least one of the two flags is true. The caller only reaches
+ * here having seen a 404.
+ */
+export type CatalogueMiss =
+  | { kind: "unpublished" }
+  | { kind: "missing"; what: "registry" | "signature" | "both" };
+
+export function classifyCatalogueMiss(
+  registryMissing: boolean,
+  signatureMissing: boolean,
+  hasEverVerified: boolean,
+): CatalogueMiss {
+  if (!hasEverVerified) return { kind: "unpublished" };
+  if (registryMissing && signatureMissing) return { kind: "missing", what: "both" };
+  return { kind: "missing", what: registryMissing ? "registry" : "signature" };
+}
+
 export function readSequence(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }

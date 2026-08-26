@@ -40,6 +40,7 @@ import {
   normalizeWithdrawals,
   readSequence,
   isCatalogueStale,
+  classifyCatalogueMiss,
   WITHDRAWAL_ERROR_PREFIX,
 } from "./withdrawal";
 import { activateAddon, deactivateAddon, isAddonActivated, getAddonRoot } from "./loader";
@@ -164,7 +165,29 @@ export async function fetchCatalogue(opts?: {
     // between shipping the pinned key and publishing the first catalogue,
     // which reads as a broken app rather than an empty one.
     if (registryResp.status === 404 || sigResp.status === 404) {
-      return { success: false, unavailable: true, error: UNAVAILABLE };
+      // Which of the two it means depends on whether this app has ever
+      // verified a catalogue — see `classifyCatalogueMiss`. The state read
+      // lives here; the decision is pure and tested.
+      const miss = classifyCatalogueMiss(
+        registryResp.status === 404,
+        sigResp.status === 404,
+        getRegistrySync() !== undefined,
+      );
+      if (miss.kind === "unpublished") {
+        return { success: false, unavailable: true, error: UNAVAILABLE };
+      }
+      const subject =
+        miss.what === "both"
+          ? "The addon registry and its signature are"
+          : miss.what === "registry"
+            ? "The addon registry is"
+            : "The addon registry signature is";
+      return {
+        success: false,
+        error:
+          `${subject} missing from the published location (HTTP 404), but this app has ` +
+          `verified a catalogue before now. Withdrawal notices may not be reaching you.`,
+      };
     }
     if (!registryResp.ok) return { success: false, error: `Failed to fetch registry: HTTP ${registryResp.status}` };
     if (!sigResp.ok) return { success: false, error: `Failed to fetch registry signature: HTTP ${sigResp.status}` };

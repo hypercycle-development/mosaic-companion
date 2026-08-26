@@ -20,6 +20,7 @@ import {
   DEFAULT_WITHDRAWAL_REASON,
   MAX_WITHDRAWAL_REASON,
   isCatalogueStale,
+  classifyCatalogueMiss,
   CATALOGUE_STALE_AFTER_DAYS,
   type WithdrawalRecord,
 } from "../../electron/addons/withdrawal";
@@ -160,6 +161,36 @@ check("the threshold itself warns", () => {
 
 check("well past the threshold warns", () => {
   assert.equal(isCatalogueStale(CATALOGUE_STALE_AFTER_DAYS + 90), true);
+});
+
+console.log("\nA 404 at the pinned catalogue location");
+
+check("before anything is published, a 404 means the catalogue is empty", () => {
+  // The window between shipping the pinned key and publishing catalogue-v1.
+  // The fetch really happens now that a key is pinned, and 404 is the correct,
+  // expected answer — not a fault to report.
+  assert.deepEqual(classifyCatalogueMiss(true, true, false), { kind: "unpublished" });
+  assert.deepEqual(classifyCatalogueMiss(true, false, false), { kind: "unpublished" });
+});
+
+check("after a catalogue has verified, a 404 is NOT reported as unpublished", () => {
+  // The app holds persisted proof a catalogue exists. Saying "nothing is
+  // published yet" here is untrue, and saying it silently suppresses every new
+  // withdrawal until the staleness banner days later.
+  const miss = classifyCatalogueMiss(true, true, true);
+  assert.notEqual(miss.kind, "unpublished");
+});
+
+check("a missing registry and a missing signature are told apart", () => {
+  assert.deepEqual(classifyCatalogueMiss(true, false, true), { kind: "missing", what: "registry" });
+  assert.deepEqual(classifyCatalogueMiss(false, true, true), { kind: "missing", what: "signature" });
+  assert.deepEqual(classifyCatalogueMiss(true, true, true), { kind: "missing", what: "both" });
+});
+
+check("a half-finished publish does not read as an empty catalogue", () => {
+  // Registry uploaded, signature upload failed. A publisher-side fault, and
+  // distinguishable from both an empty catalogue and a whole-location 404.
+  assert.deepEqual(classifyCatalogueMiss(false, true, true), { kind: "missing", what: "signature" });
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ", WITH FAILURES" : ""}\n`);
