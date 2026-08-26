@@ -37,6 +37,8 @@ import {
   loadVault,
   updateBox,
   updateEntry,
+  lastObservedEncryptionStatus,
+  resetObservedEncryptionStatus,
 } from "../../electron/integrations/vault";
 import type { VaultEntry } from "../../electron/integrations/vault/types";
 
@@ -452,13 +454,42 @@ check("upgrade does NOT run when the backend cannot encrypt", () => {
   // Without this gate a machine with no keychain rewrites every legacy box in
   // plaintext on every open, forever — the file stays legacy-shaped so the
   // condition never clears.
+  //
+  // The fixture is deliberately written with DIFFERENT formatting from what the
+  // module would produce. A plaintext rewrite is otherwise byte-identical to
+  // what is already there, so a content comparison passes with the gate removed
+  // and pins nothing. Compact JSON here means any rewrite reformats the file
+  // and the assertion fails, which is what makes this a test of the gate.
   const id = makeBox();
   addEntry(id, { content: "stays put" });
-  const before = fs.readFileSync(contentPath(id));
+  const compact = JSON.stringify(JSON.parse(fs.readFileSync(contentPath(id), "utf8")));
+  fs.writeFileSync(contentPath(id), compact, "utf8");
 
   safeStorage.isEncryptionAvailable = () => false;
   getBoxContent(id);
-  assert.deepEqual(fs.readFileSync(contentPath(id)), before, "the file was rewritten");
+  assert.equal(fs.readFileSync(contentPath(id), "utf8"), compact, "the file was rewritten");
+});
+
+check("an agent read never upgrades, and never probes the keychain", () => {
+  // The agent path passes `upgrade: false`. Sealing would probe safeStorage,
+  // which on macOS can raise a modal password prompt with nothing on screen to
+  // explain what wants it — during an autonomous tool call.
+  const id = makeBox();
+  addEntry(id, { content: "legacy" });
+  const compact = JSON.stringify(JSON.parse(fs.readFileSync(contentPath(id), "utf8")));
+  fs.writeFileSync(contentPath(id), compact, "utf8");
+
+  enableStubRoundTrip();
+  let probed = false;
+  safeStorage.isEncryptionAvailable = () => {
+    probed = true;
+    return true;
+  };
+
+  const loaded = getBoxContent(id, { upgrade: false });
+  assert.equal(loaded.state, "ok");
+  assert.equal(probed, false, "the agent path probed the keychain");
+  assert.equal(fs.readFileSync(contentPath(id), "utf8"), compact, "the agent path rewrote the file");
 });
 
 check("an encrypted box REFUSES a save that could not encrypt", () => {
@@ -496,6 +527,65 @@ check("updating and deleting an encrypted box keep it encrypted", () => {
   assert.equal(deleteEntry(id, first.id).success, true);
   assert.equal(onDiskIsEncrypted(id), true, "delete wrote plaintext");
   assert.equal(entriesOf(id)[0].content, "two");
+});
+
+console.log("\nObserved encryption status (WP5)");
+
+check("status starts unknown, before any vault work", () => {
+  // Session state, so it is reset explicitly rather than by `check`'s per-test
+  // cleanup — which resets the temp profile, not the module.
+  resetObservedEncryptionStatus();
+  assert.equal(lastObservedEncryptionStatus(), "unknown");
+});
+
+check("status stays unknown while nothing touches the backend", () => {
+  resetObservedEncryptionStatus();
+  const id = makeBox();          // config only, no content file, no seal
+  getBoxes();
+  getBoxContent(id);             // absent file: nothing to seal or open
+  assert.equal(lastObservedEncryptionStatus(), "unknown");
+});
+
+check("a successful seal records protected", () => {
+  enableStubRoundTrip();
+  const id = makeBox();
+  addEntry(id, { content: "x" });
+  assert.equal(lastObservedEncryptionStatus(), "protected");
+});
+
+check("a fallback to plaintext records unavailable, not protected", () => {
+  safeStorage.isEncryptionAvailable = () => false;
+  const id = makeBox();
+  addEntry(id, { content: "x" });
+  assert.equal(lastObservedEncryptionStatus(), "unavailable");
+});
+
+check("a Linux basic_text backend records obfuscated, NOT protected", () => {
+  // The bug this pins: `sealEntries` succeeds on basic_text, so `encrypted` is
+  // true — and deriving the status from that boolean told exactly the least
+  // protected users that their vault was safe. basic_text obfuscates with a
+  // hardcoded key; anyone who can read the file can recover it.
+  const platform = process.platform;
+  Object.defineProperty(process, "platform", { value: "linux", configurable: true });
+  try {
+    enableStubRoundTrip();
+    safeStorage.getSelectedStorageBackend = () => "basic_text";
+    const id = makeBox();
+    addEntry(id, { content: "x" });
+    assert.equal(lastObservedEncryptionStatus(), "obfuscated");
+  } finally {
+    Object.defineProperty(process, "platform", { value: platform, configurable: true });
+  }
+});
+
+check("reading an encrypted box records protected without any save", () => {
+  // A session that only reads must not report the vault as stored in the clear.
+  enableStubRoundTrip();
+  const id = makeBox();
+  addEntry(id, { content: "x" });
+  resetObservedEncryptionStatus();
+  getBoxContent(id);
+  assert.equal(lastObservedEncryptionStatus(), "protected");
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ", WITH FAILURES" : ""}\n`);

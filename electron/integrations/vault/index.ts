@@ -308,6 +308,14 @@ function loadBoxContent(boxId: string): BoxContentResult {
   // `openRecord` owns every question about what a content file may contain —
   // shape, discrimination, and (once WP4 lands) decryption. It never throws.
   const record = openRecord(boxId, raw);
+  if (record.state === "encrypted") {
+    // A successful decrypt is real evidence — it proves the backend works and
+    // that this box is sealed. Recording it here is what stops a session that
+    // only *reads* encrypted boxes from telling the user their vault is stored
+    // in the clear, which is a false statement rather than a cautious one.
+    // `encryptionStatus()` cannot prompt at this point: the key was just used.
+    noteEncryptionStatus(encryptionStatus());
+  }
   if (record.state === "unreadable") {
     console.error("[Vault] Box content unreadable:", boxId, record.reason);
     return { state: "unreadable", reason: record.reason };
@@ -331,7 +339,11 @@ function saveBoxContent(
 ): { success: boolean; error?: string } {
   ensureContentDir();
   const record = sealEntries(boxId, entries);
-  noteEncryptionStatus(record.encrypted ? "protected" : encryptionStatus());
+  // The record's own status, never `record.encrypted` collapsed to a boolean.
+  // A Linux `basic_text` backend seals successfully — `encrypted` is true — over
+  // data that is obfuscated, not protected. Deriving the banner from the boolean
+  // showed exactly those users a green light saying their vault was safe.
+  noteEncryptionStatus(record.status);
 
   // **Never downgrade a box that was encrypted.** `sealEntries` falls back to
   // plaintext when the backend is unavailable — which, on macOS, is what
@@ -382,6 +394,18 @@ export function lastObservedEncryptionStatus(): EncryptionStatus | "unknown" {
 }
 
 /**
+ * Forget what was observed, returning to "unknown".
+ *
+ * Session state, so in the app this only ever happens at launch — nothing calls
+ * it. It exists because the alternative is leaving WP5's initial state and its
+ * transitions untested, and a status the user reads should not be the one part
+ * of this module nothing pins.
+ */
+export function resetObservedEncryptionStatus(): void {
+  observedStatus = "unknown";
+}
+
+/**
  * Get all entries in a box, or why they could not be read — upgrading a legacy
  * plaintext box to encrypted on the way past.
  *
@@ -395,10 +419,22 @@ export function lastObservedEncryptionStatus(): EncryptionStatus | "unknown" {
  * - **Never on a failed write.** A failure here is not the user's operation
  *   failing; they asked to read. So it is logged and swallowed, and the entries
  *   they asked for are returned regardless.
+ *
+ * `upgrade: false` opts out, and the agent tool path passes it. Sealing probes
+ * the keychain, which on macOS can raise a modal password dialog — and an
+ * agent's tool call is not a moment when the user is expecting to be asked for
+ * their password, with nothing on screen to say what wants it. An autonomous
+ * read should also not rewrite the file it read. A legacy box an agent touches
+ * is simply left for the next time a person opens it.
  */
-export function getBoxContent(boxId: string): BoxContentResult {
+export function getBoxContent(
+  boxId: string,
+  opts?: { upgrade?: boolean },
+): BoxContentResult {
   const loaded = loadBoxContent(boxId);
   if (loaded.state !== "ok" || loaded.encrypted) return loaded;
+  // Callers that are not a person can opt out. See `upgrade` in the doc above.
+  if (opts?.upgrade === false) return loaded;
   if (loaded.entries.length === 0 && !fs.existsSync(boxContentPath(boxId))) {
     // A box with no file yet. Nothing to upgrade, and writing one here would
     // create a file for a box the user has never put anything in.
@@ -406,7 +442,7 @@ export function getBoxContent(boxId: string): BoxContentResult {
   }
 
   const sealed = sealEntries(boxId, loaded.entries);
-  noteEncryptionStatus(sealed.encrypted ? "protected" : encryptionStatus());
+  noteEncryptionStatus(sealed.status);
   if (!sealed.encrypted) return loaded;
 
   try {
