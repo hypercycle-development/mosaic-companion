@@ -7,6 +7,10 @@ name: Release
 #   1. Merge a PR that bumps the version in package.json (+ lockfile).
 #   2. Run this workflow via "Run workflow" (Actions tab).
 #   3. Optionally tick "dry run" first to smoke-test credentials.
+#   4. The build uploads to a DRAFT release and then WAITS for approval on the
+#      `release-publish` environment. Install and test the real signed artifact
+#      from the draft before approving — publishing is what moves latest.json,
+#      and existing installs are offered the update the moment it does.
 #
 # `also_publish_s3` additionally publishes to the legacy S3 bucket so that
 # installs of v0.1.7 and older (whose updaters point at S3) get notified
@@ -196,6 +200,22 @@ jobs:
   finalize:
     needs: [resolve-version, build]
     runs-on: ubuntu-latest
+    # The pause that makes the draft a checkpoint rather than a formality.
+    #
+    # Without this, finalize runs the instant the build matrix completes: the
+    # asset check below verifies FILENAMES, not that the app works, and the
+    # next step flips the release to public and repoints latest.json. There was
+    # no point at which a human could install the artifact and look at it.
+    #
+    # Some things can only be checked in a packaged, signed build — real
+    # safeStorage encryption and the pinned catalogue key among them — and no
+    # test suite reaches them. This is where that check goes.
+    #
+    # NOTE: this gate is INERT until the `release-publish` environment exists
+    # AND carries required reviewers. GitHub creates a missing environment
+    # implicitly with no protection rules, and the job then sails through. If
+    # the run does not pause, the environment is not configured.
+    environment: release-publish
     env:
       VERSION: ${{ needs.resolve-version.outputs.version }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
