@@ -11,7 +11,7 @@ import { app } from "electron";
 import fs from "fs";
 import path from "path";
 import type { VaultBox, VaultConfig, VaultEntry, BoxContentResult } from "./types";
-import { openRecord, plaintextRecord } from "./crypto";
+import { openRecord, sealEntries, encryptionStatus, type EncryptionStatus } from "./crypto";
 import { writeFileAtomic } from "../../utils/atomicWrite";
 
 // =============================================================================
@@ -42,72 +42,88 @@ const DEFAULT_VAULT: VaultConfig = {
 // =============================================================================
 
 /**
- * Set when `vault.json` exists but could not be read as a vault config, and
- * cleared on every successful load. While it is set, `saveVault` refuses.
+ * The vault config as read, or why it could not be read.
  *
- * Without this, a half-written `vault.json` loaded as "no boxes" and the next
- * `addBox` saved that over the top — every box gone from the index, and every
- * content file orphaned on disk with nothing left pointing at it. The config
- * is small and rewritten often, so the window is not theoretical.
- *
- * Read degrades (an unreadable config lists no boxes); writes refuse. That
- * asymmetry is the whole guard: nothing is destroyed, and the file is left
- * exactly as found for manual recovery.
+ * A returned value rather than a module flag. The guard has to be tied to the
+ * very read a mutation was computed from — a flag set by one call and consulted
+ * by another is only correct while nothing can interleave between them, and
+ * that invariant is not one the type system or the reviewer can see.
  */
-let vaultConfigUnreadable: string | null = null;
+type VaultConfigResult =
+  | { state: "ok"; config: VaultConfig }
+  | { state: "unreadable"; reason: string };
+
+function readVault(): VaultConfigResult {
+  try {
+    if (!fs.existsSync(vaultPath)) {
+      // Absent is legitimately empty — a first run, and the only case where
+      // writing a fresh config is correct.
+      return { state: "ok", config: { ...DEFAULT_VAULT, boxes: [] } };
+    }
+    const parsed = JSON.parse(fs.readFileSync(vaultPath, "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("vault.json is not a vault config object");
+    }
+    if (!Array.isArray(parsed.boxes)) {
+      throw new Error("vault.json has no box list");
+    }
+    // Fresh array: a shallow spread would alias DEFAULT_VAULT.boxes, which the
+    // callers of addBox and deleteBox then mutate in place.
+    return { state: "ok", config: { ...DEFAULT_VAULT, ...parsed, boxes: parsed.boxes } };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[Vault] vault.json is present but unreadable:", msg);
+    return { state: "unreadable", reason: msg };
+  }
+}
 
 /** Whether the vault config on disk is present but unreadable. */
 export function vaultConfigError(): string | null {
-  return vaultConfigUnreadable;
+  const read = readVault();
+  return read.state === "unreadable" ? read.reason : null;
 }
 
-/** Load vault config from disk, returning defaults if missing. */
+/**
+ * Load vault config from disk, degrading an unreadable one to an empty list.
+ *
+ * Reads degrade; writes refuse. Only `mutateVault` may write, and it makes its
+ * own read, so a caller of this can never use it as the basis for a save.
+ */
 export function loadVault(): VaultConfig {
-  try {
-    if (fs.existsSync(vaultPath)) {
-      const data = fs.readFileSync(vaultPath, "utf8");
-      const parsed = JSON.parse(data);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("vault.json is not a vault config object");
-      }
-      if (!Array.isArray(parsed.boxes)) {
-        throw new Error("vault.json has no box list");
-      }
-      vaultConfigUnreadable = null;
-      return { ...DEFAULT_VAULT, ...parsed, boxes: parsed.boxes };
-    }
-    // Absent is legitimately empty — a first run. Distinct from unreadable,
-    // and the only case where writing a fresh config is correct.
-    vaultConfigUnreadable = null;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    vaultConfigUnreadable = msg;
-    console.error("[Vault] vault.json is present but unreadable:", msg);
-  }
-  // Fresh array: a shallow spread would alias DEFAULT_VAULT.boxes, which the
-  // callers of addBox and deleteBox then mutate in place.
-  return { ...DEFAULT_VAULT, boxes: [] };
+  const read = readVault();
+  return read.state === "ok" ? read.config : { ...DEFAULT_VAULT, boxes: [] };
 }
 
-/** Save vault config to disk. */
-function saveVault(config: VaultConfig): { success: boolean; error?: string } {
-  if (vaultConfigUnreadable) {
+/**
+ * The only path that writes `vault.json`.
+ *
+ * Reads, refuses if unreadable, applies `mutate`, writes. Load and save are the
+ * same call, so there is no window in which the config could be repaired — or
+ * corrupted — between the two, and no way to save a config derived from a read
+ * that failed.
+ */
+function mutateVault<T>(
+  mutate: (vault: VaultConfig) => { error: string } | { value: T },
+): { success: boolean; error?: string; value?: T } {
+  const read = readVault();
+  if (read.state === "unreadable") {
     return {
       success: false,
       error:
-        `The vault index could not be read (${vaultConfigUnreadable}), so it will not be ` +
+        `The vault index could not be read (${read.reason}), so it will not be ` +
         `overwritten. Your boxes are still on disk.`,
     };
   }
+  const outcome = mutate(read.config);
+  if ("error" in outcome) return { success: false, error: outcome.error };
   try {
-    writeFileAtomic(vaultPath, JSON.stringify(config, null, 2));
-    console.log("[Vault] Config saved to:", vaultPath);
-    return { success: true };
+    writeFileAtomic(vaultPath, JSON.stringify(read.config, null, 2));
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("[Vault] Failed to save:", msg);
     return { success: false, error: msg };
   }
+  return { success: true, value: outcome.value };
 }
 
 // =============================================================================
@@ -132,29 +148,28 @@ export function addBox(
     return { success: false, error: "Box name is required" };
   }
 
-  const vault = loadVault();
+  const result = mutateVault<VaultBox>((vault) => {
+    // Prevent duplicate names
+    const nameExists = vault.boxes.some(
+      (b) => b.name.toLowerCase() === input.name!.trim().toLowerCase(),
+    );
+    if (nameExists) {
+      return { error: `A box named "${input.name.trim()}" already exists` };
+    }
 
-  // Prevent duplicate names
-  const nameExists = vault.boxes.some(
-    (b) => b.name.toLowerCase() === input.name!.trim().toLowerCase(),
-  );
-  if (nameExists) {
-    return { success: false, error: `A box named "${input.name.trim()}" already exists` };
-  }
-
-  const now = Date.now();
-  const box: VaultBox = {
-    id: `box-${now}`,
-    name: input.name.trim(),
-    description: input.description?.trim() || undefined,
-    sourceType: input.sourceType || "manual",
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  vault.boxes.push(box);
-  const result = saveVault(vault);
-  return { ...result, box };
+    const now = Date.now();
+    const box: VaultBox = {
+      id: `box-${now}`,
+      name: input.name.trim(),
+      description: input.description?.trim() || undefined,
+      sourceType: input.sourceType || "manual",
+      createdAt: now,
+      updatedAt: now,
+    };
+    vault.boxes.push(box);
+    return { value: box };
+  });
+  return { success: result.success, error: result.error, box: result.value };
 }
 
 /** Update an existing box (partial update). */
@@ -162,33 +177,26 @@ export function updateBox(
   id: string,
   updates: Partial<Omit<VaultBox, "id" | "createdAt">>,
 ): { success: boolean; box?: VaultBox; error?: string } {
-  const vault = loadVault();
-  const index = vault.boxes.findIndex((b) => b.id === id);
+  const result = mutateVault<VaultBox>((vault) => {
+    const index = vault.boxes.findIndex((b) => b.id === id);
+    if (index === -1) return { error: "Box not found" };
 
-  if (index === -1) {
-    return { success: false, error: "Box not found" };
-  }
-
-  // If renaming, check for duplicates (exclude self)
-  if (updates.name) {
-    const nameExists = vault.boxes.some(
-      (b) =>
-        b.id !== id &&
-        b.name.toLowerCase() === updates.name!.trim().toLowerCase(),
-    );
-    if (nameExists) {
-      return { success: false, error: `A box named "${updates.name.trim()}" already exists` };
+    // If renaming, check for duplicates (exclude self)
+    if (updates.name) {
+      const nameExists = vault.boxes.some(
+        (b) =>
+          b.id !== id &&
+          b.name.toLowerCase() === updates.name!.trim().toLowerCase(),
+      );
+      if (nameExists) {
+        return { error: `A box named "${updates.name.trim()}" already exists` };
+      }
     }
-  }
 
-  vault.boxes[index] = {
-    ...vault.boxes[index],
-    ...updates,
-    updatedAt: Date.now(),
-  };
-
-  const result = saveVault(vault);
-  return { ...result, box: vault.boxes[index] };
+    vault.boxes[index] = { ...vault.boxes[index], ...updates, updatedAt: Date.now() };
+    return { value: vault.boxes[index] };
+  });
+  return { success: result.success, error: result.error, box: result.value };
 }
 
 /** Delete a box by ID. */
@@ -198,19 +206,16 @@ export function deleteBox(
   // Read the content before touching the config, so the decision below is made
   // on what is actually on disk rather than on what survived the delete.
   const loaded = loadBoxContent(id);
-  const vault = loadVault();
-  const index = vault.boxes.findIndex((b) => b.id === id);
-
-  if (index === -1) {
-    return { success: false, error: "Box not found" };
-  }
-
-  vault.boxes.splice(index, 1);
-  const result = saveVault(vault);
+  const result = mutateVault<true>((vault) => {
+    const index = vault.boxes.findIndex((b) => b.id === id);
+    if (index === -1) return { error: "Box not found" };
+    vault.boxes.splice(index, 1);
+    return { value: true };
+  });
   if (!result.success) {
     // The box is still listed on disk; deleting its content now would leave a
     // box whose entries are gone.
-    return result;
+    return { success: false, error: result.error };
   }
 
   // Clean up the content file — unless we could not read it, in which case it
@@ -303,6 +308,14 @@ function loadBoxContent(boxId: string): BoxContentResult {
   // `openRecord` owns every question about what a content file may contain —
   // shape, discrimination, and (once WP4 lands) decryption. It never throws.
   const record = openRecord(boxId, raw);
+  if (record.state === "encrypted") {
+    // A successful decrypt is real evidence — it proves the backend works and
+    // that this box is sealed. Recording it here is what stops a session that
+    // only *reads* encrypted boxes from telling the user their vault is stored
+    // in the clear, which is a false statement rather than a cautious one.
+    // `encryptionStatus()` cannot prompt at this point: the key was just used.
+    noteEncryptionStatus(encryptionStatus());
+  }
   if (record.state === "unreadable") {
     console.error("[Vault] Box content unreadable:", boxId, record.reason);
     return { state: "unreadable", reason: record.reason };
@@ -322,12 +335,35 @@ function loadBoxContent(boxId: string): BoxContentResult {
 function saveBoxContent(
   boxId: string,
   entries: VaultEntry[],
+  wasEncrypted: boolean,
 ): { success: boolean; error?: string } {
   ensureContentDir();
+  const record = sealEntries(boxId, entries);
+  // The record's own status, never `record.encrypted` collapsed to a boolean.
+  // A Linux `basic_text` backend seals successfully — `encrypted` is true — over
+  // data that is obfuscated, not protected. Deriving the banner from the boolean
+  // showed exactly those users a green light saying their vault was safe.
+  noteEncryptionStatus(record.status);
+
+  // **Never downgrade a box that was encrypted.** `sealEntries` falls back to
+  // plaintext when the backend is unavailable — which, on macOS, is what
+  // clicking Cancel on the keychain prompt produces. Without this check a user
+  // who dismissed that dialog would have their next save write an
+  // already-encrypted box back out in the clear, silently, in the ordinary
+  // course of adding an entry.
+  //
+  // The test is the box's own prior state rather than the platform, so it holds
+  // wherever the backend can come and go.
+  if (wasEncrypted && !record.encrypted) {
+    return {
+      success: false,
+      error:
+        "This box is encrypted and MosAIc could not reach the encryption key, so it was " +
+        "not saved. Nothing has been changed on disk. Unlock your keychain and try again.",
+    };
+  }
+
   try {
-    // Plaintext for now; WP4 swaps this one call for `sealEntries`. The file
-    // shape has a single owner either way.
-    const record = plaintextRecord(boxId, entries);
     writeFileAtomic(boxContentPath(boxId), record.json);
     return { success: true };
   } catch (err) {
@@ -337,9 +373,86 @@ function saveBoxContent(
   }
 }
 
-/** Get all entries in a box, or why they could not be read. */
-export function getBoxContent(boxId: string): BoxContentResult {
-  return loadBoxContent(boxId);
+/**
+ * Last encryption status actually observed, and never `isEncryptionAvailable()`
+ * called on demand.
+ *
+ * Asking safeStorage whether encryption is available can raise a modal OS
+ * password prompt — verified on macOS 2026-08-25. So the UI must never trigger
+ * that question by rendering. This records what was learned while doing work
+ * the user asked for, and the status IPC serves the record.
+ */
+let observedStatus: EncryptionStatus | "unknown" = "unknown";
+
+function noteEncryptionStatus(status: EncryptionStatus): void {
+  observedStatus = status;
+}
+
+/** What was last observed. Never prompts; "unknown" until real work happens. */
+export function lastObservedEncryptionStatus(): EncryptionStatus | "unknown" {
+  return observedStatus;
+}
+
+/**
+ * Forget what was observed, returning to "unknown".
+ *
+ * Session state, so in the app this only ever happens at launch — nothing calls
+ * it. It exists because the alternative is leaving WP5's initial state and its
+ * transitions untested, and a status the user reads should not be the one part
+ * of this module nothing pins.
+ */
+export function resetObservedEncryptionStatus(): void {
+  observedStatus = "unknown";
+}
+
+/**
+ * Get all entries in a box, or why they could not be read — upgrading a legacy
+ * plaintext box to encrypted on the way past.
+ *
+ * Upgrade-on-open, and only on open: there is no sweep, so a box the user never
+ * opens stays as it is. Two conditions, both load-bearing:
+ *
+ * - **Only when the seal actually encrypted.** `sealEntries` falls back to
+ *   plaintext rather than failing, so without this a machine with no keychain
+ *   would rewrite every legacy box in plaintext on every single open, forever —
+ *   the file stays legacy-shaped, so the condition never clears.
+ * - **Never on a failed write.** A failure here is not the user's operation
+ *   failing; they asked to read. So it is logged and swallowed, and the entries
+ *   they asked for are returned regardless.
+ *
+ * `upgrade: false` opts out, and the agent tool path passes it. Sealing probes
+ * the keychain, which on macOS can raise a modal password dialog — and an
+ * agent's tool call is not a moment when the user is expecting to be asked for
+ * their password, with nothing on screen to say what wants it. An autonomous
+ * read should also not rewrite the file it read. A legacy box an agent touches
+ * is simply left for the next time a person opens it.
+ */
+export function getBoxContent(
+  boxId: string,
+  opts?: { upgrade?: boolean },
+): BoxContentResult {
+  const loaded = loadBoxContent(boxId);
+  if (loaded.state !== "ok" || loaded.encrypted) return loaded;
+  // Callers that are not a person can opt out. See `upgrade` in the doc above.
+  if (opts?.upgrade === false) return loaded;
+  if (loaded.entries.length === 0 && !fs.existsSync(boxContentPath(boxId))) {
+    // A box with no file yet. Nothing to upgrade, and writing one here would
+    // create a file for a box the user has never put anything in.
+    return loaded;
+  }
+
+  const sealed = sealEntries(boxId, loaded.entries);
+  noteEncryptionStatus(sealed.status);
+  if (!sealed.encrypted) return loaded;
+
+  try {
+    writeFileAtomic(boxContentPath(boxId), sealed.json);
+    console.log("[Vault] Upgraded box content to encrypted at rest:", boxId);
+    return { ...loaded, encrypted: true };
+  } catch (error) {
+    console.warn("[Vault] Could not upgrade box to encrypted; leaving it as it is:", boxId, error);
+    return loaded;
+  }
 }
 
 /** The refusal every mutator returns for a box that could not be read. */
@@ -376,7 +489,7 @@ export function addEntry(
   };
 
   const entries = [...loaded.entries, entry];
-  const result = saveBoxContent(boxId, entries);
+  const result = saveBoxContent(boxId, entries, loaded.encrypted);
   return { ...result, entry };
 }
 
@@ -402,7 +515,7 @@ export function updateEntry(
     updatedAt: Date.now(),
   };
 
-  const result = saveBoxContent(boxId, entries);
+  const result = saveBoxContent(boxId, entries, loaded.encrypted);
   return { ...result, entry: entries[index] };
 }
 
@@ -422,5 +535,5 @@ export function deleteEntry(
   }
 
   entries.splice(index, 1);
-  return saveBoxContent(boxId, entries);
+  return saveBoxContent(boxId, entries, loaded.encrypted);
 }

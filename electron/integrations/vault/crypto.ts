@@ -104,6 +104,18 @@ export interface SealedRecord {
   /** JSON to write to the box content file. */
   json: string;
   /**
+   * The three-state status this seal was produced under.
+   *
+   * Returned rather than recomputed by the caller, for two reasons. Asking
+   * again costs a second `isEncryptionAvailable()` — which on macOS can raise a
+   * second OS password prompt inside one save. And `encrypted` alone is the
+   * boolean this module refuses to be reduced to: on a Linux `basic_text`
+   * backend a seal genuinely succeeds, so `encrypted` is true while the data is
+   * obfuscated rather than protected. A caller with only the boolean shows that
+   * user a green light over data nothing is guarding.
+   */
+  status: EncryptionStatus;
+  /**
    * False when this fell back to plaintext. Callers must gate
    * upgrade-on-open on this being true: without the gate, a machine with no
    * keychain rewrites every legacy box in plaintext on every open, forever,
@@ -119,10 +131,15 @@ export interface SealedRecord {
  * exactly one owner, this module. WP4 changes the vault's write path from this
  * to `sealEntries` and nothing else moves.
  */
-export function plaintextRecord(boxId: string, entries: VaultEntry[]): SealedRecord {
+export function plaintextRecord(
+  boxId: string,
+  entries: VaultEntry[],
+  status: EncryptionStatus,
+): SealedRecord {
   return {
     json: JSON.stringify({ boxId, entries }, null, 2),
     encrypted: false,
+    status,
   };
 }
 
@@ -145,7 +162,7 @@ export function sealEntries(boxId: string, entries: VaultEntry[]): SealedRecord 
       "[Vault] safeStorage encryption unavailable; writing box content as plaintext:",
       boxId,
     );
-    return plaintextRecord(boxId, entries);
+    return plaintextRecord(boxId, entries, status);
   }
 
   // boxId goes INSIDE the envelope, and `openRecord` refuses a blob whose
@@ -168,6 +185,7 @@ export function sealEntries(boxId: string, entries: VaultEntry[]): SealedRecord 
     return {
       json: JSON.stringify({ boxId, enc: buffer.toString("base64") }, null, 2),
       encrypted: true,
+      status,
     };
   } catch (error) {
     console.error(
@@ -175,7 +193,11 @@ export function sealEntries(boxId: string, entries: VaultEntry[]): SealedRecord 
       boxId,
       error,
     );
-    return plaintextRecord(boxId, entries);
+    // The seal failed despite the backend reporting itself usable, so the
+    // status this record was produced under is not what `encryptionStatus()`
+    // said a moment ago. Report it as unavailable: from this box's point of
+    // view, encryption was not available to it.
+    return plaintextRecord(boxId, entries, "unavailable");
   }
 }
 
