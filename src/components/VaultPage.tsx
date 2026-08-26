@@ -14,6 +14,7 @@ import {
   Shield,
   FileText,
   AlignLeft,
+  AlertTriangle,
 } from "lucide-react";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
 
@@ -747,6 +748,18 @@ export const VaultPage: React.FC = () => {
             New Box
           </button>
         )}
+      </div>
+
+      {/* Storage notice. Unconditional and deliberately so: box contents are
+          written to disk as plain JSON. When encryption at rest lands (#110)
+          this becomes conditional on whether the platform keychain actually
+          protected the file — until then it is simply true. */}
+      <div className="p-3 bg-amber-900/20 border border-amber-900/40 rounded-lg flex items-start gap-2">
+        <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+        <span className="text-sm text-amber-200/90">
+          Box contents are stored unencrypted on this device. Anyone who can
+          read your files — or a backup of them — can read your boxes.
+        </span>
       </div>
 
       {/* Error banner */}

@@ -55,9 +55,9 @@ const FEATURES = [
   },
   {
     icon: Shield,
-    title: "Vault Security",
+    title: "Vault",
     description:
-      "Keep secrets in encrypted vault boxes and control which agents can read them. Agent API keys are stored locally on this device.",
+      "Keep your own data in named boxes and control which agents can read each one. Everything stays on this device.",
     color: "text-emerald-400",
     bg: "bg-emerald-400/10",
   },
@@ -125,7 +125,7 @@ const ORIENTATION = [
     icon: Lock,
     title: "Vault",
     description:
-      "Encrypted boxes for secrets; you choose which agents can read them.",
+      "Named boxes for your own data; you choose which agents can read them.",
     color: "text-emerald-400",
     bg: "bg-emerald-400/10",
   },

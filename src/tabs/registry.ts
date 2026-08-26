@@ -53,7 +53,7 @@ export const CORE_TABS: CoreTabDef[] = [
   { id: "mcp", label: "MCP Servers", icon: "Plug", url: INTERNAL_MCP_URL, toggleable: false, order: 30, description: "Connect external tool servers (Model Context Protocol) for your agents" },
   { id: "multi-chat", label: "Chat Rooms", icon: "MessageSquare", url: INTERNAL_MULTI_CHAT_URL, toggleable: false, order: 40, description: "Multi-user rooms — invite agents with @mentions" },
   { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL, toggleable: false, order: 50, description: "Built-in Web3 wallet for on-chain interactions" },
-  { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL, toggleable: false, order: 60, description: "Encrypted boxes for secrets — you choose which agents can read them" },
+  { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL, toggleable: false, order: 60, description: "Named boxes for your own data — you choose which agents can read them" },
   // HyperInsight is no longer a core tab — it's an addon tab
   // now (mosaic-addons/addons/hyperinsight, mounted via the generic addon
   // tab mechanism). See ContentArea.tsx for the old
