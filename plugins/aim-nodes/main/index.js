@@ -385,11 +385,25 @@ export async function handlePaymentRequired(paymentData) {
     const web3SafetyConfig = loadWeb3Config().safety;
     const requireConfirmation = web3SafetyConfig.requireConfirmation ?? true;
 
-    if (!requireConfirmation) {
+    // An addon-initiated payment ALWAYS prompts, whatever the toggle says.
+    // That setting lives in Web3 settings and a user plausibly turns it off to
+    // stop being interrupted during their own agent work — it is consent for
+    // their own actions, not a standing authorisation for third-party addon
+    // code to move funds silently. `requestedBy` is set by the addon API
+    // dispatcher from the verified addon id (electron/addons/api/mcp.ts) and
+    // cannot be set by an addon's renderer.
+    const requestedBy = typeof paymentData.requestedBy === 'string' ? paymentData.requestedBy : null;
+
+    if (!requireConfirmation && !requestedBy) {
       // Auto-approve: user has disabled the confirmation modal
       console.log('[AimNodes:Payment] requireConfirmation=false — auto-approving payment.');
       approved = true;
     } else {
+      if (!requireConfirmation && requestedBy) {
+        console.log(
+          `[AimNodes:Payment] requireConfirmation=false, but this request came from addon "${requestedBy}" — prompting anyway.`,
+        );
+      }
       // Show approval modal via IPC to renderer
       const requestId = crypto.randomUUID();
       const mainWin = BrowserWindow.getAllWindows()[0];
@@ -416,6 +430,7 @@ export async function handlePaymentRequired(paymentData) {
 
       mainWin.webContents.send('payments-jit:request_approval', {
         requestId,
+        requestedBy,
         nodeUrl: paymentData.nodeUrl,
         to: paymentData.tmAddress || 'Unknown',
         token: paymentData.currencyType || 'USDC',

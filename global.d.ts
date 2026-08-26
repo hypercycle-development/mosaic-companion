@@ -31,6 +31,18 @@ declare global {
     updatedAt: number;
   }
 
+  /**
+   * Reading a box's content either works or explains why it did not. Mirrors
+   * `BoxContentResult` in `electron/integrations/vault/types.ts`.
+   *
+   * Not `VaultEntry[] | null`: a nullable array lets the renderer write
+   * `?? []` and keep type-checking, which is how an unreadable box came to be
+   * presented as an empty editable one whose next save destroyed it.
+   */
+  type BoxContentResult =
+    | { state: "ok"; entries: VaultEntry[]; encrypted: boolean }
+    | { state: "unreadable"; reason: string };
+
   // Update settings configuration
   interface UpdateSettings {
     autoDownload: boolean;
@@ -311,10 +323,13 @@ declare global {
           box?: VaultBox;
           error?: string;
         }>;
-        deleteBox: (id: string) => Promise<{ success: boolean; error?: string }>;
+        /** `setAside` names the file kept when a deleted box's content could not be read. */
+        deleteBox: (id: string) => Promise<{ success: boolean; error?: string; setAside?: string }>;
         getAgentBoxes: (agentId: string) => Promise<VaultBox[]>;
+        /** Non-null when vault.json is present but unreadable; writes are refused while so. */
+        configError: () => Promise<string | null>;
         // Content
-        getBoxContent: (boxId: string) => Promise<VaultEntry[]>;
+        getBoxContent: (boxId: string) => Promise<BoxContentResult>;
         addEntry: (boxId: string, input: { content: string; label?: string }) => Promise<{
           success: boolean;
           entry?: VaultEntry;
@@ -400,6 +415,10 @@ declare global {
           }>;
           error?: string;
         }>;
+        /** How long since a verified catalogue fetch, and whether that is long
+         * enough to tell the user withdrawal notices cannot be received.
+         * `days` is null when no fetch has ever succeeded, which does not warn. */
+        catalogueStaleness: () => Promise<{ days: number | null; stale: boolean }>;
         /** `hasMainEntry`: addon may ship main-process code, which the permission model does not restrict (see MAIN_ENTRY_ALLOWLIST). */
         install: (id: string) => Promise<{ success: boolean; needsConsent?: string[]; hasMainEntry?: boolean; error?: string }>;
         installConfirm: (id: string, acceptedPermissions: string[]) => Promise<{ success: boolean; error?: string }>;

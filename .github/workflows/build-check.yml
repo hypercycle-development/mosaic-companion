@@ -36,6 +36,30 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Node-side unit tests. Cheap, and they run before the ~minutes-long
+      # packaging steps below so a broken vault fails the job in seconds.
+      # x64 only: the suites are architecture-independent and running them
+      # twice buys nothing.
+      - name: Typecheck (x64 only)
+        if: matrix.arch == 'x64'
+        run: npm run typecheck
+
+      - name: Vault persistence tests (x64 only)
+        if: matrix.arch == 'x64'
+        run: npm run test:vault
+
+      - name: Vault crypto and atomic-write tests (x64 only)
+        if: matrix.arch == 'x64'
+        run: npm run test:vault-crypto
+
+      # The withdrawal tests are the enforcement tests for a security
+      # mechanism — an addon the publisher has withdrawn must stop running on
+      # someone's machine. Until this step existed they ran nowhere in CI and
+      # gated nothing.
+      - name: Addon withdrawal tests (x64 only)
+        if: matrix.arch == 'x64'
+        run: npm run test:addons
+
       - name: Install Linux build dependencies
         run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot
 

@@ -13,6 +13,9 @@ import fs from "fs";
 import path from "path";
 import { getErrorMessage } from "../utils";
 import type { AddonManifest, UpdateCheckMode } from "./manifest";
+import { findIn, type WithdrawalRecord } from "./withdrawal";
+
+export type { WithdrawalRecord } from "./withdrawal";
 
 // =============================================================================
 // Types
@@ -75,6 +78,29 @@ interface AddonStateFile {
    * deliberately removed it.
    */
   bundledInstalled?: Record<string, string>;
+  /**
+   * Rollback defence. Every registry carries a strictly-increasing
+   * `sequence`; we persist the highest ever *verified* and refuse anything
+   * lower. Without this, a signed registry stays valid forever, so an
+   * attacker who can control what we fetch replays a pre-withdrawal registry
+   * and the whole mechanism silently does nothing. Signature verification
+   * alone proves authenticity, never freshness.
+   */
+  registrySync?: { highestSequence: number; lastSuccessAt: string };
+  /**
+   * Addon id → withdrawal. Persisted so a withdrawal survives being offline
+   * and is enforced at activation without a fetch. Entries are reconciled —
+   * added *and removed* — from each registry that passes the sequence check,
+   * which is what makes a withdrawal liftable: a later registry that omits
+   * the entry lifts it, and an older one cannot forge that because it is
+   * rejected before reconciliation.
+   *
+   * Not tamper-resistant: this file is plaintext in userData and any process
+   * running as the user can edit it. That is not a regression — the same
+   * attacker can flip `activated`, rewrite `grantedPermissions`, or replace
+   * the addon's code on disk outright.
+   */
+  withdrawals?: Record<string, WithdrawalRecord>;
 }
 
 // =============================================================================
@@ -97,6 +123,8 @@ export function loadAddonState(): AddonStateFile {
           parsed && typeof parsed.bundledInstalled === "object" && parsed.bundledInstalled !== null
             ? parsed.bundledInstalled
             : {},
+        registrySync: isPlainRecord(parsed?.registrySync) ? (parsed.registrySync as AddonStateFile["registrySync"]) : undefined,
+        withdrawals: isPlainRecord(parsed?.withdrawals) ? (parsed.withdrawals as Record<string, WithdrawalRecord>) : {},
       };
     } else {
       state = { schemaVersion: 1, addons: {} };
@@ -261,6 +289,59 @@ export function recordUpgrade(id: string, version: string, source: AddonSource):
   entry.source = source;
   entry.updatedAt = new Date().toISOString();
   saveAddonState();
+}
+
+// =============================================================================
+// Registry freshness + withdrawals
+// =============================================================================
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function getRegistrySync(): { highestSequence: number; lastSuccessAt: string } | undefined {
+  return state.registrySync;
+}
+
+/** Highest registry sequence ever verified. 0 when nothing has been fetched —
+ * a fresh profile trusts the first validly-signed registry it sees (documented
+ * TOFU window; it closes at the next fetch). */
+export function getHighestRegistrySequence(): number {
+  const value = state.registrySync?.highestSequence;
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+export function recordRegistrySync(sequence: number): void {
+  state.registrySync = { highestSequence: sequence, lastSuccessAt: new Date().toISOString() };
+  saveAddonState();
+}
+
+export function getWithdrawals(): Record<string, WithdrawalRecord> {
+  return { ...(state.withdrawals ?? {}) };
+}
+
+export function getWithdrawal(id: string): WithdrawalRecord | undefined {
+  return state.withdrawals?.[id];
+}
+
+/**
+ * Replaces the whole withdrawal set. Called only after a registry has passed
+ * the sequence check, so omissions are a deliberate lift by the publisher
+ * rather than something an old or truncated registry can cause.
+ */
+export function replaceWithdrawals(next: Record<string, WithdrawalRecord>): void {
+  state.withdrawals = { ...next };
+  saveAddonState();
+}
+
+/**
+ * Is this exact installed version withdrawn? Returns the record so callers can
+ * quote the reason. An unparseable range fails **closed** — a malformed
+ * withdrawal still withdraws, because the alternative is that a typo in the
+ * registry silently re-enables an addon the publisher meant to pull.
+ */
+export function findWithdrawal(id: string, version: string): WithdrawalRecord | undefined {
+  return findIn(state.withdrawals ?? {}, id, version);
 }
 
 // Load on module initialization, mirroring electron/settings.ts.

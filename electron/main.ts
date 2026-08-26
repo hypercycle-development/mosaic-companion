@@ -74,8 +74,16 @@ import {
   upgradeAddon,
   getAvailableUpdateVersion,
   runAutomaticUpdateCheckPass,
+  runCatalogueSyncPass,
+  catalogueStaleness,
 } from "./addons/installer";
 import { runHyperInsightAutoInstallMigration, wasHyperInsightJustAutoInstalled } from "./addons/hyperinsight-migration";
+
+/** How often to re-fetch the catalogue for withdrawal notices. Six hours is a
+ * compromise: frequent enough that a security withdrawal reaches a
+ * long-running session the same day, rare enough not to be a poll. Latency for
+ * a machine that is off is bounded by the next launch instead. */
+const CATALOGUE_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
 import { createRequire } from 'module';
 import { authenticate, isAuthenticated, signOut } from "./integrations/gmail";
 import { getUserProfile, getRecentEmails, getEmailDetails, searchEmails, markAsRead, markAsUnread } from "./integrations/gmail/gmailClient";
@@ -116,6 +124,7 @@ import {
   addEntry,
   updateEntry,
   deleteEntry,
+  vaultConfigError,
 } from "./integrations/vault";
 import type { VaultBox } from "./integrations/vault/types";
 import {
@@ -427,6 +436,7 @@ app.whenReady().then(() => {
   // accepted registry ends in `confirmInstall` running an addon's
   // `main/index.js` in the main process.
   ipcMain.handle("addons:fetch-catalogue", async () => fetchCatalogue());
+  ipcMain.handle("addons:catalogue-staleness", async () => catalogueStaleness());
   ipcMain.handle("addons:install", async (_event: IpcMainInvokeEvent, id: string) => beginInstall(id));
   ipcMain.handle(
     "addons:install-confirm",
@@ -495,6 +505,24 @@ app.whenReady().then(() => {
       runAutomaticUpdateCheckPass()
         .then(() => broadcastAddonsChanged())
         .catch((e) => console.error("[Addons] Automatic update check failed:", e));
+
+      // Catalogue sync — withdrawals. Separate from the update-check pass
+      // above because that one returns early unless an addon is opted into
+      // automatic update checks, and receiving a security withdrawal must not
+      // depend on an update preference.
+      //
+      // Note this only carries *new* withdrawal news. Anything already
+      // persisted was enforced by initAddons() a moment ago, before any code
+      // was imported, which is the check that actually holds the line.
+      const runSync = () =>
+        runCatalogueSyncPass()
+          .then(({ deactivated, advisories }) => {
+            if (deactivated.length > 0 || advisories.length > 0) broadcastAddonsChanged();
+          })
+          .catch((e) => console.error("[Addons] Catalogue sync failed:", e));
+      runSync();
+      const syncTimer = setInterval(runSync, CATALOGUE_SYNC_INTERVAL_MS);
+      app.on("before-quit", () => clearInterval(syncTimer));
     })
     .catch((e) => console.error("[Addons] Init failed:", e));
 
@@ -1101,6 +1129,8 @@ ipcMain.handle("vault:delete-box", async (_event: IpcMainInvokeEvent, id: string
 ipcMain.handle("vault:get-agent-boxes", async (_event: IpcMainInvokeEvent, agentId: string) => {
   return getAgentBoxes(agentId);
 });
+
+ipcMain.handle("vault:config-error", async () => vaultConfigError());
 
 ipcMain.handle("vault:get-box-content", async (_event: IpcMainInvokeEvent, boxId: string) => {
   return getBoxContent(boxId);

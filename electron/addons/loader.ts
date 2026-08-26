@@ -21,6 +21,7 @@ import semver from "semver";
 import { getErrorMessage } from "../utils";
 import { getTabVisibility, setTabVisibility as setCoreTabVisibility } from "../settings";
 import { ADDON_TAB_ID_PREFIX } from "../../src/tabs/registry";
+import { WITHDRAWAL_ERROR_PREFIX } from "./withdrawal";
 import { validateManifest, type AddonManifest } from "./manifest";
 import {
   getAddonEntry,
@@ -29,6 +30,7 @@ import {
   setActivated,
   setLastError,
   setGrantedPermissions,
+  findWithdrawal,
   setLinkVisibilityToActivation,
   setUpdateCheckMode,
   recordUpgrade,
@@ -275,6 +277,35 @@ export async function activateAddon(id: string): Promise<{ success: boolean; err
     const missingPermissions = manifest.permissions.filter((p) => !entry.grantedPermissions.includes(p));
     if (missingPermissions.length > 0) {
       throw new Error(`Manifest requests permissions beyond what was granted: ${missingPermissions.join(", ")}`);
+    }
+
+    // Withdrawal check — deliberately here, before the `await import` below.
+    //
+    // This is the enforcement point that matters. `initAddons()` activates
+    // everything marked `activated: true` at startup, long before any
+    // catalogue fetch can complete, and a main entry is imported into this
+    // process with full privilege the moment activation proceeds. If the only
+    // enforcement were the fetch-driven sweep, a withdrawn addon would run
+    // again at every launch — and an attacker who can block the fetch could
+    // keep it running forever. Reading persisted state instead means the
+    // withdrawal holds offline, at startup, and without a network round-trip.
+    //
+    // Dev sources are exempt: that is the addon author's own working copy, and
+    // blocking it would stop the one person who needs to load the addon in
+    // order to fix it, while stopping no attacker (a local party can rename
+    // the id).
+    if (entry.source.type !== "dev") {
+      const withdrawal = findWithdrawal(id, entry.version);
+      if (withdrawal && withdrawal.severity === "security") {
+        throw new Error(`${WITHDRAWAL_ERROR_PREFIX}${withdrawal.reason}`);
+      }
+      if (withdrawal) {
+        console.warn(`[addons] "${id}" has an advisory withdrawal: ${withdrawal.reason}`);
+      }
+    } else if (findWithdrawal(id, entry.version)) {
+      console.warn(
+        `[addons] dev addon "${id}" matches a catalogue withdrawal — activating anyway because it is a dev install`,
+      );
     }
 
     for (const [otherId, other] of liveAddons) {

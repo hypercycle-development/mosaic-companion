@@ -35,6 +35,14 @@ export interface ApprovalRequest {
   /** Estimated gas cost, e.g. "~0.000032 ETH" */
   gasEstimate?: string;
   reason?: string;
+  /**
+   * Verified id of the add-on that initiated this payment, or absent/null when
+   * it came from the user's own chat session. Set main-side from the add-on API
+   * dispatcher's resolved identity — never from anything a renderer supplied.
+   * Displayed because "who is asking" is the single most decision-relevant fact
+   * in an approval, and the modal previously did not carry it at all.
+   */
+  requestedBy?: string | null;
   policySnapshot?: string;
   existingNodeBalance?: string;
   warning?: string;
@@ -262,6 +270,17 @@ export const TransactionApprovalModal: React.FC = () => {
                 <span className="text-sm font-mono text-gray-300 ml-4 text-right">{request.gasEstimate}</span>
               </div>
             )}
+
+            <div className="flex justify-between items-center border-b border-gray-800/50 pb-2">
+              <span className="text-sm text-gray-500 shrink-0">Requested by</span>
+              {request.requestedBy ? (
+                <span className="text-sm font-medium text-amber-400 ml-4 text-right break-all">
+                  Add-on: {request.requestedBy}
+                </span>
+              ) : (
+                <span className="text-sm text-gray-300 ml-4 text-right">This app</span>
+              )}
+            </div>
 
             <div className="flex justify-between items-start">
               <span className="text-sm text-gray-500 shrink-0">Reason</span>

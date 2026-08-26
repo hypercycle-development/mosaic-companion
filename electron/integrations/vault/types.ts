@@ -73,3 +73,31 @@ export interface BoxContent {
   boxId: string;
   entries: VaultEntry[];
 }
+
+/**
+ * The result of reading a box's content.
+ *
+ * A discriminated union rather than `VaultEntry[]`, because the two cases it
+ * separates were previously indistinguishable and the collapse was
+ * destructive: a box whose file is absent is legitimately empty and safe to
+ * write to, while a box whose file is present but unreadable must never be
+ * written to. Reading both as `[]` presented the second as an empty, editable
+ * box, and the next save overwrote the user's data with the empty array.
+ *
+ * The union shape is deliberate. A nullable array would let a caller write
+ * `?? []` and keep type-checking while reintroducing exactly that bug — which
+ * is what `VaultPage.tsx` did.
+ */
+export type BoxContentResult =
+  | {
+      state: "ok";
+      entries: VaultEntry[];
+      /**
+       * Whether the file on disk was in encrypted form. Carried through rather
+       * than collapsed, because upgrade-on-open has to be gated on it: a box
+       * already encrypted must not be re-sealed on every open, and a machine
+       * with no keychain must not rewrite legacy boxes in plaintext forever.
+       */
+      encrypted: boolean;
+    }
+  | { state: "unreadable"; reason: string };

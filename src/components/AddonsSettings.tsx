@@ -94,9 +94,14 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
   const isDevBuild = true; // The real gate is !app.isPackaged / MOSAIC_ADDON_DEV — enforced main-side; UI just always offers the entry point and lets the main process reject if not a dev build.
   const [devPathInput, setDevPathInput] = useState<string | null>(null);
 
+  /** Days since a verified catalogue fetch, once it is long enough to matter. */
+  const [staleDays, setStaleDays] = useState<number | null>(null);
+
   const loadAddons = useCallback(async () => {
     const list = await window.electronAPI?.addons?.list?.();
     setAddons(list ?? []);
+    const staleness = await window.electronAPI?.addons?.catalogueStaleness?.();
+    setStaleDays(staleness?.stale ? Math.floor(staleness.days ?? 0) : null);
   }, []);
 
   useEffect(() => {
@@ -291,6 +296,19 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
         <Puzzle size={20} />
         Addons
       </h2>
+
+      {/* Withdrawal notices arrive with the catalogue, so a catalogue that
+          cannot be reached means they are not arriving. A warning rather than
+          a disable: bricking a legitimately offline user is disproportionate. */}
+      {staleDays !== null && (
+        <div className="mb-4 px-3 py-2 bg-amber-900/20 border border-amber-900/40 rounded-lg">
+          <p className="text-xs text-amber-300">
+            MosAIc has not been able to check the add-on catalogue for {staleDays}{" "}
+            day{staleDays === 1 ? "" : "s"}, so it cannot receive withdrawal notices for
+            installed add-ons.
+          </p>
+        </div>
+      )}
 
       {/* Installed list */}
       {addons.length === 0 ? (

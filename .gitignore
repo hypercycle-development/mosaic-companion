@@ -61,3 +61,11 @@ tests/addons/*/data/
 
 # Local Claude Code settings
 .claude/
+
+# Key material — never committed, in any form. Test keys included: a private
+# key in a repo is a private key on the internet the moment the repo is public,
+# and git history keeps it there afterwards. Test keys are generated offline by
+# the same ceremony as production and kept outside any working tree.
+*.pem
+*.key
+*-signing-key.json
