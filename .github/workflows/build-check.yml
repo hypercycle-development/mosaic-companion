@@ -78,9 +78,16 @@ jobs:
       # payload directly — every file the main process resolves at runtime must
       # actually be inside the package.
       #
-      # node-pty's pty.node is in that list for the same reason: on Linux there
-      # is no prebuild, so it must be compiled, and a cross-build silently
-      # omitted it — the app then died at startup with no window (#112).
+      # The two native modules are in that list for the same reason: on Linux
+      # neither has a prebuild, so both must be compiled, and a cross-build
+      # silently omitted node-pty's — the app then died at startup with no
+      # window (#112). better-sqlite3 is the other one, and had the same
+      # exposure without the same luck of being noticed.
+      #
+      # Both `build/Release/` paths are where a COMPILED module lands. This
+      # matrix is Linux-only; a darwin or win32 leg would need the
+      # `prebuilds/<platform>-<arch>/` path instead, since those load a
+      # shipped prebuild rather than compiling.
       - name: Verify asar contains every runtime-resolved file
         shell: bash
         run: |
@@ -104,7 +111,8 @@ jobs:
             dist/main/mcp-server.js \
             dist/renderer/index.html \
             bundled-addons/hyperinsight/manifest.json \
-            node_modules/node-pty/build/Release/pty.node
+            node_modules/node-pty/build/Release/pty.node \
+            node_modules/better-sqlite3/build/Release/better_sqlite3.node
           do
             if grep -qxF "/$f" asar-contents.txt; then
               echo "✓ $f"
