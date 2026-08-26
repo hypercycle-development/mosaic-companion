@@ -10,7 +10,9 @@
 import { app } from "electron";
 import fs from "fs";
 import path from "path";
-import type { VaultBox, VaultConfig, VaultEntry, BoxContent } from "./types";
+import type { VaultBox, VaultConfig, VaultEntry, BoxContentResult } from "./types";
+import { openRecord, plaintextRecord } from "./crypto";
+import { writeFileAtomic } from "../../utils/atomicWrite";
 
 // =============================================================================
 // File Paths & Defaults
@@ -39,20 +41,48 @@ const DEFAULT_VAULT: VaultConfig = {
 // Persistence
 // =============================================================================
 
-/** Load vault config from disk, returning defaults if missing/corrupt. */
+/**
+ * Set when `vault.json` exists but could not be read as a vault config, and
+ * cleared on every successful load. While it is set, `saveVault` refuses.
+ *
+ * Without this, a half-written `vault.json` loaded as "no boxes" and the next
+ * `addBox` saved that over the top — every box gone from the index, and every
+ * content file orphaned on disk with nothing left pointing at it. The config
+ * is small and rewritten often, so the window is not theoretical.
+ *
+ * Read degrades (an unreadable config lists no boxes); writes refuse. That
+ * asymmetry is the whole guard: nothing is destroyed, and the file is left
+ * exactly as found for manual recovery.
+ */
+let vaultConfigUnreadable: string | null = null;
+
+/** Whether the vault config on disk is present but unreadable. */
+export function vaultConfigError(): string | null {
+  return vaultConfigUnreadable;
+}
+
+/** Load vault config from disk, returning defaults if missing. */
 export function loadVault(): VaultConfig {
   try {
     if (fs.existsSync(vaultPath)) {
       const data = fs.readFileSync(vaultPath, "utf8");
       const parsed = JSON.parse(data);
-      return {
-        ...DEFAULT_VAULT,
-        ...parsed,
-        boxes: Array.isArray(parsed.boxes) ? parsed.boxes : [],
-      };
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("vault.json is not a vault config object");
+      }
+      if (!Array.isArray(parsed.boxes)) {
+        throw new Error("vault.json has no box list");
+      }
+      vaultConfigUnreadable = null;
+      return { ...DEFAULT_VAULT, ...parsed, boxes: parsed.boxes };
     }
+    // Absent is legitimately empty — a first run. Distinct from unreadable,
+    // and the only case where writing a fresh config is correct.
+    vaultConfigUnreadable = null;
   } catch (error) {
-    console.error("[Vault] Failed to load vault config:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    vaultConfigUnreadable = msg;
+    console.error("[Vault] vault.json is present but unreadable:", msg);
   }
   // Fresh array: a shallow spread would alias DEFAULT_VAULT.boxes, which the
   // callers of addBox and deleteBox then mutate in place.
@@ -61,8 +91,16 @@ export function loadVault(): VaultConfig {
 
 /** Save vault config to disk. */
 function saveVault(config: VaultConfig): { success: boolean; error?: string } {
+  if (vaultConfigUnreadable) {
+    return {
+      success: false,
+      error:
+        `The vault index could not be read (${vaultConfigUnreadable}), so it will not be ` +
+        `overwritten. Your boxes are still on disk.`,
+    };
+  }
   try {
-    fs.writeFileSync(vaultPath, JSON.stringify(config, null, 2), "utf8");
+    writeFileAtomic(vaultPath, JSON.stringify(config, null, 2));
     console.log("[Vault] Config saved to:", vaultPath);
     return { success: true };
   } catch (error) {
@@ -154,7 +192,12 @@ export function updateBox(
 }
 
 /** Delete a box by ID. */
-export function deleteBox(id: string): { success: boolean; error?: string } {
+export function deleteBox(
+  id: string,
+): { success: boolean; error?: string; setAside?: string } {
+  // Read the content before touching the config, so the decision below is made
+  // on what is actually on disk rather than on what survived the delete.
+  const loaded = loadBoxContent(id);
   const vault = loadVault();
   const index = vault.boxes.findIndex((b) => b.id === id);
 
@@ -170,18 +213,30 @@ export function deleteBox(id: string): { success: boolean; error?: string } {
     return result;
   }
 
-  // Clean up associated content file if it exists
+  // Clean up the content file — unless we could not read it, in which case it
+  // is the only surviving copy of data the user was never shown. Deleting a
+  // box is a deliberate act, but "delete the box that looks empty" is not a
+  // deliberate act about *this* data: a collapsed box card cannot show that the
+  // content is unreadable, so the user making this choice may not know there is
+  // anything in it. Set it aside instead, and say so.
+  let setAside: string | undefined;
   try {
     const contentFile = boxContentPath(id);
     if (fs.existsSync(contentFile)) {
-      fs.unlinkSync(contentFile);
-      console.log("[Vault] Content file deleted for box:", id);
+      if (loaded.state === "unreadable") {
+        setAside = `${contentFile}.unreadable-${Date.now()}`;
+        fs.renameSync(contentFile, setAside);
+        console.warn("[Vault] Box content was unreadable; set aside rather than deleted:", setAside);
+      } else {
+        fs.unlinkSync(contentFile);
+        console.log("[Vault] Content file deleted for box:", id);
+      }
     }
   } catch (err) {
-    console.warn("[Vault] Could not delete content file for box:", id, err);
+    console.warn("[Vault] Could not clean up content file for box:", id, err);
   }
 
-  return result;
+  return setAside ? { ...result, setAside } : result;
 }
 
 // =============================================================================
@@ -228,45 +283,73 @@ export function canAgentAccessBox(agentId: string, boxId: string): boolean {
 // =============================================================================
 
 /** Load a box's content from disk. Returns empty content if not found. */
-function loadBoxContent(boxId: string): BoxContent {
+function loadBoxContent(boxId: string): BoxContentResult {
   ensureContentDir();
   const filePath = boxContentPath(boxId);
+  let raw: string;
   try {
-    if (fs.existsSync(filePath)) {
-      const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
-      return {
-        boxId,
-        entries: Array.isArray(parsed.entries) ? parsed.entries : [],
-      };
+    if (!fs.existsSync(filePath)) {
+      // Absent is a legitimately empty box, and the only empty a write may
+      // proceed from.
+      return { state: "ok", entries: [], encrypted: false };
     }
+    raw = fs.readFileSync(filePath, "utf8");
   } catch (err) {
-    console.error("[Vault] Failed to load content for box:", boxId, err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[Vault] Failed to read content for box:", boxId, msg);
+    return { state: "unreadable", reason: msg };
   }
-  return { boxId, entries: [] };
+
+  // `openRecord` owns every question about what a content file may contain —
+  // shape, discrimination, and (once WP4 lands) decryption. It never throws.
+  const record = openRecord(boxId, raw);
+  if (record.state === "unreadable") {
+    console.error("[Vault] Box content unreadable:", boxId, record.reason);
+    return { state: "unreadable", reason: record.reason };
+  }
+  return { state: "ok", entries: record.entries, encrypted: record.state === "encrypted" };
 }
 
-/** Save a box's content to disk. */
+/**
+ * Save a box's content to disk.
+ *
+ * Takes `(boxId, entries)` and not a `BoxContent`, deliberately: an object
+ * parameter invites `{ ...content, enc }` at the call site, which would
+ * serialise the plaintext entries into the same file as the ciphertext and
+ * `JSON.stringify` would happily emit both. This signature makes that
+ * unrepresentable — the function never receives an object it could spread.
+ */
 function saveBoxContent(
-  content: BoxContent,
+  boxId: string,
+  entries: VaultEntry[],
 ): { success: boolean; error?: string } {
   ensureContentDir();
   try {
-    fs.writeFileSync(
-      boxContentPath(content.boxId),
-      JSON.stringify(content, null, 2),
-      "utf8",
-    );
+    // Plaintext for now; WP4 swaps this one call for `sealEntries`. The file
+    // shape has a single owner either way.
+    const record = plaintextRecord(boxId, entries);
+    writeFileAtomic(boxContentPath(boxId), record.json);
     return { success: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[Vault] Failed to save content for box:", content.boxId, msg);
+    console.error("[Vault] Failed to save content for box:", boxId, msg);
     return { success: false, error: msg };
   }
 }
 
-/** Get all entries in a box. */
-export function getBoxContent(boxId: string): VaultEntry[] {
-  return loadBoxContent(boxId).entries;
+/** Get all entries in a box, or why they could not be read. */
+export function getBoxContent(boxId: string): BoxContentResult {
+  return loadBoxContent(boxId);
+}
+
+/** The refusal every mutator returns for a box that could not be read. */
+function refuseUnreadable(reason: string): { success: false; error: string } {
+  return {
+    success: false,
+    error:
+      `This box could not be read (${reason}), so it will not be overwritten. ` +
+      `Its file has been left exactly as it is.`,
+  };
 }
 
 /** Add a new entry to a box. */
@@ -278,7 +361,11 @@ export function addEntry(
     return { success: false, error: "Entry content cannot be empty" };
   }
 
-  const boxContent = loadBoxContent(boxId);
+  const loaded = loadBoxContent(boxId);
+  // The one path that actually destroyed data: an unreadable box read as empty,
+  // then a new entry saved over the top of whatever was really there.
+  if (loaded.state === "unreadable") return refuseUnreadable(loaded.reason);
+
   const now = Date.now();
   const entry: VaultEntry = {
     id: `entry-${now}`,
@@ -288,8 +375,8 @@ export function addEntry(
     updatedAt: now,
   };
 
-  boxContent.entries.push(entry);
-  const result = saveBoxContent(boxContent);
+  const entries = [...loaded.entries, entry];
+  const result = saveBoxContent(boxId, entries);
   return { ...result, entry };
 }
 
@@ -299,21 +386,24 @@ export function updateEntry(
   entryId: string,
   updates: { content?: string; label?: string },
 ): { success: boolean; entry?: VaultEntry; error?: string } {
-  const boxContent = loadBoxContent(boxId);
-  const index = boxContent.entries.findIndex((e) => e.id === entryId);
+  const loaded = loadBoxContent(boxId);
+  if (loaded.state === "unreadable") return refuseUnreadable(loaded.reason);
+
+  const entries = [...loaded.entries];
+  const index = entries.findIndex((e) => e.id === entryId);
 
   if (index === -1) {
     return { success: false, error: "Entry not found" };
   }
 
-  boxContent.entries[index] = {
-    ...boxContent.entries[index],
+  entries[index] = {
+    ...entries[index],
     ...updates,
     updatedAt: Date.now(),
   };
 
-  const result = saveBoxContent(boxContent);
-  return { ...result, entry: boxContent.entries[index] };
+  const result = saveBoxContent(boxId, entries);
+  return { ...result, entry: entries[index] };
 }
 
 /** Delete an entry from a box. */
@@ -321,13 +411,16 @@ export function deleteEntry(
   boxId: string,
   entryId: string,
 ): { success: boolean; error?: string } {
-  const boxContent = loadBoxContent(boxId);
-  const index = boxContent.entries.findIndex((e) => e.id === entryId);
+  const loaded = loadBoxContent(boxId);
+  if (loaded.state === "unreadable") return refuseUnreadable(loaded.reason);
+
+  const entries = [...loaded.entries];
+  const index = entries.findIndex((e) => e.id === entryId);
 
   if (index === -1) {
     return { success: false, error: "Entry not found" };
   }
 
-  boxContent.entries.splice(index, 1);
-  return saveBoxContent(boxContent);
+  entries.splice(index, 1);
+  return saveBoxContent(boxId, entries);
 }

@@ -112,7 +112,14 @@ export interface SealedRecord {
   encrypted: boolean;
 }
 
-function plaintextRecord(boxId: string, entries: VaultEntry[]): SealedRecord {
+/**
+ * The unencrypted file body. Exported because the read contract (WP2) ships a
+ * release before encryption is switched on (WP4), and during that release the
+ * vault writes plaintext — but the *shape* of a content file must still have
+ * exactly one owner, this module. WP4 changes the vault's write path from this
+ * to `sealEntries` and nothing else moves.
+ */
+export function plaintextRecord(boxId: string, entries: VaultEntry[]): SealedRecord {
   return {
     json: JSON.stringify({ boxId, entries }, null, 2),
     encrypted: false,
