@@ -365,6 +365,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     deleteBox: (id: string) => ipcRenderer.invoke("vault:delete-box", id),
     getAgentBoxes: (agentId: string) =>
       ipcRenderer.invoke("vault:get-agent-boxes", agentId),
+    configError: () => ipcRenderer.invoke("vault:config-error"),
     // Content
     getBoxContent: (boxId: string) =>
       ipcRenderer.invoke("vault:get-box-content", boxId),

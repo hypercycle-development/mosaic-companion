@@ -124,6 +124,7 @@ import {
   addEntry,
   updateEntry,
   deleteEntry,
+  vaultConfigError,
 } from "./integrations/vault";
 import type { VaultBox } from "./integrations/vault/types";
 import {
@@ -1128,6 +1129,8 @@ ipcMain.handle("vault:delete-box", async (_event: IpcMainInvokeEvent, id: string
 ipcMain.handle("vault:get-agent-boxes", async (_event: IpcMainInvokeEvent, agentId: string) => {
   return getAgentBoxes(agentId);
 });
+
+ipcMain.handle("vault:config-error", async () => vaultConfigError());
 
 ipcMain.handle("vault:get-box-content", async (_event: IpcMainInvokeEvent, boxId: string) => {
   return getBoxContent(boxId);

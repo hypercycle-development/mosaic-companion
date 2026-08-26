@@ -226,6 +226,10 @@ const BoxContentPanel: React.FC<{ box: VaultBox; onEntryCountChange: (count: num
   onEntryCountChange,
 }) => {
   const [entries, setEntries] = useState<VaultEntry[]>([]);
+  /** Set when the box's file exists but could not be read. Writes are refused
+   * in this state by the main process; the UI must not offer them either, and
+   * must not present the box as empty. */
+  const [unreadable, setUnreadable] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [label, setLabel] = useState("");
@@ -235,9 +239,27 @@ const BoxContentPanel: React.FC<{ box: VaultBox; onEntryCountChange: (count: num
 
   const loadEntries = useCallback(async () => {
     setIsLoading(true);
-    const loaded = await window.electronAPI?.vault?.getBoxContent(box.id) ?? [];
-    setEntries(loaded);
-    onEntryCountChange(loaded.length);
+    const loaded = await window.electronAPI?.vault?.getBoxContent(box.id);
+    if (!loaded) {
+      setUnreadable("the vault could not be reached");
+      setEntries([]);
+      onEntryCountChange(0);
+      setShowForm(false);
+      setIsLoading(false);
+      return;
+    }
+    if (loaded.state === "unreadable") {
+      // No `?? []` here, deliberately. Falling back to an empty array is what
+      // made an unreadable box look like an empty one you could type into.
+      setUnreadable(loaded.reason);
+      setEntries([]);
+      onEntryCountChange(0);
+      setShowForm(false);
+    } else {
+      setUnreadable(null);
+      setEntries(loaded.entries);
+      onEntryCountChange(loaded.entries.length);
+    }
     setIsLoading(false);
   }, [box.id, onEntryCountChange]);
 
@@ -274,6 +296,22 @@ const BoxContentPanel: React.FC<{ box: VaultBox; onEntryCountChange: (count: num
     return (
       <div className="py-4 flex justify-center">
         <Loader2 size={18} className="animate-spin text-gray-500" />
+      </div>
+    );
+  }
+
+  if (unreadable) {
+    return (
+      <div className="px-3 pb-3">
+        <div className="px-3 py-3 bg-amber-900/20 border border-amber-900/40 rounded-lg space-y-1">
+          <p className="text-xs text-amber-300 font-medium">This box could not be read</p>
+          <p className="text-[11px] text-amber-200/70">
+            Its file is still on disk exactly as it was — nothing has been changed or deleted.
+            MosAIc will not write to this box until it can read it. If you delete the box, the
+            file is kept rather than destroyed, so nothing here can be lost by accident.
+          </p>
+          <p className="text-[11px] text-amber-200/50 font-mono break-all">{unreadable}</p>
+        </div>
       </div>
     );
   }
@@ -550,16 +588,22 @@ export const VaultPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Set when vault.json itself is unreadable. Every box read degrades to an
+   * empty list in that state, so without this the page would say "no boxes"
+   * about a vault that may be full — a false statement, not just a missing one. */
+  const [configError, setConfigError] = useState<string | null>(null);
 
   // ── Load data ──────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     try {
-      const [loadedBoxes, loadedAgents] = await Promise.all([
+      const [loadedBoxes, loadedAgents, cfgError] = await Promise.all([
         window.electronAPI?.vault?.getBoxes() ?? [],
         window.electronAPI?.aiAgents?.get() ?? [],
+        window.electronAPI?.vault?.configError() ?? null,
       ]);
       setBoxes(loadedBoxes);
       setAgents(loadedAgents);
+      setConfigError(cfgError);
     } catch (err) {
       console.error("[VaultPage] Failed to load:", err);
     }
@@ -611,6 +655,14 @@ export const VaultPage: React.FC = () => {
     setError(null);
     const result = await window.electronAPI?.vault?.deleteBox(id);
     if (result?.success) {
+      if (result.setAside) {
+        // The box's content could not be read, so it was not destroyed. Saying
+        // so matters: the user asked for a delete and did not entirely get one.
+        setError(
+          `"${box?.name}" was removed, but its contents could not be read and so were ` +
+          `not deleted. The file has been kept at ${result.setAside}`,
+        );
+      }
       loadData();
     } else {
       setError(result?.error ?? "Failed to delete box");
@@ -650,6 +702,23 @@ export const VaultPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+      {/* The vault index itself could not be read. Every box list below is
+          empty as a consequence, so this has to be said before the page shows
+          what looks like an empty vault. */}
+      {configError && (
+        <div className="px-4 py-3 bg-amber-900/20 border border-amber-900/40 rounded-lg space-y-1">
+          <p className="text-sm text-amber-300 font-medium">
+            Your vault index could not be read
+          </p>
+          <p className="text-xs text-amber-200/70">
+            Any boxes you have are still on disk and have not been changed, but MosAIc cannot
+            list them right now. It will not create or modify boxes until it can read the
+            index again, so nothing can be written over.
+          </p>
+          <p className="text-[11px] text-amber-200/50 font-mono break-all">{configError}</p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
