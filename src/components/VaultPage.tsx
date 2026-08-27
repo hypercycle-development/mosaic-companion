@@ -222,9 +222,17 @@ const AgentAccessPanel: React.FC<{
 // Box Content Panel
 // =============================================================================
 
-const BoxContentPanel: React.FC<{ box: VaultBox; onEntryCountChange: (count: number) => void }> = ({
+const BoxContentPanel: React.FC<{
+  box: VaultBox;
+  onEntryCountChange: (count: number) => void;
+  /** Reading a box is when the main process learns whether encryption is real:
+   * a successful decrypt is recorded as evidence. Nothing else tells the page
+   * to ask again, so without this the banner keeps whatever it had at mount. */
+  onContentRead: () => void;
+}> = ({
   box,
   onEntryCountChange,
+  onContentRead,
 }) => {
   const [entries, setEntries] = useState<VaultEntry[]>([]);
   /** Set when the box's file exists but could not be read. Writes are refused
@@ -260,9 +268,10 @@ const BoxContentPanel: React.FC<{ box: VaultBox; onEntryCountChange: (count: num
       setUnreadable(null);
       setEntries(loaded.entries);
       onEntryCountChange(loaded.entries.length);
+      onContentRead();
     }
     setIsLoading(false);
-  }, [box.id, onEntryCountChange]);
+  }, [box.id, onEntryCountChange, onContentRead]);
 
   useEffect(() => {
     loadEntries();
@@ -425,7 +434,8 @@ const BoxCard: React.FC<{
     updates: { name?: string; description?: string; sourceType?: BoxSourceType },
   ) => void;
   onToggleAgentAccess: (agentId: string, boxId: string, hasAccess: boolean) => void;
-}> = ({ box, agents, onDelete, onUpdate, onToggleAgentAccess }) => {
+  onContentRead: () => void;
+}> = ({ box, agents, onDelete, onUpdate, onToggleAgentAccess, onContentRead }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"content" | "access">("content");
@@ -563,7 +573,11 @@ const BoxCard: React.FC<{
 
           {/* Tab content */}
           {activeTab === "content" ? (
-            <BoxContentPanel box={box} onEntryCountChange={setEntryCount} />
+            <BoxContentPanel
+              box={box}
+              onEntryCountChange={setEntryCount}
+              onContentRead={onContentRead}
+            />
           ) : (
             <AgentAccessPanel
               box={box}
@@ -617,6 +631,18 @@ export const VaultPage: React.FC = () => {
       console.error("[VaultPage] Failed to load:", err);
     }
     setIsLoading(false);
+  }, []);
+
+  /** Re-read the observed encryption status on its own. Cheap, and it never
+   * queries the OS — the main process serves a record of what it last saw, so
+   * this cannot raise a keychain prompt. */
+  const refreshEncryptionStatus = useCallback(async () => {
+    try {
+      const s = await window.electronAPI?.vault?.encryptionStatus();
+      if (s) setEncStatus(s);
+    } catch (err) {
+      console.error("[VaultPage] Failed to refresh encryption status:", err);
+    }
   }, []);
 
   useEffect(() => {
@@ -842,6 +868,7 @@ export const VaultPage: React.FC = () => {
               onDelete={handleDeleteBox}
               onUpdate={handleUpdateBox}
               onToggleAgentAccess={handleToggleAgentAccess}
+              onContentRead={refreshEncryptionStatus}
             />
           ))}
         </div>
