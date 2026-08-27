@@ -65,7 +65,7 @@ For detail, see the [architecture overview](docs/architecture/overview.md), the 
 
 Agent API keys, wallet keys, and sandbox tool secrets use Electron `safeStorage` where the platform provides it.
 
-The Vault is an early component. Box contents are encrypted at rest using the operating system's secure storage, and the Vault page states which protection is actually in effect — real protection, obfuscation only (a Linux `basic_text` fallback), or plaintext where no backend is available. The per-agent access controls are enforced within the application and are separate from encryption; they do not protect the files on disk.
+The Vault is an early component. **In the current published release (v0.1.12), box contents are stored as local JSON, unencrypted at rest**, and the Vault page says so — anyone who can read your files, or a backup of them, can read your boxes. Encryption at rest using the operating system's secure storage is built and enabled on `main`, so a build from source encrypts and its Vault page reports which protection is actually in effect; it is **not yet in any published release**. The per-agent access controls are enforced within the application and are separate from encryption; they do not protect the files on disk.
 
 ## Run from source
 
@@ -134,7 +134,15 @@ See [docs/build.md](docs/build.md) for platform-specific packaging instructions.
 - Read the [tool UI documentation](docs/architecture/tool-ui.md).
 - Review the [MCP integration patterns](electron/integrations/mcp/readme.md).
 
-There is no public extension catalogue yet: add-ons can currently be installed only by explicit local path, and only in a development build, because publisher signing is not in place. A conformance suite and broader SDK coverage are also outstanding. Until those exist, coordinate significant extension work through a public issue before investing heavily in it.
+### Publishing an add-on
+
+Add-ons reach other people through [`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons), a reviewed catalogue. Open a pull request adding `addons/<your-id>/` with a manifest, a licence, and your source. The reviewable unit is the patch: submissions are assessed from the diff rather than from a running build, so everything an add-on does should be readable there. Its [CONTRIBUTING guide](https://github.com/hypercycle-development/mosaic-addons/blob/main/CONTRIBUTING.md) sets out what a submission must contain, and what it cannot ask for.
+
+Catalogue releases are signed, and the application verifies them against a pinned publisher key before installing anything. A signature establishes who published an add-on, never that the add-on is safe — review addresses the second, and review is human.
+
+You need none of that to build one. The Dev corner in Settings loads an unpacked add-on from a local directory — the fastest way to develop, and the right route for anything you only want to run yourself. It is gated to development builds: a packaged build refuses a dev-install unless it is started with `MOSAIC_ADDON_DEV=1`.
+
+A conformance suite and broader SDK coverage are still outstanding. For significant extension work, open a public issue before investing heavily in it.
 
 ## Contributing
 

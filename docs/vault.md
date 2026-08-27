@@ -156,7 +156,7 @@ Chatview.tsx
 
 ### Known Limitations
 
-- **Encryption depends on the platform** — Content files are encrypted with the OS secure-storage backend (`safeStorage`). Where none is available, or a keychain prompt is declined, contents are written as plaintext; on a Linux `basic_text` fallback they are obfuscated but not protected, because that backend stores its key in the clear. The Vault page reports which of the three applies rather than assuming the best case. A box already encrypted is never rewritten as plaintext.
+- **Encryption at rest is not in a published release** — In the current published release (v0.1.12) content files are stored as plaintext JSON and the Vault page says so. On `main` — and therefore in a build from source — encryption with the OS secure-storage backend (`safeStorage`) is enabled, and protection then depends on the platform: where no backend is available, or a keychain prompt is declined, contents stay plaintext; on a Linux `basic_text` fallback they are obfuscated but not protected, because that backend stores its key in the clear. The Vault page reports which of the three applies, and a box already encrypted is never rewritten as plaintext.
 - **No audit logging** — There's no log of which agent accessed which box and when. Future: add an access log.
 - **No rate limiting** — An agent could call `read_box` in a tight loop. Not currently a concern since tool calls go through the LLM response cycle.
 - **Timestamp-based IDs** — Box and entry IDs use `Date.now()`. Theoretically two entries created in the same millisecond could collide (extremely unlikely in practice).
