@@ -13,8 +13,8 @@ Copy this directory, rename it, and you have a working addon skeleton.
 
 ## Try it
 
-Addons load from the app's addon host, which lives on the
-`feat/addon-architecture` branch (it is not on `main` yet).
+Addons load from the app's addon host, which is on `main` and in the current
+release.
 
 1. Run MosAIc from source (`npm start`), or a packaged build with
    `MOSAIC_ADDON_DEV=1` set.

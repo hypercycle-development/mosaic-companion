@@ -63,10 +63,11 @@ planning. Two unrelated contributors needed the same things, independently:
 - **WASM execution timeouts** ([#109](https://github.com/hypercycle-development/mosaic-companion/issues/109))**.** A timeout is parsed from the tool manifest and
   stored, but nothing reads it — a tool that loops forever is not interrupted.
 - **Vault encryption where no secure-storage backend exists**
-  ([#110](https://github.com/hypercycle-development/mosaic-companion/issues/110))**.** Encryption at rest is built, using the OS
-  backend, and is not yet in a published release. Where no backend is available — or on a Linux `basic_text` fallback —
-  contents are plaintext or merely obfuscated. The interface says which, but a
-  portable fallback does not exist yet.
+  ([#110](https://github.com/hypercycle-development/mosaic-companion/issues/110))**.** Encryption at rest is built and enabled on
+  `main`, and is not yet in a published release. Where no backend is available —
+  or on a Linux `basic_text` fallback — contents are plaintext or merely
+  obfuscated; that build's Vault page says which, but a portable fallback does
+  not exist yet.
 
 ### Accuracy
 

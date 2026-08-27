@@ -65,7 +65,7 @@ For detail, see the [architecture overview](docs/architecture/overview.md), the 
 
 Agent API keys, wallet keys, and sandbox tool secrets use Electron `safeStorage` where the platform provides it.
 
-The Vault is an early component. Box contents are stored as local JSON, **unencrypted at rest**, and the Vault page says so. The per-agent access controls are enforced within the application and are separate from encryption; they do not protect the files on disk — anyone who can read your files, or a backup of them, can read your boxes. Encryption at rest is built and is not yet in a published release.
+The Vault is an early component. **In the current published release (v0.1.12), box contents are stored as local JSON, unencrypted at rest**, and the Vault page says so — anyone who can read your files, or a backup of them, can read your boxes. Encryption at rest using the operating system's secure storage is built and enabled on `main`, so a build from source encrypts and its Vault page reports which protection is actually in effect; it is **not yet in any published release**. The per-agent access controls are enforced within the application and are separate from encryption; they do not protect the files on disk.
 
 ## Run from source
 
