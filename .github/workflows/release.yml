@@ -7,6 +7,10 @@ name: Release
 #   1. Merge a PR that bumps the version in package.json (+ lockfile).
 #   2. Run this workflow via "Run workflow" (Actions tab).
 #   3. Optionally tick "dry run" first to smoke-test credentials.
+#   4. The build uploads to a DRAFT release and then WAITS for approval on the
+#      `release-publish` environment. Install and test the real signed artifact
+#      from the draft before approving — publishing is what moves latest.json,
+#      and existing installs are offered the update the moment it does.
 #
 # `also_publish_s3` additionally publishes to the legacy S3 bucket so that
 # installs of v0.1.7 and older (whose updaters point at S3) get notified
@@ -27,6 +31,11 @@ on:
 permissions:
   contents: write
 
+# A run waiting on the `release-publish` approval below is still in progress and
+# holds this group — for as long as the approval is outstanding (GitHub gives up
+# after 30 days and fails the run). Any other dispatch, including a dry_run,
+# queues behind it. Reject or cancel a stale waiting run rather than abandoning
+# it.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -114,7 +123,27 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           if gh release view "v$VERSION" >/dev/null 2>&1; then
-            echo "Draft release v$VERSION already exists — reusing it."
+            # A draft now survives a rejected or timed-out approval, so
+            # "reuse the existing draft" has a dangerous case it did not have
+            # before the publish gate existed.
+            #
+            # The forge publisher SKIPS any asset whose name already exists
+            # (`force` is not set in forge.config.js), and asset names carry
+            # the version but not the commit. So a fresh dispatch after a
+            # rejection — with a fix on main but no version bump, which the
+            # version guard above permits — would upload nothing, pass the
+            # filename-only asset check on the STALE assets, and publish the
+            # very binaries that were just rejected, tagged at the old commit.
+            # The run would be green throughout.
+            #
+            # Same-run re-runs keep $GITHUB_SHA, so the legitimate retry path
+            # is unaffected.
+            EXISTING=$(gh release view "v$VERSION" --json targetCommitish --jq .targetCommitish)
+            if [ "$EXISTING" != "$GITHUB_SHA" ]; then
+              echo "::error::Draft release v$VERSION exists but targets $EXISTING, not $GITHUB_SHA. Its assets were built from that commit and would be silently reused. Delete it first: gh release delete \"v$VERSION\" --yes"
+              exit 1
+            fi
+            echo "Draft release v$VERSION already exists at this commit — reusing it."
           else
             gh release create "v$VERSION" \
               --draft \
@@ -135,7 +164,12 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             arch: x64
-          - os: ubuntu-latest
+          # Native arm64, not a cross-build on ubuntu-latest (x64). node-pty
+          # ships prebuilds for darwin and win32 only, so on Linux its native
+          # module must be COMPILED — which an x64 runner cannot do for arm64.
+          # The result shipped with no pty.node at all and died at startup
+          # before any window existed. See #112.
+          - os: ubuntu-24.04-arm
             platform: linux
             arch: arm64
           - os: macos-latest
@@ -196,6 +230,22 @@ jobs:
   finalize:
     needs: [resolve-version, build]
     runs-on: ubuntu-latest
+    # The pause that makes the draft a checkpoint rather than a formality.
+    #
+    # Without this, finalize runs the instant the build matrix completes: the
+    # asset check below verifies FILENAMES, not that the app works, and the
+    # next step flips the release to public and repoints latest.json. There was
+    # no point at which a human could install the artifact and look at it.
+    #
+    # Some things can only be checked in a packaged, signed build — real
+    # safeStorage encryption and the pinned catalogue key among them — and no
+    # test suite reaches them. This is where that check goes.
+    #
+    # NOTE: this gate is INERT until the `release-publish` environment exists
+    # AND carries required reviewers. GitHub creates a missing environment
+    # implicitly with no protection rules, and the job then sails through. If
+    # the run does not pause, the environment is not configured.
+    environment: release-publish
     env:
       VERSION: ${{ needs.resolve-version.outputs.version }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
