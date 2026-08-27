@@ -145,9 +145,9 @@ Security and release incidents are prioritized over ordinary review.
 
 ## Roles and decisions
 
-Technical decisions rest with the maintainers — the people with merge access to the repository, listed in [MAINTAINERS.md](MAINTAINERS.md). There are two, and there is no reviewer tier or per-subsystem ownership between them.
+Technical decisions rest with the maintainers — the people with merge access to the repository, listed in [MAINTAINERS.md](MAINTAINERS.md). There are three, and there is no reviewer tier or per-subsystem ownership between them.
 
-A decision is made when the active maintainers agree. Where they do not, the change does not happen and existing behaviour stands. There is no separate appeals procedure: if a decision affects you and you think it is wrong, say so in the issue or pull request where it was made.
+A decision is made when a majority of the active maintainers agree. Where a majority does not form, the change does not happen and existing behaviour stands. There is no separate appeals procedure: if a decision affects you and you think it is wrong, say so in the issue or pull request where it was made.
 
 [GOVERNANCE.md](GOVERNANCE.md) has the full picture, including what this structure cannot do.
 

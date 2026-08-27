@@ -158,7 +158,7 @@ Technical authority in MosAIc Companion is earned through sustained contribution
 
 [GOVERNANCE.md](GOVERNANCE.md) describes how decisions are made and [MAINTAINERS.md](MAINTAINERS.md) records who makes them. Significant changes are proposed as issues before implementation, and every commit carries a Developer Certificate of Origin sign-off, which is an enforced check.
 
-The project has two maintainers, both affiliated with HyperCycle. There is no tiebreak when they disagree, no independent removal process, and a maintainer can merge their own change without a second review. Those are limits of the current size rather than settled positions, and growing past them is a goal.
+The project has three maintainers, all affiliated with HyperCycle. Decisions are made by majority, so no single maintainer can block a change; there is still no independent removal process, and a maintainer can merge their own change without a second review. Those are limits of the current size rather than settled positions, and growing past them is a goal.
 
 ## Security
 
