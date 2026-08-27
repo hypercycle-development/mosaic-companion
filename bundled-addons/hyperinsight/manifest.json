@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "name": "HyperInsight",
   "description": "AIM analytics: leaderboard, node profiles, subscriptions, and network stats from HyperInsight",
-  "author": "HyperCycle",
+  "author": "@ponchohauncho",
   "homepage": "https://github.com/hypercycle-development/mosaic-addons",
   "minAppVersion": "0.1.7",
 
