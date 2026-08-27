@@ -140,7 +140,7 @@ Add-ons reach other people through [`mosaic-addons`](https://github.com/hypercyc
 
 Catalogue releases are signed, and the application verifies them against a pinned publisher key before installing anything. A signature establishes who published an add-on, never that the add-on is safe — review addresses the second, and review is human.
 
-You need none of that to build one. The Dev corner in Settings loads an unpacked add-on from a local directory. That is the fastest way to develop, and it stays the right route for anything you only want to run yourself.
+You need none of that to build one. The Dev corner in Settings loads an unpacked add-on from a local directory — the fastest way to develop, and the right route for anything you only want to run yourself. It is gated to development builds: a packaged build refuses a dev-install unless it is started with `MOSAIC_ADDON_DEV=1`.
 
 A conformance suite and broader SDK coverage are still outstanding. For significant extension work, open a public issue before investing heavily in it.
 

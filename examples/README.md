@@ -58,6 +58,7 @@ for what a submission must contain, and what it cannot ask for.
 
 While you're developing, build and install unpacked through the Dev corner (see
 [`tab-plugin/`](tab-plugin/)). That route stays open for anything you only want
-to run on your own machine.
+to run on your own machine. It is gated to development builds — a packaged build
+refuses a dev-install unless started with `MOSAIC_ADDON_DEV=1`.
 
 MCP servers and WASM tools are distributed by you, however you like.
