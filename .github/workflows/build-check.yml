@@ -111,6 +111,7 @@ jobs:
             dist/main/mcp-server.js \
             dist/renderer/index.html \
             bundled-addons/hyperinsight/manifest.json \
+            bundled-addons/hyperinsight/LICENSE \
             node_modules/node-pty/build/Release/pty.node \
             node_modules/better-sqlite3/build/Release/better_sqlite3.node
           do
