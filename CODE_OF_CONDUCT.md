@@ -36,13 +36,13 @@ Participants must not abuse community infrastructure, impersonate others, evade 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be reported confidentially to:
 
 - **Email:** conduct@hyperpg.site
-- **Response team:** [@zephyrnova](https://github.com/zephyrnova) and [@dxnn](https://github.com/dxnn). Both read mail sent to that address.
+- **Response team:** [@zephyrnova](https://github.com/zephyrnova), [@dxnn](https://github.com/dxnn) and [@BarryJRowe](https://github.com/BarryJRowe). All three read mail sent to that address.
 
-**If your report concerns one of them, send it to the other directly rather than to the shared address** — ask them for a personal address, or use the contact details on their GitHub profile. Mail to the shared address reaches both people, including the person you are reporting.
+**If your report concerns one of them, send it to another of them directly rather than to the shared address** — ask them for a personal address, or use the contact details on their GitHub profile. Mail to the shared address reaches all three, including the person you are reporting.
 
 Do not report conduct incidents in a public issue.
 
-If a report concerns one member of the response team, the other handles it alone, and the report is not shared with the person it concerns. This only works if the report is sent to that person directly, as above. Anyone with a conflict of interest recuses themselves.
+If a report concerns one member of the response team, the others handle it without them, and the report is not shared with the person it concerns. This only works if the report is sent to that person directly, as above. Anyone with a conflict of interest recuses themselves.
 
 Reports are read by people, not a queue, and the project does not publish a response-time target it cannot currently guarantee. Reports are treated as a priority over ordinary project work. The privacy of the reporter and of anyone affected is respected as far as is possible while still acting on the report.
 
@@ -61,7 +61,7 @@ When deciding how to respond, the response team will consider the impact, contex
 
 Where appropriate and safe, the response team may also ask for an acknowledgement of impact, apology, or other restorative action. Enforcement decisions are documented confidentially and applied consistently.
 
-Where a decision was made by one responder alone, it may be appealed to the other. Where both were involved, there is no internal appeal and the project does not claim one. Conduct on GitHub can be raised with GitHub directly, as above, whatever this project decides; for conduct elsewhere there is currently no external route.
+Where a decision was made without the full response team, it may be appealed to whoever was not involved. Where all of them were involved, there is no internal appeal and the project does not claim one. Conduct on GitHub can be raised with GitHub directly, as above, whatever this project decides; for conduct elsewhere there is currently no external route.
 
 ## Scope
 
