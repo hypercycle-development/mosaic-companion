@@ -332,6 +332,7 @@ declare global {
          * asking can raise a modal password prompt. "unknown" until the vault
          * has done real work this session. */
         encryptionStatus: () => Promise<"protected" | "obfuscated" | "unavailable" | "unknown">;
+        encryptionCoverage: () => Promise<{ encrypted: number; pending: number }>;
         // Content
         getBoxContent: (boxId: string) => Promise<BoxContentResult>;
         addEntry: (boxId: string, input: { content: string; label?: string }) => Promise<{

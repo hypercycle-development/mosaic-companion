@@ -613,20 +613,29 @@ export const VaultPage: React.FC = () => {
   const [encStatus, setEncStatus] = useState<
     "protected" | "obfuscated" | "unavailable" | "unknown"
   >("unknown");
+  /** How many boxes are actually sealed on disk, and how many still are not.
+   * Upgrade happens per box on open, so the backend working is not the same
+   * as the vault being encrypted. Shape inspection only — never decrypts. */
+  const [coverage, setCoverage] = useState<{ encrypted: number; pending: number }>({
+    encrypted: 0,
+    pending: 0,
+  });
 
   // ── Load data ──────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     try {
-      const [loadedBoxes, loadedAgents, cfgError, encryption] = await Promise.all([
+      const [loadedBoxes, loadedAgents, cfgError, encryption, cov] = await Promise.all([
         window.electronAPI?.vault?.getBoxes() ?? [],
         window.electronAPI?.aiAgents?.get() ?? [],
         window.electronAPI?.vault?.configError() ?? null,
         window.electronAPI?.vault?.encryptionStatus() ?? ("unknown" as const),
+        window.electronAPI?.vault?.encryptionCoverage() ?? { encrypted: 0, pending: 0 },
       ] as const);
       setBoxes(loadedBoxes);
       setAgents(loadedAgents);
       setConfigError(cfgError);
       setEncStatus(encryption);
+      setCoverage(cov);
     } catch (err) {
       console.error("[VaultPage] Failed to load:", err);
     }
@@ -638,8 +647,12 @@ export const VaultPage: React.FC = () => {
    * this cannot raise a keychain prompt. */
   const refreshEncryptionStatus = useCallback(async () => {
     try {
-      const s = await window.electronAPI?.vault?.encryptionStatus();
+      const [s, cov] = await Promise.all([
+        window.electronAPI?.vault?.encryptionStatus(),
+        window.electronAPI?.vault?.encryptionCoverage(),
+      ]);
       if (s) setEncStatus(s);
+      if (cov) setCoverage(cov);
     } catch (err) {
       console.error("[VaultPage] Failed to refresh encryption status:", err);
     }
@@ -785,11 +798,20 @@ export const VaultPage: React.FC = () => {
       </div>
 
       {/* Storage notice, conditional on what the vault has actually observed
-          (#110 WP5). "unknown" keeps the original unconditional wording: it is
-          the state before any box has been read or written this session, and
-          under-claiming there is the safe direction. The status is a record of
-          past work, never a fresh query — see the IPC handler for why. */}
-      {encStatus === "protected" ? (
+          (#110 WP5). The status is a record of past work, never a fresh query —
+          see the IPC handler for why.
+
+          "unknown" gets its own wording rather than borrowing the unencrypted
+          one. It is the state before any box has been read this session, which
+          is every launch, and saying "stored unencrypted" there is a positive
+          claim that is false for anyone whose vault is encrypted. Under-claiming
+          means declining to claim protection, not asserting its absence.
+
+          It says "opening or saving" because an observation is only recorded on
+          a successful decrypt or a save — opening an empty or legacy-plaintext
+          box leaves the status unknown. That case resolves on first save, and
+          the closing sentence is written for exactly that reader. */}
+      {encStatus === "protected" && coverage.pending === 0 && coverage.encrypted > 0 ? (
         <div className="p-3 bg-emerald-900/20 border border-emerald-900/40 rounded-lg flex items-start gap-2">
           <Lock size={14} className="text-emerald-400 shrink-0 mt-0.5" />
           <span className="text-sm text-emerald-200/90">
@@ -809,8 +831,18 @@ export const VaultPage: React.FC = () => {
                 ? "Box contents are stored unencrypted on this device, because MosAIc could " +
                   "not reach a system keychain. Anyone who can read your files — or a backup " +
                   "of them — can read your boxes."
-                : "Box contents are stored unencrypted on this device. Anyone who can " +
-                  "read your files — or a backup of them — can read your boxes."}
+                : encStatus === "protected" && coverage.pending > 0
+                  ? `Encryption is working on this device, but ${coverage.pending} of ` +
+                    `${coverage.encrypted + coverage.pending} boxes are still stored ` +
+                    "unencrypted. A box is encrypted the first time you open it — open " +
+                    "each one to protect it. Until then, anyone who can read those " +
+                    "files can read those boxes."
+                  : encStatus === "protected"
+                    ? "Encryption is working on this device. No box has any content " +
+                      "stored yet, so there is nothing to protect."
+                  : "Encryption status not checked yet — opening or saving a box will " +
+                    "show what protection is actually in place. Until then, treat the " +
+                    "contents as readable by anything with access to this machine."}
           </span>
         </div>
       )}

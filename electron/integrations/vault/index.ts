@@ -455,6 +455,47 @@ export function getBoxContent(
   }
 }
 
+/**
+ * How much of the vault is actually encrypted on disk.
+ *
+ * Shape inspection only: this reads each content file and looks for an `enc`
+ * key. It never decrypts and never touches the keychain, so it cannot raise a
+ * password prompt — which is what makes it safe to call whenever the Vault page
+ * renders, unlike anything that probes `safeStorage`.
+ *
+ * Why it exists: upgrade-on-open is per box, so a vault of fifty boxes has
+ * forty-nine plaintext files until each is opened. A status derived only from
+ * the backend would report "protected" on the strength of one box and tell the
+ * user their contents are encrypted while most of them are not. Coverage is the
+ * difference between "encryption works here" and "your data is encrypted".
+ *
+ * `pending` counts boxes with a content file still in the legacy shape.
+ * A box with no content file yet holds nothing, so it is neither.
+ */
+export function encryptionCoverage(): { encrypted: number; pending: number } {
+  let encrypted = 0;
+  let pending = 0;
+  const vault = readVault();
+  // An unreadable config is not evidence of anything, and the page already has
+  // its own banner for that case. Report nothing rather than guessing.
+  if (vault.state !== "ok") return { encrypted: 0, pending: 0 };
+  for (const box of vault.config.boxes) {
+    const filePath = boxContentPath(box.id);
+    if (!fs.existsSync(filePath)) continue;
+    try {
+      const parsed = JSON.parse(fs.readFileSync(filePath, "utf8")) as Record<string, unknown>;
+      // `enc` wins over `entries` here for the same reason openRecord prefers
+      // it: a file carrying both is sealed, whatever else it also holds.
+      if (typeof parsed.enc === "string") encrypted += 1;
+      else if (Array.isArray(parsed.entries)) pending += 1;
+    } catch {
+      // Unreadable or malformed. Not counted either way — it is not evidence
+      // of protection, and it is not a box the user can act on by opening.
+    }
+  }
+  return { encrypted, pending };
+}
+
 /** The refusal every mutator returns for a box that could not be read. */
 function refuseUnreadable(reason: string): { success: false; error: string } {
   return {
