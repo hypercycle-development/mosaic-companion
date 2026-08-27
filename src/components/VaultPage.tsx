@@ -785,10 +785,19 @@ export const VaultPage: React.FC = () => {
       </div>
 
       {/* Storage notice, conditional on what the vault has actually observed
-          (#110 WP5). "unknown" keeps the original unconditional wording: it is
-          the state before any box has been read or written this session, and
-          under-claiming there is the safe direction. The status is a record of
-          past work, never a fresh query — see the IPC handler for why. */}
+          (#110 WP5). The status is a record of past work, never a fresh query —
+          see the IPC handler for why.
+
+          "unknown" gets its own wording rather than borrowing the unencrypted
+          one. It is the state before any box has been read this session, which
+          is every launch, and saying "stored unencrypted" there is a positive
+          claim that is false for anyone whose vault is encrypted. Under-claiming
+          means declining to claim protection, not asserting its absence.
+
+          It says "opening or saving" because an observation is only recorded on
+          a successful decrypt or a save — opening an empty or legacy-plaintext
+          box leaves the status unknown. That case resolves on first save, and
+          the closing sentence is written for exactly that reader. */}
       {encStatus === "protected" ? (
         <div className="p-3 bg-emerald-900/20 border border-emerald-900/40 rounded-lg flex items-start gap-2">
           <Lock size={14} className="text-emerald-400 shrink-0 mt-0.5" />
@@ -809,8 +818,9 @@ export const VaultPage: React.FC = () => {
                 ? "Box contents are stored unencrypted on this device, because MosAIc could " +
                   "not reach a system keychain. Anyone who can read your files — or a backup " +
                   "of them — can read your boxes."
-                : "Box contents are stored unencrypted on this device. Anyone who can " +
-                  "read your files — or a backup of them — can read your boxes."}
+                : "Encryption status not checked yet — opening or saving a box will " +
+                  "show what protection is actually in place. Until then, treat the " +
+                  "contents as readable by anything with access to this machine."}
           </span>
         </div>
       )}
