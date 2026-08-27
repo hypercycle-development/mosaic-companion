@@ -47,9 +47,17 @@ any of the three.
 
 ## Publishing
 
-Addons will be distributed from a dedicated `mosaic-addons` repository, one
-directory per addon. It isn't open for contributions yet, and one-click install
-from a signed catalogue isn't live — so for now addons are built and installed
-unpacked through the Dev corner (see [`tab-plugin/`](tab-plugin/)).
+Addons are distributed from the
+[`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons)
+repository, one directory per addon, as a reviewed catalogue. Open a pull
+request adding `addons/<your-id>/` — manifest, licence, and source. Submissions
+are assessed from the diff, so everything your addon does should be readable
+there. See its
+[CONTRIBUTING guide](https://github.com/hypercycle-development/mosaic-addons/blob/main/CONTRIBUTING.md)
+for what a submission must contain, and what it cannot ask for.
+
+While you're developing, build and install unpacked through the Dev corner (see
+[`tab-plugin/`](tab-plugin/)). That route stays open for anything you only want
+to run on your own machine.
 
 MCP servers and WASM tools are distributed by you, however you like.

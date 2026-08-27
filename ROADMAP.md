@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-08-20.
+Last updated: 2026-08-27.
 
 This describes direction, not delivery commitments. MosAIc Companion is
 maintained by a very small team; what gets done is bounded by that more than by
@@ -22,18 +22,23 @@ The near-term work is mostly about making that true rather than extending it:
 closing the gap between what the extension system promises and what it enforces,
 and between what the documentation says and what the code does.
 
+## Recently delivered
+
+### Publisher signing and a reviewed catalogue ([#103](https://github.com/hypercycle-development/mosaic-companion/issues/103))
+
+Add-ons are distributed from
+[`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons) as a
+signed catalogue, verified against a pinned publisher key. Withdrawal is carried
+by the same signed registry: delisting stops new installs, and a withdrawal
+entry acts on an add-on already installed without needing an application update.
+
+This is what makes a reviewed, revocable add-on distinguishable from a folder
+someone sent you, and it is the prerequisite for moving existing integration
+work out of the core application and into add-ons. Loading an unpacked add-on
+from a local directory remains available for development and for anything you
+only want to run yourself.
+
 ## Now
-
-### Publisher signing ([#103](https://github.com/hypercycle-development/mosaic-companion/issues/103))
-
-The immediate piece of work. Add-ons can only be installed by explicit local
-path today: the catalogue is fail-closed without a production publisher key, so
-there is no distribution channel at all.
-
-Everything else in the add-on story sits behind this. It is what makes a
-reviewed, revocable add-on distinguishable from a folder someone sent you, and
-it is the prerequisite for moving existing integration work out of the core
-application and into add-ons where it belongs.
 
 ### Extension API
 
@@ -58,8 +63,8 @@ planning. Two unrelated contributors needed the same things, independently:
 - **WASM execution timeouts** ([#109](https://github.com/hypercycle-development/mosaic-companion/issues/109))**.** A timeout is parsed from the tool manifest and
   stored, but nothing reads it — a tool that loops forever is not interrupted.
 - **Vault encryption where no secure-storage backend exists**
-  ([#110](https://github.com/hypercycle-development/mosaic-companion/issues/110))**.** Encryption at rest ships in 0.1.13 using the OS
-  backend. Where none is available — or on a Linux `basic_text` fallback —
+  ([#110](https://github.com/hypercycle-development/mosaic-companion/issues/110))**.** Encryption at rest is built, using the OS
+  backend, and is not yet in a published release. Where no backend is available — or on a Linux `basic_text` fallback —
   contents are plaintext or merely obfuscated. The interface says which, but a
   portable fallback does not exist yet.
 
@@ -79,8 +84,9 @@ planning. Two unrelated contributors needed the same things, independently:
 
 ## Next
 
-- **A curated add-on catalogue** with provenance, review state, compatibility,
-  and revocation — which publisher signing makes possible.
+- **Catalogue metadata** — provenance, review state, and compatibility surfaced
+  alongside each entry, building on the signing and withdrawal chain now in
+  place.
 - **A threat model** covering the core, the sandbox, add-ons, MCP, the Vault,
   the wallet, and updates.
 - **A published host ABI and compatibility policy**, versioned separately from

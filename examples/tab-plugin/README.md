@@ -72,10 +72,12 @@ than routing around it.
   itself and isn't covered by the permission model, so an addon declaring it is
   rejected at install. Everything in this example, and most of what an addon
   needs, works from the renderer.
-- **Larger worked examples** will live in the `mosaic-addons` repository.
-  It isn't public yet, so there's nothing to link to today — this example plus
-  the notes above are the current reference.
-- **Publishing**: addons will be distributed from `mosaic-addons`, one
-  directory per addon. That repository isn't open for contributions yet and
-  one-click install from a signed catalogue isn't live, so for now addons are
-  built and installed unpacked as above.
+- **Larger worked examples** live in the
+  [`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons)
+  repository — HyperInsight is a full addon built against this same API.
+- **Publishing**: addons are distributed from `mosaic-addons`, one directory
+  per addon, as a reviewed catalogue. Open a pull request adding
+  `addons/<your-id>/`; submissions are assessed from the diff. See its
+  [CONTRIBUTING guide](https://github.com/hypercycle-development/mosaic-addons/blob/main/CONTRIBUTING.md).
+  Building and installing unpacked, as above, stays the right route while you
+  develop and for anything you only want to run yourself.
