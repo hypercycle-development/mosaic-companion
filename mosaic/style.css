@@ -535,6 +535,25 @@ ol.steps-list li::before {
   box-shadow: 0 6px 24px rgba(102, 252, 241, 0.1);
 }
 
+.download-btn.unavailable {
+  cursor: not-allowed;
+  border-style: dashed;
+  background: rgba(44, 62, 80, 0.18);
+}
+
+/* Dim the chrome, never the message: the "unavailable" text has to stay
+   readable, so only the icon is faded. A blanket opacity here dropped the
+   sub-label to roughly 2.4:1, well under WCAG AA. */
+.download-btn.unavailable .dl-icon {
+  opacity: 0.4;
+}
+
+.download-btn.unavailable:hover {
+  border-color: var(--glass-border);
+  transform: none;
+  box-shadow: none;
+}
+
 .download-btn.recommended {
   border-color: var(--cyan-20);
   background: rgba(102, 252, 241, 0.05);

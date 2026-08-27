@@ -408,7 +408,7 @@
             </span>
             <span class="section-name"
               >Linux
-              <span class="section-sub">deb &amp; AppImage · x64 / arm64</span></span
+              <span class="section-sub">deb &amp; AppImage · x64</span></span
             >
             <svg class="chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
@@ -446,11 +446,7 @@
                   </span>
                   <span class="rec-tag" hidden>recommended</span>
                 </a>
-                <a
-                  href="https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.12/mosaic-companion_0.1.12_arm64.deb"
-                  class="download-btn"
-                  data-arch="arm64"
-                >
+                <span class="download-btn unavailable">
                   <span class="dl-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24">
                       <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
@@ -458,10 +454,9 @@
                   </span>
                   <span class="dl-info">
                     <span class="dl-name">deb — ARM64</span>
-                    <span class="dl-arch">For ARM 64-bit (Raspberry Pi 4+, etc.)</span>
+                    <span class="dl-arch">Temporarily unavailable — see below</span>
                   </span>
-                  <span class="rec-tag" hidden>recommended</span>
-                </a>
+                </span>
               </div>
 
               <p class="dl-group-label">
@@ -484,11 +479,7 @@
                   </span>
                   <span class="rec-tag" hidden>recommended</span>
                 </a>
-                <a
-                  href="https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.12/mosaic-companion-0.1.12-arm64.AppImage"
-                  class="download-btn"
-                  data-arch="arm64"
-                >
+                <span class="download-btn unavailable">
                   <span class="dl-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24">
                       <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
@@ -496,10 +487,29 @@
                   </span>
                   <span class="dl-info">
                     <span class="dl-name">AppImage — ARM64</span>
-                    <span class="dl-arch">For ARM 64-bit (aarch64)</span>
+                    <span class="dl-arch">Temporarily unavailable — see below</span>
                   </span>
-                  <span class="rec-tag" hidden>recommended</span>
-                </a>
+                </span>
+              </div>
+
+              <div class="note warn">
+                <div>
+                  <span class="hl">ARM64 Linux builds are temporarily
+                  withdrawn.</span><br />
+                  The v0.1.12 ARM64 <span class="hl">.deb</span> and
+                  <span class="hl">AppImage</span> do not start: a native module
+                  they need was not built for ARM, so the app exits before a
+                  window appears. The fix is merged and will be in the next
+                  release. <span class="hl">Mac and Windows downloads are
+                  unaffected, and so are the x64 Linux builds</span> — this
+                  concerns <span class="hl">Linux</span> on ARM64 machines only,
+                  such as a Raspberry Pi or an ARM server. An Apple Silicon Mac
+                  is not affected. Details in
+                  <a
+                    href="https://github.com/hypercycle-development/mosaic-companion/issues/112"
+                    >issue #112</a
+                  >.
+                </div>
               </div>
             </div>
 
@@ -795,7 +805,7 @@
               <tr><td>Chat Rooms</td><td>Shared rooms where several people and agents can talk together. Needs a chat server — safe to ignore at first.</td></tr>
               <tr><td>MCP Servers</td><td>Optional plug-ins that give your agents extra tools. Ignore until you need them.</td></tr>
               <tr><td>Web3</td><td>Connect a crypto wallet, set transfer limits, and control what agents may spend. Only relevant if you use crypto.</td></tr>
-              <tr><td>Vault</td><td>Named boxes for your own notes and data — you choose which agents can read each box. Try it: create a box, put something in, and ask your agent what's in your vault.</td></tr>
+              <tr><td>Vault</td><td>Named boxes for your own notes and data — you choose which agents can read each box. Try it: create a box, put something in, and ask your agent what's in your vault. <span class="hl">Box contents are stored unencrypted on your device in this release</span>, and the Vault page says so — keep passwords and keys out of it for now.</td></tr>
               <tr><td>HyperInsight</td><td>Analytics for HyperCycle AIMs and nodes — leaderboards, node profiles and network stats. Installed for you; turn it on or off under <span class="hl">Configuration → Addons</span>.</td></tr>
               <tr><td>IDE</td><td>A built-in code editor. For programmers — everyone else can skip it.</td></tr>
               <tr><td>Tool Sandbox</td><td>Install small, safely-sandboxed tools that agents can run. Optional.</td></tr>

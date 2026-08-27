@@ -12,13 +12,12 @@
     },
     "linux": {
       "deb": {
-        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.12/mosaic-companion_0.1.12_amd64.deb",
-        "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.12/mosaic-companion_0.1.12_arm64.deb"
+        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.12/mosaic-companion_0.1.12_amd64.deb"
       },
       "appimage": {
-        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.12/mosaic-companion-0.1.12-x64.AppImage",
-        "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.12/mosaic-companion-0.1.12-arm64.AppImage"
-      }
+        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.12/mosaic-companion-0.1.12-x64.AppImage"
+      },
+      "note": "ARM64 Linux builds are withdrawn for 0.1.12; they do not start (see issue #112). x64 is unaffected."
     }
   }
 }
