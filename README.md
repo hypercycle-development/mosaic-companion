@@ -65,7 +65,7 @@ For detail, see the [architecture overview](docs/architecture/overview.md), the 
 
 Agent API keys, wallet keys, and sandbox tool secrets use Electron `safeStorage` where the platform provides it.
 
-The Vault is an early, unfinished component. Boxes hold user-entered text stored as local JSON, unencrypted at rest. The per-agent access controls are real and enforced within the application, but they do not protect the files on disk, and nothing in the interface says so. Do not put anything sensitive in it.
+The Vault is an early component. Box contents are encrypted at rest using the operating system's secure storage, and the Vault page states which protection is actually in effect — real protection, obfuscation only (a Linux `basic_text` fallback), or plaintext where no backend is available. The per-agent access controls are enforced within the application and are separate from encryption; they do not protect the files on disk.
 
 ## Run from source
 

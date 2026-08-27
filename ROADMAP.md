@@ -57,8 +57,11 @@ planning. Two unrelated contributors needed the same things, independently:
 
 - **WASM execution timeouts** ([#109](https://github.com/hypercycle-development/mosaic-companion/issues/109))**.** A timeout is parsed from the tool manifest and
   stored, but nothing reads it — a tool that loops forever is not interrupted.
-- **Vault encryption at rest** ([#110](https://github.com/hypercycle-development/mosaic-companion/issues/110))**.** Boxes hold user-entered text as unencrypted
-  local JSON, and nothing in the interface says so.
+- **Vault encryption where no secure-storage backend exists**
+  ([#110](https://github.com/hypercycle-development/mosaic-companion/issues/110))**.** Encryption at rest ships in 0.1.13 using the OS
+  backend. Where none is available — or on a Linux `basic_text` fallback —
+  contents are plaintext or merely obfuscated. The interface says which, but a
+  portable fallback does not exist yet.
 
 ### Accuracy
 

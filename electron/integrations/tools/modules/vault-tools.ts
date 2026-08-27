@@ -58,7 +58,9 @@ async function readBox(
     return { success: false, error: "Access denied — you do not have access to this box" };
   }
 
-  const loaded = getBoxContent(boxId);
+  // `upgrade: false`: an agent's read must not rewrite the user's file, and
+  // must not raise a keychain prompt the user has no context for.
+  const loaded = getBoxContent(boxId, { upgrade: false });
   // An unreadable box is reported as an error, never as an empty box. An agent
   // told a box is empty may reasonably act on that — including writing to it,
   // or concluding the user has no such data.

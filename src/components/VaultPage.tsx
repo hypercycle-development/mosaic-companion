@@ -593,18 +593,26 @@ export const VaultPage: React.FC = () => {
    * empty list in that state, so without this the page would say "no boxes"
    * about a vault that may be full — a false statement, not just a missing one. */
   const [configError, setConfigError] = useState<string | null>(null);
+  /** Last status the main process actually observed. Never a fresh OS query:
+   * asking whether encryption is available can raise a modal password prompt,
+   * so the page reads a record rather than posing the question. */
+  const [encStatus, setEncStatus] = useState<
+    "protected" | "obfuscated" | "unavailable" | "unknown"
+  >("unknown");
 
   // ── Load data ──────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     try {
-      const [loadedBoxes, loadedAgents, cfgError] = await Promise.all([
+      const [loadedBoxes, loadedAgents, cfgError, encryption] = await Promise.all([
         window.electronAPI?.vault?.getBoxes() ?? [],
         window.electronAPI?.aiAgents?.get() ?? [],
         window.electronAPI?.vault?.configError() ?? null,
-      ]);
+        window.electronAPI?.vault?.encryptionStatus() ?? ("unknown" as const),
+      ] as const);
       setBoxes(loadedBoxes);
       setAgents(loadedAgents);
       setConfigError(cfgError);
+      setEncStatus(encryption);
     } catch (err) {
       console.error("[VaultPage] Failed to load:", err);
     }
@@ -750,17 +758,36 @@ export const VaultPage: React.FC = () => {
         )}
       </div>
 
-      {/* Storage notice. Unconditional and deliberately so: box contents are
-          written to disk as plain JSON. When encryption at rest lands (#110)
-          this becomes conditional on whether the platform keychain actually
-          protected the file — until then it is simply true. */}
-      <div className="p-3 bg-amber-900/20 border border-amber-900/40 rounded-lg flex items-start gap-2">
-        <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
-        <span className="text-sm text-amber-200/90">
-          Box contents are stored unencrypted on this device. Anyone who can
-          read your files — or a backup of them — can read your boxes.
-        </span>
-      </div>
+      {/* Storage notice, conditional on what the vault has actually observed
+          (#110 WP5). "unknown" keeps the original unconditional wording: it is
+          the state before any box has been read or written this session, and
+          under-claiming there is the safe direction. The status is a record of
+          past work, never a fresh query — see the IPC handler for why. */}
+      {encStatus === "protected" ? (
+        <div className="p-3 bg-emerald-900/20 border border-emerald-900/40 rounded-lg flex items-start gap-2">
+          <Lock size={14} className="text-emerald-400 shrink-0 mt-0.5" />
+          <span className="text-sm text-emerald-200/90">
+            Box contents are encrypted on this device using your system keychain. A
+            backup copied to another machine cannot be read without that keychain.
+          </span>
+        </div>
+      ) : (
+        <div className="p-3 bg-amber-900/20 border border-amber-900/40 rounded-lg flex items-start gap-2">
+          <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+          <span className="text-sm text-amber-200/90">
+            {encStatus === "obfuscated"
+              ? "Box contents are obscured but not securely encrypted on this device — the " +
+                "system keyring in use offers no real protection. Anyone who can read your " +
+                "files can recover your boxes."
+              : encStatus === "unavailable"
+                ? "Box contents are stored unencrypted on this device, because MosAIc could " +
+                  "not reach a system keychain. Anyone who can read your files — or a backup " +
+                  "of them — can read your boxes."
+                : "Box contents are stored unencrypted on this device. Anyone who can " +
+                  "read your files — or a backup of them — can read your boxes."}
+          </span>
+        </div>
+      )}
 
       {/* Error banner */}
       {error && (

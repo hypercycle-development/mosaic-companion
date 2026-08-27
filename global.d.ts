@@ -328,6 +328,10 @@ declare global {
         getAgentBoxes: (agentId: string) => Promise<VaultBox[]>;
         /** Non-null when vault.json is present but unreadable; writes are refused while so. */
         configError: () => Promise<string | null>;
+        /** Last OBSERVED encryption status — never asks the OS afresh, because
+         * asking can raise a modal password prompt. "unknown" until the vault
+         * has done real work this session. */
+        encryptionStatus: () => Promise<"protected" | "obfuscated" | "unavailable" | "unknown">;
         // Content
         getBoxContent: (boxId: string) => Promise<BoxContentResult>;
         addEntry: (boxId: string, input: { content: string; label?: string }) => Promise<{

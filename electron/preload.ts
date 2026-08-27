@@ -366,6 +366,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getAgentBoxes: (agentId: string) =>
       ipcRenderer.invoke("vault:get-agent-boxes", agentId),
     configError: () => ipcRenderer.invoke("vault:config-error"),
+    encryptionStatus: () => ipcRenderer.invoke("vault:encryption-status"),
     // Content
     getBoxContent: (boxId: string) =>
       ipcRenderer.invoke("vault:get-box-content", boxId),

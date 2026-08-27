@@ -4,7 +4,7 @@
  *
  *   npm run test:vault-crypto
  *
- * Only the read path is wired into the vault; sealEntries is not; this is the module on its own.
+ * Both paths are wired into the vault as of 0.1.13; sealEntries writes; this is the module on its own.
  *
  * The stub's `decryptString` throws unless a test says otherwise, so any test
  * that expects a successful seal has to call `enableStubRoundTrip()` first —
