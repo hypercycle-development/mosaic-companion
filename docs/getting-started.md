@@ -120,7 +120,7 @@ and say hello to your new agent.
 | **Chat Rooms** | Shared rooms for several people and agents. Needs a chat server — safe to ignore at first. |
 | **MCP Servers** | Optional plug-ins that give agents extra tools. |
 | **Web 3** | Connect a crypto wallet, set transfer limits. Only relevant if you use crypto. |
-| **Vault** | Boxes for notes and secrets — you choose which agents can read each box. Contents are encrypted at rest using your operating system's secure storage; the Vault page tells you which protection is actually in effect on your machine. |
+| **Vault** | Boxes for notes and secrets — you choose which agents can read each box. Contents are stored unencrypted on your machine and the Vault page says so, so treat them as readable by anything with access to the device. |
 | **HyperInsight** | Browse services and nodes on the HyperCycle network. |
 | **IDE** | Built-in code editor. For programmers. |
 | **Tool Sandbox** | Install small, safely-sandboxed tools agents can run. |
