@@ -130,7 +130,9 @@ See [docs/build.md](docs/build.md) for platform-specific packaging instructions.
 
 **[Build an extension](docs/build-an-extension.md)** is the full guide: the two
 kinds of extension, the manifest, permissions, how to run one locally, and what
-happens when you submit one.
+happens when you submit one. The
+**[`window.addonAPI` reference](docs/addon-api.md)** documents the API an add-on
+page actually calls.
 
 - Start with the [minimal renderer add-on](examples/tab-plugin/README.md).
 - Start with the [minimal WASM tool](examples/wasm-tool/README.md).
