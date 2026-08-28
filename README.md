@@ -128,6 +128,10 @@ See [docs/build.md](docs/build.md) for platform-specific packaging instructions.
 
 ## Build an extension
 
+**[Build an extension](docs/build-an-extension.md)** is the full guide: the two
+kinds of extension, the manifest, permissions, how to run one locally, and what
+happens when you submit one.
+
 - Start with the [minimal renderer add-on](examples/tab-plugin/README.md).
 - Start with the [minimal WASM tool](examples/wasm-tool/README.md).
 - Read the [tool manifest specification](docs/architecture/manifest.md).
@@ -136,7 +140,7 @@ See [docs/build.md](docs/build.md) for platform-specific packaging instructions.
 
 ### Publishing an add-on
 
-Add-ons reach other people through [`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons), a reviewed catalogue. Open a pull request adding `addons/<your-id>/` with a manifest, a licence, and your source. The reviewable unit is the patch: submissions are assessed from the diff rather than from a running build, so everything an add-on does should be readable there. Its [CONTRIBUTING guide](https://github.com/hypercycle-development/mosaic-addons/blob/main/CONTRIBUTING.md) sets out what a submission must contain, and what it cannot ask for.
+Add-ons reach other people through [`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons), a reviewed catalogue. Open a pull request adding `addons/<your-id>/` with a manifest, a licence, and your source. We review the source you submit, not a build of it: a submission is assessed from the files in your pull request — the ones a reviewer can open and read — rather than from running the add-on, so everything an add-on does should be readable in those files. Its [CONTRIBUTING guide](https://github.com/hypercycle-development/mosaic-addons/blob/main/CONTRIBUTING.md) sets out what a submission must contain, and what it cannot ask for.
 
 Catalogue releases are signed, and the application verifies them against a pinned publisher key before installing anything. A signature establishes who published an add-on, never that the add-on is safe — review addresses the second, and review is human.
 
