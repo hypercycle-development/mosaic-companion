@@ -15,7 +15,8 @@ For what an add-on *is*, how to build one and how to submit it, see
 
 ## How a call behaves
 
-Every method returns a **Promise**. On success it resolves with the value. On
+Every method returns a **Promise**, except `events.on`, which returns an
+unsubscribe function synchronously. On success a call resolves with the value. On
 failure it **throws**, and the thrown `Error` carries a code you can branch on.
 
 The code is encoded into the message as `[CODE] message`, because a custom
@@ -35,10 +36,12 @@ try {
 
 | Code | Means |
 | --- | --- |
-| `PERMISSION_DENIED` | The method needs a permission your manifest did not declare, or a channel does. |
+| `PERMISSION_DENIED` | The method, or the channel, needs a permission you do not hold — either you did not declare it, or the user declined it at install. |
 | `BAD_ARGS` | Arguments failed validation — wrong type, bad path, over a size limit. |
 | `UNKNOWN_METHOD` | No such namespace or method, or no handler registered by your add-on's main. |
 | `HANDLER_ERROR` | The method ran and threw. |
+| `ADDON_UNKNOWN_SENDER` | The caller could not be identified as an installed add-on. |
+| `ADDON_NOT_ACTIVE` | Your add-on is not active — reachable if a call races deactivation. |
 | `UNKNOWN_ERROR` | Nothing matched — the message is the raw text. |
 
 **Identity is never taken from your page.** Which add-on is calling is resolved
@@ -139,11 +142,17 @@ off();
 | `wallet:changed` | `wallet:read` | Wallet state changes. |
 | `nodes:changed` | `nodes:read` | The node list changes. |
 | `mcp:tools-changed` | `mcp:read` | Available MCP tools change. |
-| `self:*` | none | Your own add-on's main sends on it. |
+| `self:*` | none | Your own add-on's main sends on it — which needs a `main.entry`, so see the note on `invoke()` below before designing around these. |
 
 Permission here depends on the **channel**, not the method, and is checked when
-you subscribe. An unrecognised channel throws rather than silently never firing —
-which is what tells you a channel does not exist in this version of the app.
+you subscribe.
+
+> **Subscription failures are silent, and this is the one place they are.**
+> `events.on` returns its unsubscribe function immediately and discards the
+> result of the subscribe call. So an unrecognised channel, and a channel whose
+> permission you do not hold, both look identical to a channel that simply never
+> fires. There is nothing to catch. If events are not arriving, check the channel
+> name and check your manifest before you debug anything else.
 
 `theme:changed` and `window:focus-changed` are subscribed for you at startup.
 
