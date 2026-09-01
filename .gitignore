@@ -69,3 +69,6 @@ tests/addons/*/data/
 *.pem
 *.key
 *-signing-key.json
+
+# Dev-corner installs write addonAPI.files storage into the example itself.
+examples/*/data/

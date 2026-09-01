@@ -4,6 +4,15 @@ The smallest possible MosAIc addon: one sidebar tab, one page, no build step.
 
 Copy this directory, rename it, and you have a working addon skeleton.
 
+Two things this skeleton deliberately leaves to you. It has **no `LICENSE`
+file**, and a catalogue submission needs one — pick your licence and add it.
+And loading it through the Dev corner creates a `data/` directory **inside this
+folder**, which is your addon's private storage; add it to your `.gitignore`.
+
+> The directory is called `tab-plugin` for historical reasons. What it contains
+> is an **add-on** — the kind the catalogue carries. A *plugin* is an MCP server
+> or a WASM tool, which is a different thing entirely.
+
 ## Files
 
 | File | Purpose |
@@ -18,12 +27,26 @@ release.
 
 1. Run MosAIc from source (`npm start`), or a packaged build with
    `MOSAIC_ADDON_DEV=1` set.
-2. **Configuration → Addons → Dev corner → Install unpacked**.
+2. **Configuration → Addons → Dev corner → Load unpacked addon…**.
 3. Point it at this directory (the one containing `manifest.json`).
 4. "Example" appears in the sidebar.
 
 A dev install grants every permission the manifest declares and skips the
 consent dialog — that's a developer convenience, not what a real user sees.
+
+## Iterating
+
+You do not need to restart the app. A dev-installed add-on gets a **Reload**
+button on its own card in the **Installed** list — in the controls strip along
+the bottom of the card, where a catalogue add-on shows its update setting. It is
+not in the Dev corner; the Dev corner only has *Load unpacked addon…*. Reload
+deactivates and reactivates the add-on, re-reading `manifest.json` from disk.
+For a change to `renderer/` alone, reloading the page is enough.
+
+One exception: **adding** a permission needs a full reinstall. The grant is fixed
+when you install, so reactivating with a manifest that asks for more fails with
+"Manifest requests permissions beyond what was granted". Remove the add-on and Load
+unpacked again. Removing a permission, and tab changes, reload fine.
 
 ## What it demonstrates
 
@@ -80,7 +103,8 @@ than routing around it.
   rejected — read it for the renderer side.
 - **Publishing**: addons are distributed from `mosaic-addons`, one directory
   per addon, as a reviewed catalogue. Open a pull request adding
-  `addons/<your-id>/`; submissions are assessed from the diff. See its
+  `addons/<your-id>/`; we review the source you submit rather than a build of
+  it. See its
   [CONTRIBUTING guide](https://github.com/hypercycle-development/mosaic-addons/blob/main/CONTRIBUTING.md).
   Building and installing unpacked, as above, stays the right route while you
   develop and for anything you only want to run yourself — in a development
