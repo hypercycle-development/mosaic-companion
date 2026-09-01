@@ -36,7 +36,7 @@ try {
 
 | Code | Means |
 | --- | --- |
-| `PERMISSION_DENIED` | The method, or the channel, needs a permission you do not hold — either you did not declare it, or the user declined it at install. |
+| `PERMISSION_DENIED` | The method, or the channel, needs a permission your manifest does not declare. Consent is all-or-nothing — an install that is not granted everything the manifest asks for does not happen — so in practice this means you did not declare it. |
 | `BAD_ARGS` | Arguments failed validation — wrong type, bad path, over a size limit. |
 | `UNKNOWN_METHOD` | No such namespace or method, or no handler registered by your add-on's main. |
 | `HANDLER_ERROR` | The method ran and threw. |
@@ -140,8 +140,8 @@ off();
 | `theme:changed` | none | The user changes theme. |
 | `window:focus-changed` | none | The app window gains or loses focus. |
 | `wallet:changed` | `wallet:read` | Wallet state changes. |
-| `nodes:changed` | `nodes:read` | The node list changes. |
-| `mcp:tools-changed` | `mcp:read` | Available MCP tools change. |
+| `nodes:changed` | `nodes:read` | **Nothing delivers this today** — see below. |
+| `mcp:tools-changed` | `mcp:read` | **Nothing delivers this to an add-on today** — see below. |
 | `self:*` | none | Your own add-on's main sends on it — which needs a `main.entry`, so see the note on `invoke()` below before designing around these. |
 
 Permission here depends on the **channel**, not the method, and is checked when
@@ -155,6 +155,20 @@ you subscribe.
 > name and check your manifest before you debug anything else.
 
 `theme:changed` and `window:focus-changed` are subscribed for you at startup.
+
+> **Two of these channels are accepted but never arrive.** `nodes:changed` and
+> `mcp:tools-changed` are in the permission map, so subscribing to them succeeds
+> and looks exactly like a working subscription. Nothing reaches you.
+>
+> Add-on events are delivered by one function, and its complete set of callers
+> emits only `theme:changed`, `window:focus-changed`, `wallet:changed` and
+> `self:*`. `nodes:changed` has no sender anywhere in the app. `mcp:tools-changed`
+> does have one, but it publishes to the app's own window on a different
+> transport that add-on webviews are not on.
+>
+> **Do not design around either channel.** If you need to know that the node list
+> or the MCP tool set has changed, poll `nodes.list()` or `mcp.listTools(serverId)`.
+
 
 ## `ui`
 
