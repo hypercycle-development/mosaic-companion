@@ -15,8 +15,9 @@ For what an add-on *is*, how to build one and how to submit it, see
 
 ## How a call behaves
 
-Every method returns a **Promise**, except `events.on`, which returns an
-unsubscribe function synchronously. On success a call resolves with the value. On
+Every method returns a **Promise**, except two that are synchronous:
+`events.on`, which returns an unsubscribe function, and `parseError`, which
+returns `{ code, message }`. On success a call resolves with the value. On
 failure it **throws**, and the thrown `Error` carries a code you can branch on.
 
 The code is encoded into the message as `[CODE] message`, because a custom
