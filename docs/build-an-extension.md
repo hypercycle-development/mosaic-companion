@@ -168,6 +168,19 @@ addons/my-addon/
 └── renderer/…        everything your add-on is, readable
 ```
 
+> **Check that `git add` actually took `renderer/`.** `mosaic-addons`
+> git-ignores `addons/*/renderer/`, because for an add-on built from a `src/`
+> directory that path is build output the release pipeline regenerates. If your
+> add-on has no build step — the shape above, and the shape
+> [`examples/tab-plugin`](../examples/tab-plugin/) uses — then `renderer/` is
+> your source, and `git add addons/my-addon/` skips it without a word. The
+> submission still passes every automated check, because a manifest and a
+> licence is all it is asked for; it just contains no add-on.
+>
+> Run `git status --ignored addons/my-addon/` before you push. If your renderer
+> is source rather than output, add it with
+> `git add -f addons/my-addon/renderer/` and say so in the pull request.
+
 ### Rules that will bounce a submission
 
 | Rule | Why |
@@ -186,12 +199,13 @@ addons/my-addon/
 > copyright. There is no CLA.**
 
 > **Say which licence you chose, in the pull request.**
+> A `LICENSE` file in `addons/<your-id>/` and a line in the pull request are the
+> whole record — the manifest has no `license` field, so there is nothing to put
+> one in. See
 > [LICENSING.md](https://github.com/hypercycle-development/mosaic-addons/blob/main/LICENSING.md)
-> asks for the licence in your `LICENSE` file *and* as an SPDX `license` field in
-> the manifest — but the manifest schema does not carry that field yet, so until
-> it does, put the `LICENSE` file in and state the licence in the pull request.
-> Copyleft is unanalysed, including copyleft *dependencies* inlined by your
-> build: expect such a submission to be **held rather than refused**.
+> for which licences are accepted. Copyleft is unanalysed, including copyleft
+> *dependencies* inlined by your build: expect such a submission to be **held
+> rather than refused**.
 
 > **A version range is accepted as written.**
 > Nothing pins it for you. Pinning comes from your committed lockfile, not from a
@@ -286,6 +300,9 @@ applies — a published add-on does not get a fast path.
 - Source is readable; nothing minified or generated without its source
 - Every commit carries `Signed-off-by`
 - You have loaded it through the Dev corner and it works
+- `git show --stat HEAD` lists your `renderer/` files — see the warning in
+  [Submit it](#6-submit-it); a no-build add-on loses them to `.gitignore`
+  silently
 
 > **Still to come.**
 > A conformance suite and broader SDK coverage do not exist yet, and the

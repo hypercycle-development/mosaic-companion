@@ -8,8 +8,15 @@ which contracts matter.
 |---------|---------|--------|
 | [`tab-plugin/`](tab-plugin/) | Addon — a sidebar tab | Working, no build step |
 | [`mcp/mcp-hello/`](mcp/mcp-hello/) | MCP server (stdio) | Working |
-| [`wasm-tool/`](wasm-tool/) | WASM sandboxed tool (TypeScript) | Working |
-| [`wasm/`](wasm/) | Two more WASM tools — `cron-explain`, `checksum` | Working |
+| [`wasm-tool/`](wasm-tool/) | WASM sandboxed tool (TypeScript) | **Read it, don't run it** — the committed `.wasm` will not install |
+| [`wasm/`](wasm/) | One more WASM tool — `cron-explain` | Working |
+
+> **`wasm-tool/` does not currently install.** The committed
+> `text-stats.wasm` exports neither `mosaic_manifest` nor `analyze` — its whole
+> export list is the Extism PDK's internals — so *Install .wasm Tool* fails at
+> manifest extraction. The TypeScript beside it is still a correct illustration
+> of the shape; the artifact is what is wrong. Use
+> [`wasm/cron-explain/`](wasm/cron-explain/) if you want one that runs.
 
 HyperCycle node integration doesn't have an example yet. Until it does, the
 working reference is `plugins/aim-nodes` in this repository — in particular
@@ -28,8 +35,8 @@ Your server runs as a local process; MosAIc connects to it over stdio or HTTP.
 Nothing about it is MosAIc-specific.
 
 **WASM tool** — you want sandboxed computation users can invoke from the Tool
-Sandbox. Your tool compiles to `.wasm` and declares a manifest; permissions
-are enforced at the sandbox boundary.
+Sandbox. Your tool compiles to `.wasm` and declares a manifest. It has no ambient
+access to anything: it can only call the host functions MosAIc provides.
 
 ## How isolation differs between them
 
@@ -39,7 +46,7 @@ Worth understanding before you pick, because it decides what your code can do:
 |---|---|---|---|
 | Addon | Isolated webview | `window.addonAPI`, permission-gated | Declared in a manifest, shown to the user at install |
 | MCP server | Its own OS process | MCP protocol | Whatever the user grants the server |
-| WASM tool | WASM sandbox | Host function calls | Declared in a manifest, enforced by the gatekeeper |
+| WASM tool | WASM sandbox | Host function calls | No ambient access. `http_request` is mediated and audited; the runtime's own HTTP is bounded by `allowed_domains` but not audited |
 
 None of these gets `window.electronAPI` or Node access. That bridge belongs to
 the app's own renderer, and code copied out of it will not work unchanged in
@@ -50,9 +57,9 @@ any of the three.
 Addons are distributed from the
 [`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons)
 repository, one directory per addon, as a reviewed catalogue. Open a pull
-request adding `addons/<your-id>/` — manifest, licence, and source. Submissions
-are assessed from the diff, so everything your addon does should be readable
-there. See its
+request adding `addons/<your-id>/` — manifest, licence, and source. We review the
+source you submit rather than a build of it, so everything your addon does should
+be readable in the files you add. See its
 [CONTRIBUTING guide](https://github.com/hypercycle-development/mosaic-addons/blob/main/CONTRIBUTING.md)
 for what a submission must contain, and what it cannot ask for.
 
