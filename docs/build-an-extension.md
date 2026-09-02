@@ -188,7 +188,7 @@ addons/my-addon/
 | Everything inside `addons/<your-id>/` | A submission that reaches outside its own directory is not reviewable in isolation. |
 | Dependencies resolve to public npm, as a plain version range | A `user/repo` shorthand resolves to a mutable branch tarball, and an `npm:` alias installs something other than what it names. Both defeat reviewing the source you submitted. |
 | No `main.entry` | See [the manifest](#3-the-manifest). It runs outside the permission model. |
-| No install lifecycle scripts | A `postinstall` (or `preinstall`, `prepare`) in your `package.json` is arbitrary code execution at install time. Hard failure. |
+| Only permitted `scripts` names | `build`, `dev`, `test`, `lint`, `typecheck`, `format`, `clean`, `watch`, `preview` — anything else is a hard failure. npm runs some script names by itself when dependencies are installed and it decides which, so the check permits names rather than banning them. A `package.json` that will not parse is also refused, byte-order marks included. |
 | No symlinks or submodules | Neither can be reviewed by reading the files you submitted. |
 | One logical commit | A submission is reviewed as a whole, not as a history to reconstruct. |
 
@@ -291,7 +291,8 @@ applies — a published add-on does not get a fast path.
   lockfile
 - `ipcNamespace` does not collide with an application namespace
 - `tab.icon` is a real Lucide name in PascalCase, and you have seen it render
-- If you have a `package.json`: no install lifecycle scripts, and `npm run build`
+- If you have a `package.json`: every `scripts` name is on the permitted list
+  above, the file is valid JSON with no byte-order mark, and `npm run build`
   works and puts everything the page needs into `renderer/`
 - Nothing reaches outside `addons/<your-id>/`
 - A `LICENSE` file is present — see
