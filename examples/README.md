@@ -8,8 +8,15 @@ which contracts matter.
 |---------|---------|--------|
 | [`tab-plugin/`](tab-plugin/) | Addon — a sidebar tab | Working, no build step |
 | [`mcp/mcp-hello/`](mcp/mcp-hello/) | MCP server (stdio) | Working |
-| [`wasm-tool/`](wasm-tool/) | WASM sandboxed tool (TypeScript) | Working |
+| [`wasm-tool/`](wasm-tool/) | WASM sandboxed tool (TypeScript) | **Read it, don't run it** — the committed `.wasm` will not install |
 | [`wasm/`](wasm/) | One more WASM tool — `cron-explain` | Working |
+
+> **`wasm-tool/` does not currently install.** The committed
+> `text-stats.wasm` exports neither `mosaic_manifest` nor `analyze` — its whole
+> export list is the Extism PDK's internals — so *Install .wasm Tool* fails at
+> manifest extraction. The TypeScript beside it is still a correct illustration
+> of the shape; the artifact is what is wrong. Use
+> [`wasm/cron-explain/`](wasm/cron-explain/) if you want one that runs.
 
 HyperCycle node integration doesn't have an example yet. Until it does, the
 working reference is `plugins/aim-nodes` in this repository — in particular
