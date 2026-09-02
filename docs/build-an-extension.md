@@ -46,6 +46,9 @@ you declared. The rest of the surface is scoped to your add-on — its own
 settings store, its own data directory, its own events — plus read-only
 information about the app, such as the current theme.
 
+Every namespace, method, permission and limit is in the
+**[`window.addonAPI` reference](addon-api.md)**.
+
 ```
 my-addon/
 ├── manifest.json      what you are and what you are asking for
