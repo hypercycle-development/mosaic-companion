@@ -41,7 +41,9 @@ button on its own card in the **Installed** list — in the controls strip along
 the bottom of the card, where a catalogue add-on shows its update setting. It is
 not in the Dev corner; the Dev corner only has *Load unpacked addon…*. Reload
 deactivates and reactivates the add-on, re-reading `manifest.json` from disk.
-For a change to `renderer/` alone, reloading the page is enough.
+For a change to `renderer/` alone, the refresh button in the top bar is
+enough — it remounts the tab, which reloads your page without touching the
+install.
 
 One exception: **adding** a permission needs a full reinstall. The grant is fixed
 when you install, so reactivating with a manifest that asks for more fails with
