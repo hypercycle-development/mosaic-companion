@@ -18,6 +18,7 @@ import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
 import semver from "semver";
+import { reconcileBucketsForAddon } from "./buckets";
 import { getErrorMessage } from "../utils";
 import { getTabVisibility, setTabVisibility as setCoreTabVisibility } from "../settings";
 import { ADDON_TAB_ID_PREFIX } from "../../src/tabs/registry";
@@ -342,7 +343,13 @@ export async function activateAddon(id: string): Promise<{ success: boolean; err
 
     setActivated(id, true);
     setLastError(id, undefined);
-    refreshManifestMeta(id, manifest.name, manifest.description);
+    // Refresh the bucket declaration alongside name/description, then bring
+    // the store in line with it. This runs on every activation, so it covers
+    // an upgrade, a dev "Reload" and startup with one code path — and it must
+    // run BEFORE the addon is live, so a bucket it no longer declares is gone
+    // by the time it can call anything.
+    refreshManifestMeta(id, manifest.name, manifest.description, manifest.buckets);
+    reconcileBucketsForAddon(id, manifest.buckets);
     return { success: true };
   } catch (error) {
     const message = getErrorMessage(error);
