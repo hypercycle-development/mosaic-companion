@@ -41,6 +41,34 @@ export interface ManifestUpdatesConfig {
 
 /** A validated, defaults-applied manifest — never construct this directly;
  * only `validateManifest` produces one. */
+/**
+ * A bucket's history policy: what a reader sees of what was written before
+ * the grant. "all" is the only value in v1.
+ *
+ * It is a *per-bucket property* rather than a global rule on purpose. Changing
+ * a global rule later would either break every existing subscriber (they stop
+ * seeing items they can see today) or expose data that was hidden — so instead
+ * a future "since-grant" is a value a writer opts a *new* bucket into, and
+ * nothing existing ever flips.
+ */
+export type BucketHistory = "all";
+
+export interface ManifestBucketSpec {
+  id: string;
+  kind: string;
+  history: BucketHistory;
+  /** Shown in the connection prompt and in Settings. Defaults to `id`. */
+  label: string;
+}
+
+export interface ManifestBucketsConfig {
+  /** Buckets this addon owns and is the sole writer of. */
+  publishes: ManifestBucketSpec[];
+  /** Kinds this addon is willing to read. A *kind*, never an addon id — so a
+   * reader need not know its publisher exists when it is written. */
+  reads: string[];
+}
+
 export interface AddonManifest {
   manifestVersion: 1;
   id: string;
@@ -58,6 +86,8 @@ export interface AddonManifest {
   permissions: string[];
   updates: ManifestUpdatesConfig;
   linkVisibilityToActivation: boolean;
+  /** Always present; `{ publishes: [], reads: [] }` when the manifest omits it. */
+  buckets: ManifestBucketsConfig;
 }
 
 export type ManifestValidationResult =
@@ -138,6 +168,7 @@ export const PERMISSION_VOCABULARY: readonly string[] = [
   "mcp:call",
   "nodes:read",
   "shell:open-external",
+  "buckets:publish",
 ];
 
 /**
@@ -158,6 +189,15 @@ const MAX_NAME_LENGTH = 40;
 const MAX_DESCRIPTION_LENGTH = 200;
 const MAX_TAB_LABEL_LENGTH = 24;
 const DEFAULT_TAB_ORDER = 100;
+
+// Bucket ids share the addon id's character set today. Kept as its own
+// constant so the two can diverge without one silently dragging the other.
+const BUCKET_ID_PATTERN = /^[a-z][a-z0-9-]{1,40}$/;
+const BUCKET_KIND_PATTERN = /^[a-z][a-z0-9-]{1,40}$/;
+const MAX_BUCKETS_PUBLISHED = 8;
+const MAX_BUCKET_KINDS_READ = 8;
+const MAX_BUCKET_LABEL_LENGTH = 40;
+const BUCKET_HISTORY_VALUES: readonly BucketHistory[] = ["all"];
 
 // =============================================================================
 // Validation
@@ -324,6 +364,121 @@ export function validateManifest(json: unknown, dirName: string): ManifestValida
     }
   }
 
+  // ── Buckets ────────────────────────────────────────────────────────────
+  // Single-writer channels between addons: an addon owns the buckets it
+  // publishes, and a reader reaches one only through a grant the user made.
+  // Both halves are declared here so what an addon can publish, and what it
+  // wants to read, are visible in a submission's diff and reviewable the same
+  // way permissions are. Runs after Security because rules 14/15 need the
+  // parsed `permissions`.
+  let bucketsConfig: ManifestBucketsConfig = { publishes: [], reads: [] };
+  if (m.buckets !== undefined) {
+    if (!isPlainObject(m.buckets)) {
+      errors.push('"buckets" must be an object if present');
+    } else {
+      const raw = m.buckets;
+
+      // publishes
+      const publishes: ManifestBucketSpec[] = [];
+      if (raw.publishes !== undefined) {
+        if (!Array.isArray(raw.publishes)) {
+          errors.push("buckets.publishes must be an array");
+        } else if (raw.publishes.length > MAX_BUCKETS_PUBLISHED) {
+          errors.push(`buckets.publishes may declare at most ${MAX_BUCKETS_PUBLISHED} buckets`);
+        } else {
+          const seenIds = new Set<string>();
+          raw.publishes.forEach((entry, i) => {
+            if (!isPlainObject(entry)) {
+              errors.push(`buckets.publishes[${i}] must be an object`);
+              return;
+            }
+            const id = entry.id;
+            if (typeof id !== "string" || !BUCKET_ID_PATTERN.test(id)) {
+              errors.push(`Invalid buckets.publishes[${i}].id: ${JSON.stringify(id)} (must match ${BUCKET_ID_PATTERN})`);
+              return;
+            }
+            // Rejected rather than de-duplicated: two declarations of one id
+            // with different kinds have no defensible winner.
+            if (seenIds.has(id)) {
+              errors.push(`Duplicate bucket id ${JSON.stringify(id)}`);
+              return;
+            }
+            seenIds.add(id);
+
+            const kind = entry.kind;
+            if (typeof kind !== "string" || !BUCKET_KIND_PATTERN.test(kind)) {
+              errors.push(`Invalid buckets.publishes[${i}].kind: ${JSON.stringify(kind)} (must match ${BUCKET_KIND_PATTERN})`);
+              return;
+            }
+
+            // An unknown history value must FAIL, never quietly become "all".
+            // A manifest asking for "since-grant" is asking for a narrower
+            // exposure than we implement; granting it the wider one silently
+            // would be the exact opposite of what it asked for.
+            let history: BucketHistory = "all";
+            if (entry.history !== undefined) {
+              if (!BUCKET_HISTORY_VALUES.includes(entry.history as BucketHistory)) {
+                errors.push(
+                  `Unknown buckets.publishes[${i}].history: ${JSON.stringify(entry.history)} ` +
+                  `(only ${BUCKET_HISTORY_VALUES.map((v) => JSON.stringify(v)).join(", ")} is accepted)`,
+                );
+                return;
+              }
+              history = entry.history as BucketHistory;
+            }
+
+            let label = id;
+            if (entry.label !== undefined) {
+              if (typeof entry.label !== "string" || entry.label.length < 1 || entry.label.length > MAX_BUCKET_LABEL_LENGTH) {
+                errors.push(`Invalid buckets.publishes[${i}].label (must be 1-${MAX_BUCKET_LABEL_LENGTH} chars)`);
+                return;
+              }
+              label = entry.label;
+            }
+
+            publishes.push({ id, kind, history, label });
+          });
+        }
+      }
+
+      // reads
+      const reads: string[] = [];
+      if (raw.reads !== undefined) {
+        if (!Array.isArray(raw.reads) || raw.reads.some((k) => typeof k !== "string")) {
+          errors.push("buckets.reads must be an array of strings");
+        } else if (raw.reads.length > MAX_BUCKET_KINDS_READ) {
+          errors.push(`buckets.reads may declare at most ${MAX_BUCKET_KINDS_READ} kinds`);
+        } else {
+          const seenKinds = new Set<string>();
+          (raw.reads as string[]).forEach((kind, i) => {
+            if (!BUCKET_KIND_PATTERN.test(kind)) {
+              errors.push(`Invalid buckets.reads[${i}]: ${JSON.stringify(kind)} (must match ${BUCKET_KIND_PATTERN})`);
+              return;
+            }
+            if (seenKinds.has(kind)) {
+              errors.push(`Duplicate bucket kind ${JSON.stringify(kind)} in buckets.reads`);
+              return;
+            }
+            seenKinds.add(kind);
+            reads.push(kind);
+          });
+        }
+      }
+
+      bucketsConfig = { publishes, reads };
+    }
+  }
+
+  // The permission and the declaration must agree in both directions, so a
+  // reviewer reads one coherent statement of intent rather than two that can
+  // disagree with each other.
+  if (bucketsConfig.publishes.length > 0 && !permissions.includes("buckets:publish")) {
+    errors.push('buckets.publishes requires the "buckets:publish" permission');
+  }
+  if (permissions.includes("buckets:publish") && bucketsConfig.publishes.length === 0) {
+    errors.push('"buckets:publish" is declared but buckets.publishes is empty');
+  }
+
   // ── Update policy ──────────────────────────────────────────────────────
   let updateCheckMode: UpdateCheckMode = "manual";
   if (m.updates !== undefined) {
@@ -372,6 +527,7 @@ export function validateManifest(json: unknown, dirName: string): ManifestValida
     permissions,
     updates: { checkMode: updateCheckMode },
     linkVisibilityToActivation,
+    buckets: bucketsConfig,
   };
 
   return { valid: true, manifest, errors: [] };
