@@ -27,6 +27,7 @@ import {
   removeAddonEntry,
   getBucketGrants,
 } from "../../electron/addons/state";
+import { methods as api } from "../../electron/addons/api/buckets";
 import {
   writeItems,
   clearItems,
@@ -374,6 +375,96 @@ check("an unparseable bucket file reads as empty rather than throwing", () => {
   writeItems("graph", "loop-drafts", "loop-draft", [item("a")]);
   fs.writeFileSync(path.join(userDataDir, "addon-buckets", "graph", "loop-drafts.json"), "{not json");
   assert.deepStrictEqual(readFor("loops", "graph", "loop-drafts")?.items, []);
+});
+
+// ── the API layer: argument validation, before anything touches disk ────────
+
+const ctx = (addonId: string) => ({ addonId, webContentsId: 1 });
+const call = (m: keyof typeof api, addonId: string, ...args: unknown[]) =>
+  api[m].handler(ctx(addonId), ...args);
+
+check("writing to a bucket the caller does not declare is refused", () => {
+  install("graph", GRAPH);
+  assert.throws(() => call("write", "graph", "not-mine", [item("a")]), /not declared/);
+});
+
+check("a caller cannot write to another addon's bucket by naming it", () => {
+  install("graph", GRAPH);
+  install("loops", LOOPS);
+  // There is no argument for "owner" — the only bucket id loops can pass is
+  // one loops itself declares, and it declares none.
+  assert.throws(() => call("write", "loops", "loop-drafts", [item("a")]), /not declared/);
+  assert.deepStrictEqual(readFor("graph", "graph", "loop-drafts")?.items ?? [], []);
+});
+
+check("an empty items array is refused", () => {
+  install("graph", GRAPH);
+  assert.throws(() => call("write", "graph", "loop-drafts", []), /non-empty array/);
+});
+
+check("a malformed item id is refused and nothing is written", () => {
+  install("graph", GRAPH);
+  assert.throws(() => call("write", "graph", "loop-drafts", [{ id: "has space", data: 1 }]), /items\[0\].id/);
+  // A declared bucket reads as empty even before its first write, so the file
+  // is what tells us nothing was written.
+  assert.strictEqual(
+    fs.existsSync(path.join(userDataDir, "addon-buckets", "graph", "loop-drafts.json")),
+    false,
+    "a rejected write must not create the file",
+  );
+});
+
+check("a duplicated id within one call is refused", () => {
+  install("graph", GRAPH);
+  assert.throws(() => call("write", "graph", "loop-drafts", [item("a"), item("a")]), /duplicate id/);
+});
+
+check("data of undefined is refused rather than silently dropped", () => {
+  install("graph", GRAPH);
+  assert.throws(() => call("write", "graph", "loop-drafts", [{ id: "a", data: undefined }]), /must be a JSON value/);
+});
+
+check("circular data is refused, not thrown as a handler error", () => {
+  install("graph", GRAPH);
+  const circular: Record<string, unknown> = {};
+  circular.self = circular;
+  assert.throws(() => call("write", "graph", "loop-drafts", [{ id: "a", data: circular }]), /must be a JSON value/);
+});
+
+check("a cap breach comes back as a validation error, not a handler error", () => {
+  install("graph", GRAPH);
+  const tooMany = Array.from({ length: MAX_BUCKET_ITEMS + 1 }, (_, i) => item(`x${i}`));
+  assert.throws(() => call("write", "graph", "loop-drafts", tooMany), (e: unknown) => {
+    assert.strictEqual((e as Error).constructor.name, "ApiValidationError");
+    return true;
+  });
+});
+
+check("read rejects a malformed owner id before any lookup", () => {
+  install("loops", LOOPS);
+  assert.throws(() => call("read", "loops", "Not An Id", "loop-drafts"), /ownerId must match/);
+});
+
+check("read through the API returns the same null for denied and absent", () => {
+  install("graph", GRAPH);
+  install("loops", LOOPS);
+  writeItems("graph", "loop-drafts", "loop-draft", [item("a")]);
+  assert.strictEqual(call("read", "loops", "graph", "loop-drafts"), null);
+  assert.strictEqual(call("read", "loops", "graph", "absent-bucket"), null);
+});
+
+check("clear rejects a malformed id list without touching the bucket", () => {
+  install("graph", GRAPH);
+  writeItems("graph", "loop-drafts", "loop-draft", [item("a")]);
+  assert.throws(() => call("clear", "graph", "loop-drafts", ["ok", "bad id"]), /ids\[1\]/);
+  assert.strictEqual(readFor("graph", "graph", "loop-drafts")?.items.length, 1);
+});
+
+check("list through the API is scoped to the caller", () => {
+  connectedPair();
+  writeItems("graph", "loop-drafts", "loop-draft", [item("a")]);
+  const rows = call("list", "loops") as Array<{ owner: string; own: boolean }>;
+  assert.deepStrictEqual(rows.map((r) => [r.owner, r.own]), [["graph", false]]);
 });
 
 console.log(`\n${passed} passed\n`);

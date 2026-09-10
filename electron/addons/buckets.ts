@@ -213,10 +213,6 @@ function publisherBytes(owner: string): number {
   return total;
 }
 
-function statsOf(file: BucketFile | null): BucketStats {
-  return file ? { itemCount: file.items.length, bytes: byteLength(file) } : { itemCount: 0, bytes: 0 };
-}
-
 // =============================================================================
 // Access
 // =============================================================================
@@ -229,7 +225,17 @@ function declaredBuckets(id: string): ManifestBucketsConfig | undefined {
   return getAddonEntry(id)?.buckets;
 }
 
-function ownBucketSpec(id: string, bucket: string) {
+/**
+ * The caller's own declaration for one bucket, from the state snapshot.
+ *
+ * Equivalent to reading the live manifest, and deliberately preferred over it:
+ * the snapshot is refreshed during `activateAddon` before the addon goes live,
+ * and the dispatcher refuses calls from an addon that is not active — so for
+ * any caller that can reach this, the two agree. Reading state instead keeps
+ * this module independent of `loader.ts`, which drags in the protocol and
+ * session machinery.
+ */
+export function ownBucketSpec(id: string, bucket: string) {
   return declaredBuckets(id)?.publishes.find((b) => b.id === bucket);
 }
 
@@ -368,6 +374,67 @@ export function readFor(callerId: string, owner: string, bucket: string): Bucket
     label: access.label,
     items: file?.items ?? [],
   };
+}
+
+// =============================================================================
+// Notification
+// =============================================================================
+
+export interface BucketChangedPayload {
+  owner: string;
+  bucket: string;
+  kind: string;
+  change: "write" | "clear" | "granted" | "revoked";
+  /** For "write", the ids written; for a targeted "clear", the ids removed.
+   * Omitted for clear-all, "granted" and "revoked". Never item data — a
+   * notification must not become a way to read without reading. */
+  itemIds?: string[];
+  /** After the change; 0 for "revoked". */
+  itemCount: number;
+}
+
+/**
+ * How a notification actually reaches a webview. Injected rather than imported
+ * so this module stays about storage and access: pulling `webviews.ts` in
+ * directly would drag the protocol and session machinery behind it, and the
+ * store has no business knowing how delivery works. `main.ts` wires the real
+ * one at startup; until then, and in tests, notifications go nowhere.
+ */
+export type BucketEventSink = (payload: BucketChangedPayload, addonIds: ReadonlySet<string>) => void;
+
+let sink: BucketEventSink = () => {};
+
+export function setBucketEventSink(next: BucketEventSink): void {
+  sink = next;
+}
+
+/**
+ * Tell the readers who may currently see this bucket that it changed.
+ *
+ * Recipients are computed per emit against live grants, not from the
+ * subscription list — subscribing to the channel is unprivileged, so the
+ * filtering has to happen here or an unconnected addon would learn that a
+ * bucket exists and how often it changes.
+ *
+ * The owner is not a recipient of its own write/clear: it already knows, and
+ * echoing would just invite a write loop.
+ *
+ * `explicitRecipients` covers "revoked", where the grant has already gone and
+ * `canRead` would (correctly) refuse the very readers who need telling.
+ */
+export function emitBucketChanged(
+  payload: BucketChangedPayload,
+  explicitRecipients?: readonly string[],
+): void {
+  const recipients = new Set<string>(explicitRecipients ?? []);
+  if (!explicitRecipients) {
+    for (const readerId of Object.keys(listAddonEntries())) {
+      if (readerId === payload.owner) continue;
+      if (canRead(readerId, payload.owner, payload.bucket)) recipients.add(readerId);
+    }
+  }
+  if (recipients.size === 0) return;
+  sink(payload, recipients);
 }
 
 // =============================================================================
