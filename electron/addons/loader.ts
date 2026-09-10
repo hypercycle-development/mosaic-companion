@@ -513,6 +513,8 @@ export function listAddons(): AddonSummary[] {
       permissions: entry.grantedPermissions,
       linkVisibilityToActivation: entry.linkVisibilityToActivation,
       updateCheckMode: entry.updateCheckMode,
+      buckets: entry.buckets ?? { publishes: [], reads: [] },
+      bucketGrants: entry.bucketGrants ?? [],
     };
   });
 }

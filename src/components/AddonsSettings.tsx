@@ -32,6 +32,12 @@ interface AddonSummary {
   linkVisibilityToActivation: boolean;
   updateCheckMode: "manual" | "automatic";
   updateAvailable?: string;
+  /** `reads` conveys no access — it only makes a connection proposable. */
+  buckets: {
+    publishes: Array<{ id: string; kind: string; history: "all"; label: string }>;
+    reads: string[];
+  };
+  bucketGrants: Array<{ owner: string; bucket: string; kind: string; grantedAt: string }>;
 }
 
 interface CatalogueEntry {
@@ -55,6 +61,7 @@ const PERMISSION_WORDING: Record<string, string> = {
   "mcp:call": "Run tools on your connected MCP servers",
   "nodes:read": "See your HyperCycle nodes and their AIM data",
   "shell:open-external": "Open links in your browser",
+  "buckets:publish": "Share data with other addons you connect it to",
 };
 
 function describePermission(p: string): string {
@@ -74,6 +81,15 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
     dataSize: number | null;
     keepSettings: boolean;
     keepData: boolean;
+  } | null>(null);
+  const [bucketProposal, setBucketProposal] = useState<{
+    readerId: string;
+    readerName: string;
+    owner: string;
+    ownerName: string;
+    bucket: string;
+    kind: string;
+    label: string;
   } | null>(null);
   const [consentDialog, setConsentDialog] = useState<{
     id: string;
@@ -277,6 +293,33 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
       await loadAddons();
     });
 
+  // Proposals are recomputed by main; the renderer only ever holds the first
+  // one it was told about, and re-asks after every decision.
+  const refreshProposals = async () => {
+    const pending = await window.electronAPI.addons.bucketProposals();
+    setBucketProposal(pending[0] ?? null);
+  };
+
+  useEffect(() => {
+    void refreshProposals();
+    return window.electronAPI.addons.onBucketProposals((pending) => {
+      setBucketProposal((current) => current ?? pending[0] ?? null);
+    });
+  }, []);
+
+  const decideBucket = async (decision: "connect" | "decline") => {
+    if (!bucketProposal) return;
+    const { readerId, owner, bucket } = bucketProposal;
+    await window.electronAPI.addons.bucketGrantDecide(readerId, owner, bucket, decision);
+    setBucketProposal(null);
+    await Promise.all([loadAddons(), refreshProposals()]);
+  };
+
+  const handleRevokeBucket = async (readerId: string, owner: string, bucket: string) => {
+    await window.electronAPI.addons.bucketGrantRevoke(readerId, owner, bucket);
+    await Promise.all([loadAddons(), refreshProposals()]);
+  };
+
   const togglePermissions = (id: string) => {
     setExpandedPermissions((prev) => {
       const next = new Set(prev);
@@ -415,6 +458,44 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
                           </li>
                         ))}
                       </ul>
+                    )}
+                  </div>
+                )}
+
+                {/* Connections — buckets this addon reads from another.
+                    Kept apart from Permissions on purpose: a permission was
+                    granted once at install and covers everything of its kind,
+                    whereas each of these is a separate, named, revocable
+                    decision the user made later. Showing them in one list
+                    would suggest they work the same way. */}
+                {(addon.bucketGrants.length > 0 || addon.buckets.reads.length > 0) && (
+                  <div className="mt-3">
+                    <div className="text-xs text-gray-500 mb-1">Connections</div>
+                    {addon.bucketGrants.length > 0 ? (
+                      <ul className="space-y-1 pl-1">
+                        {addon.bucketGrants.map((g) => (
+                          <li key={`${g.owner}/${g.bucket}`} className="text-xs text-gray-400 flex items-center gap-2">
+                            <span>
+                              Reads <span className="text-gray-300">{g.bucket}</span> from{" "}
+                              <span className="text-gray-300">{g.owner}</span>
+                            </span>
+                            <button
+                              onClick={() => handleRevokeBucket(addon.id, g.owner, g.bucket)}
+                              className="text-gray-500 hover:text-red-400 underline"
+                            >
+                              Revoke
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      /* The disclosure: what this addon could be connected to,
+                         stated as a capability to be OFFERED rather than one
+                         it holds. It has no access until a connection exists. */
+                      <p className="text-xs text-gray-500 pl-1">
+                        Not connected to anything. Can be connected to read{" "}
+                        {addon.buckets.reads.join(", ")} from other addons.
+                      </p>
                     )}
                   </div>
                 )}
@@ -570,6 +651,40 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
       )}
 
       {/* Consent dialog — install or upgrade */}
+      {/* The connection prompt. The wording is the whole point of this
+          dialog: a grant is a SUBSCRIPTION, so it has to say that future
+          items are included too. "Allow X to send this" would describe
+          something else entirely. */}
+      {bucketProposal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-gray-100 mb-2">Connect these addons?</h3>
+            <p className="text-sm text-gray-300 mb-4">
+              <span className="text-gray-100">{bucketProposal.readerName}</span> will be able to read
+              everything <span className="text-gray-100">{bucketProposal.ownerName}</span> has put in
+              &ldquo;{bucketProposal.label}&rdquo;, and anything it adds later.
+            </p>
+            <p className="text-xs text-gray-500 mb-4">
+              You can revoke this at any time under {bucketProposal.readerName} in this list.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => void decideBucket("decline")}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-700 hover:bg-gray-800 text-gray-300"
+              >
+                Not now
+              </button>
+              <button
+                onClick={() => void decideBucket("connect")}
+                className="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white"
+              >
+                Connect
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {consentDialog && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full">

@@ -61,6 +61,12 @@ import {
   setLinkVisibilityToActivation,
   setUpdateCheckMode,
 } from "./addons/loader";
+import {
+  listBucketProposals,
+  emitBucketChanged,
+  setBucketEventSink,
+} from "./addons/buckets";
+import { grantBucket, declineBucket, revokeBucket, findBucketGrant } from "./addons/state";
 import { installWebviewAttachGuards, ADDON_PRELOAD_PATH, broadcastAddonEvent } from "./addons/webviews";
 import { ADDON_SCHEME_PRIVILEGE, registerAddonProtocolHandler } from "./addons/protocol";
 import { registerAddonApi } from "./addons/api/index";
@@ -486,9 +492,56 @@ app.whenReady().then(() => {
   // ./addons/hyperinsight-migration); false on every later launch.
   ipcMain.handle("addons:was-hyperinsight-just-migrated", async () => wasHyperInsightJustAutoInstalled());
 
+  // ── Bucket connections ──────────────────────────────────────────────────
+  // Recomputed rather than remembered: a proposal is a fact about current
+  // declarations, so anything that changes them invalidates the old list.
+  // The renderer sends a selector, never a grant. Main re-derives the
+  // (owner, bucket, kind) from state and refuses anything that is not
+  // currently a real proposal — so a compromised renderer cannot mint access
+  // to a bucket the owner does not declare.
+  ipcMain.handle("addons:bucket-proposals", async () => listBucketProposals());
+
+  ipcMain.handle(
+    "addons:bucket-grant-decide",
+    async (_event: IpcMainInvokeEvent, readerId: string, owner: string, bucket: string, decision: "connect" | "decline") => {
+      const proposal = listBucketProposals().find(
+        (p) => p.readerId === readerId && p.owner === owner && p.bucket === bucket,
+      );
+      if (!proposal) return { success: false, error: "No such pending connection" };
+      if (decision === "connect") {
+        grantBucket(readerId, { owner, bucket, kind: proposal.kind });
+        emitBucketChanged({ owner, bucket, kind: proposal.kind, change: "granted", itemCount: 0 }, [readerId]);
+      } else {
+        declineBucket(readerId, owner, bucket);
+      }
+      broadcastBucketProposals();
+      return { success: true };
+    },
+  );
+
+  ipcMain.handle(
+    "addons:bucket-grant-revoke",
+    async (_event: IpcMainInvokeEvent, readerId: string, owner: string, bucket: string) => {
+      const grant = findBucketGrant(readerId, owner, bucket);
+      if (!grant) return { success: false, error: "No such connection" };
+      revokeBucket(readerId, owner, bucket);
+      // The reader is told explicitly: canRead would now (correctly) refuse
+      // the very addon that needs to hear about it.
+      emitBucketChanged({ owner, bucket, kind: grant.kind, change: "revoked", itemCount: 0 }, [readerId]);
+      broadcastBucketProposals();
+      return { success: true };
+    },
+  );
+
   // The addonAPI dispatcher — one invoke channel + one event channel
   // for every addon webview.
   registerAddonApi();
+
+  // Buckets deliberately know nothing about webviews (see buckets.ts); this
+  // is where the two are joined.
+  setBucketEventSink((payload, addonIds) => {
+    broadcastAddonEvent("bucket:changed", payload, { onlyAddonIds: addonIds });
+  });
 
   // The one-time HyperInsight auto-install migration runs before
   // initAddons()'s regular activation convergence, so — for an upgrading
@@ -1245,5 +1298,22 @@ ipcMain.handle(
 function broadcastAddonsChanged(): void {
   BrowserWindow.getAllWindows().forEach((win) => {
     win.webContents.send("addons:changed", listAddonTabs());
+  });
+  // Every path that changes what an addon declares, or whether it is active,
+  // already calls this — so proposals are recomputed here rather than at each
+  // of those call sites, where one would eventually be missed.
+  broadcastBucketProposals();
+}
+
+/**
+ * A proposal is a fact about what two addons currently declare, so it is
+ * always recomputed and never remembered: anything that changes a manifest, a
+ * grant or an activation invalidates the previous list.
+ */
+function broadcastBucketProposals(): void {
+  const proposals = listBucketProposals();
+  if (proposals.length === 0) return;
+  BrowserWindow.getAllWindows().forEach((win) => {
+    win.webContents.send("addons:bucket-proposals", proposals);
   });
 }

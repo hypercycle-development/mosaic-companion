@@ -380,6 +380,15 @@ declare global {
           linkVisibilityToActivation: boolean;
           updateCheckMode: "manual" | "automatic";
           updateAvailable?: string;
+          /** What this addon declares: buckets it owns, and kinds it is
+           * willing to read. `reads` conveys no access on its own — it only
+           * makes a connection proposable. */
+          buckets: {
+            publishes: Array<{ id: string; kind: string; history: "all"; label: string }>;
+            reads: string[];
+          };
+          /** Buckets this addon has been granted read access to, by the user. */
+          bucketGrants: Array<{ owner: string; bucket: string; kind: string; grantedAt: string }>;
         }>>;
         listTabs: () => Promise<Array<{
           tabId: string;
@@ -423,6 +432,35 @@ declare global {
         install: (id: string) => Promise<{ success: boolean; needsConsent?: string[]; hasMainEntry?: boolean; error?: string }>;
         installConfirm: (id: string, acceptedPermissions: string[]) => Promise<{ success: boolean; error?: string }>;
         uninstall: (id: string, opts: { keepSettings: boolean; keepData: boolean }) => Promise<{ success: boolean; error?: string }>;
+        /** Connections the host could offer right now, computed from what two
+         * addons declare. Always recomputed, never cached. */
+        bucketProposals: () => Promise<Array<{
+          readerId: string;
+          readerName: string;
+          owner: string;
+          ownerName: string;
+          bucket: string;
+          kind: string;
+          label: string;
+        }>>;
+        /** Main re-derives the connection from state; this is a selector, not
+         * a grant. A pair that is not currently a real proposal is refused. */
+        bucketGrantDecide: (
+          readerId: string,
+          owner: string,
+          bucket: string,
+          decision: "connect" | "decline",
+        ) => Promise<{ success: boolean; error?: string }>;
+        bucketGrantRevoke: (readerId: string, owner: string, bucket: string) => Promise<{ success: boolean; error?: string }>;
+        onBucketProposals: (handler: (proposals: Array<{
+          readerId: string;
+          readerName: string;
+          owner: string;
+          ownerName: string;
+          bucket: string;
+          kind: string;
+          label: string;
+        }>) => void) => () => void;
         getDataSize: (id: string) => Promise<number>;
         upgrade: (id: string, acceptedPermissions?: string[]) => Promise<{ success: boolean; needsConsent?: string[]; error?: string }>;
         setVisibilityLink: (id: string, linked: boolean) => Promise<{ success: boolean; error?: string }>;
