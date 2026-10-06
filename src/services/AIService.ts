@@ -204,43 +204,52 @@ export class AIService {
     const reader = body.getReader();
     const decoder = new TextDecoder();
     let fullResponse = "";
+    let pendingLine = "";
+
+    const handleLine = (rawLine: string) => {
+      const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+      if (!line.startsWith("data: ")) return;
+      const data = line.slice(6);
+      if (data === "[DONE]") return;
+
+      try {
+        const parsed = JSON.parse(data);
+        let token = "";
+
+        if (provider === "claude") {
+          if (parsed.type === "content_block_delta") {
+            token = parsed.delta?.text || "";
+          }
+        } else if (provider === "openai") {
+          token = parsed.choices?.[0]?.delta?.content || "";
+        } else if (provider === "gemini") {
+          token = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        }
+
+        if (token) {
+          fullResponse += token;
+          callbacks.onToken(token);
+        }
+      } catch {
+        // Skip malformed events without losing the next framed event.
+      }
+    };
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6);
-          if (data === "[DONE]") continue;
-
-          try {
-            const parsed = JSON.parse(data);
-            let token = "";
-
-            if (provider === "claude") {
-              if (parsed.type === "content_block_delta") {
-                token = parsed.delta?.text || "";
-              }
-            } else if (provider === "openai") {
-              token = parsed.choices?.[0]?.delta?.content || "";
-            } else if (provider === "gemini") {
-              token = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            }
-
-            if (token) {
-              fullResponse += token;
-              callbacks.onToken(token);
-            }
-          } catch {
-            // Skip non-JSON lines
-          }
+        pendingLine += decoder.decode(value, { stream: true });
+        let newline: number;
+        while ((newline = pendingLine.indexOf("\n")) !== -1) {
+          handleLine(pendingLine.slice(0, newline));
+          pendingLine = pendingLine.slice(newline + 1);
         }
       }
+
+      pendingLine += decoder.decode();
+      if (pendingLine) handleLine(pendingLine);
 
       callbacks.onComplete(fullResponse);
       return fullResponse;
