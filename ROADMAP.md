@@ -62,12 +62,14 @@ planning. Two unrelated contributors needed the same things, independently:
 
 - **WASM execution timeouts** ([#109](https://github.com/hypercycle-development/mosaic-companion/issues/109))**.** A timeout is parsed from the tool manifest and
   stored, but nothing reads it — a tool that loops forever is not interrupted.
-- **Vault encryption where no secure-storage backend exists**
-  ([#110](https://github.com/hypercycle-development/mosaic-companion/issues/110))**.** Encryption at rest is built and enabled on
-  `main`, and is not yet in a published release. Where no backend is available —
-  or on a Linux `basic_text` fallback — contents are plaintext or merely
-  obfuscated; that build's Vault page says which, but a portable fallback does
-  not exist yet.
+- **Vault encryption at rest**
+  ([#110](https://github.com/hypercycle-development/mosaic-companion/issues/110))**.** Box contents are stored as
+  plaintext JSON in every build. An implementation using the operating system's
+  secure storage was built and then withdrawn before release, because it could
+  not offer a portable guarantee: where no backend is available — or on a Linux
+  `basic_text` fallback, which stores its key in the clear — contents stayed
+  plaintext or were merely obfuscated. The design being pursued instead is a
+  smaller one: encrypted boxes for secrets, rather than encrypting every box.
 
 ### Accuracy
 
