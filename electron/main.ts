@@ -529,7 +529,7 @@ app.whenReady().then(() => {
         grantBucket(readerId, { owner, bucket, kind: proposal.kind });
         emitBucketChanged({ owner, bucket, kind: proposal.kind, change: "granted", itemCount: 0 }, [readerId]);
       } else {
-        declineBucket(readerId, owner, bucket);
+        declineBucket(readerId, owner, bucket, proposal.kind);
       }
       broadcastBucketProposals();
       return { success: true };

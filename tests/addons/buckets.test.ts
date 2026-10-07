@@ -312,14 +312,14 @@ check("an already-granted pair is not proposed again", () => {
 check("a declined pair is not proposed again", () => {
   install("graph", GRAPH);
   install("loops", LOOPS);
-  declineBucket("loops", "graph", "loop-drafts");
+  declineBucket("loops", "graph", "loop-drafts", "loop-draft");
   assert.deepStrictEqual(listBucketProposals(), []);
 });
 
 check("connecting after declining clears the declined key", () => {
   install("graph", GRAPH);
   install("loops", LOOPS);
-  declineBucket("loops", "graph", "loop-drafts");
+  declineBucket("loops", "graph", "loop-drafts", "loop-draft");
   grantBucket("loops", { owner: "graph", bucket: "loop-drafts", kind: "loop-draft" });
   assert.ok(findBucketGrant("loops", "graph", "loop-drafts"));
   assert.ok(canRead("loops", "graph", "loop-drafts"));
@@ -335,7 +335,7 @@ check("connecting after declining clears the declined key", () => {
 check("a declined pair is offered again through the declined list", () => {
   install("graph", GRAPH);
   install("loops", LOOPS);
-  declineBucket("loops", "graph", "loop-drafts");
+  declineBucket("loops", "graph", "loop-drafts", "loop-draft");
 
   const declined = listDeclinedBucketConnections();
   assert.strictEqual(declined.length, 1);
@@ -353,7 +353,7 @@ check("a declined pair appears in exactly one of the two lists", () => {
   assert.strictEqual(listBucketProposals().length, 1);
   assert.deepStrictEqual(listDeclinedBucketConnections(), []);
 
-  declineBucket("loops", "graph", "loop-drafts");
+  declineBucket("loops", "graph", "loop-drafts", "loop-draft");
   assert.deepStrictEqual(listBucketProposals(), []);
   assert.strictEqual(listDeclinedBucketConnections().length, 1);
 });
@@ -367,17 +367,20 @@ check("a granted pair is in neither list", () => {
 check("a declined pair stops being offered when either side deactivates", () => {
   install("graph", GRAPH, false);
   install("loops", LOOPS);
-  declineBucket("loops", "graph", "loop-drafts");
-  // Otherwise Settings would offer a connection to an addon that is not
-  // running, and accepting it would grant access on the strength of a
-  // declaration nothing is currently honouring.
+  declineBucket("loops", "graph", "loop-drafts", "loop-draft");
+  // OFFERING and READING follow different rules, and the difference is
+  // deliberate (see canRead). Offering asks the user to consent on the
+  // strength of a declaration nothing is currently honouring, so a
+  // deactivated side stops the offer. Reading relies on consent already
+  // given about data already written, so it does not stop — pinned by
+  // "a reader keeps reading while the publisher is deactivated" below.
   assert.deepStrictEqual(listDeclinedBucketConnections(), []);
 });
 
 check("a declined pair stops being offered once the publisher drops the bucket", () => {
   install("graph", GRAPH);
   install("loops", LOOPS);
-  declineBucket("loops", "graph", "loop-drafts");
+  declineBucket("loops", "graph", "loop-drafts", "loop-draft");
   // Both halves, because they do different jobs and only together are they
   // what an upgrade actually does: the snapshot is the DECLARATION these
   // lists are computed from, while reconcile clears the files and grants the
@@ -532,6 +535,67 @@ check("list through the API is scoped to the caller", () => {
   writeItems("graph", "loop-drafts", "loop-draft", [item("a")]);
   const rows = call("list", "loops") as Array<{ owner: string; own: boolean }>;
   assert.deepStrictEqual(rows.map((r) => [r.owner, r.own]), [["graph", false]]);
+});
+
+// ─── From the 2026-10-07 access-control review ──────────────────────────────
+
+check("one reader dropping a kind does not revoke another reader's grant", () => {
+  install("graph", GRAPH);
+  install("loops", LOOPS);
+  install("other", LOOPS);
+  grantBucket("loops", { owner: "graph", bucket: "loop-drafts", kind: "loop-draft" });
+  grantBucket("other", { owner: "graph", bucket: "loop-drafts", kind: "loop-draft" });
+
+  // `loops` upgrades and stops reading loop-draft. `other` changed nothing.
+  reconcileBucketsForAddon("loops", { publishes: [], reads: [] });
+
+  assert.ok(!findBucketGrant("loops", "graph", "loop-drafts"), "loops should lose its own grant");
+  assert.ok(
+    findBucketGrant("other", "graph", "loop-drafts"),
+    "other's grant must survive — the user withdrew nothing and consent is not collateral",
+  );
+  assert.ok(canRead("other", "graph", "loop-drafts"));
+});
+
+check("a reader that drops a kind is not recorded as having declined it", () => {
+  install("graph", GRAPH);
+  install("loops", LOOPS);
+  grantBucket("loops", { owner: "graph", bucket: "loop-drafts", kind: "loop-draft" });
+  reconcileBucketsForAddon("loops", { publishes: [], reads: [] });
+  // The addon changed its manifest; the user refused nothing. So when it
+  // declares the kind again the connection is OFFERED, not filed as declined.
+  setBucketsSnapshot("loops", { publishes: [], reads: ["loop-draft"] });
+  assert.deepStrictEqual(listDeclinedBucketConnections(), []);
+  assert.strictEqual(listBucketProposals().length, 1);
+});
+
+check("republishing a bucket under a new kind is offered, not pre-declined", () => {
+  install("graph", GRAPH);
+  install("loops", buckets({ reads: ["loop-draft", "sketch"] }));
+  declineBucket("loops", "graph", "loop-drafts", "loop-draft");
+  assert.strictEqual(listDeclinedBucketConnections().length, 1);
+
+  // Same bucket id, different kind: remove-then-add, so it is a different
+  // feed the user has never been asked about.
+  const republished = { publishes: [{ id: "loop-drafts", kind: "sketch", history: "all", label: "Sketches" }], reads: [] };
+  setBucketsSnapshot("graph", republished);
+  reconcileBucketsForAddon("graph", republished);
+
+  assert.deepStrictEqual(listDeclinedBucketConnections(), [], "the old decline must not carry to a new kind");
+  assert.strictEqual(listBucketProposals().length, 1, "the new feed should be offered");
+  assert.strictEqual(listBucketProposals()[0].kind, "sketch");
+});
+
+check("a reader keeps reading while the publisher is deactivated", () => {
+  connectedPair();
+  writeItems("graph", "loop-drafts", "loop-draft", [item("d1")]);
+  setActivated("graph", false);
+  // DECIDED 2026-10-07: deactivation stops an addon's code running; it does
+  // not retract data already written and already consented to. Pinned so the
+  // decision cannot be reversed by accident.
+  assert.ok(canRead("loops", "graph", "loop-drafts"));
+  const feed = readFor("loops", "graph", "loop-drafts");
+  assert.strictEqual(feed?.items.length, 1);
 });
 
 console.log(`\n${passed} passed\n`);

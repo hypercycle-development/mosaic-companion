@@ -34,6 +34,7 @@ import {
   findBucketGrant,
   hasDeclinedBucket,
   removeBucketGrantsAgainst,
+  dropBucketGrant,
 } from "./state";
 
 // =============================================================================
@@ -254,6 +255,19 @@ export function ownBucketSpec(id: string, bucket: string) {
  * (4) is the one that is easy to miss: consent was given for a feed of loop
  * drafts. If the owner republishes that id as something else, the grant does
  * not carry over to whatever it now means.
+ *
+ * DEACTIVATION IS DELIBERATELY NOT A FIFTH CONDITION — decided 2026-10-07
+ * after this was raised in review. Turning an addon off stops its code
+ * running; it does not retract data it already wrote and the user already
+ * consented to someone reading. A reader that lost access whenever an
+ * unrelated addon was toggled off would start getting `null` with no event
+ * explaining it, and `read` cannot explain it by design.
+ *
+ * This is NOT inconsistent with `connectableBucketPairs()` refusing to OFFER a
+ * connection to a deactivated publisher, though the two look alike. Offering
+ * asks the user to consent on the strength of a declaration nothing is
+ * currently honouring; reading relies on consent already given about data
+ * already written. Different acts, different rule.
  */
 export function canRead(readerId: string, owner: string, bucket: string): { kind: string; label: string } | null {
   if (readerId === owner) {
@@ -472,7 +486,7 @@ function connectableBucketPairs(): Array<BucketProposal & { declined: boolean }>
             bucket: spec.id,
             kind,
             label: spec.label,
-            declined: hasDeclinedBucket(readerId, ownerId, spec.id),
+            declined: hasDeclinedBucket(readerId, ownerId, spec.id, spec.kind),
           });
         }
       }
@@ -558,12 +572,21 @@ export function reconcileBucketsForAddon(id: string, buckets: ManifestBucketsCon
   }
 
   // As reader: drop grants for kinds this addon no longer reads.
+  //
+  // ONE reader's grant, not every reader's. `removeBucketGrantsAgainst` sweeps
+  // the whole state for a given (owner, bucket), which is right when the
+  // PUBLISHER stops offering a feed — everyone loses it together — and wrong
+  // here, where only this addon changed what it reads. Using it meant one
+  // addon dropping a kind silently revoked every other reader's access to the
+  // same bucket, discarding consent the user had given and then re-proposing
+  // it, so they were asked to re-approve something they never withdrew.
+  //
+  // Snapshot the list first: dropBucketGrant writes back to the same array.
   const entry = getAddonEntry(id);
-  for (const grant of entry?.bucketGrants ?? []) {
-    if (!buckets.reads.includes(grant.kind)) {
-      removeBucketGrantsAgainst(grant.owner, grant.bucket);
-      affected.add(id);
-    }
+  const stale = (entry?.bucketGrants ?? []).filter((g) => !buckets.reads.includes(g.kind));
+  for (const grant of stale) {
+    dropBucketGrant(id, grant.owner, grant.bucket);
+    affected.add(id);
   }
 
   return [...affected];

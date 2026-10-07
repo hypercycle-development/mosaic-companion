@@ -327,7 +327,21 @@ export function refreshManifestMeta(
 // re-derives the rest, so a renderer cannot mint a grant for a bucket the
 // owner does not declare.
 
-const declinedKey = (owner: string, bucket: string): string => `${owner}/${bucket}`;
+/**
+ * A decline is keyed on the KIND as well as the bucket, because a kind change
+ * is remove-then-add and not a rename — the old feed is gone and the new one
+ * is a different thing the user has never been asked about.
+ *
+ * Grants already worked this way (`removeBucketGrantsAgainst` is called when a
+ * publisher "republishes it under a different kind"). Declines did not, so a
+ * publisher that republished `loop-drafts` under a new kind handed the reader
+ * a genuinely new feed that arrived already refused, with no way to see why.
+ *
+ * Keys written before this carried no kind and simply stop matching, which is
+ * the safe direction: the connection is offered again rather than silently
+ * suppressed. Nothing has shipped, so there is nobody to migrate.
+ */
+const declinedKey = (owner: string, bucket: string, kind: string): string => `${owner}/${bucket}/${kind}`;
 
 export function getBucketGrants(readerId: string): BucketGrant[] {
   return state.addons[readerId]?.bucketGrants ?? [];
@@ -337,8 +351,8 @@ export function findBucketGrant(readerId: string, owner: string, bucket: string)
   return getBucketGrants(readerId).find((g) => g.owner === owner && g.bucket === bucket);
 }
 
-export function hasDeclinedBucket(readerId: string, owner: string, bucket: string): boolean {
-  return (state.addons[readerId]?.bucketDeclined ?? []).includes(declinedKey(owner, bucket));
+export function hasDeclinedBucket(readerId: string, owner: string, bucket: string, kind: string): boolean {
+  return (state.addons[readerId]?.bucketDeclined ?? []).includes(declinedKey(owner, bucket, kind));
 }
 
 /** Upsert a grant and clear any declined key for it. */
@@ -351,16 +365,18 @@ export function grantBucket(readerId: string, grant: Omit<BucketGrant, "grantedA
   if (i >= 0) grants[i] = next;
   else grants.push(next);
   entry.bucketGrants = grants;
-  entry.bucketDeclined = (entry.bucketDeclined ?? []).filter((k) => k !== declinedKey(grant.owner, grant.bucket));
+  entry.bucketDeclined = (entry.bucketDeclined ?? []).filter(
+    (k) => k !== declinedKey(grant.owner, grant.bucket, grant.kind),
+  );
   entry.updatedAt = new Date().toISOString();
   saveAddonState();
 }
 
 /** Record a "Not now" so the same connection is not proposed again. */
-export function declineBucket(readerId: string, owner: string, bucket: string): void {
+export function declineBucket(readerId: string, owner: string, bucket: string, kind: string): void {
   const entry = state.addons[readerId];
   if (!entry) return;
-  const key = declinedKey(owner, bucket);
+  const key = declinedKey(owner, bucket, kind);
   if (!(entry.bucketDeclined ?? []).includes(key)) {
     entry.bucketDeclined = [...(entry.bucketDeclined ?? []), key];
     entry.updatedAt = new Date().toISOString();
@@ -373,9 +389,36 @@ export function declineBucket(readerId: string, owner: string, bucket: string): 
 export function revokeBucket(readerId: string, owner: string, bucket: string): void {
   const entry = state.addons[readerId];
   if (!entry) return;
+  // Read the kind off the grant being removed, so the decline recorded here
+  // refers to the same feed the user actually revoked.
+  const kind = findBucketGrant(readerId, owner, bucket)?.kind;
   entry.bucketGrants = (entry.bucketGrants ?? []).filter((g) => !(g.owner === owner && g.bucket === bucket));
-  const key = declinedKey(owner, bucket);
+  if (kind === undefined) {
+    entry.updatedAt = new Date().toISOString();
+    saveAddonState();
+    return;
+  }
+  const key = declinedKey(owner, bucket, kind);
   if (!(entry.bucketDeclined ?? []).includes(key)) entry.bucketDeclined = [...(entry.bucketDeclined ?? []), key];
+  entry.updatedAt = new Date().toISOString();
+  saveAddonState();
+}
+
+/**
+ * Drop ONE reader's grant and record nothing.
+ *
+ * Deliberately not `revokeBucket`: that records a decline, which is right when
+ * the USER withdraws access and wrong here. This is for when the reader's own
+ * manifest stops declaring the kind — the user withdrew nothing, so if the
+ * reader later declares it again the connection should simply be offered.
+ */
+export function dropBucketGrant(readerId: string, owner: string, bucket: string): void {
+  const entry = state.addons[readerId];
+  if (!entry) return;
+  const grants = entry.bucketGrants ?? [];
+  const kept = grants.filter((g) => !(g.owner === owner && g.bucket === bucket));
+  if (kept.length === grants.length) return;
+  entry.bucketGrants = kept;
   entry.updatedAt = new Date().toISOString();
   saveAddonState();
 }
