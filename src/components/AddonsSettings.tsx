@@ -698,29 +698,79 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
 
       {/* Consent dialog — install or upgrade */}
       {/* The connection prompt. The wording is the whole point of this
-          dialog: a grant is a SUBSCRIPTION, so it has to say that future
-          items are included too. "Allow X to send this" would describe
-          something else entirely. */}
+          dialog, and it has to carry three things, each of which was found
+          missing by someone reading the rendered dialog rather than this file:
+
+            1. DIRECTION. The grant is one-way read. An earlier title,
+               "Connect these addons?", described a link between equals.
+            2. WHAT THE LABEL IS. A bucket label quoted on its own is opaque —
+               it has to be introduced as a collection the owner writes, or
+               the reader cannot tell how much of the owner's data is in play.
+            3. THAT IT IS A SUBSCRIPTION, so future items are included.
+               "Allow X to send this" would describe something else entirely.
+
+          And the bound — one collection, read-only, nothing else — because a
+          grant keyed on (reader, owner, bucket) is narrower than the prose
+          made it sound, and the narrowness is the reassuring part. */}
       {bucketProposal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold text-gray-100 mb-2">Connect these addons?</h3>
-            {/* The two addon names and the bucket label are the only things
-                in this sentence the user has to take in to judge it, so they
-                are the only things emphasised. text-gray-100 on text-gray-300
-                was too slight a difference to register as emphasis at all —
-                found by reading the rendered dialog, not the markup. */}
-            <p className="text-sm text-gray-300 mb-4">
-              <span className="font-semibold text-white">{bucketProposal.readerName}</span> will be
-              able to read everything{" "}
-              <span className="font-semibold text-white">{bucketProposal.ownerName}</span> has put in{" "}
+            {/* The title carries the DIRECTION. "Connect these addons?" read
+                as a link between equals; the grant is one-way read, and who
+                gets what from whom is the thing being consented to.
+
+                THIS TITLE WRAPS TO TWO LINES, AND THAT IS ACCEPTED —
+                2026-10-07. Both ways out were tried and rejected on their
+                merits, so don't re-open it without a new argument.
+
+                Shortening to "Let X read Y's Z?" does fit one line, but only
+                for short names. These come from an add-on's own `name` and a
+                bucket's own `label`, and the real ones are longer than the
+                fixtures: "HyperInsight" is already in the catalogue, PR #4 is
+                "Honest Loop Designer", #6 is "Compute Portal". The short form
+                therefore buys one line for the easy cases, still wraps for
+                the ones that matter, and says less to get it.
+
+                Widening would need `max-w-xl` to fit the full title, and
+                `max-w-md` is shared with the two consent dialogs beside this
+                one — trading a wrap for three dialogs of different widths.
+
+                `text-balance` is the part that earns its place: it splits the
+                wrap into two even lines instead of orphaning the last two
+                words on a line of their own, which is what actually looked
+                wrong. */}
+            <h3 className="text-lg font-semibold text-gray-100 mb-2 text-balance">
+              Give {bucketProposal.readerName} read access to {bucketProposal.ownerName}
+              &rsquo;s &ldquo;{bucketProposal.label}&rdquo;?
+            </h3>
+            {/* The label is introduced as something the owner WRITES before it
+                is used as a name. Quoted on its own it was an opaque phrase,
+                and a reader could not tell whether it meant some of the
+                owner's data or all of it.
+
+                Emphasis is on the two names and the label and nothing else:
+                they are the only words that have to land. text-gray-100 on
+                text-gray-300 did not register as emphasis at all — found by
+                looking at the rendered dialog, not the markup. */}
+            <p className="text-sm text-gray-300 mb-3">
               <span className="font-semibold text-white">
                 &ldquo;{bucketProposal.label}&rdquo;
-              </span>
-              , and anything it adds later.
+              </span>{" "}
+              is a collection that{" "}
+              <span className="font-semibold text-white">{bucketProposal.ownerName}</span> writes.{" "}
+              <span className="font-semibold text-white">{bucketProposal.readerName}</span> would be
+              able to read everything in it, including anything {bucketProposal.ownerName} adds
+              later.
             </p>
+            {/* The bound, which is the reassuring half and was missing
+                entirely. A grant is keyed on (reader, owner, bucket): ONE
+                named collection, in full, read-only. It is not scoped to
+                particular items, and it reaches nothing else the owner holds.
+                Saying so is what lets someone agree to this without having to
+                guess how wide it goes. */}
             <p className="text-xs text-gray-500 mb-4">
-              You can revoke this at any time under {bucketProposal.readerName} in this list.
+              Read only, and nothing else of {bucketProposal.ownerName}&rsquo;s. You can revoke this
+              at any time under {bucketProposal.readerName} in this list.
             </p>
             <div className="flex justify-end gap-2">
               <button
