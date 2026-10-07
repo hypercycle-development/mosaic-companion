@@ -60,29 +60,39 @@ import { dirSizeBytes } from "./api/files";
 // error, so the UI keeps saying "no catalogue published yet".
 //
 // These point at a GitHub *release* asset, not at a path on a branch. The
-// registry is a build output, not source: `mosaic-addons/.gitignore` stops it
-// being committed, and its release workflow publishes it as an asset. An
-// earlier version of these constants pointed at
+// registry is a build output, not source: `.gitignore` in the catalogue repo
+// stops it being committed, and its release workflow publishes it as an
+// asset. An earlier version of these constants pointed at
 // `raw.githubusercontent.com/.../main/addon-registry.json`, which no process
 // has ever written and which 404s regardless of signing key or repo
 // visibility.
 //
 // `releases/latest/download/` resolves to the newest non-prerelease release.
-// mosaic-addons tags one series only, `catalogue-v*`, and each such release
-// carries the whole catalogue plus every tarball it references — so "latest"
-// is unambiguous and a registry can never name an asset published elsewhere.
+// The catalogue repo tags one series only, `catalogue-v*`, and each such
+// release carries the whole catalogue plus every tarball it references — so
+// "latest" is unambiguous and a registry can never name an asset published
+// elsewhere.
+//
+// THE REPOSITORY WAS RENAMED `mosaic-addons` → `mosaic-open-platform`, and
+// builds up to and including v0.1.12 shipped the old URL. GitHub redirects
+// release-asset paths after a rename (301, and `fetch` follows redirects by
+// default), so those installs keep resolving the catalogue — but only for as
+// long as nothing else occupies the old name. **Never create a repository
+// called `mosaic-addons` under `hypercycle-development`**: doing so cancels
+// the redirect and silently takes the catalogue away from every build older
+// than this one.
 // =============================================================================
 
 const REGISTRY_RELEASE_BASE =
-  "https://github.com/hypercycle-development/mosaic-addons/releases/latest/download";
+  "https://github.com/hypercycle-development/mosaic-open-platform/releases/latest/download";
 
 export const DEFAULT_REGISTRY_URL = `${REGISTRY_RELEASE_BASE}/addon-registry.json`;
 export const DEFAULT_REGISTRY_SIG_URL = `${REGISTRY_RELEASE_BASE}/addon-registry.json.sig`;
 
 // The app carries no credential for the catalogue at all — which means
-// **mosaic-addons must be public for any of this to work**. GitHub serves
-// release assets of a private repo only to authenticated callers, so a private
-// repo fails exactly as a missing one does, and both are reported as
+// **mosaic-open-platform must be public for any of this to work**. GitHub
+// serves release assets of a private repo only to authenticated callers, so a
+// private repo fails exactly as a missing one does, and both are reported as
 // "no catalogue published yet" rather than as an error.
 
 // =============================================================================

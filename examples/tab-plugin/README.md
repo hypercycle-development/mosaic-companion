@@ -98,16 +98,16 @@ than routing around it.
   rejected at install. Everything in this example, and most of what an addon
   needs, works from the renderer.
 - **Larger worked examples** live in the
-  [`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons)
+  [`mosaic-open-platform`](https://github.com/hypercycle-development/mosaic-open-platform)
   repository. HyperInsight is a full addon and worth reading, with one caveat:
   it declares a `main.entry`, which it can because it holds the single
   first-party slot in the allowlist. Copying that part will get a submission
   rejected — read it for the renderer side.
-- **Publishing**: addons are distributed from `mosaic-addons`, one directory
+- **Publishing**: addons are distributed from `mosaic-open-platform`, one directory
   per addon, as a reviewed catalogue. Open a pull request adding
   `addons/<your-id>/`; we review the source you submit rather than a build of
   it. See its
-  [CONTRIBUTING guide](https://github.com/hypercycle-development/mosaic-addons/blob/main/CONTRIBUTING.md).
+  [CONTRIBUTING guide](https://github.com/hypercycle-development/mosaic-open-platform/blob/main/CONTRIBUTING.md).
   Building and installing unpacked, as above, stays the right route while you
   develop and for anything you only want to run yourself — in a development
   build, or a packaged one started with `MOSAIC_ADDON_DEV=1`.

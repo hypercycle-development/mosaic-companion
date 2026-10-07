@@ -104,7 +104,7 @@ export type ManifestValidationResult =
  * addon system's own namespaces. An addon's `ipcNamespace` must not
  * collide with any of these. This list shrinks as core migrates features to
  * addons (`hyperinsight` dropped out — see the addon's own
- * manifest.json in mosaic-addons) — kept as a flat, hand-maintained
+ * manifest.json in mosaic-open-platform) — kept as a flat, hand-maintained
  * constant, not derived dynamically.
  */
 export const RESERVED_IPC_NAMESPACES: readonly string[] = [
@@ -126,7 +126,7 @@ export const RESERVED_IPC_NAMESPACES: readonly string[] = [
   "chat",
   "ide",
   // "hyperinsight" removed — that's now the HyperInsight
-  // addon's own ipcNamespace (mosaic-addons/addons/hyperinsight), not a
+  // addon's own ipcNamespace (mosaic-open-platform/addons/hyperinsight), not a
   // core plugin's IPC prefix anymore.
   "aimnodes",
   "payments-jit",

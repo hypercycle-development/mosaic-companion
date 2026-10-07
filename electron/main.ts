@@ -43,7 +43,7 @@ import { initChat, setMainWindow as setChatMainWindow, stopChat } from "./integr
 import { initIDE, cleanupIDE } from "./integrations/ide/index";
 // Plugin IPC handler registrations
 // HyperInsight is no longer a static core plugin — it's
-// carried entirely by its own addon (mosaic-addons/addons/hyperinsight),
+// carried entirely by its own addon (mosaic-open-platform/addons/hyperinsight),
 // including registration and score polling. See ./addons/hyperinsight-migration
 // for the one-time auto-install that gives upgrading profiles continuity.
 import { registerAimNodesIpc } from "../plugins/aim-nodes/main/index.js";

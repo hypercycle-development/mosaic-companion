@@ -1,6 +1,6 @@
 /**
  * Integration check: drives the real decision logic over real signed
- * registries produced by mosaic-addons' publish pipeline, in the order a
+ * registries produced by mosaic-open-platform' publish pipeline, in the order a
  * client would meet them — v1, then v2 carrying a withdrawal, then an attacker
  * replaying v1.
  *
