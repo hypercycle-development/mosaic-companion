@@ -271,6 +271,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("addons:uninstall", id, opts),
     getDataSize: (id: string) => ipcRenderer.invoke("addons:get-data-size", id),
     bucketProposals: () => ipcRenderer.invoke("addons:bucket-proposals"),
+    bucketDeclined: () => ipcRenderer.invoke("addons:bucket-declined"),
     bucketGrantDecide: (readerId: string, owner: string, bucket: string, decision: "connect" | "decline") =>
       ipcRenderer.invoke("addons:bucket-grant-decide", readerId, owner, bucket, decision),
     bucketGrantRevoke: (readerId: string, owner: string, bucket: string) =>

@@ -443,8 +443,21 @@ declare global {
           kind: string;
           label: string;
         }>>;
+        /** Connections the user declined. Still connectable — this is what
+         * Settings offers so a "Not now" can be undone — but never
+         * re-proposed, because the host stops asking once told no. */
+        bucketDeclined: () => Promise<Array<{
+          readerId: string;
+          readerName: string;
+          owner: string;
+          ownerName: string;
+          bucket: string;
+          kind: string;
+          label: string;
+        }>>;
         /** Main re-derives the connection from state; this is a selector, not
-         * a grant. A pair that is not currently a real proposal is refused. */
+         * a grant. A pair that is neither a live proposal nor a declined
+         * connection is refused. */
         bucketGrantDecide: (
           readerId: string,
           owner: string,

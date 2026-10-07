@@ -91,6 +91,15 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
     kind: string;
     label: string;
   } | null>(null);
+  const [declinedBuckets, setDeclinedBuckets] = useState<Array<{
+    readerId: string;
+    readerName: string;
+    owner: string;
+    ownerName: string;
+    bucket: string;
+    kind: string;
+    label: string;
+  }>>([]);
   const [consentDialog, setConsentDialog] = useState<{
     id: string;
     name: string;
@@ -296,8 +305,12 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
   // Proposals are recomputed by main; the renderer only ever holds the first
   // one it was told about, and re-asks after every decision.
   const refreshProposals = async () => {
-    const pending = await window.electronAPI.addons.bucketProposals();
+    const [pending, declined] = await Promise.all([
+      window.electronAPI.addons.bucketProposals(),
+      window.electronAPI.addons.bucketDeclined(),
+    ]);
     setBucketProposal(pending[0] ?? null);
+    setDeclinedBuckets(declined);
   };
 
   useEffect(() => {
@@ -312,6 +325,14 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
     const { readerId, owner, bucket } = bucketProposal;
     await window.electronAPI.addons.bucketGrantDecide(readerId, owner, bucket, decision);
     setBucketProposal(null);
+    await Promise.all([loadAddons(), refreshProposals()]);
+  };
+
+  /** Undo a "Not now", from Settings. Deliberately not a dialog: the user
+   *  came looking for this, so asking them to confirm what they just clicked
+   *  would be the same nag the decline was meant to stop. */
+  const handleConnectBucket = async (readerId: string, owner: string, bucket: string) => {
+    await window.electronAPI.addons.bucketGrantDecide(readerId, owner, bucket, "connect");
     await Promise.all([loadAddons(), refreshProposals()]);
   };
 
@@ -497,6 +518,31 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
                         {addon.buckets.reads.join(", ")} from other addons.
                       </p>
                     )}
+
+                    {/* Declined connections, offered again here and nowhere
+                        else. "Not now" has to stop the host asking or it is
+                        not a decline — but without this it also meant never,
+                        and the only way back was uninstalling the addon. The
+                        user chooses the moment; the host does not re-prompt. */}
+                    {declinedBuckets
+                      .filter((d) => d.readerId === addon.id)
+                      .map((d) => (
+                        <div
+                          key={`declined-${d.owner}/${d.bucket}`}
+                          className="text-xs text-gray-500 pl-1 mt-1 flex items-center gap-2"
+                        >
+                          <span>
+                            You declined reading &ldquo;{d.label}&rdquo; from{" "}
+                            <span className="text-gray-400">{d.ownerName}</span>.
+                          </span>
+                          <button
+                            onClick={() => handleConnectBucket(d.readerId, d.owner, d.bucket)}
+                            className="text-gray-400 hover:text-indigo-400 underline"
+                          >
+                            Connect
+                          </button>
+                        </div>
+                      ))}
                   </div>
                 )}
 
@@ -659,10 +705,19 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full">
             <h3 className="text-lg font-semibold text-gray-100 mb-2">Connect these addons?</h3>
+            {/* The two addon names and the bucket label are the only things
+                in this sentence the user has to take in to judge it, so they
+                are the only things emphasised. text-gray-100 on text-gray-300
+                was too slight a difference to register as emphasis at all —
+                found by reading the rendered dialog, not the markup. */}
             <p className="text-sm text-gray-300 mb-4">
-              <span className="text-gray-100">{bucketProposal.readerName}</span> will be able to read
-              everything <span className="text-gray-100">{bucketProposal.ownerName}</span> has put in
-              &ldquo;{bucketProposal.label}&rdquo;, and anything it adds later.
+              <span className="font-semibold text-white">{bucketProposal.readerName}</span> will be
+              able to read everything{" "}
+              <span className="font-semibold text-white">{bucketProposal.ownerName}</span> has put in{" "}
+              <span className="font-semibold text-white">
+                &ldquo;{bucketProposal.label}&rdquo;
+              </span>
+              , and anything it adds later.
             </p>
             <p className="text-xs text-gray-500 mb-4">
               You can revoke this at any time under {bucketProposal.readerName} in this list.

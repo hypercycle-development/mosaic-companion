@@ -441,10 +441,20 @@ export function emitBucketChanged(
 // Lifecycle
 // =============================================================================
 
-/** Every connection the host could offer right now. */
-export function listBucketProposals(): BucketProposal[] {
+/**
+ * Every reader/bucket pair connectable on today's declarations — both sides
+ * activated, kinds matching, no grant yet — annotated with whether the user
+ * has already said no to it.
+ *
+ * Proposals and declined connections are two filters over ONE list on
+ * purpose. As two separate walks of the same four loops they would eventually
+ * drift, and a pair the offer logic accepts but the reconnect logic rejects is
+ * a connection the user can neither be offered nor reinstate — precisely the
+ * deadlock this function exists to end.
+ */
+function connectableBucketPairs(): Array<BucketProposal & { declined: boolean }> {
   const entries = listAddonEntries();
-  const proposals: BucketProposal[] = [];
+  const pairs: Array<BucketProposal & { declined: boolean }> = [];
 
   for (const [readerId, reader] of Object.entries(entries)) {
     if (!reader.activated) continue;
@@ -454,8 +464,7 @@ export function listBucketProposals(): BucketProposal[] {
         for (const spec of owner.buckets?.publishes ?? []) {
           if (spec.kind !== kind) continue;
           if (findBucketGrant(readerId, ownerId, spec.id)) continue;
-          if (hasDeclinedBucket(readerId, ownerId, spec.id)) continue;
-          proposals.push({
+          pairs.push({
             readerId,
             readerName: reader.name ?? readerId,
             owner: ownerId,
@@ -463,12 +472,34 @@ export function listBucketProposals(): BucketProposal[] {
             bucket: spec.id,
             kind,
             label: spec.label,
+            declined: hasDeclinedBucket(readerId, ownerId, spec.id),
           });
         }
       }
     }
   }
-  return proposals;
+  return pairs;
+}
+
+const withoutDeclinedFlag = ({
+  declined: _declined,
+  ...proposal
+}: BucketProposal & { declined: boolean }): BucketProposal => proposal;
+
+/** Every connection the host could offer right now, unprompted. */
+export function listBucketProposals(): BucketProposal[] {
+  return connectableBucketPairs().filter((p) => !p.declined).map(withoutDeclinedFlag);
+}
+
+/**
+ * Connections the user declined, which remain connectable if they change
+ * their mind. These are surfaced in Settings, never re-prompted: "Not now"
+ * must stop the host asking, or it is not a decline — but it must not also
+ * mean "never", which would make a misclick unrecoverable short of
+ * uninstalling the addon.
+ */
+export function listDeclinedBucketConnections(): BucketProposal[] {
+  return connectableBucketPairs().filter((p) => p.declined).map(withoutDeclinedFlag);
 }
 
 /**

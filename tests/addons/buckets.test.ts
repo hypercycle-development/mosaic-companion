@@ -26,6 +26,7 @@ import {
   findBucketGrant,
   removeAddonEntry,
   getBucketGrants,
+  setBucketsSnapshot,
 } from "../../electron/addons/state";
 import { methods as api } from "../../electron/addons/api/buckets";
 import {
@@ -35,6 +36,7 @@ import {
   readFor,
   canRead,
   listBucketProposals,
+  listDeclinedBucketConnections,
   reconcileBucketsForAddon,
   purgeBucketsForOwner,
   MAX_BUCKET_ITEMS,
@@ -321,6 +323,71 @@ check("connecting after declining clears the declined key", () => {
   grantBucket("loops", { owner: "graph", bucket: "loop-drafts", kind: "loop-draft" });
   assert.ok(findBucketGrant("loops", "graph", "loop-drafts"));
   assert.ok(canRead("loops", "graph", "loop-drafts"));
+});
+
+// The test above proves the STATE layer can clear a decline. It passed while
+// the user had no way to reach that path: the IPC handler would only act on a
+// live proposal, and declining removed the pair from the proposal list, so a
+// "Not now" was unrecoverable short of uninstalling the addon. Found by
+// running the dialog, not by reading the code. These cover the route a person
+// actually takes.
+
+check("a declined pair is offered again through the declined list", () => {
+  install("graph", GRAPH);
+  install("loops", LOOPS);
+  declineBucket("loops", "graph", "loop-drafts");
+
+  const declined = listDeclinedBucketConnections();
+  assert.strictEqual(declined.length, 1);
+  assert.strictEqual(declined[0].readerId, "loops");
+  assert.strictEqual(declined[0].owner, "graph");
+  assert.strictEqual(declined[0].bucket, "loop-drafts");
+  // Settings renders these, so it needs the display names and the label.
+  assert.strictEqual(declined[0].kind, "loop-draft");
+  assert.ok(declined[0].label);
+});
+
+check("a declined pair appears in exactly one of the two lists", () => {
+  install("graph", GRAPH);
+  install("loops", LOOPS);
+  assert.strictEqual(listBucketProposals().length, 1);
+  assert.deepStrictEqual(listDeclinedBucketConnections(), []);
+
+  declineBucket("loops", "graph", "loop-drafts");
+  assert.deepStrictEqual(listBucketProposals(), []);
+  assert.strictEqual(listDeclinedBucketConnections().length, 1);
+});
+
+check("a granted pair is in neither list", () => {
+  connectedPair();
+  assert.deepStrictEqual(listBucketProposals(), []);
+  assert.deepStrictEqual(listDeclinedBucketConnections(), []);
+});
+
+check("a declined pair stops being offered when either side deactivates", () => {
+  install("graph", GRAPH, false);
+  install("loops", LOOPS);
+  declineBucket("loops", "graph", "loop-drafts");
+  // Otherwise Settings would offer a connection to an addon that is not
+  // running, and accepting it would grant access on the strength of a
+  // declaration nothing is currently honouring.
+  assert.deepStrictEqual(listDeclinedBucketConnections(), []);
+});
+
+check("a declined pair stops being offered once the publisher drops the bucket", () => {
+  install("graph", GRAPH);
+  install("loops", LOOPS);
+  declineBucket("loops", "graph", "loop-drafts");
+  // Both halves, because they do different jobs and only together are they
+  // what an upgrade actually does: the snapshot is the DECLARATION these
+  // lists are computed from, while reconcile clears the files and grants the
+  // old declaration left behind. An earlier version of this test called only
+  // reconcile and failed — correctly, since reconcile never claimed to
+  // retract a declaration.
+  setBucketsSnapshot("graph", { publishes: [], reads: [] });
+  reconcileBucketsForAddon("graph", { publishes: [], reads: [] });
+  assert.deepStrictEqual(listDeclinedBucketConnections(), []);
+  assert.deepStrictEqual(listBucketProposals(), []);
 });
 
 check("an inactive addon on either side produces no proposal", () => {

@@ -63,6 +63,7 @@ import {
 } from "./addons/loader";
 import {
   listBucketProposals,
+  listDeclinedBucketConnections,
   emitBucketChanged,
   setBucketEventSink,
 } from "./addons/buckets";
@@ -501,10 +502,26 @@ app.whenReady().then(() => {
   // to a bucket the owner does not declare.
   ipcMain.handle("addons:bucket-proposals", async () => listBucketProposals());
 
+  // Declined connections are listed separately so Settings can offer them
+  // again. They are deliberately NOT re-proposed: once told no, the host
+  // stops asking.
+  ipcMain.handle("addons:bucket-declined", async () => listDeclinedBucketConnections());
+
   ipcMain.handle(
     "addons:bucket-grant-decide",
     async (_event: IpcMainInvokeEvent, readerId: string, owner: string, bucket: string, decision: "connect" | "decline") => {
-      const proposal = listBucketProposals().find(
+      // `connect` also accepts a previously declined pair — that is what lets
+      // the user undo a "Not now" from Settings. The property described above
+      // is unchanged: a declined pair still passed every test in
+      // connectableBucketPairs() — both sides activated, the owner actually
+      // declaring that bucket, kinds matching, no grant already — so a
+      // compromised renderer still cannot mint access to a bucket nobody
+      // publishes. `decline` stays proposals-only; re-declining means nothing.
+      const candidates =
+        decision === "connect"
+          ? [...listBucketProposals(), ...listDeclinedBucketConnections()]
+          : listBucketProposals();
+      const proposal = candidates.find(
         (p) => p.readerId === readerId && p.owner === owner && p.bucket === bucket,
       );
       if (!proposal) return { success: false, error: "No such pending connection" };
