@@ -84,10 +84,18 @@ jobs:
       # window (#112). better-sqlite3 is the other one, and had the same
       # exposure without the same luck of being noticed.
       #
-      # Both `build/Release/` paths are where a COMPILED module lands. This
-      # matrix is Linux-only; a darwin or win32 leg would need the
-      # `prebuilds/<platform>-<arch>/` path instead, since those load a
-      # shipped prebuild rather than compiling.
+      # Both `build/Release/` paths are where a COMPILED module lands, and
+      # that is the path on every platform, not just this Linux matrix:
+      # node-pty ships prebuilds for darwin and win32, but Forge runs
+      # @electron/rebuild, whose prebuildify shortcut wants files named
+      # `electron.napi.node`/`node.napi.node`/`electron.abi<N>.node` and so
+      # does not match node-pty's `pty.node` — it falls through to a node-gyp
+      # rebuild of every target. `lib/utils.js` then resolves `build/Release`
+      # first, ahead of `prebuilds/<platform>-<arch>`.
+      #
+      # (An earlier version of this comment said darwin and win32 load the
+      # shipped prebuild. They do not, and the distinction matters: the
+      # prebuilt `spawn-helper` in the published tarball is mode 644.)
       - name: Verify asar contains every runtime-resolved file
         shell: bash
         run: |
@@ -119,6 +127,49 @@ jobs:
               echo "✓ $f"
             else
               echo "✗ MISSING: $f"
+              MISSING=1
+            fi
+          done
+          exit $MISSING
+
+      # The step above cannot catch a native module being sealed INSIDE the
+      # archive, because `asar list` reports unpacked entries too: an unpacked
+      # file stays in the archive header with a flag set and only its payload
+      # moves to disk. So it passed for the entire period when the unpack
+      # config was a silently-ignored option name (`asarUnpack`, an
+      # electron-builder key, on @electron/packager which has no such option)
+      # and `app.asar.unpacked` did not exist in any shipped build.
+      #
+      # What that broke was macOS-only and is invisible on this matrix:
+      # node-pty exec's `spawn-helper`, and a file inside an asar cannot be
+      # exec'd. `.node` modules survive it because Electron's dlopen patch
+      # extracts them on load; a plain executable has no such escape hatch.
+      #
+      # `spawn-helper` is deliberately NOT asserted here. node-pty's
+      # `binding.gyp` defines that target inside an `OS=="mac"` conditional, so
+      # a Linux build does not produce one and asserting it would fail both
+      # legs. The darwin assertion lives in forge.config.js's postPackage hook,
+      # which runs on the machine that makes the artifact and checks the
+      # execute bit — the only check that reaches macOS at all, since this
+      # workflow has no darwin leg.
+      - name: Verify native modules are unpacked to disk
+        shell: bash
+        run: |
+          APP_NAME=$(node -p "require('./package.json').name")
+          UNPACKED="out/${APP_NAME}-linux-${{ matrix.arch }}/resources/app.asar.unpacked"
+          if [ ! -d "$UNPACKED" ]; then
+            echo "::error::app.asar.unpacked does not exist — the asar unpack configuration is a no-op again"
+            exit 1
+          fi
+          MISSING=0
+          for f in \
+            node_modules/node-pty/build/Release/pty.node \
+            node_modules/better-sqlite3/build/Release/better_sqlite3.node
+          do
+            if [ -f "$UNPACKED/$f" ]; then
+              echo "✓ on disk: $f"
+            else
+              echo "::error::MISSING from app.asar.unpacked: $f"
               MISSING=1
             fi
           done
