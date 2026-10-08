@@ -1,23 +1,24 @@
 {
-  "version": "0.1.12",
-  "releaseDate": "2026-08-26",
+  "version": "0.1.13",
+  "releaseDate": "2026-10-08",
   "downloadUrl": "https://releases.hyperpg.site/mosaic/",
   "downloads": {
     "windows": {
-      "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.12/mosaic-companion-0.1.12-Setup.exe"
+      "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.13/mosaic-companion-0.1.13-Setup.exe"
     },
     "macos": {
-      "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.12/mosaic-companion-0.1.12-x64.dmg",
-      "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.12/mosaic-companion-0.1.12-arm64.dmg"
+      "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.13/mosaic-companion-0.1.13-x64.dmg",
+      "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.13/mosaic-companion-0.1.13-arm64.dmg"
     },
     "linux": {
       "deb": {
-        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.12/mosaic-companion_0.1.12_amd64.deb"
+        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.13/mosaic-companion_0.1.13_amd64.deb",
+        "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.13/mosaic-companion_0.1.13_arm64.deb"
       },
       "appimage": {
-        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.12/mosaic-companion-0.1.12-x64.AppImage"
-      },
-      "note": "ARM64 Linux builds are withdrawn for 0.1.12; they do not start (see issue #112). x64 is unaffected."
+        "x64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.13/mosaic-companion-0.1.13-x64.AppImage",
+        "arm64": "https://github.com/hypercycle-development/mosaic-companion/releases/download/v0.1.13/mosaic-companion-0.1.13-arm64.AppImage"
+      }
     }
   }
 }
