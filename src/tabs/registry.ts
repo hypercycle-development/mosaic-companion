@@ -55,7 +55,7 @@ export const CORE_TABS: CoreTabDef[] = [
   { id: "web3", label: "Web3", icon: "Eth", url: INTERNAL_WEB3_URL, toggleable: false, order: 50, description: "Built-in Web3 wallet for on-chain interactions" },
   { id: "vault", label: "Vault", icon: "Lock", url: INTERNAL_VAULT_URL, toggleable: false, order: 60, description: "Named boxes for your own data — you choose which agents can read them" },
   // HyperInsight is no longer a core tab — it's an addon tab
-  // now (mosaic-addons/addons/hyperinsight, mounted via the generic addon
+  // now (mosaic-open-platform/addons/hyperinsight, mounted via the generic addon
   // tab mechanism). See ContentArea.tsx for the old
   // browser://hyperinsight URL's redirect handling.
   { id: "ide", label: "IDE", icon: "Code2", url: INTERNAL_IDE_URL, toggleable: false, order: 80, description: "Built-in code editor with an integrated terminal" },

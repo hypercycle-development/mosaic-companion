@@ -142,7 +142,7 @@ page actually calls.
 
 ### Publishing an add-on
 
-Add-ons reach other people through [`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons), a reviewed catalogue. Open a pull request adding `addons/<your-id>/` with a manifest, a licence, and your source. We review the source you submit, not a build of it: a submission is assessed from the files in your pull request — the ones a reviewer can open and read — rather than from running the add-on, so everything an add-on does should be readable in those files. Its [CONTRIBUTING guide](https://github.com/hypercycle-development/mosaic-addons/blob/main/CONTRIBUTING.md) sets out what a submission must contain, and what it cannot ask for.
+Add-ons reach other people through [`mosaic-open-platform`](https://github.com/hypercycle-development/mosaic-open-platform), a reviewed catalogue. Open a pull request adding `addons/<your-id>/` with a manifest, a licence, and your source. We review the source you submit, not a build of it: a submission is assessed from the files in your pull request — the ones a reviewer can open and read — rather than from running the add-on, so everything an add-on does should be readable in those files. Its [CONTRIBUTING guide](https://github.com/hypercycle-development/mosaic-open-platform/blob/main/CONTRIBUTING.md) sets out what a submission must contain, and what it cannot ask for.
 
 Catalogue releases are signed, and the application verifies them against a pinned publisher key before installing anything. A signature establishes who published an add-on, never that the add-on is safe — review addresses the second, and review is human.
 

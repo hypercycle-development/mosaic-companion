@@ -27,7 +27,7 @@ and between what the documentation says and what the code does.
 ### Publisher signing and a reviewed catalogue ([#103](https://github.com/hypercycle-development/mosaic-companion/issues/103))
 
 Add-ons are distributed from
-[`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons) as a
+[`mosaic-open-platform`](https://github.com/hypercycle-development/mosaic-open-platform) as a
 signed catalogue, verified against a pinned publisher key. Withdrawal is carried
 by the same signed registry: delisting stops new installs, and a withdrawal
 entry acts on an add-on already installed without needing an application update.

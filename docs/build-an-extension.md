@@ -3,7 +3,7 @@
 There are two ways to extend MosAIc.
 
 An **add-on** puts a new page inside it, and it is the kind that goes into the
-[`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons)
+[`mosaic-open-platform`](https://github.com/hypercycle-development/mosaic-open-platform)
 catalogue — submitted as a pull request, read by a person, signed, and then
 installable by anyone.
 
@@ -22,7 +22,7 @@ do and how it reaches anyone.
 
 | Kind | What it is | How it reaches people | Start from |
 | --- | --- | --- | --- |
-| **Add-on** | A new page inside MosAIc, in an isolated webview | The `mosaic-addons` catalogue — pull request, human review, signed release | [`examples/tab-plugin/`](../examples/tab-plugin/README.md) |
+| **Add-on** | A new page inside MosAIc, in an isolated webview | The `mosaic-open-platform` catalogue — pull request, human review, signed release | [`examples/tab-plugin/`](../examples/tab-plugin/README.md) |
 | **Plugin**<br>*MCP server or WASM tool* | Tools for the assistant, or sandboxed computation an agent can invoke | You add it to your own MosAIc. There is no catalogue for these | [`examples/mcp/mcp-hello/`](../examples/mcp/mcp-hello/)<br>[`examples/wasm-tool/`](../examples/wasm-tool/README.md) |
 
 **The rest of this page is about add-ons** — the kind that reaches other people,
@@ -158,7 +158,7 @@ loads an unpacked add-on straight from a directory.
 ## 6. Submit it
 
 To reach other people, open a pull request against
-[`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons)
+[`mosaic-open-platform`](https://github.com/hypercycle-development/mosaic-open-platform)
 adding `addons/<your-id>/`.
 
 ```
@@ -168,7 +168,7 @@ addons/my-addon/
 └── renderer/…        everything your add-on is, readable
 ```
 
-> **Check that `git add` actually took `renderer/`.** `mosaic-addons`
+> **Check that `git add` actually took `renderer/`.** `mosaic-open-platform`
 > git-ignores `addons/*/renderer/`, because for an add-on built from a `src/`
 > directory that path is build output the release pipeline regenerates. If your
 > add-on has no build step — the shape above, and the shape
@@ -202,7 +202,7 @@ addons/my-addon/
 > A `LICENSE` file in `addons/<your-id>/` and a line in the pull request are the
 > whole record — the manifest has no `license` field, so there is nothing to put
 > one in. See
-> [LICENSING.md](https://github.com/hypercycle-development/mosaic-addons/blob/main/LICENSING.md)
+> [LICENSING.md](https://github.com/hypercycle-development/mosaic-open-platform/blob/main/LICENSING.md)
 > for which licences are accepted. Copyleft is unanalysed, including copyleft
 > *dependencies* inlined by your build: expect such a submission to be **held
 > rather than refused**.
@@ -301,7 +301,7 @@ applies — a published add-on does not get a fast path.
   works and puts everything the page needs into `renderer/`
 - Nothing reaches outside `addons/<your-id>/`
 - A `LICENSE` file is present — see
-  [LICENSING.md](https://github.com/hypercycle-development/mosaic-addons/blob/main/LICENSING.md)
+  [LICENSING.md](https://github.com/hypercycle-development/mosaic-open-platform/blob/main/LICENSING.md)
   for what is accepted — and state your licence in the pull request
 - Source is readable; nothing minified or generated without its source
 - Every commit carries `Signed-off-by`
@@ -321,7 +321,7 @@ applies — a published add-on does not get a fast path.
 > redistribution; a proprietary licence does not, so accepting one without **a
 > submission agreement granting distribution rights** would leave nothing to
 > distribute it under. What that agreement requires has not been decided. See
-> [LICENSING.md](https://github.com/hypercycle-development/mosaic-addons/blob/main/LICENSING.md),
+> [LICENSING.md](https://github.com/hypercycle-development/mosaic-open-platform/blob/main/LICENSING.md),
 > which is the authoritative account — this is a sequencing decision, not a
 > position.
 
@@ -330,6 +330,6 @@ applies — a published add-on does not get a fast path.
 Questions belong in an issue on
 [mosaic-companion](https://github.com/hypercycle-development/mosaic-companion)
 (the application) or
-[mosaic-addons](https://github.com/hypercycle-development/mosaic-addons) (the
+[mosaic-open-platform](https://github.com/hypercycle-development/mosaic-open-platform) (the
 catalogue). Security reports go privately through GitHub advisories — see
 [SECURITY.md](../SECURITY.md).

@@ -55,12 +55,12 @@ any of the three.
 ## Publishing
 
 Addons are distributed from the
-[`mosaic-addons`](https://github.com/hypercycle-development/mosaic-addons)
+[`mosaic-open-platform`](https://github.com/hypercycle-development/mosaic-open-platform)
 repository, one directory per addon, as a reviewed catalogue. Open a pull
 request adding `addons/<your-id>/` — manifest, licence, and source. We review the
 source you submit rather than a build of it, so everything your addon does should
 be readable in the files you add. See its
-[CONTRIBUTING guide](https://github.com/hypercycle-development/mosaic-addons/blob/main/CONTRIBUTING.md)
+[CONTRIBUTING guide](https://github.com/hypercycle-development/mosaic-open-platform/blob/main/CONTRIBUTING.md)
 for what a submission must contain, and what it cannot ask for.
 
 While you're developing, build and install unpacked through the Dev corner (see

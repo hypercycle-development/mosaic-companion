@@ -52,7 +52,7 @@ export interface TrustedPublisherKey {
 }
 
 /**
- * Real publisher keys. Must match `publisher-keys.json` in `mosaic-addons`
+ * Real publisher keys. Must match `publisher-keys.json` in `mosaic-open-platform`
  * exactly — release CI verifies against that list before publishing, and if
  * the two disagree every installed app fails closed reporting only "no
  * catalogue is published yet", with nothing in the logs to explain why.
