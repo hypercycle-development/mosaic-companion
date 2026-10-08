@@ -270,6 +270,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
     uninstall: (id: string, opts: { keepSettings: boolean; keepData: boolean }) =>
       ipcRenderer.invoke("addons:uninstall", id, opts),
     getDataSize: (id: string) => ipcRenderer.invoke("addons:get-data-size", id),
+    bucketProposals: () => ipcRenderer.invoke("addons:bucket-proposals"),
+    bucketDeclined: () => ipcRenderer.invoke("addons:bucket-declined"),
+    bucketGrantDecide: (readerId: string, owner: string, bucket: string, decision: "connect" | "decline") =>
+      ipcRenderer.invoke("addons:bucket-grant-decide", readerId, owner, bucket, decision),
+    bucketGrantRevoke: (readerId: string, owner: string, bucket: string) =>
+      ipcRenderer.invoke("addons:bucket-grant-revoke", readerId, owner, bucket),
+    onBucketProposals: (handler: (proposals: unknown[]) => void) => {
+      const listener = (_e: IpcRendererEvent, proposals: unknown[]) => handler(proposals);
+      ipcRenderer.on("addons:bucket-proposals", listener);
+      return () => ipcRenderer.removeListener("addons:bucket-proposals", listener);
+    },
     upgrade: (id: string, acceptedPermissions?: string[]) =>
       ipcRenderer.invoke("addons:upgrade", id, acceptedPermissions),
     setVisibilityLink: (id: string, linked: boolean) => ipcRenderer.invoke("addons:set-visibility-link", id, linked),

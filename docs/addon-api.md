@@ -70,10 +70,20 @@ against what your manifest declared and the user approved at install.
 | `mcp.listServers` / `mcp.listTools` | `mcp:read` |
 | `mcp.callTool` | `mcp:call` |
 | `nodes.*` | `nodes:read` |
+| `buckets.write` / `buckets.clear` | `buckets:publish` |
+| `buckets.list` / `buckets.read` | none — see below |
 
 **Ungated does not mean unbounded.** `settings`, `files` and `self:` events carry
 no permission because they cannot reach outside your own add-on — the boundary is
 scope, not a check. See the limits on each below.
+
+**Reading a bucket is ungated for a different reason, and a stronger one.**
+There is no `buckets:read` permission because one would be *weaker* than what
+guards it: a single blanket yes at install time, covering every bucket forever,
+agreed at the moment the user knows least. Instead each bucket you read is a
+separate grant the user makes against that named bucket, revocable in Settings,
+and checked in the main process on every call. Declaring `buckets.reads` in your
+manifest gets you nothing on its own — it only makes a connection *offerable*.
 
 `wallet:sign`, `agents:delete`, `vault:read`, `vault:write` and `notifications`
 are **reserved**: they are refused when the manifest is validated, so an add-on
@@ -143,6 +153,7 @@ off();
 | `wallet:changed` | `wallet:read` | Wallet state changes. |
 | `nodes:changed` | `nodes:read` | **Nothing delivers this today** — see below. |
 | `mcp:tools-changed` | `mcp:read` | **Nothing delivers this to an add-on today** — see below. |
+| `bucket:changed` | none | A bucket you may read changed, or your access to one was granted or revoked. **Unlike the two above, this one has a sender.** |
 | `self:*` | none | Your own add-on's main sends on it — which needs a `main.entry`, so see the note on `invoke()` below before designing around these. |
 
 Permission here depends on the **channel**, not the method, and is checked when
@@ -170,6 +181,74 @@ you subscribe.
 > **Do not design around either channel.** If you need to know that the node list
 > or the MCP tool set has changed, poll `nodes.list()` or `mcp.listTools(serverId)`.
 
+
+## `buckets`
+
+A **bucket** is a feed one add-on writes and another may read. Exactly one
+add-on can ever write to a given bucket — the one that declared it — so an item
+you read has only one possible author, and nothing needs signing or attributing.
+
+Reading is voluntary. Nothing here calls into another add-on, so no capability
+crosses between you: a bucket you read cannot make you do anything, and a bucket
+you write cannot make the reader do anything. Treat item `data` as untrusted
+input, exactly as you would a URL. The host guarantees who wrote it and that the
+user connected you. It guarantees nothing about the contents.
+
+Declare both halves in your manifest:
+
+```json
+"permissions": ["buckets:publish"],
+"buckets": {
+  "publishes": [
+    { "id": "loop-drafts", "kind": "loop-draft", "label": "Loop drafts" }
+  ],
+  "reads": ["loop-draft"]
+}
+```
+
+`kind` is what connects a publisher to a reader. You declare a *kind* and never
+an add-on id, so you need not know who will publish it — the app notices that
+one add-on publishes a kind another reads, and offers the user the connection.
+
+| Method | Permission | |
+| --- | --- | --- |
+| `write(bucketId, items)` | `buckets:publish` | Upsert by `id`. Existing items keep their place; new ones append. |
+| `clear(bucketId, ids?)` | `buckets:publish` | Omit `ids` to empty it. Unknown ids are ignored. |
+| `list()` | none | Your own buckets, and any you may read. |
+| `read(ownerId, bucketId)` | none | Contents, or `null`. |
+
+```js
+await window.addonAPI.buckets.write("loop-drafts", [
+  { id: "draft-7f3a", data: { name: "Invoice processing", nodes: [] } },
+]);
+
+const feed = await window.addonAPI.buckets.read("graph-addon", "loop-drafts");
+if (feed) for (const item of feed.items) render(item.data);
+```
+
+**You cannot ask for a connection.** There is no method for it, deliberately —
+an add-on that could prompt could prompt badly, and repeatedly. The app offers
+the connection when your declarations match another add-on's; the user accepts
+in Settings.
+
+**`read` returns `null` for every reason you cannot read**, and they are
+indistinguishable: no such add-on, no such bucket, never connected, declined,
+revoked, publisher uninstalled, or it stopped declaring that bucket. That is on
+purpose — otherwise it would be a way to discover what other add-ons exist. Do
+not try to tell those cases apart; show the user that you are not connected and
+point them at Settings.
+
+**A new connection sees everything already in the bucket**, not just what
+arrives afterwards, and the prompt says so. If you publish something you would
+not want a future reader to see, clear it.
+
+Limits: 2000 items and 10 MB per bucket, 200 MB across all of yours, 8 buckets
+published and 8 kinds read. Nothing is evicted — a write that would exceed a cap
+is refused, so prune with `clear`. Item ids match `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}`
+and `data` must survive `JSON.stringify` — `undefined` and circular structures
+are refused rather than quietly dropped.
+
+---
 
 ## `ui`
 

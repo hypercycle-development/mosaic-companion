@@ -16,6 +16,7 @@ import path from "path";
 import crypto from "crypto";
 import semver from "semver";
 import * as tar from "tar";
+import { purgeBucketsForOwner, reconcileBucketsForAddon } from "./buckets";
 import { getErrorMessage } from "../utils";
 import { verifyRegistry, trustedPublisherKeys, type RegistrySignatureEnvelope } from "./signing";
 import { validateManifest, MAIN_ENTRY_ALLOWLIST, type AddonManifest } from "./manifest";
@@ -25,6 +26,7 @@ import {
   recordInstall,
   recordUpgrade,
   removeAddonEntry,
+  setBucketsSnapshot,
   setGrantedPermissions,
   setLastError,
   getHighestRegistrySequence,
@@ -579,6 +581,11 @@ export async function uninstallAddon(
 
   // tabVisibility["addon:<id>"] is unconditionally retained — harmless,
   // presentational, and nothing here touches electron/settings.ts's map.
+  // Buckets go regardless of keepData: that option is about this addon's own
+  // data/, and a reader's access to someone else's feed should not outlive the
+  // feed. Reinstalling starts from empty buckets and no grants.
+  purgeBucketsForOwner(id);
+
   removeAddonEntry(id);
   return { success: true };
 }
@@ -664,6 +671,11 @@ export async function upgradeAddon(
   }
 
   recordUpgrade(id, staged.manifest.version, sourceFor(catalogueEntry));
+  // Close the window where an upgraded-but-not-yet-active addon's OLD bucket
+  // declaration would still be what proposals and access checks read. The
+  // re-activation below refreshes it again; this makes the gap zero.
+  setBucketsSnapshot(id, staged.manifest.buckets);
+  reconcileBucketsForAddon(id, staged.manifest.buckets);
   // Only now, once the new version is actually in place. Writing this earlier
   // would narrow the running addon's grant on a failed upgrade; writing it
   // unconditionally (rather than only when new permissions were accepted) is

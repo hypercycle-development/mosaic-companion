@@ -31,9 +31,11 @@ import { methods as uiMethods } from "./ui";
 import { methods as walletMethods } from "./wallet";
 import { methods as agentsMethods } from "./agents";
 import { methods as mcpMethods } from "./mcp";
+import { methods as bucketsMethods } from "./buckets";
 import { methods as nodesMethods } from "./nodes";
 
 const NAMESPACES: Record<string, ApiNamespace> = {
+  buckets: bucketsMethods,
   system: systemMethods,
   settings: settingsMethods,
   files: filesMethods,

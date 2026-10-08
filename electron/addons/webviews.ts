@@ -62,9 +62,17 @@ export function unsubscribeChannel(webContentsId: number, channel: string): void
  * leaks another addon's traffic. Pass `onlyAddonId` for addon-scoped pushes
  * (`self:<name>`, ctx.events.send).
  */
-export function broadcastAddonEvent(channel: string, payload: unknown, opts?: { onlyAddonId?: string }): void {
+export function broadcastAddonEvent(
+  channel: string,
+  payload: unknown,
+  opts?: { onlyAddonId?: string; onlyAddonIds?: ReadonlySet<string> },
+): void {
   for (const entry of registry.values()) {
     if (opts?.onlyAddonId && entry.addonId !== opts.onlyAddonId) continue;
+    // A set, for a channel whose recipients are computed per emit rather than
+    // being one known addon — bucket:changed goes to whoever currently holds a
+    // grant, which is neither "everyone subscribed" nor a single addon.
+    if (opts?.onlyAddonIds && !opts.onlyAddonIds.has(entry.addonId)) continue;
     if (!entry.subscribedChannels.has(channel)) continue;
     if (entry.webContents.isDestroyed()) continue;
     entry.webContents.send("addon-api:event", { channel, payload });

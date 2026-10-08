@@ -22,6 +22,12 @@ const CHANNEL_PERMISSIONS: Record<string, string | null> = {
   "wallet:changed": "wallet:read",
   "nodes:changed": "nodes:read",
   "mcp:tools-changed": "mcp:read",
+  // Subscribing is unprivileged; who actually RECEIVES it is filtered at emit
+  // time against live grants (buckets.ts). So a reader may subscribe at
+  // startup, before it has been connected to anything, and simply hear
+  // nothing until a grant exists. Unlike the channels above, this one has a
+  // sender — another addon.
+  "bucket:changed": null,
 };
 
 function isChannelKnown(channel: string): boolean {

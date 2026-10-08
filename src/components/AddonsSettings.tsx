@@ -32,6 +32,12 @@ interface AddonSummary {
   linkVisibilityToActivation: boolean;
   updateCheckMode: "manual" | "automatic";
   updateAvailable?: string;
+  /** `reads` conveys no access — it only makes a connection proposable. */
+  buckets: {
+    publishes: Array<{ id: string; kind: string; history: "all"; label: string }>;
+    reads: string[];
+  };
+  bucketGrants: Array<{ owner: string; bucket: string; kind: string; grantedAt: string }>;
 }
 
 interface CatalogueEntry {
@@ -55,6 +61,7 @@ const PERMISSION_WORDING: Record<string, string> = {
   "mcp:call": "Run tools on your connected MCP servers",
   "nodes:read": "See your HyperCycle nodes and their AIM data",
   "shell:open-external": "Open links in your browser",
+  "buckets:publish": "Share data with other addons you connect it to",
 };
 
 function describePermission(p: string): string {
@@ -75,6 +82,24 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
     keepSettings: boolean;
     keepData: boolean;
   } | null>(null);
+  const [bucketProposal, setBucketProposal] = useState<{
+    readerId: string;
+    readerName: string;
+    owner: string;
+    ownerName: string;
+    bucket: string;
+    kind: string;
+    label: string;
+  } | null>(null);
+  const [declinedBuckets, setDeclinedBuckets] = useState<Array<{
+    readerId: string;
+    readerName: string;
+    owner: string;
+    ownerName: string;
+    bucket: string;
+    kind: string;
+    label: string;
+  }>>([]);
   const [consentDialog, setConsentDialog] = useState<{
     id: string;
     name: string;
@@ -277,6 +302,45 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
       await loadAddons();
     });
 
+  // Proposals are recomputed by main; the renderer only ever holds the first
+  // one it was told about, and re-asks after every decision.
+  const refreshProposals = async () => {
+    const [pending, declined] = await Promise.all([
+      window.electronAPI.addons.bucketProposals(),
+      window.electronAPI.addons.bucketDeclined(),
+    ]);
+    setBucketProposal(pending[0] ?? null);
+    setDeclinedBuckets(declined);
+  };
+
+  useEffect(() => {
+    void refreshProposals();
+    return window.electronAPI.addons.onBucketProposals((pending) => {
+      setBucketProposal((current) => current ?? pending[0] ?? null);
+    });
+  }, []);
+
+  const decideBucket = async (decision: "connect" | "decline") => {
+    if (!bucketProposal) return;
+    const { readerId, owner, bucket } = bucketProposal;
+    await window.electronAPI.addons.bucketGrantDecide(readerId, owner, bucket, decision);
+    setBucketProposal(null);
+    await Promise.all([loadAddons(), refreshProposals()]);
+  };
+
+  /** Undo a "Not now", from Settings. Deliberately not a dialog: the user
+   *  came looking for this, so asking them to confirm what they just clicked
+   *  would be the same nag the decline was meant to stop. */
+  const handleConnectBucket = async (readerId: string, owner: string, bucket: string) => {
+    await window.electronAPI.addons.bucketGrantDecide(readerId, owner, bucket, "connect");
+    await Promise.all([loadAddons(), refreshProposals()]);
+  };
+
+  const handleRevokeBucket = async (readerId: string, owner: string, bucket: string) => {
+    await window.electronAPI.addons.bucketGrantRevoke(readerId, owner, bucket);
+    await Promise.all([loadAddons(), refreshProposals()]);
+  };
+
   const togglePermissions = (id: string) => {
     setExpandedPermissions((prev) => {
       const next = new Set(prev);
@@ -416,6 +480,69 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
                         ))}
                       </ul>
                     )}
+                  </div>
+                )}
+
+                {/* Connections — buckets this addon reads from another.
+                    Kept apart from Permissions on purpose: a permission was
+                    granted once at install and covers everything of its kind,
+                    whereas each of these is a separate, named, revocable
+                    decision the user made later. Showing them in one list
+                    would suggest they work the same way. */}
+                {(addon.bucketGrants.length > 0 || addon.buckets.reads.length > 0) && (
+                  <div className="mt-3">
+                    <div className="text-xs text-gray-500 mb-1">Connections</div>
+                    {addon.bucketGrants.length > 0 ? (
+                      <ul className="space-y-1 pl-1">
+                        {addon.bucketGrants.map((g) => (
+                          <li key={`${g.owner}/${g.bucket}`} className="text-xs text-gray-400 flex items-center gap-2">
+                            <span>
+                              Reads <span className="text-gray-300">{g.bucket}</span> from{" "}
+                              <span className="text-gray-300">{g.owner}</span>
+                            </span>
+                            <button
+                              onClick={() => handleRevokeBucket(addon.id, g.owner, g.bucket)}
+                              className="text-gray-500 hover:text-red-400 underline"
+                            >
+                              Revoke
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      /* The disclosure: what this addon could be connected to,
+                         stated as a capability to be OFFERED rather than one
+                         it holds. It has no access until a connection exists. */
+                      <p className="text-xs text-gray-500 pl-1">
+                        Not connected to anything. Can be connected to read{" "}
+                        {addon.buckets.reads.join(", ")} from other addons.
+                      </p>
+                    )}
+
+                    {/* Declined connections, offered again here and nowhere
+                        else. "Not now" has to stop the host asking or it is
+                        not a decline — but without this it also meant never,
+                        and the only way back was uninstalling the addon. The
+                        user chooses the moment; the host does not re-prompt. */}
+                    {declinedBuckets
+                      .filter((d) => d.readerId === addon.id)
+                      .map((d) => (
+                        <div
+                          key={`declined-${d.owner}/${d.bucket}`}
+                          className="text-xs text-gray-500 pl-1 mt-1 flex items-center gap-2"
+                        >
+                          <span>
+                            You declined reading &ldquo;{d.label}&rdquo; from{" "}
+                            <span className="text-gray-400">{d.ownerName}</span>.
+                          </span>
+                          <button
+                            onClick={() => handleConnectBucket(d.readerId, d.owner, d.bucket)}
+                            className="text-gray-400 hover:text-indigo-400 underline"
+                          >
+                            Connect
+                          </button>
+                        </div>
+                      ))}
                   </div>
                 )}
 
@@ -570,6 +697,99 @@ export const AddonsSettings: React.FC<AddonsSettingsProps> = ({ sectionRef }) =>
       )}
 
       {/* Consent dialog — install or upgrade */}
+      {/* The connection prompt. The wording is the whole point of this
+          dialog, and it has to carry three things, each of which was found
+          missing by someone reading the rendered dialog rather than this file:
+
+            1. DIRECTION. The grant is one-way read. An earlier title,
+               "Connect these addons?", described a link between equals.
+            2. WHAT THE LABEL IS. A bucket label quoted on its own is opaque —
+               it has to be introduced as a collection the owner writes, or
+               the reader cannot tell how much of the owner's data is in play.
+            3. THAT IT IS A SUBSCRIPTION, so future items are included.
+               "Allow X to send this" would describe something else entirely.
+
+          And the bound — one collection, read-only, nothing else — because a
+          grant keyed on (reader, owner, bucket) is narrower than the prose
+          made it sound, and the narrowness is the reassuring part. */}
+      {bucketProposal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full">
+            {/* The title carries the DIRECTION. "Connect these addons?" read
+                as a link between equals; the grant is one-way read, and who
+                gets what from whom is the thing being consented to.
+
+                THIS TITLE WRAPS TO TWO LINES, AND THAT IS ACCEPTED —
+                2026-10-07. Both ways out were tried and rejected on their
+                merits, so don't re-open it without a new argument.
+
+                Shortening to "Let X read Y's Z?" does fit one line, but only
+                for short names. These come from an add-on's own `name` and a
+                bucket's own `label`, and the real ones are longer than the
+                fixtures: "HyperInsight" is already in the catalogue, PR #4 is
+                "Honest Loop Designer", #6 is "Compute Portal". The short form
+                therefore buys one line for the easy cases, still wraps for
+                the ones that matter, and says less to get it.
+
+                Widening would need `max-w-xl` to fit the full title, and
+                `max-w-md` is shared with the two consent dialogs beside this
+                one — trading a wrap for three dialogs of different widths.
+
+                `text-balance` is the part that earns its place: it splits the
+                wrap into two even lines instead of orphaning the last two
+                words on a line of their own, which is what actually looked
+                wrong. */}
+            <h3 className="text-lg font-semibold text-gray-100 mb-2 text-balance">
+              Give {bucketProposal.readerName} read access to {bucketProposal.ownerName}
+              &rsquo;s &ldquo;{bucketProposal.label}&rdquo;?
+            </h3>
+            {/* The label is introduced as something the owner WRITES before it
+                is used as a name. Quoted on its own it was an opaque phrase,
+                and a reader could not tell whether it meant some of the
+                owner's data or all of it.
+
+                Emphasis is on the two names and the label and nothing else:
+                they are the only words that have to land. text-gray-100 on
+                text-gray-300 did not register as emphasis at all — found by
+                looking at the rendered dialog, not the markup. */}
+            <p className="text-sm text-gray-300 mb-3">
+              <span className="font-semibold text-white">
+                &ldquo;{bucketProposal.label}&rdquo;
+              </span>{" "}
+              is a collection that{" "}
+              <span className="font-semibold text-white">{bucketProposal.ownerName}</span> writes.{" "}
+              <span className="font-semibold text-white">{bucketProposal.readerName}</span> would be
+              able to read everything in it, including anything {bucketProposal.ownerName} adds
+              later.
+            </p>
+            {/* The bound, which is the reassuring half and was missing
+                entirely. A grant is keyed on (reader, owner, bucket): ONE
+                named collection, in full, read-only. It is not scoped to
+                particular items, and it reaches nothing else the owner holds.
+                Saying so is what lets someone agree to this without having to
+                guess how wide it goes. */}
+            <p className="text-xs text-gray-500 mb-4">
+              Read only, and nothing else of {bucketProposal.ownerName}&rsquo;s. You can revoke this
+              at any time under {bucketProposal.readerName} in this list.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => void decideBucket("decline")}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-700 hover:bg-gray-800 text-gray-300"
+              >
+                Not now
+              </button>
+              <button
+                onClick={() => void decideBucket("connect")}
+                className="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white"
+              >
+                Connect
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {consentDialog && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full">

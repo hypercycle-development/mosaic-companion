@@ -180,6 +180,13 @@ const addonAPI = {
     list: () => invoke("nodes", "list"),
     getSavedAims: (license?: string) => invoke("nodes", "getSavedAims", license),
   },
+  buckets: {
+    write: (bucketId: string, items: Array<{ id: string; data: unknown }>) =>
+      invoke("buckets", "write", bucketId, items),
+    clear: (bucketId: string, ids?: string[]) => invoke("buckets", "clear", bucketId, ids),
+    list: () => invoke("buckets", "list"),
+    read: (ownerId: string, bucketId: string) => invoke("buckets", "read", ownerId, bucketId),
+  },
   /** The addon-main bridge — calls the method the addon's own
    * main/index.js registered via ctx.ipc.handle. */
   invoke: (method: string, ...args: unknown[]) => invoke("invoke", method, ...args),

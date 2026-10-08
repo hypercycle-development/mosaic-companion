@@ -232,6 +232,11 @@ installed in isolation before anything is published.
 
 - **Ask for fewer permissions.** Each one is a question you are asking a
   reviewer to answer on a user's behalf.
+- **Declare the buckets you mean.** `buckets.publishes` and `buckets.reads` are
+  read in review the same way permissions are, and the two must agree: publish
+  something and you need `buckets:publish`; declare that permission and publish
+  nothing and the manifest is refused. Declaring a kind you never read is an
+  offer of a connection nobody needs.
 - **Write it to be read.** Small files, obvious names, no generated code checked
   in without its source.
 - **Say what you tested.** There is no conformance suite yet; the honest
