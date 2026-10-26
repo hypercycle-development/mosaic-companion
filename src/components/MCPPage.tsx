@@ -13,6 +13,7 @@ import {
   XCircle,
   Terminal,
   Globe,
+  Radio,
   HardDrive,
   ShieldAlert,
 } from "lucide-react";
@@ -31,7 +32,7 @@ interface MCPPlugin {
   id: string;
   name: string;
   description?: string;
-  transport: "stdio" | "http";
+  transport: "stdio" | "http" | "sse";
   command?: string;
   args?: string[];
   role?: string;
@@ -170,6 +171,18 @@ const AddPluginForm: React.FC<{
         >
           <Globe size={12} className="inline mr-1" />
           http
+        </button>
+        <button
+          type="button"
+          onClick={() => set("transport", "sse")}
+          className={`flex-1 py-1 text-xs rounded border transition-colors ${
+            form.transport === "sse"
+              ? "bg-indigo-600 border-indigo-500 text-white"
+              : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500"
+          }`}
+        >
+          <Radio size={12} className="inline mr-1" />
+          sse
         </button>
       </div>
 
