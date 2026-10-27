@@ -1,0 +1,27 @@
+{
+  "manifestVersion": 1,
+  "id": "video-chat",
+  "version": "0.1.0",
+  "name": "Video Chat",
+  "description": "One-to-one video or voice calls over WebRTC, peer to peer. Send the other person one code to connect.",
+  "author": "MosAIc Contributors",
+
+  "ipcNamespace": "video-chat",
+  "mountPoint": "tab",
+
+  "tab": {
+    "label": "Video Chat",
+    "icon": "Video",
+    "order": 90
+  },
+
+  "renderer": {
+    "entry": "renderer/index.html"
+  },
+
+  "permissions": ["media:camera", "media:microphone"],
+
+  "updates": {
+    "checkMode": "manual"
+  }
+}

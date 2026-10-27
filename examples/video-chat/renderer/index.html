@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Video Chat</title>
+    <style>
+      /* Theme variables are injected by the addon preload; fallbacks apply
+         outside MosAIc (e.g. opened in a browser as the other peer). */
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: system-ui, -apple-system, sans-serif;
+        background: var(--background, #0a0a0f);
+        color: var(--foreground, #e5e7eb);
+      }
+      .videos { position: relative; max-width: 960px; }
+      #remote { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; }
+      #local {
+        position: absolute; right: 12px; bottom: 12px; width: 25%;
+        border-radius: 6px; background: #111; transform: scaleX(-1);
+      }
+      .row { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; align-items: center; }
+      input {
+        flex: 1; min-width: 240px; max-width: 480px; padding: 6px 8px; font: 12px monospace;
+        background: transparent; color: inherit;
+        border: 1px solid var(--border, #27272a); border-radius: 6px;
+      }
+      button {
+        padding: 6px 12px; border-radius: 6px; cursor: pointer; color: inherit;
+        background: transparent; border: 1px solid var(--border, #27272a);
+      }
+      #hangup { border-color: #ef4444; color: #ef4444; }
+      #status { color: var(--muted-foreground, #9ca3af); font-size: 13px; }
+      /* app.js sets body.in-call when a call starts, body.voice for a voice
+         call, body.connected once the peer is connected. */
+      [hidden], body:not(.in-call) .call-only, body.in-call .idle-only,
+      body.voice .video-only, body.connected .setup { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <!-- Hidden, not removed, in a voice call: the remote element plays the audio. -->
+    <div class="videos call-only video-only">
+      <video id="remote" autoplay playsinline></video>
+      <video id="local" autoplay playsinline muted></video>
+    </div>
+
+    <div class="row">
+      <button id="video-call" class="idle-only">Start video call</button>
+      <button id="voice-call" class="idle-only">Start voice call</button>
+      <button id="mute" class="call-only">Mute</button>
+      <button id="camera" class="call-only video-only">Camera off</button>
+      <button id="hangup" class="call-only">Hang up</button>
+      <span id="status">Start a call, or paste the code you were sent.</span>
+    </div>
+
+    <div id="invite" class="row setup" hidden>
+      <input id="mine" readonly />
+      <button id="copy">Copy</button>
+    </div>
+
+    <div class="row idle-only">
+      <input id="theirs" placeholder="Paste their code here" />
+      <button id="join">Join</button>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
