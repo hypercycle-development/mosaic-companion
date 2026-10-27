@@ -37,6 +37,7 @@ import {
   Network,
   Boxes,
   Telescope,
+  Video,
 } from "lucide-react";
 import {
   INTERNAL_SETTINGS_URL,
@@ -67,7 +68,7 @@ const ADDON_ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
   Server, Zap, Cpu, Activity, Trophy, BarChart3, Globe, Database, Layers, Box,
   Shield, Hash, Rocket, Store, Wallet, Network, Boxes, Telescope, Sparkles,
   Lock, Bot, MessageSquare, Settings, Home, Plug, BrainCircuit, Code2, Star,
-  Clock, Power, LayoutGrid,
+  Clock, Power, LayoutGrid, Video,
 };
 
 interface AddonTabInfo {
@@ -110,6 +111,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Addon-contributed tabs — installed && activated addons only;
   // listTabs() already excludes anything not currently live.
   const [addonTabs, setAddonTabs] = useState<AddonTabInfo[]>([]);
+
+  // Addon URLs whose page was granted camera/microphone — same signal as the
+  // tab-strip dot, pushed by the main-process permission handler.
+  const [mediaAccessUrls, setMediaAccessUrls] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    return window.electronAPI?.addons?.onMediaAccess?.(({ addonId, active }) => {
+      setMediaAccessUrls((prev) => {
+        const next = new Set(prev);
+        if (active) next.add(`${ADDON_URL_PREFIX}${addonId}`);
+        else next.delete(`${ADDON_URL_PREFIX}${addonId}`);
+        return next;
+      });
+    });
+  }, []);
 
   // Node detail panel state — when set, the NodeDetailPanel slides in
   const [selectedNodeLicense, setSelectedNodeLicense] = useState<string | null>(null);
@@ -469,6 +484,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="text-sm font-medium tracking-wide">
                   {item.label}
                 </span>
+                {mediaAccessUrls.has(item.url) && (
+                  <span
+                    className="ml-2 w-2 h-2 rounded-full bg-red-500"
+                    title="Has camera or microphone access"
+                  />
+                )}
                 {isActive && (
                   <div
                     className="absolute right-2 w-1.5 h-1.5 rounded-full"

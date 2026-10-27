@@ -72,6 +72,7 @@ against what your manifest declared and the user approved at install.
 | `nodes.*` | `nodes:read` |
 | `buckets.write` / `buckets.clear` | `buckets:publish` |
 | `buckets.list` / `buckets.read` | none — see below |
+| `getUserMedia` camera / microphone | `media:camera` / `media:microphone` — not an `addonAPI` method, see [Camera and microphone](#camera-and-microphone) |
 
 **Ungated does not mean unbounded.** `settings`, `files` and `self:` events carry
 no permission because they cannot reach outside your own add-on — the boundary is
@@ -279,6 +280,28 @@ actually runs something, so ask for it only if you use it.
 ## `nodes`
 
 Both `nodes:read`. `list()` · `getSavedAims(license?)`.
+
+## Camera and microphone
+
+Not part of `addonAPI`: call the standard `navigator.mediaDevices.getUserMedia`.
+WebRTC (`RTCPeerConnection`) works as in any browser.
+
+Every web permission is **denied by default** in an add-on, with two exceptions:
+`fullscreen` and clipboard writes. The camera and microphone can be granted on
+top of that:
+
+1. **Declare them.** `media:camera` for `video`, `media:microphone` for
+   `audio`. A request for anything you did not declare is refused, including a
+   `{ video: true, audio: true }` request when you declared only one.
+2. **The user is asked.** The first request each launch shows a dialog naming
+   your add-on. Declining refuses the request; the next launch asks again.
+3. **The user can see it.** Once granted, your tab and sidebar entry show a red dot until the
+   page reloads or closes. It does not clear when you stop your tracks — there
+   is no trustworthy signal for that — so to clear it when a call ends, call
+   `location.reload()`.
+
+A refusal reaches you as the usual `NotAllowedError` from `getUserMedia`.
+Screen capture (`getDisplayMedia`) is not available.
 
 ---
 

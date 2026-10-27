@@ -134,6 +134,13 @@ export const TabStrip: React.FC<TabStripProps> = ({
                 {getTabTitle(tab)}
               </span>
 
+              {tab.mediaAccess && (
+                <span
+                  className="w-2 h-2 rounded-full bg-red-500 shrink-0"
+                  title="Has camera or microphone access"
+                />
+              )}
+
               {/* Loading Progress Indicator */}
               {tab.isLoading && tab.loadProgress !== undefined && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-transparent overflow-hidden rounded-b-lg">

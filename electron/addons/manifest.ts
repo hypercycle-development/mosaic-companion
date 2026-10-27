@@ -169,7 +169,17 @@ export const PERMISSION_VOCABULARY: readonly string[] = [
   "nodes:read",
   "shell:open-external",
   "buckets:publish",
+  "media:camera",
+  "media:microphone",
 ];
+
+/** The permission each kind of capture (Electron's `mediaTypes`) needs. */
+const MEDIA_PERMISSIONS: Record<string, string> = { video: "media:camera", audio: "media:microphone" };
+
+/** True only if every kind of capture asked for is a granted permission. */
+export function grantsMedia(granted: ReadonlySet<string>, mediaTypes: readonly string[]): boolean {
+  return mediaTypes.length > 0 && mediaTypes.every((t) => granted.has(MEDIA_PERMISSIONS[t]));
+}
 
 /**
  * Named in the vocabulary so the strings are stable when they eventually

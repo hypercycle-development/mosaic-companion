@@ -62,6 +62,8 @@ const PERMISSION_WORDING: Record<string, string> = {
   "nodes:read": "See your HyperCycle nodes and their AIM data",
   "shell:open-external": "Open links in your browser",
   "buckets:publish": "Share data with other addons you connect it to",
+  "media:camera": "Use your camera (asks again each launch)",
+  "media:microphone": "Use your microphone (asks again each launch)",
 };
 
 function describePermission(p: string): string {

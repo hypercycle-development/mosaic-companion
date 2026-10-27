@@ -123,7 +123,8 @@ Ask for the minimum. Every permission is something a reviewer has to justify to
 users, and something a user sees before they install.
 
 **Available:** `wallet:read` · `agents:read` · `agents:write` · `mcp:read` ·
-`mcp:call` · `nodes:read` · `shell:open-external`
+`mcp:call` · `nodes:read` · `shell:open-external` · `media:camera` ·
+`media:microphone`
 
 **Reserved — rejected at install:** `wallet:sign` · `agents:delete` ·
 `vault:read` · `vault:write` · `notifications`

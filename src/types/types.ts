@@ -27,6 +27,7 @@ export interface Tab {
   isLoading?: boolean;
   loadProgress?: number; // 0-100
   favicon?: string;
+  mediaAccess?: boolean; // an addon in this tab was granted camera/microphone
 }
 
 export const INTERNAL_HOME_URL = "browser://home";
