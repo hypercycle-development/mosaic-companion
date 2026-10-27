@@ -93,6 +93,22 @@ export const AddonHostView: React.FC<AddonHostViewProps> = ({
     });
   }, [addonId, onUpdateTab]);
 
+  // Camera/microphone indicator, pushed by the main-process permission handler.
+  // onUpdateTab changes identity every render, so read it through a ref —
+  // the unmount reset must run once, not on every re-render.
+  const onUpdateTabRef = useRef(onUpdateTab);
+  onUpdateTabRef.current = onUpdateTab;
+  useEffect(() => {
+    if (!window.electronAPI?.addons?.onMediaAccess) return;
+    const off = window.electronAPI.addons.onMediaAccess(({ addonId: fromId, active }) => {
+      if (fromId === addonId) onUpdateTabRef.current({ mediaAccess: active });
+    });
+    return () => {
+      off();
+      onUpdateTabRef.current({ mediaAccess: false });
+    };
+  }, [addonId]);
+
   // Loading state (waiting on the first listTabs() answer)
   if (tabInfo === undefined) {
     return (

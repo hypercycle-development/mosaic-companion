@@ -299,6 +299,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("addons:title-changed", handler);
       return () => ipcRenderer.removeListener("addons:title-changed", handler);
     },
+    onMediaAccess: (callback: (data: { addonId: string; active: boolean }) => void) => {
+      const handler = (_event: IpcRendererEvent, data: { addonId: string; active: boolean }) => callback(data);
+      ipcRenderer.on("addons:media-access", handler);
+      return () => ipcRenderer.removeListener("addons:media-access", handler);
+    },
   },
   // Sidebar tab visibility preferences
   tabPrefs: {

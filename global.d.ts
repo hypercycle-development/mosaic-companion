@@ -481,6 +481,7 @@ declare global {
         wasHyperInsightJustMigrated: () => Promise<boolean>;
         onChanged: (callback: (tabs: unknown[]) => void) => () => void;
         onTitleChanged: (callback: (data: { addonId: string; title: string }) => void) => () => void;
+        onMediaAccess: (callback: (data: { addonId: string; active: boolean }) => void) => () => void;
       };
 
       // Sidebar tab visibility preferences (keyed by tab id; absent = visible)
