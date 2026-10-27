@@ -71,6 +71,7 @@ import { grantBucket, declineBucket, revokeBucket, findBucketGrant } from "./add
 import { installWebviewAttachGuards, ADDON_PRELOAD_PATH, broadcastAddonEvent } from "./addons/webviews";
 import { ADDON_SCHEME_PRIVILEGE, registerAddonProtocolHandler } from "./addons/protocol";
 import { registerAddonApi } from "./addons/api/index";
+import { installPermissionPolicy } from "./permissions";
 import { broadcastThemeToAddons } from "./addons/theme";
 import {
   fetchCatalogue,
@@ -356,6 +357,9 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'mosaic-media', privileges: { bypassCSP: true, supportFetchAPI: true, corsEnabled: true } },
   ADDON_SCHEME_PRIVILEGE,
 ]);
+
+// Deny-by-default web permissions on every session — see permissions.ts.
+installPermissionPolicy();
 
 app.whenReady().then(() => {
   console.log("App is packaged:", app.isPackaged);
