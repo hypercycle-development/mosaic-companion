@@ -223,12 +223,61 @@ jobs:
       # see that job for why and what it uploads.
 
   # ---------------------------------------------------------------------------
+  # Publish the add-on surface alongside the binaries.
+  #
+  # `addon-surface.json` is this app's own description of what an add-on may
+  # call, declare and name: the ten `window.addonAPI` namespaces and their
+  # methods, which permission each one needs, the grantable and reserved
+  # vocabularies, the reserved IPC namespaces, the renderable `tab.icon` set,
+  # the manifest limits — and the app version at which each API appeared.
+  #
+  # It exists because mosaic-open-platform's adjudicator has to gate
+  # submissions against the app, and until now it did that from a hand-kept
+  # copy of these lists. Three of the four gate failures on the last review
+  # round were defects in our own checking, which a contributor can neither
+  # see nor fix. A release that states its own surface is the fix
+  # (mosaic-open-platform#19).
+  #
+  # Its own job because the generator walks the release tags to work out when
+  # each API appeared, and that needs full history — `fetch-depth: 0` here
+  # rather than on the platform build matrix, which does not need it.
+  # ---------------------------------------------------------------------------
+  addon-surface:
+    needs: resolve-version
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.resolve-version.outputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      # --ignore-scripts: the generator reads TypeScript, it does not build or
+      # run the app, so Electron's postinstall download is pure cost here.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Generate the add-on surface
+        run: node scripts/addon-surface.mjs --out addon-surface.json
+
+      - name: Attach it to the draft release
+        run: gh release upload "v$VERSION" addon-surface.json --clobber
+
+  # ---------------------------------------------------------------------------
   # Fan-in: verify the complete asset set, publish the release, then update the
   # download page + latest.json on gh-pages (and legacy S3 when requested).
   # Publishing the draft creates the v{version} tag at the released commit.
   # ---------------------------------------------------------------------------
   finalize:
-    needs: [resolve-version, build]
+    needs: [resolve-version, build, addon-surface]
     runs-on: ubuntu-latest
     # The pause that makes the draft a checkpoint rather than a formality.
     #
@@ -264,6 +313,7 @@ jobs:
             "mosaic-companion-${VERSION}-arm64.dmg"
             "mosaic-companion-${VERSION}-Setup.exe"
             "RELEASES"
+            "addon-surface.json"
           )
           # Only count fully-uploaded assets: a build job that died mid-upload can
           # leave a truncated asset under its final name, which a re-run would skip.
