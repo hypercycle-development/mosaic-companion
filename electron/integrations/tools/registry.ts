@@ -215,6 +215,7 @@ export class ToolRegistry {
       tools: mod.tools.map((t) => ({
         name: t.name,
         description: t.description,
+        inputSchema: t.inputSchema,
       })),
     }));
   }

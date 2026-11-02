@@ -67,6 +67,14 @@ export function explainAIError(
     return `Couldn't reach Ollama at ${baseUrl || "http://localhost:11434"}. Make sure Ollama is installed and running (ollama serve), then retry.`;
   }
 
+  if (
+    msg.includes("request too large") ||
+    msg.includes("input tokens per minute") ||
+    msg.includes("output tokens per minute")
+  ) {
+    return `${name} rejected this request because it is too large for your current rate tier (the request itself, not accumulated usage — your key and credits are fine). Fix: reduce the number of connected MCP servers/tools for this agent, lower max_tokens, or upgrade your ${name} tier (e.g. Groq Dev Tier is free and raises limits ~10x).`;
+  }
+
   if (matchesAny(msg, QUOTA_PATTERNS)) {
     return `${name} says this key has hit a usage or quota limit. Free-tier keys (especially Gemini) have small daily limits — wait a while and retry, enable billing on your ${name} account, or use a key from another provider. Your key itself is fine.`;
   }

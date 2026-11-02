@@ -101,7 +101,8 @@ export interface ModuleInfo {
   name: string;
   displayName: string;
   toolCount: number;
-  tools: Array<{ name: string; description: string }>;
+  /** inputSchema included so the renderer can build native LLM tool definitions */
+  tools: Array<{ name: string; description: string; inputSchema?: Record<string, unknown> }>;
 }
 
 /** Serializable action pattern for IPC transfer (RegExp can't cross IPC) */

@@ -28,8 +28,12 @@ export interface AIAgent {
   [key: string]: unknown;
 }
 
-const aiAgentsPath = path.join(app.getPath("userData"), "ai-agents.json");
-export const agentsHistoryPath = path.join(app.getPath("userData"), "agents_history");
+// NOTE: ESM imports run before main.ts's MOSAIC_USER_DATA_DIR setPath block,
+// so app.getPath("userData") here would be the default path. Read the test
+// override env directly so scratch profiles (e2e tests) actually take effect.
+const userDataDir = process.env.MOSAIC_USER_DATA_DIR || app.getPath("userData");
+const aiAgentsPath = path.join(userDataDir, "ai-agents.json");
+export const agentsHistoryPath = path.join(userDataDir, "agents_history");
 
 export function validateActiveHypercycleAgent(agent: AIAgent): string | null {
   if (agent.provider !== "hypercycle") return null;

@@ -12,9 +12,9 @@
  *   const result = await runAgentLoop(mcp, provider, ['my-server'], 'What time is it in Tokyo?');
  */
 
-import type { MCPClient, MCPTool } from "../MCPClient";
+import type { MCPClient, MCPTool, MCPToolResult } from "../MCPClient";
 import { mcpResultToString } from "../MCPClient";
-import type { LLMProvider, Message, ToolCall } from "../providers/types";
+import type { LLMProvider, Message, MessageImage, ToolCall } from "../providers/types";
 
 // =============================================================================
 // Options
@@ -127,7 +127,7 @@ export async function runAgentLoop(
 
     // Execute each tool call
     for (const toolCall of response.toolCalls) {
-      const result = await executeToolCall(
+      const outcome = await executeToolCall(
         mcp,
         toolMap,
         toolCall,
@@ -137,8 +137,9 @@ export async function runAgentLoop(
 
       messages.push({
         role: "tool",
-        content: result,
+        content: outcome.text,
         tool_call_id: toolCall.id,
+        ...(outcome.images.length > 0 ? { images: outcome.images } : {}),
       });
     }
   }
@@ -161,17 +162,34 @@ export async function runAgentLoop(
 // Helpers
 // =============================================================================
 
+/** Extract image blocks from an MCP tool result (base64 + mime type) */
+function extractImages(result: MCPToolResult): MessageImage[] {
+  if (!result?.content) return [];
+  const images: MessageImage[] = [];
+  for (const c of result.content) {
+    if (c.type === "image" && typeof c.data === "string" && c.data.length > 0) {
+      images.push({ mimeType: c.mimeType || "image/png", base64: c.data });
+    }
+  }
+  return images;
+}
+
+interface ToolCallOutcome {
+  text: string;
+  images: MessageImage[];
+}
+
 async function executeToolCall(
   mcp: MCPClient,
   toolMap: Map<string, string>,
   toolCall: ToolCall,
   onBeforeToolCall?: AgentLoopOptions["onBeforeToolCall"],
   onToolResult?: AgentLoopOptions["onToolResult"],
-): Promise<string> {
+): Promise<ToolCallOutcome> {
   // Resolve which server owns this tool
   const serverName = toolMap.get(toolCall.name);
   if (!serverName) {
-    return `Error: Unknown tool "${toolCall.name}"`;
+    return { text: `Error: Unknown tool "${toolCall.name}"`, images: [] };
   }
 
   // Strip server prefix if we added one
@@ -187,24 +205,28 @@ async function executeToolCall(
       serverName,
     );
     if (!approved) {
-      return `Tool call "${actualToolName}" was blocked by user.`;
+      return {
+        text: `Tool call "${actualToolName}" was blocked by user.`,
+        images: [],
+      };
     }
   }
 
   try {
     const result = await mcp.callTool(serverName, actualToolName, toolCall.arguments);
     const resultText = mcpResultToString(result);
+    const resultImages = extractImages(result);
 
     onToolResult?.(actualToolName, resultText, serverName);
 
     if (result.isError) {
-      return `Tool error: ${resultText}`;
+      return { text: `Tool error: ${resultText}`, images: [] };
     }
 
-    return resultText;
+    return { text: resultText, images: resultImages };
   } catch (error) {
     const errorMsg = `Tool execution error: ${(error as Error).message}`;
-    return errorMsg;
+    return { text: errorMsg, images: [] };
   }
 }
 

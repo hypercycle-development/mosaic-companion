@@ -11,11 +11,21 @@ import type { MCPTool } from "../MCPClient";
 // Message Types
 // =============================================================================
 
+/** An image attached to a message (e.g. from an MCP tool result) */
+export interface MessageImage {
+  /** MIME type, e.g. "image/png" */
+  mimeType: string;
+  /** Base64-encoded image data (no data: URI prefix) */
+  base64: string;
+}
+
 export interface Message {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
   tool_calls?: ToolCall[];
   tool_call_id?: string;
+  /** Optional images carried by this message (tool results can return images) */
+  images?: MessageImage[];
 }
 
 export interface ToolCall {
