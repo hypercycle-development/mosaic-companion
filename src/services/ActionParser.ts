@@ -174,8 +174,15 @@ export async function executeToolCall(action: ParsedAction, agentId?: string): P
  * Generate system prompt for MCP tools (external servers).
  * Built-in tools get their prompts from ToolRegistry.getSystemPrompt().
  */
-export function getMCPSystemPrompt(servers: any[]): string {
+export function getMCPSystemPrompt(servers: any[], allowedServers?: string[]): string {
   if (!servers || servers.length === 0) return "";
+
+  // Per-agent filtering (token minimization): empty/undefined = all servers.
+  // Applies to the text-injection path (Gemini etc.) the same way getOpenAITools
+  // filters the native tools path — otherwise "Tool access" checkboxes do
+  // nothing for non-native providers and the catalog bloats every request.
+  const allowed =
+    allowedServers && allowedServers.length > 0 ? new Set(allowedServers) : null;
 
   let prompt = "You have access to the following tools. To use a tool, output its XML tag.\n\n";
   prompt += "CRITICAL RULES:\n";
@@ -187,6 +194,7 @@ export function getMCPSystemPrompt(servers: any[]): string {
   prompt += "6. For ANY question about current prices, balances, exchange rates, or real-time data: call the tool FIRST, speak AFTER.\n\n";
 
   servers.forEach((server) => {
+    if (allowed && !allowed.has(server.name)) return;
     if (!server.tools || server.tools.length === 0) return;
     prompt += `Server: ${server.name}\n`;
     server.tools.forEach((tool: any) => {
@@ -196,6 +204,110 @@ export function getMCPSystemPrompt(servers: any[]): string {
   });
 
   return prompt;
+}
+
+/**
+ * Registry mapping sanitized tool names back to their server:tool origin.
+ * OpenAI-compatible APIs only allow [a-zA-Z0-9_-] in function names,
+ * so "Chrome Dev Tools:get_x" becomes "Chrome_Dev_Tools_get_x" — and the
+ * original is recovered here when the tool call comes back.
+ */
+const safeNameRegistry = new Map<string, { server: string; tool: string }>();
+
+function toSafeToolName(server: string, tool: string): string {
+  const raw = `${server}:${tool}`;
+  const safe = raw.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
+  safeNameRegistry.set(safe, { server, tool });
+  return safe;
+}
+
+/** Resolve a sanitized tool name back to {server, tool}. Falls back to colon-splitting. */
+export function resolveSafeToolName(safe: string): { server: string; tool: string } {
+  const mapped = safeNameRegistry.get(safe);
+  if (mapped) return mapped;
+  const idx = safe.indexOf(":");
+  if (idx >= 0) return { server: safe.slice(0, idx), tool: safe.slice(idx + 1) };
+  const usIdx = safe.indexOf("_");
+  if (usIdx >= 0) return { server: safe.slice(0, usIdx), tool: safe.slice(usIdx + 1) };
+  return { server: safe, tool: safe };
+}
+
+/**
+ * Build OpenAI-format tool definitions for native tool calling.
+ * Combines MCP server tools and built-in ToolRegistry modules.
+ * Used by ChatView when the provider supports the `tools` parameter
+ * (openai, custom). Providers without native support keep the
+ * text-injection path.
+ */
+export async function getOpenAITools(
+  mcpServers: any[],
+  allowedServers?: string[],
+): Promise<import("./AIService").OpenAIToolDef[]> {
+  const tools: import("./AIService").OpenAIToolDef[] = [];
+
+  // Per-agent filtering (token minimization): empty/undefined = all servers.
+  const allowed =
+    allowedServers && allowedServers.length > 0 ? new Set(allowedServers) : null;
+
+  // 1. MCP servers
+  for (const server of mcpServers || []) {
+    if (allowed && !allowed.has(server.name)) continue;
+    for (const tool of server.tools || []) {
+      tools.push({
+        type: "function",
+        function: {
+          name: toSafeToolName(server.name, tool.name),
+          description: (tool.description || "").slice(0, 1000),
+          parameters: sanitizeJsonSchema(tool.inputSchema),
+        },
+      });
+    }
+  }
+
+  // 2. Built-in ToolRegistry modules (Gmail, Web3, Vault, WASM)
+  try {
+    const modules = await (window as any).electronAPI?.tools?.listModules?.();
+    for (const mod of modules || []) {
+      if (allowed && !allowed.has(mod.name)) continue;
+      for (const t of mod.tools || []) {
+        tools.push({
+          type: "function",
+          function: {
+            name: toSafeToolName(mod.name, t.name),
+            description: (t.description || "").slice(0, 1000),
+            parameters: sanitizeJsonSchema(t.inputSchema),
+          },
+        });
+      }
+    }
+  } catch {
+    // Registry unavailable — MCP tools still work
+  }
+
+  return tools;
+}
+
+/**
+ * Strip JSON-schema keywords some OpenAI-compatible providers reject
+ * (e.g. Groq chokes on "$schema" and non-standard fields).
+ */
+function sanitizeJsonSchema(schema: unknown): Record<string, unknown> | undefined {
+  if (!schema || typeof schema !== "object") return undefined;
+  const clone = JSON.parse(JSON.stringify(schema));
+  const clean = (node: any): void => {
+    if (!node || typeof node !== "object") return;
+    delete node["$schema"];
+    delete node["$id"];
+    delete node["additionalProperties"];
+    for (const key of ["properties", "items", "anyOf", "oneOf", "allOf"]) {
+      const child = node[key];
+      if (Array.isArray(child)) child.forEach(clean);
+      else if (child && typeof child === "object") Object.values(child).forEach(clean);
+    }
+    if (Array.isArray(node.required) && node.required.length === 0) delete node.required;
+  };
+  clean(clone);
+  return clone;
 }
 
 // =============================================================================

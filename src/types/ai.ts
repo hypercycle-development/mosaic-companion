@@ -29,6 +29,12 @@ export interface AIAgentConfig {
   isActive: boolean;
   createdAt: number;
   boxAccess?: string[]; // IDs of vault boxes this agent can access
+  /**
+   * Per-agent tool filtering (token minimization): server/module names this agent
+   * may use. Empty/undefined = all servers (default). Names match MCP server names
+   * and built-in ToolRegistry module names (e.g. "Firecrawl", "web3", "gmail").
+   */
+  allowedServers?: string[];
   richUI?: boolean; // Allow agent to render charts, tables, cards inline via <mosaic_ui>
   /**
    * Hypercycle: `toda` (default) or `basechain` — node base is scheme + host; ports are configured separately.
@@ -68,11 +74,15 @@ export interface AIAgentConfig {
 
 export interface ChatMessage {
   id: string;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "tool";
   content: string;
   timestamp: number;
   agentId: string;
   isStreaming?: boolean;
+  /** Native tool calling: id of the tool call this message answers */
+  toolCallId?: string;
+  /** Native tool calling: tool calls issued in this assistant message */
+  toolCalls?: { id: string; name: string; arguments: string }[];
   /** UI blocks returned by a tool call (rendered by ToolUIRenderer) */
   uiBlocks?: ToolUIBlock[];
   /** "display" = UI was the answer (agent didn't analyze), "analyze" = agent commented */
@@ -112,7 +122,7 @@ export const DEFAULT_MODELS: Record<AIProvider, string[]> = {
     "o1-preview",
     "o1-mini",
   ],
-  gemini: ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-pro"],
+  gemini: ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-pro"],
   ollama: ["llama3.2", "mistral", "codellama", "deepseek-coder"],
   custom: [],
   hypercycle: ["claude-sonnet-4-5-20250929"],

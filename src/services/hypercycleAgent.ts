@@ -384,7 +384,7 @@ export function chatMessagesToHypercycleAimMessages(
 ): HypercycleAimMessage[] {
     return messages
         .filter(
-            (m) =>
+            (m): m is ChatMessage & { role: 'user' | 'assistant' | 'system' } =>
                 (m.role === 'user' ||
                     m.role === 'assistant' ||
                     m.role === 'system') &&

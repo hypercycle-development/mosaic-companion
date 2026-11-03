@@ -17,6 +17,7 @@ import {
   Thermometer,
   Zap,
   Info,
+  Wrench,
 } from "lucide-react";
 import {
   AIAgentConfig,
@@ -118,6 +119,57 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
 
   const [web3EvmWallet, setWeb3EvmWallet] = useState(false);
   const [web3TodaOk, setWeb3TodaOk] = useState(false);
+
+  // Available tool servers (MCP + built-in modules) for per-agent tool filtering
+  const [availableToolServers, setAvailableToolServers] = useState<
+    Array<{ name: string; displayName: string; toolCount: number }>
+  >([]);
+
+  useEffect(() => {
+    const load = async () => {
+      const merged = new Map<
+        string,
+        { name: string; displayName: string; toolCount: number }
+      >();
+      try {
+        const servers = await window.electronAPI.mcpAPI.listServers();
+        for (const s of servers || []) {
+          merged.set(s.name, {
+            name: s.name,
+            displayName: s.name,
+            toolCount: (s.tools || []).length,
+          });
+        }
+      } catch {}
+      try {
+        const modules = await window.electronAPI.tools.listModules();
+        for (const m of modules || []) {
+          merged.set(m.name, {
+            name: m.name,
+            displayName: m.displayName || m.name,
+            toolCount: m.toolCount ?? (m.tools || []).length,
+          });
+        }
+      } catch {}
+      setAvailableToolServers(Array.from(merged.values()));
+    };
+    load();
+  }, []);
+
+  /** Toggle one server for an agent. Empty selection = all allowed. */
+  const toggleToolServer = (agent: AIAgentConfig, serverName: string) => {
+    const all = availableToolServers.map((s) => s.name);
+    const current =
+      agent.allowedServers && agent.allowedServers.length > 0
+        ? new Set(agent.allowedServers)
+        : new Set(all);
+    if (current.has(serverName)) current.delete(serverName);
+    else current.add(serverName);
+    const allSelected = all.length > 0 && all.every((n) => current.has(n));
+    updateAgent(agent.id, {
+      allowedServers: allSelected ? undefined : Array.from(current),
+    });
+  };
 
   const refreshWeb3WalletGate = useCallback(async () => {
     try {
@@ -727,6 +779,48 @@ export const AIAgentsSettings: React.FC<AIAgentsSettingsProps> = ({
                           </span>
                         )}
                       </label>
+                    )}
+
+                    {/* Per-agent tool filtering (token minimization) */}
+                    {availableToolServers.length > 0 && (
+                      <div>
+                        <span className="text-sm text-gray-400 mb-1 block flex items-center gap-1">
+                          <Wrench size={12} />
+                          Tool access
+                        </span>
+                        <p className="text-xs text-gray-600 mb-2">
+                          Uncheck servers this agent doesn't need — fewer tools
+                          means smaller requests, lower token cost and higher
+                          rate-limit headroom. No selection = all allowed.
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {availableToolServers.map((s) => {
+                            const checked =
+                              !agent.allowedServers ||
+                              agent.allowedServers.length === 0 ||
+                              agent.allowedServers.includes(s.name);
+                            return (
+                              <label
+                                key={s.name}
+                                className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-950/60 border border-gray-800 rounded-lg cursor-pointer hover:border-gray-700 transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleToolServer(agent, s.name)}
+                                  className="accent-indigo-500"
+                                />
+                                <span className="text-xs text-gray-300 truncate">
+                                  {s.displayName}
+                                </span>
+                                <span className="text-[10px] text-gray-600 ml-auto font-mono">
+                                  {s.toolCount}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
 
                     <div className="grid grid-cols-2 gap-4">

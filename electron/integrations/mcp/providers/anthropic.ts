@@ -18,14 +18,21 @@ import type {
 // Anthropic-specific types
 // =============================================================================
 
+interface AnthropicImageSource {
+  type: "base64";
+  media_type: string;
+  data: string;
+}
+
 interface AnthropicContentBlock {
-  type: "text" | "tool_use" | "tool_result";
+  type: "text" | "tool_use" | "tool_result" | "image";
   text?: string;
   id?: string;
   name?: string;
   input?: Record<string, unknown>;
   tool_use_id?: string;
-  content?: string;
+  content?: string | AnthropicContentBlock[];
+  source?: AnthropicImageSource;
 }
 
 interface AnthropicMessage {
@@ -135,7 +142,32 @@ export class AnthropicProvider implements LLMProvider {
 
   private convertMessage(m: Message): AnthropicMessage {
     if (m.role === "tool") {
-      // Tool results are sent as user messages in Anthropic's format
+      // Tool results are sent as user messages in Anthropic's format.
+      // If the tool returned images, embed them as image blocks inside
+      // the tool_result content array so the model can actually see them.
+      if (m.images && m.images.length > 0) {
+        const blocks: AnthropicContentBlock[] = [
+          {
+            type: "tool_result",
+            tool_use_id: m.tool_call_id,
+            content: [
+              ...(m.content ? [{ type: "text" as const, text: m.content }] : []),
+              ...m.images.map(
+                (img): AnthropicContentBlock => ({
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: img.mimeType,
+                    data: img.base64,
+                  },
+                }),
+              ),
+            ],
+          },
+        ];
+        return { role: "user", content: blocks };
+      }
+
       return {
         role: "user",
         content: [

@@ -27,9 +27,15 @@ interface OpenAIToolCall {
   };
 }
 
+interface OpenAIMessagePart {
+  type: string;
+  text?: string;
+  image_url?: { url: string };
+}
+
 interface OpenAIMessage {
   role: string;
-  content: string | null;
+  content: string | null | OpenAIMessagePart[];
   tool_calls?: OpenAIToolCall[];
   tool_call_id?: string;
 }
@@ -61,8 +67,10 @@ export class OpenAIProvider implements LLMProvider {
     tools: MCPTool[],
     options?: LLMProviderOptions,
   ): Promise<LLMResponse> {
-    // Convert messages to OpenAI format
-    const openaiMessages: OpenAIMessage[] = messages.map((m) => {
+    // Convert messages to OpenAI format.
+    // OpenAI tool messages must have string content, so any images attached to
+    // a tool result are sent as a follow-up user message with data-URI parts.
+    const openaiMessages: OpenAIMessage[] = messages.flatMap((m) => {
       const msg: OpenAIMessage = {
         role: m.role,
         content: m.content,
@@ -80,7 +88,24 @@ export class OpenAIProvider implements LLMProvider {
       if (m.tool_call_id) {
         msg.tool_call_id = m.tool_call_id;
       }
-      return msg;
+
+      const out: OpenAIMessage[] = [msg];
+      if (m.images && m.images.length > 0) {
+        const parts: OpenAIMessagePart[] = [
+          {
+            type: "text",
+            text:
+              m.content ||
+              "Tool returned the following image(s) for you to analyze:",
+          },
+          ...m.images.map((img) => ({
+            type: "image_url",
+            image_url: { url: `data:${img.mimeType};base64,${img.base64}` },
+          })),
+        ];
+        out.push({ role: "user", content: parts });
+      }
+      return out;
     });
 
     const body: Record<string, unknown> = {
@@ -118,6 +143,17 @@ export class OpenAIProvider implements LLMProvider {
     const data = (await response.json()) as OpenAIResponse;
     const choice = data.choices[0];
 
+    // Response content can be a string or an array of parts; extract the text.
+    let responseContent = "";
+    if (typeof choice.message.content === "string") {
+      responseContent = choice.message.content;
+    } else if (Array.isArray(choice.message.content)) {
+      responseContent = choice.message.content
+        .filter((p) => p.type === "text" && p.text)
+        .map((p) => p.text)
+        .join("");
+    }
+
     // Convert tool calls to common format
     let toolCalls: ToolCall[] | undefined;
     if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
@@ -129,7 +165,7 @@ export class OpenAIProvider implements LLMProvider {
     }
 
     return {
-      content: choice.message.content || "",
+      content: responseContent,
       toolCalls,
     };
   }

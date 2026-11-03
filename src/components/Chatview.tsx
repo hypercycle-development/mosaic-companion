@@ -34,7 +34,10 @@ import {
   getMCPSystemPrompt,
   parseMosaicUI,
   getRichUISystemPrompt,
+  getOpenAITools,
+  resolveSafeToolName,
 } from "../services/ActionParser";
+import type { OpenAIToolDef, StreamedToolCall } from "../services/AIService";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import { INTERNAL_SETTINGS_URL } from "../types/types";
@@ -270,6 +273,54 @@ const RenderMessageContent: React.FC<{ content: string; role: "assistant" | "use
 /** Filter out ephemeral [System Context] messages — they should never be persisted */
 const stripSystemContext = (msgs: ChatMessage[]): ChatMessage[] =>
   msgs.filter(m => !m.content.startsWith("[System Context]"));
+
+// =============================================================================
+// Context economy — keep per-request token usage flat as sessions grow
+// =============================================================================
+
+/** Tool outputs above this size are truncated before entering the model context */
+const TOOL_OUTPUT_LIMIT = 8000;
+
+/** Max messages sent verbatim to the model; older turns are compacted */
+const MESSAGE_WINDOW = 16;
+
+/**
+ * Truncate oversized tool results before they enter the model context.
+ * Honest notice: the model only gets the head plus the original size —
+ * re-run the tool with narrower arguments if the tail is needed.
+ */
+const truncateToolOutput = (text: string, toolName: string): string => {
+  if (!text || text.length <= TOOL_OUTPUT_LIMIT) return text;
+  const safeName = (toolName || "tool").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
+  return (
+    text.slice(0, TOOL_OUTPUT_LIMIT) +
+    `\n\n[Tool output from ${safeName} truncated: showing first ${TOOL_OUTPUT_LIMIT} of ${text.length} chars. If you need more, call the tool again with narrower arguments.]`
+  );
+};
+
+/**
+ * Compact older conversation turns so long sessions don't re-send every
+ * message verbatim on every request. Keeps the first message (usually the
+ * system context) and the most recent window; older turns collapse to one
+ * short line each.
+ */
+const compactMessages = (msgs: ChatMessage[]): ChatMessage[] => {
+  if (msgs.length <= MESSAGE_WINDOW) return msgs;
+  const head = msgs.slice(0, 1);
+  const older = msgs.slice(1, msgs.length - MESSAGE_WINDOW);
+  const recent = msgs.slice(msgs.length - MESSAGE_WINDOW);
+  const summarized: ChatMessage[] = older.map((m, i) => ({
+    id: m.id || `compacted-${i}`,
+    role: m.role === "assistant" ? "assistant" : "user",
+    content:
+      m.role === "assistant"
+        ? `[Earlier assistant reply, compacted]`
+        : `[Earlier user message, compacted] ${m.content.slice(0, 80)}`,
+    timestamp: m.timestamp,
+    agentId: m.agentId,
+  }));
+  return [...head, ...summarized, ...recent];
+};
 
 export const ChatView: React.FC<ChatViewProps> = ({
   onNavigate,
@@ -578,7 +629,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const processAIResponse = async (
     currentSession: ChatSession,
     currentMessages: ChatMessage[],
-    depth: number = 0
+    depth: number = 0,
+    nativeTools?: OpenAIToolDef[]
   ) => {
     if (depth > 10) {
       console.warn("Max recursion depth reached");
@@ -587,6 +639,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
 
     let fullResponse = "";
+    let nativeToolCalls: StreamedToolCall[] | null = null;
 
     // Guard against double-append: onError may fire AND handleStream may
     // rethrow, landing us in the outer catch for the same failure.
@@ -647,7 +700,87 @@ export const ChatView: React.FC<ChatViewProps> = ({
             setStreamingContent(fullResponse);
           }
         },
+        onToolCalls: (toolCalls) => {
+          nativeToolCalls = toolCalls;
+        },
         onComplete: async (response) => {
+          // ── Native tool-calling path (openai/custom providers) ──
+          if (nativeToolCalls && nativeToolCalls.length > 0) {
+            const assistantMsg: ChatMessage = {
+              id: `msg-${Date.now()}`,
+              role: "assistant",
+              content: response || "",
+              timestamp: Date.now(),
+              agentId: selectedAgent!.id,
+              toolCalls: nativeToolCalls,
+            };
+
+            setStreamingContent(
+              `🛠️ Executing ${nativeToolCalls.map((tc) => tc.name.split(":")[1] || tc.name).join(", ")}...`,
+            );
+
+            // Execute all tool calls and build tool-result messages
+            const toolMsgs: ChatMessage[] = [];
+            for (const tc of nativeToolCalls) {
+              let args: Record<string, unknown> = {};
+              try { args = JSON.parse(tc.arguments || "{}"); } catch {}
+              const { server: tcServer, tool: tcTool } = resolveSafeToolName(tc.name);
+              const result = await executeToolCall(
+                { type: "TOOL_CALL", params: { server: tcServer, tool: tcTool, args }, cleanResponse: "" },
+                selectedAgent!.id,
+              );
+
+              const blocksAfterToast = result.uiBlocks
+                ? fireToolToasts(result.uiBlocks as import("./tool-ui/types").ToolUIBlock[])
+                : undefined;
+              const modalBlock = blocksAfterToast?.find(
+                (b: { type: string }) => b.type === "confirm-modal",
+              ) as ConfirmModalBlock | undefined;
+              if (modalBlock) setChatConfirmModal(modalBlock);
+
+              const inlineBlocks = blocksAfterToast?.filter(
+                (b: { type: string }) => b.type !== "confirm-modal" && b.type !== "detail-panel",
+              );
+
+              toolMsgs.push({
+                id: `msg-${Date.now()}-${tc.id}`,
+                role: "tool",
+                content: truncateToolOutput(result.text, tc.name),
+                timestamp: Date.now(),
+                agentId: selectedAgent!.id,
+                toolCallId: tc.id,
+                uiBlocks: inlineBlocks,
+                displayHint: result.displayHint,
+                mediaUrls: result.mediaUrls,
+              });
+            }
+
+            // Persist assistant(tool_calls) + tool results, then recurse.
+            // Recursion keeps currentMessages (incl. system context) like the text path;
+            // only the persisted session is stripped.
+            const persistMessages = stripSystemContext(currentMessages);
+            const nextMessages = [...persistMessages, assistantMsg, ...toolMsgs];
+            const nextSession = {
+              ...currentSession,
+              messages: nextMessages,
+              updatedAt: Date.now(),
+            };
+            setSessions((prev) =>
+              prev.map((s) => (s.id === currentSession.id ? nextSession : s)),
+            );
+            await saveSession(nextSession);
+
+            // If every tool result says "display", UI is the answer — stop here
+            if (toolMsgs.every((m) => m.displayHint === "display")) {
+              setStreamingContent("");
+              setIsGenerating(false);
+              return;
+            }
+
+            await processAIResponse(nextSession, [...compactMessages(currentMessages), assistantMsg, ...toolMsgs], depth + 1, nativeTools);
+            return;
+          }
+
           const assistantMsg: ChatMessage = {
             id: `msg-${Date.now()}`,
             role: "assistant",
@@ -707,7 +840,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
              const toolMsg: ChatMessage = {
                  id: `msg-${Date.now() + 1}`,
                  role: "user",
-                 content: `[Tool Output for ${action.params?.server}:${action.params?.tool}]\n${result.text}\n\n[Instruction: Use ONLY the data above. Respond in 1-2 sentences. Do not add data from your training — only from this tool output.]`,
+                 content: `[Tool Output for ${action.params?.server}:${action.params?.tool}]\n${truncateToolOutput(result.text, `${action.params?.server}:${action.params?.tool}`)}\n\n[Instruction: Use ONLY the data above. Respond in 1-2 sentences. Do not add data from your training — only from this tool output.]`,
                  timestamp: Date.now(),
                  agentId: selectedAgent!.id,
                  uiBlocks: inlineBlocks,
@@ -736,8 +869,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
              // "analyze" (default) = send data back to agent for commentary
              // Keep system context for the AI on the recursive call
-             const aiMessages = [...currentMessages, cleanedAssistantMsg, toolMsg];
-             await processAIResponse(nextSession, aiMessages, depth + 1);
+             const aiMessages = [...compactMessages(currentMessages), cleanedAssistantMsg, toolMsg];
+             await processAIResponse(nextSession, aiMessages, depth + 1, nativeTools);
              return;
           }
 
@@ -785,7 +918,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             console.error("Stream error:", error);
             await appendError(error);
         }
-      });
+      }, nativeTools);
     } catch (error) {
        // Pre-stream errors (e.g. 401/429 thrown before streaming starts) land
        // here — surface them in the chat instead of only console.error-ing.
@@ -860,6 +993,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
         const systemPrompts: string[] = [];
         const useMosaicAgentContext = selectedAgent.provider !== "hypercycle";
 
+        // Native tool calling: openai/custom providers get tools via the API
+        // `tools` parameter instead of a text catalog in the system context.
+        const supportsNativeTools =
+          selectedAgent.provider === "openai" || selectedAgent.provider === "custom";
+        let nativeTools: OpenAIToolDef[] | undefined;
+        if (supportsNativeTools) {
+          try {
+            nativeTools = await getOpenAITools(mcpServers, selectedAgent.allowedServers);
+          } catch (e) {
+            console.error("Failed to build native tools:", e);
+          }
+        }
+
         if (useMosaicAgentContext) {
           // 0. Universal anti-hallucination header
           systemPrompts.push(
@@ -869,21 +1015,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
               `If no tool is available for the request, say so — do not guess.`,
           );
 
-          // 1. MCP Context
-          const mcpPrompt = getMCPSystemPrompt(mcpServers);
-          if (mcpPrompt) {
-            systemPrompts.push(mcpPrompt);
-          }
-
-          // 2. Built-in tools context (Gmail, Web3, Vault, WASM) — the ToolRegistry
-          //    aggregates system prompts from all available modules.
-          try {
-            const toolsPrompt = await window.electronAPI?.tools?.getSystemPrompt?.();
-            if (toolsPrompt) {
-              systemPrompts.push(toolsPrompt);
+          // 1. MCP Context — only for providers WITHOUT native tool calling
+          //    (native providers receive the same tools via the API `tools` field).
+          //    Same per-agent server filter as the native path, so "Tool access"
+          //    checkboxes shrink the injected catalog for Gemini/Ollama too.
+          if (!supportsNativeTools) {
+            const mcpPrompt = getMCPSystemPrompt(mcpServers, selectedAgent.allowedServers);
+            if (mcpPrompt) {
+              systemPrompts.push(mcpPrompt);
             }
-          } catch (e) {
-            console.error("Failed to get tools system prompt:", e);
+
+            // 2. Built-in tools context (Gmail, Web3, Vault, WASM) — the ToolRegistry
+            //    aggregates system prompts from all available modules.
+            try {
+              const toolsPrompt = await window.electronAPI?.tools?.getSystemPrompt?.();
+              if (toolsPrompt) {
+                systemPrompts.push(toolsPrompt);
+              }
+            } catch (e) {
+              console.error("Failed to get tools system prompt:", e);
+            }
           }
 
           // 3. Vault context — tell the agent which boxes it can access
@@ -922,8 +1073,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
             messagesForAI.unshift(systemMessage);
         }
 
-        // Start Recursive Loop
-        await processAIResponse(updatedSession, messagesForAI);
+        // Start Recursive Loop — compact long sessions before the first request
+        await processAIResponse(updatedSession, compactMessages(messagesForAI), 0, nativeTools);
 
     } catch (e) {
         console.error(e);
@@ -1174,6 +1325,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
             ) : (
               <div className="space-y-6">
                 {activeSession?.messages.map((message) => {
+                  // Native tool results → centered collapsed chip
+                  if (message.role === "tool") {
+                    return (
+                      <div key={message.id} className="flex justify-center">
+                        <div className="max-w-[90%]">
+                          <ToolChip label="Tool result" detail={message.content || "(empty)"} />
+                          {message.uiBlocks && message.uiBlocks.length > 0 && (
+                            <ToolUIRenderer blocks={message.uiBlocks} />
+                          )}
+                          {message.mediaUrls && message.mediaUrls.length > 0 && (
+                            <MediaDisplay mediaUrls={message.mediaUrls} autoDisplay={autoDisplayMedia} />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
                   // Detect tool-related messages (output or system context)
                   const isToolOutput =
                     message.role === "user" &&

@@ -212,9 +212,22 @@ if (process.platform === 'win32') {
 // =============================================================================
 // Single Instance Lock
 // =============================================================================
-const gotTheLock = app.requestSingleInstanceLock();
+// E2E tests set MOSAIC_ALLOW_MULTI_INSTANCE=1 to run against an isolated
+// profile without fighting the installed app for the lock.
+const gotTheLock =
+  process.env.MOSAIC_ALLOW_MULTI_INSTANCE === "1" || app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
+}
+
+// E2E tests can redirect the whole profile (agents, history, MCP plugins)
+// to a scratch directory so tests never touch the user's real data.
+// The directory must exist before anything writes into it (e.g. the
+// input_history.csv bootstrap further down would otherwise throw ENOENT
+// during module load and silently skip every IPC handler registered after it).
+if (process.env.MOSAIC_USER_DATA_DIR) {
+  fs.mkdirSync(process.env.MOSAIC_USER_DATA_DIR, { recursive: true });
+  app.setPath("userData", process.env.MOSAIC_USER_DATA_DIR);
 }
 
 // =============================================================================

@@ -22,10 +22,24 @@ import {
   type HypercycleStreamCallbacks,
 } from "./hypercycleAgent";
 
+export interface OpenAIToolDef {
+  type: "function";
+  function: { name: string; description?: string; parameters?: Record<string, unknown> };
+}
+
+/** Accumulated native tool call from a streamed OpenAI-compatible response */
+export interface StreamedToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
 interface StreamCallbacks {
   onToken: (token: string) => void;
   onComplete: (fullResponse: string) => void;
   onError: (error: Error) => void;
+  /** Native tool calls detected in the stream (OpenAI-compatible providers only) */
+  onToolCalls?: (toolCalls: StreamedToolCall[]) => void;
 }
 
 export class AIService {
@@ -70,11 +84,12 @@ export class AIService {
     return data.content[0].text;
   }
 
-  // Send message to OpenAI API
+  // Send message to OpenAI API (supports native tool calling)
   static async sendToOpenAI(
     config: AIAgentConfig,
     messages: ChatMessage[],
-    callbacks?: StreamCallbacks
+    callbacks?: StreamCallbacks,
+    tools?: OpenAIToolDef[]
   ): Promise<string> {
     const response = await fetch(
       `${config.baseUrl || "https://api.openai.com"}/v1/chat/completions`,
@@ -88,10 +103,25 @@ export class AIService {
           model: config.model,
           max_tokens: config.maxTokens || 4096,
           temperature: config.temperature || 0.7,
-          messages: messages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          messages: messages.map((m) => {
+            // Native tool-calling protocol messages
+            if (m.role === "tool") {
+              return { role: "tool", content: m.content, tool_call_id: m.toolCallId };
+            }
+            if (m.role === "assistant" && m.toolCalls?.length) {
+              return {
+                role: "assistant",
+                content: m.content || null,
+                tool_calls: m.toolCalls.map((tc) => ({
+                  id: tc.id,
+                  type: "function",
+                  function: { name: tc.name, arguments: tc.arguments },
+                })),
+              };
+            }
+            return { role: m.role, content: m.content };
+          }),
+          ...(tools && tools.length > 0 ? { tools, tool_choice: "auto" } : {}),
           stream: !!callbacks,
         }),
       }
@@ -107,7 +137,17 @@ export class AIService {
     }
 
     const data = await response.json();
-    return data.choices[0].message.content;
+    const msg = data.choices?.[0]?.message;
+    if (msg?.tool_calls?.length && callbacks?.onToolCalls) {
+      callbacks.onToolCalls(
+        msg.tool_calls.map((tc: any) => ({
+          id: tc.id,
+          name: tc.function?.name,
+          arguments: tc.function?.arguments || "{}",
+        }))
+      );
+    }
+    return msg?.content ?? "";
   }
 
   // Send message to Gemini API
@@ -204,6 +244,7 @@ export class AIService {
     const reader = body.getReader();
     const decoder = new TextDecoder();
     let fullResponse = "";
+    const pendingToolCalls: StreamedToolCall[] = [];
 
     try {
       while (true) {
@@ -228,6 +269,19 @@ export class AIService {
               }
             } else if (provider === "openai") {
               token = parsed.choices?.[0]?.delta?.content || "";
+              // Accumulate native tool call fragments across chunks
+              const tcDeltas = parsed.choices?.[0]?.delta?.tool_calls;
+              if (Array.isArray(tcDeltas)) {
+                for (const tc of tcDeltas) {
+                  const idx = tc.index ?? 0;
+                  if (!pendingToolCalls[idx]) {
+                    pendingToolCalls[idx] = { id: "", name: "", arguments: "" };
+                  }
+                  if (tc.id) pendingToolCalls[idx].id = tc.id;
+                  if (tc.function?.name) pendingToolCalls[idx].name += tc.function.name;
+                  if (tc.function?.arguments) pendingToolCalls[idx].arguments += tc.function.arguments;
+                }
+              }
             } else if (provider === "gemini") {
               token = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
             }
@@ -242,6 +296,9 @@ export class AIService {
         }
       }
 
+      if (pendingToolCalls.length > 0 && callbacks.onToolCalls) {
+        callbacks.onToolCalls(pendingToolCalls.filter(Boolean));
+      }
       callbacks.onComplete(fullResponse);
       return fullResponse;
     } catch (error) {
@@ -379,20 +436,21 @@ export class AIService {
   static async sendMessage(
     config: AIAgentConfig,
     messages: ChatMessage[],
-    callbacks?: StreamCallbacks
+    callbacks?: StreamCallbacks,
+    tools?: OpenAIToolDef[]
   ): Promise<string> {
     switch (config.provider) {
       case "claude":
         return this.sendToClaude(config, messages, callbacks);
       case "openai":
-        return this.sendToOpenAI(config, messages, callbacks);
+        return this.sendToOpenAI(config, messages, callbacks, tools);
       case "gemini":
         return this.sendToGemini(config, messages, callbacks);
       case "ollama":
         return this.sendToOllama(config, messages, callbacks);
       case "custom":
         // Custom endpoints assume OpenAI-compatible API
-        return this.sendToOpenAI(config, messages, callbacks);
+        return this.sendToOpenAI(config, messages, callbacks, tools);
       case "hypercycle":
         return this.sendToHypercycle(config, messages, callbacks);
       default:
