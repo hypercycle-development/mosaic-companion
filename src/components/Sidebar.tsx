@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  Home,
   Settings,
-  Star,
-  Clock,
-  LayoutGrid,
   ChevronLeft,
   Plus,
   Database,
@@ -18,9 +14,6 @@ import {
   MessageSquare,
   Server,
   RefreshCw,
-  BrainCircuit,
-  Plug,
-  Lock,
   Activity,
   Zap,
   Trophy,
@@ -30,13 +23,6 @@ import {
   Box,
   Shield,
   Hash,
-  Code2,
-  Rocket,
-  Store,
-  Wallet,
-  Network,
-  Boxes,
-  Telescope,
 } from "lucide-react";
 import {
   INTERNAL_SETTINGS_URL,
@@ -49,6 +35,7 @@ import { CORE_TABS } from "../tabs/registry";
 import { AIAgentConfig, PROVIDER_INFO } from "../types/ai";
 import { NodeMiniDetailPanel } from "./nodes/NodeMiniDetailPanel";
 import type { InstalledTool } from "../../electron/integrations/sandbox/types";
+import { addonIconFor } from "./addonIcons";
 
 /** Map manifest icon names → lucide components (shared with ToolPanelView) */
 const TOOL_ICON_MAP: Record<string, React.FC<{ size?: number; className?: string }>> = {
@@ -57,18 +44,10 @@ const TOOL_ICON_MAP: Record<string, React.FC<{ size?: number; className?: string
   box: Box, shield: Shield, hash: Hash,
 };
 
-/**
- * Addon tab icons — manifest `tab.icon` uses Lucide PascalCase names
- * (unlike `TOOL_ICON_MAP`'s lowercase WASM-tool-manifest keys). Curated, not
- * a passthrough to all of lucide-react, to keep the bundle small; fallback
- * is LayoutGrid via `renderNavIcon`'s existing default case.
- */
-const ADDON_ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
-  Server, Zap, Cpu, Activity, Trophy, BarChart3, Globe, Database, Layers, Box,
-  Shield, Hash, Rocket, Store, Wallet, Network, Boxes, Telescope, Sparkles,
-  Lock, Bot, MessageSquare, Settings, Home, Plug, BrainCircuit, Code2, Star,
-  Clock, Power, LayoutGrid,
-};
+// Addon tab icons (manifest `tab.icon`, Lucide PascalCase — unlike
+// `TOOL_ICON_MAP`'s lowercase WASM-tool-manifest keys) live in
+// ./addonIcons, which is the single published source for the set. See
+// `renderNavIcon` below.
 
 interface AddonTabInfo {
   tabId: string;
@@ -362,62 +341,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const activeAgents = aiAgents.filter((a) => a.isActive);
 
+  // Every nav icon — core tab and addon tab alike — resolves through the one
+  // published map, so a name the sidebar can draw and a name the catalogue
+  // accepts are the same name by construction.
   const renderNavIcon = (iconName: string, className: string) => {
-    switch (iconName) {
-      case "Home":
-        return <Home className={className} />;
-      case "Settings":
-        return <Settings className={className} />;
-      case "Star":
-        return <Star className={className} />;
-      case "Clock":
-        return <Clock className={className} />;
-      case "Bot":
-        return <Bot className={className} />;
-      case "BrainCircuit":
-        return <BrainCircuit className={className} />;
-      case "Plug":
-        return <Plug className={className} />;
-      case "MessageSquare":
-        return <MessageSquare className={className} />;
-      case "Eth":
-        return (
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 256 417"
-            className={className}
-            fill="currentColor"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M127.961 0L125.166 9.5V285.168L127.961 287.958L255.923 212.32L127.961 0Z"
-              opacity="0.8"
-            />
-            <path d="M127.962 0L0 212.32L127.962 287.959V154.158V0Z" />
-            <path
-              d="M127.961 312.187L126.386 314.107V412.306L127.961 416.905L255.999 236.587L127.961 312.187Z"
-              opacity="0.8"
-            />
-            <path d="M127.962 416.905V312.187L0 236.587L127.962 416.905Z" />
-          </svg>
-        );
-      case "Lock":
-        return <Lock className={className} />;
-      case "Activity":
-        return <Activity className={className} />;
-      case "Cpu":
-        return <Cpu className={className} />;
-      case "Code2":
-        return <Code2 className={className} />;
-      default: {
-        // Addon tab icons — curated PascalCase Lucide name lookup,
-        // falling back to LayoutGrid for anything unrecognized.
-        const AddonIcon = ADDON_ICON_MAP[iconName];
-        if (AddonIcon) return <AddonIcon className={className} />;
-        return <LayoutGrid className={className} />;
-      }
-    }
+    const Icon = addonIconFor(iconName);
+    return <Icon className={className} />;
   };
 
   return (
