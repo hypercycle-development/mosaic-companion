@@ -140,6 +140,56 @@ check("no version appeared after the version being described", () => {
   assert.deepStrictEqual(late, []);
 });
 
+check("the methods the catalogue's gates depend on are all present", () => {
+  // THE FLOORS ABOVE ARE NOT ENOUGH, and this is why. They ask for at least 8
+  // namespaces and at least 25 methods against an actual 10 and 32, so a parse
+  // that silently loses SEVEN methods still passes — and silent partial loss is
+  // the generator's real failure mode, not total loss. Measured 2026-11-27:
+  // rewriting one namespace as `files: { ...fileHelpers, readBinary }` emitted
+  // `files: ["readBinary"]`, a well-formed description of a smaller API, and
+  // every check in this file passed. The catalogue would then have refused every
+  // add-on calling `files.read` for naming a method that "does not exist".
+  //
+  // `props()` now refuses a construct it cannot read, which is the first line of
+  // defence. This is the second, and it is the one that does not depend on
+  // having anticipated the construct: it names methods by hand, so anything
+  // that drops one fails here whatever the cause.
+  //
+  // Add to this list when a gate starts depending on a method. Do not prune it
+  // to match a surface that got smaller — that inverts the test.
+  const required = [
+    "files.read", "files.readBinary", "files.write", "files.list",
+    "buckets.list", "buckets.read", "buckets.write",
+    "nodes.list", "nodes.getSavedAims",
+    "wallet.getAddress",
+    "events.on",
+    "ui.openExternal",
+    "system.getAppInfo",
+  ];
+  const have = new Set(
+    Object.entries(surface.api.namespaces).flatMap(([ns, spec]) =>
+      Object.keys(spec.methods).map((m) => `${ns}.${m}`),
+    ),
+  );
+  const missing = required.filter((k) => !have.has(k));
+  assert.deepStrictEqual(
+    missing,
+    [],
+    `the published surface is missing ${missing.join(", ")} — either the preload changed ` +
+      `deliberately (update this list and the vendored copy in mosaic-open-platform) or the ` +
+      `AST walk stopped reading something (fix the generator)`,
+  );
+});
+
+check("no published namespace is empty", () => {
+  // A namespace with no methods is the same silent-loss signature, one level up:
+  // the walk found the key and nothing inside it.
+  const empty = Object.entries(surface.api.namespaces)
+    .filter(([, spec]) => Object.keys(spec.methods).length === 0)
+    .map(([ns]) => ns);
+  assert.deepStrictEqual(empty, [], "a namespace was published with no methods in it");
+});
+
 check("the add-on bridge did not exist before the horizon", () => {
   // Not decoration. It is the floor every `minAppVersion` claim is measured
   // against: an add-on calling any addonAPI method at all cannot honestly

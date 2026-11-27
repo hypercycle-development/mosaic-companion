@@ -265,6 +265,23 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      # RUN THE TESTS BEFORE GENERATING, not only on pull requests.
+      #
+      # `build-check.yml` runs `test:surface` on every pull request, which is
+      # where this was assumed to be covered — but a release can be cut from any
+      # ref, and `enforce_admins` is off on `main`, so a commit that never went
+      # through a pull request reaches this job with nothing having checked the
+      # generator. The artifact then ships, `finalize` will not publish without
+      # it, and the catalogue gates every submission against it.
+      #
+      # The failure this guards is silent by construction: the generator walks
+      # the TypeScript AST, so a refactor it cannot read yields a WELL-FORMED
+      # description of a smaller API, and every add-on calling a dropped method
+      # is then refused for naming something that "does not exist". A wrong
+      # surface is worse than a missing one.
+      - name: Add-on surface tests
+        run: npm run test:surface
+
       - name: Generate the add-on surface
         run: node scripts/addon-surface.mjs --out addon-surface.json
 

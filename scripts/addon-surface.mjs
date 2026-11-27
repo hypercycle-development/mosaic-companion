@@ -149,14 +149,59 @@ function literal(node) {
   return undefined;
 }
 
-/** Property name → initializer, for an object literal. */
+/**
+ * Property name → initializer, for an object literal.
+ *
+ * REFUSES WHAT IT CANNOT READ, rather than skipping it. This used to `continue`
+ * past any property with no readable name, which is every spread — a
+ * `SpreadAssignment` has no `.name` at all. The failure that produced is the
+ * worst one this generator has, because every part of it looks healthy:
+ *
+ *   files: { ...fileMethods, readBinary }   →   files: ["readBinary"]
+ *
+ * The emitted surface is well-formed, the tests pass (their floors are "at
+ * least 8 namespaces, at least 25 methods", and this loses a handful), the
+ * release attaches it, and then the catalogue blocks every submission calling
+ * `files.read` for naming "no such method". A wrong surface is worse than no
+ * surface: it refuses correct add-ons with a confident reason. Measured
+ * 2026-11-27 by running these same AST readers over a preload refactored that
+ * way.
+ *
+ * A computed key (`[KEY]: …`) is refused for the same reason — the name is not
+ * knowable from the syntax, so silently dropping it would understate the
+ * surface in exactly the same direction.
+ *
+ * Throwing is right here and not merely loud. This runs in `release.yml`, which
+ * will not publish without the artifact, so a crash stops a release and a
+ * silent omission ships one.
+ */
 function props(node) {
   node = unwrap(node);
   const out = new Map();
   if (!node || !ts.isObjectLiteralExpression(node)) return out;
   for (const p of node.properties) {
     const name = p.name && (ts.isIdentifier(p.name) || ts.isStringLiteralLike(p.name)) ? p.name.text : null;
-    if (!name) continue;
+    if (!name) {
+      const sf = p.getSourceFile();
+      const { line } = sf.getLineAndCharacterOfPosition(p.getStart());
+      // `readAt` can name a source file by a path outside this checkout — it
+      // reads at a git ref — so only use the relative form when it stays inside.
+      const relToRepo = path.relative(REPO, sf.fileName);
+      const where = relToRepo.startsWith("..") ? sf.fileName : relToRepo;
+      const what = ts.isSpreadAssignment(p)
+        ? "a spread"
+        : p.name
+          ? "a computed property name"
+          : ts.SyntaxKind[p.kind];
+      throw new Error(
+        `addon-surface: cannot read ${what} in an object literal at ` +
+          `${where}:${line + 1} — ${p.getText().slice(0, 80)}\n` +
+          `  This generator describes the add-on surface the catalogue gates against, so a member ` +
+          `it cannot name would be silently MISSING from that description, and every submission ` +
+          `using it would then be refused for calling a method that "does not exist".\n` +
+          `  Fix the generator to understand this construct, or write the object literal out.`,
+      );
+    }
     if (ts.isPropertyAssignment(p)) out.set(name, p.initializer);
     else if (ts.isShorthandPropertyAssignment(p) || ts.isMethodDeclaration(p)) out.set(name, null);
   }
