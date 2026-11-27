@@ -11,3 +11,22 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+--------------------------------------------------------------------------------
+
+BUNDLED ADD-ONS
+
+This application ships one add-on inside the build, and that add-on is the work
+of someone outside HyperCycle. Its own licence and attribution notice travel
+with it:
+
+    bundled-addons/hyperinsight/LICENSE
+    bundled-addons/hyperinsight/NOTICE
+
+HyperInsight is the work of @ponchohauncho (https://github.com/ponchohauncho),
+licensed under the Apache License, Version 2.0. HyperCycle's interest is in the
+integration work that made it a MosAIc plugin and then an add-on.
+
+Add-ons installed from the catalogue are not covered here. Each carries its own
+licence inside its own directory, which is the shape mosaic-open-platform's
+LICENSING.md describes.
