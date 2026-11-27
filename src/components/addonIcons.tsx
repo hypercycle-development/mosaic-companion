@@ -47,6 +47,7 @@ import {
   Store,
   Telescope,
   Trophy,
+  Video,
   Wallet,
   Zap,
 } from "lucide-react";
@@ -106,6 +107,7 @@ export const ADDON_ICON_NAMES = [
   "Store",
   "Telescope",
   "Trophy",
+  "Video",
   "Wallet",
   "Zap",
 ] as const;
@@ -151,6 +153,7 @@ export const ADDON_ICON_MAP: Record<AddonIconName, React.FC<{ className?: string
   Store,
   Telescope,
   Trophy,
+  Video,
   Wallet,
   Zap,
 };
